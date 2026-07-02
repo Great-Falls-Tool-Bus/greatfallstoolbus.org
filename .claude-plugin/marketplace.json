@@ -14,7 +14,7 @@
 			"description": "Six tinyland skills bundled as one plugin: tinyland-whoami (repo-role classifier), tinyland-spawn-sister-site (template a new spoke), tinyland-scaffold-doctor (drift audit), tinyland-repo-contract (house-style baseline), tinyland-static-spoke (per-spoke customization), tinyland-flywheel-bazel (cache-first Bazel + RBE).",
 			"source": {
 				"source": "git-subdir",
-				"url": "https://github.com/tinyland-inc/site.scaffold",
+				"url": "https://github.com/tinyland-inc/greatfallstoolbus.org",
 				"path": "plugins/scaffold-core",
 				"ref": "main"
 			},
@@ -26,8 +26,8 @@
 				"./skills/tinyland-static-spoke",
 				"./skills/tinyland-flywheel-bazel"
 			],
-			"homepage": "https://github.com/tinyland-inc/site.scaffold",
-			"documentation": "https://github.com/tinyland-inc/site.scaffold/blob/main/AGENTS.md",
+			"homepage": "https://github.com/tinyland-inc/greatfallstoolbus.org",
+			"documentation": "https://github.com/tinyland-inc/greatfallstoolbus.org/blob/main/AGENTS.md",
 			"license": "MIT",
 			"keywords": [
 				"tinyland",

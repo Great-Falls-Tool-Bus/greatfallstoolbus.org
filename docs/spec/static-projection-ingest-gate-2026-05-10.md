@@ -2,7 +2,7 @@
 
 Linear: `TIN-1028`, `TIN-1024`, `TIN-731`
 
-`site.scaffold` provides the house static-site ingestion gate for reviewed
+`greatfallstoolbus.org` provides the house static-site ingestion gate for reviewed
 Tinyland snapshots. This spec covers the checked-in snapshot mode only. The gate
 exists so generated sister sites can consume Tinyland hub projections without
 becoming brokers, mutation APIs, checkout owners, media authorities, or

@@ -1,7 +1,7 @@
 # Security policy
 
 This repository is the source for the static marketing/devtool site at
-<https://site.scaffold>. The site itself is purely static — no server
+<https://greatfallstoolbus.org>. The site itself is purely static — no server
 runtime, no user accounts, no inbound data, no analytics.
 
 ## Reporting a vulnerability
@@ -10,7 +10,7 @@ Until a public security email is published, please report security
 issues against this site via a **private GitHub security advisory** on
 this repository:
 
-<https://github.com/tinyland-inc/site.scaffold/security/advisories/new>
+<https://github.com/tinyland-inc/greatfallstoolbus.org/security/advisories/new>
 
 ## Scope
 

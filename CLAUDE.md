@@ -1,6 +1,6 @@
-# Claude — site.scaffold sister site
+# Claude — greatfallstoolbus.org sister site
 
-This is a sister site spawned from `tinyland-inc/site.scaffold`. Read
+This is a sister site spawned from `tinyland-inc/greatfallstoolbus.org`. Read
 `AGENTS.md` first for the authoritative operating contract.
 
 Quick reminders:
@@ -19,4 +19,4 @@ Quick reminders:
 - Skeleton 4.15.2 pinned exact. Tailwind v4 with `skeletonTailwindV4Compat()`
   shim. Do not unpin.
 - Bazel registry: `tinyland-inc/bazel-registry` first, then BCR.
-- See parent: https://github.com/tinyland-inc/site.scaffold
+- See parent: https://github.com/tinyland-inc/greatfallstoolbus.org

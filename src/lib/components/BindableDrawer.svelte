@@ -6,7 +6,7 @@
 	// same prop so programmatic closes (clicking a nav link) and user-driven
 	// closes (Esc / backdrop) both stay in sync. A `children` snippet fills the
 	// body so this stays generic. Lifted from MassageIthaca's MobileMenuDrawer
-	// (TIN-2225); Dialog usage mirrors site.scaffold's own +layout.svelte.
+	// (TIN-2225); Dialog usage mirrors greatfallstoolbus.org's own +layout.svelte.
 	//
 	// Usage (in a parent component):
 	//   let open = $state(false);

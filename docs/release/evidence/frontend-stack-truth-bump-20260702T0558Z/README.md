@@ -1,4 +1,4 @@
-# Evidence — frontend-stack-truth-bump (prompt 34) wave-1 residuals, site.scaffold half
+# Evidence — frontend-stack-truth-bump (prompt 34) wave-1 residuals, greatfallstoolbus.org half
 
 Date: 2026-07-02 (UTC). Linear: TIN-2348 (residuals of TIN-2222/TIN-2223, both Done 2026-06-30).
 

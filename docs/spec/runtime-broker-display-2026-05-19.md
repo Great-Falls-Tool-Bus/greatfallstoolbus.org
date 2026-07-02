@@ -2,7 +2,7 @@
 
 Linear: `TIN-1437`, `TIN-1436`, `TIN-1487`
 
-`site.scaffold` can also seed read-only spokes whose content is displayed from a
+`greatfallstoolbus.org` can also seed read-only spokes whose content is displayed from a
 Tinyland broker route at runtime. This is the house pattern for
 Cloudflare-Pages-hosted blog and Pulse sites, including the TransScend Survival
 blog lane.

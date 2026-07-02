@@ -1,6 +1,6 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "https://raw.githubusercontent.com/tinyland-inc/site.scaffold/main/docs/schemas/tinyland-repo-manifest.schema.json",
+	"$id": "https://raw.githubusercontent.com/tinyland-inc/greatfallstoolbus.org/main/docs/schemas/tinyland-repo-manifest.schema.json",
 	"title": "Tinyland repo manifest",
 	"description": "Declarative repo-shape manifest for Tinyland repos. This distinguishes org-wide rules from static-spoke, mothership, app/stateful spoke, CI-template, GitOps receiver, and infra-substrate contracts.",
 	"type": "object",
@@ -16,7 +16,7 @@
 		"scaffold_tag": {
 			"type": "string",
 			"minLength": 1,
-			"description": "The site.scaffold release tag this repo was spawned from (e.g. v0.1.0). Stamped by scripts/rebrand.sh at spawn time and read by tinyland-scaffold-doctor Layer 2 for the version-drift diff; when absent the doctor silently falls back to the latest release. The scaffold template itself carries its own current release tag."
+			"description": "The greatfallstoolbus.org release tag this repo was spawned from (e.g. v0.1.0). Stamped by scripts/rebrand.sh at spawn time and read by tinyland-scaffold-doctor Layer 2 for the version-drift diff; when absent the doctor silently falls back to the latest release. The scaffold template itself carries its own current release tag."
 		},
 		"repo": {
 			"type": "object",

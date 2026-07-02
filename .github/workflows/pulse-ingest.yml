@@ -39,7 +39,7 @@ jobs:
     name: Sync reviewed Tinyland projection
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.repository != 'tinyland-inc/site.scaffold' || github.event_name == 'workflow_dispatch'
+    if: github.repository != 'tinyland-inc/greatfallstoolbus.org' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v7
 

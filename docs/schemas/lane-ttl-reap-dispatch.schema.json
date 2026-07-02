@@ -1,6 +1,6 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "https://raw.githubusercontent.com/tinyland-inc/site.scaffold/main/docs/schemas/lane-ttl-reap-dispatch.schema.json",
+	"$id": "https://raw.githubusercontent.com/tinyland-inc/greatfallstoolbus.org/main/docs/schemas/lane-ttl-reap-dispatch.schema.json",
 	"title": "Tinyland lane TTL reap repository_dispatch payload",
 	"description": "Canonical scheduled TTL backstop payload. Spokes request a sweep; Blahaj owns listing and idempotent destruction of expired lane environments.",
 	"type": "object",

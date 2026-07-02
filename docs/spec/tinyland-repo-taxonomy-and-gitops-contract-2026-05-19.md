@@ -1,6 +1,6 @@
 # Tinyland Repo Taxonomy and GitOps Convergence - 2026-05-19
 
-Status: working specification for `site.scaffold`, `ci-templates`, Blahaj,
+Status: working specification for `greatfallstoolbus.org`, `ci-templates`, Blahaj,
 GloriousFlywheel, MassageIthaca-shaped app repos, and `tinyland.dev`.
 
 Linear: TIN-1570, under TIN-1437 "Spoke Fan-out + CI House-Style v2".
@@ -48,7 +48,7 @@ Applies to repos that consume or produce Tinyland packages.
 
 ### 3. Static Spoke Contract
 
-Applies to repos spawned from `tinyland-inc/site.scaffold`.
+Applies to repos spawned from `tinyland-inc/greatfallstoolbus.org`.
 
 - The repo is a static projection consumer, not an app backend.
 - It does not own auth, user data, payments, media lifecycle, ActivityPub
@@ -71,7 +71,7 @@ Applies to `tinyland.dev`.
 - It consumes Bazel modules but is not a static projection consumer.
 - It may own runtime policy and internal integration glue that a static spoke
   must never inherit.
-- Its CI/conformance surface should not be forced through `site.scaffold`
+- Its CI/conformance surface should not be forced through `greatfallstoolbus.org`
   static-spoke checks. It still shares the org-wide repo and Bazel/cache
   contracts.
 
@@ -93,7 +93,7 @@ Applies to MassageIthaca-shaped repos.
 
 Applies to `tinyland-inc/blahaj`.
 
-- Blahaj validates `site.scaffold`/`ci-templates` dispatch schemas itself.
+- Blahaj validates `greatfallstoolbus.org`/`ci-templates` dispatch schemas itself.
 - Blahaj routes by `client_payload.spoke`, not by bespoke workflow names such as
   `massageithaca-pr-envs`.
 - Blahaj owns apply, smoke, final per-lane commit statuses, PR-close reap,
@@ -105,7 +105,7 @@ Applies to `tinyland-inc/blahaj`.
 
 For a static spoke:
 
-1. Create from `site.scaffold`.
+1. Create from `greatfallstoolbus.org`.
 2. Run `scripts/rebrand.sh <domain>`.
 3. Fill `tofu/spoke.auto.tfvars`.
 4. Edit `.github/lanes.json` only when the lane topology changes.
@@ -163,7 +163,7 @@ that caps all PR lanes at 168h is stale.
 
 ## Repo Workstreams
 
-### `site.scaffold`
+### `greatfallstoolbus.org`
 
 - Keep `docs/CI-SCHEMA.md` scoped to static spokes.
 - Keep this taxonomy spec as the cross-repo map.

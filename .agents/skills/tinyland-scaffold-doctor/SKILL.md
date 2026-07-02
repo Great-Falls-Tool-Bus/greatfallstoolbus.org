@@ -1,6 +1,6 @@
 ---
 name: tinyland-scaffold-doctor
-description: Audit a Tinyland repo for drift against the site.scaffold house-style contract. Reports a structured scorecard covering Justfile recipes, flake.nix toolchain, .gitleaks.toml rules, AGENTS.md / CLAUDE.md presence, tinyland.repo.json validity, .agents/skills/* presence and naming, .bazelrc / .bazelrc.flywheel shape (endpoint-free), Skeleton/Tailwind pins, snapshot ingestion recipes, lanes.json schema validity, and CI workflow inheritance from ci-templates. Use when onboarding to an unfamiliar sister site, debugging "why does CI fail here but not in scaffold", validating a spawn worked, or pre-merge before raising a PR that bumps the scaffold tag.
+description: Audit a Tinyland repo for drift against the greatfallstoolbus.org house-style contract. Reports a structured scorecard covering Justfile recipes, flake.nix toolchain, .gitleaks.toml rules, AGENTS.md / CLAUDE.md presence, tinyland.repo.json validity, .agents/skills/* presence and naming, .bazelrc / .bazelrc.flywheel shape (endpoint-free), Skeleton/Tailwind pins, snapshot ingestion recipes, lanes.json schema validity, and CI workflow inheritance from ci-templates. Use when onboarding to an unfamiliar sister site, debugging "why does CI fail here but not in scaffold", validating a spawn worked, or pre-merge before raising a PR that bumps the scaffold tag.
 when_to_use: |
   Use when the user asks "is this site healthy", "does this match scaffold", "what's
   drifted", "audit conformance", or after running /tinyland-spawn-sister-site to
@@ -61,11 +61,11 @@ Compare this repo against the scaffold tag it was spawned from.
 ```bash
 # 1. Identify the scaffold tag this repo inherits from.
 SCAFFOLD_TAG="$(jq -r '.scaffold_tag // empty' tinyland.repo.json)"
-# (If empty, fall back to the most-recent tinyland-inc/site.scaffold release.)
+# (If empty, fall back to the most-recent tinyland-inc/greatfallstoolbus.org release.)
 
 # 2. Fetch the scaffold at that tag into /tmp.
 mkdir -p /tmp/scaffold-doctor && cd /tmp/scaffold-doctor
-gh repo clone tinyland-inc/site.scaffold scaffold-"$SCAFFOLD_TAG"
+gh repo clone tinyland-inc/greatfallstoolbus.org scaffold-"$SCAFFOLD_TAG"
 cd scaffold-"$SCAFFOLD_TAG" && git checkout "$SCAFFOLD_TAG"
 
 # 3. Diff load-bearing files. Surface (not auto-fix) drift.

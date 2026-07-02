@@ -2,8 +2,8 @@
 	"$schema": "../docs/schemas/lanes.schema.json",
 	"schema_version": 1,
 	"spoke": {
-		"name": "site-scaffold",
-		"domain": "site.scaffold.tinyland.dev"
+		"name": "greatfallstoolbus",
+		"domain": "greatfallstoolbus.org"
 	},
 	"defaults": {
 		"runner_class": "tinyland-nix",

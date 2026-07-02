@@ -14,7 +14,7 @@
 terraform {
   backend "s3" {
     bucket = "tofu-state"
-    key    = "spokes/site-scaffold/terraform.tfstate"
+    key    = "spokes/greatfallstoolbus/terraform.tfstate"
     region = "us-east-1" # provider-required; RustFS ignores
 
     # endpoint + credentials: env/operator authority (see header + tofu/README.md).

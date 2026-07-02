@@ -16,7 +16,7 @@ type SkillEntry = SkillFrontmatter & {
 };
 
 const SKILLS_DIR = '.agents/skills';
-const REPO_URL = 'https://github.com/tinyland-inc/site.scaffold';
+const REPO_URL = 'https://github.com/tinyland-inc/greatfallstoolbus.org';
 
 function parseFrontmatter(raw: string): { fields: SkillFrontmatter; body: string } | null {
 	const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
