@@ -270,6 +270,15 @@ if [[ -f tinyland.repo.json ]]; then
   esac
 fi
 
+# 16. Public-safe: no internal cluster endpoints / hostnames leak into the tree.
+# gitleaks only catches token shapes; this guards the private blahaj / tool-bus
+# topology (and tofu/ slug-correctness) across ALL committed files.
+if [[ -f scripts/scan-internal-endpoints.sh ]] && bash scripts/scan-internal-endpoints.sh >/dev/null 2>&1; then
+  ok "no internal cluster endpoints/hostnames in tree (public-safe scan)"
+else
+  no "internal cluster endpoint/hostname leak — run just scan-endpoints"
+fi
+
 echo
 echo "summary: ${pass} pass, ${fail} fail, ${manual} manual"
 if (( fail > 0 )); then exit 1; fi
