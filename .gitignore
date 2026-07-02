@@ -1,0 +1,70 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+.svelte-kit/
+build/
+dist/
+
+# Web-perf artifacts (TIN-2224): generated image variants, bundle treemap,
+# and the generated image manifest. Regenerate via `just optimize-images`.
+static/optimized/
+.bundle-stats/
+src/lib/image-manifest.json
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# Test artifacts
+test-results/
+playwright-report/
+coverage/
+.lighthouseci/
+bundle-report.json
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# direnv + Nix
+.direnv/
+result
+result-*
+
+# Bazel
+bazel-*
+bazel-bin/
+bazel-out/
+bazel-testlogs/
+bazel-site.scaffold/
+.cache/bazel-*
+
+# Tofu (docs/CI-SCHEMA.md §7; spoke state belongs in env-owned S3, not the repo)
+tofu/.terraform/
+tofu/.terraform.lock.hcl
+tofu/tfplan
+**/*.tfstate
+**/*.tfstate.backup
+
+# AI/LLM tooling (CLAUDE.md, AGENTS.md, and project skills are tracked house contracts)
+.claude/*
+!.claude/skills/
+!.claude/skills/**
+.serena/
+.aider*
+# Local dev artifacts
+.huskycat/

@@ -1,0 +1,19 @@
+# Default owner for all paths
+* @Jesssullivan
+
+# Spec docs (dated bootstrap + future spec records)
+/docs/spec/ @Jesssullivan
+
+# Bazel files (registry consumer surface)
+/MODULE.bazel @Jesssullivan
+/.bazelrc @Jesssullivan
+/.bazelversion @Jesssullivan
+/.bazelignore @Jesssullivan
+/BUILD.bazel @Jesssullivan
+
+# Nix + dev shell
+/flake.nix @Jesssullivan
+/flake.lock @Jesssullivan
+
+# CI surface
+/.github/ @Jesssullivan

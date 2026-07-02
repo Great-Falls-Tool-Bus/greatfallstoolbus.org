@@ -1,0 +1,150 @@
+name: Pulse ingest
+
+on:
+  schedule:
+    - cron: '17 10 * * *'
+  workflow_dispatch:
+    inputs:
+      spoke_slug:
+        description: Tinyland projection spoke slug. Defaults to repository name normalized with dots as hyphens.
+        required: false
+      spoke_target:
+        description: Expected spoke target host in the static snapshot.
+        required: false
+      source_url:
+        description: Reviewed Tinyland projection snapshot URL.
+        required: false
+      target_path:
+        description: Checked-in JSON target path.
+        required: false
+        default: src/lib/data/public-snapshot.v1.json
+      actor_url:
+        description: Tinyland brand actor URL used for public-key readiness validation.
+        required: false
+      require_signature:
+        description: Require Tinyland HTTP Signature over the source snapshot.
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: pulse-ingest-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    name: Sync reviewed Tinyland projection
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.repository != 'tinyland-inc/site.scaffold' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Install workspace dependencies
+        run: nix develop --command just setup
+
+      - name: Resolve projection ingest config
+        id: config
+        env:
+          INPUT_ACTOR_URL: ${{ github.event.inputs.actor_url || '' }}
+          INPUT_SOURCE_URL: ${{ github.event.inputs.source_url || '' }}
+          INPUT_SPOKE_SLUG: ${{ github.event.inputs.spoke_slug || '' }}
+          INPUT_SPOKE_TARGET: ${{ github.event.inputs.spoke_target || '' }}
+          INPUT_TARGET_PATH: ${{ github.event.inputs.target_path || '' }}
+          INPUT_REQUIRE_SIGNATURE: ${{ github.event.inputs.require_signature || '' }}
+          VAR_ACTOR_URL: ${{ vars.TINYLAND_PROJECTION_ACTOR_URL || '' }}
+          VAR_REQUIRE_SIGNATURE: ${{ vars.TINYLAND_PROJECTION_REQUIRE_SIGNATURE || '' }}
+          VAR_SOURCE_URL: ${{ vars.TINYLAND_PROJECTION_SOURCE_URL || '' }}
+          VAR_SPOKE_SLUG: ${{ vars.TINYLAND_PROJECTION_SPOKE_SLUG || '' }}
+          VAR_SPOKE_TARGET: ${{ vars.TINYLAND_PROJECTION_SPOKE_TARGET || '' }}
+          VAR_TARGET_PATH: ${{ vars.TINYLAND_PROJECTION_TARGET_PATH || '' }}
+        run: |
+          set -euo pipefail
+
+          repo_name="${GITHUB_REPOSITORY#*/}"
+          default_slug="$(printf '%s' "$repo_name" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')"
+
+          spoke_slug="${INPUT_SPOKE_SLUG:-${VAR_SPOKE_SLUG:-$default_slug}}"
+          spoke_target="${INPUT_SPOKE_TARGET:-${VAR_SPOKE_TARGET:-$repo_name}}"
+          source_url="${INPUT_SOURCE_URL:-${VAR_SOURCE_URL:-https://tinyland.dev/projections/${spoke_slug}/public-snapshot.v1.json}}"
+          target_path="${INPUT_TARGET_PATH:-${VAR_TARGET_PATH:-src/lib/data/public-snapshot.v1.json}}"
+          actor_url="${INPUT_ACTOR_URL:-${VAR_ACTOR_URL:-https://tinyland.dev/ap/actors/brand/${spoke_slug}}}"
+          raw_require_signature="${INPUT_REQUIRE_SIGNATURE:-${VAR_REQUIRE_SIGNATURE:-false}}"
+          case "${raw_require_signature,,}" in
+            true|1|yes) require_signature="true" ;;
+            false|0|no|"") require_signature="false" ;;
+            *) echo "require_signature must be true or false" >&2; exit 2 ;;
+          esac
+
+          {
+            echo "spoke_slug=$spoke_slug"
+            echo "spoke_target=$spoke_target"
+            echo "source_url=$source_url"
+            echo "target_path=$target_path"
+            echo "actor_url=$actor_url"
+            echo "require_signature=$require_signature"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Tinyland projection ingest"
+            echo ""
+            echo "- Source: \`$source_url\`"
+            echo "- Target: \`$target_path\`"
+            echo "- Spoke target: \`$spoke_target\`"
+            echo "- Actor document: \`$actor_url\`"
+            echo "- HTTP signature required: \`$require_signature\`"
+            echo ""
+            echo "This workflow validates the reviewed static snapshot and Tinyland brand actor public-key document before opening a PR. When signature mode is enabled, it also verifies the snapshot response against that actor key. It does not enable runtime broker fetches or ActivityPub delivery."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Sync checked-in projection snapshot
+        run: |
+          signature_args=()
+          if [ "${{ steps.config.outputs.require_signature }}" = "true" ]; then
+            signature_args+=(--require-signature)
+          fi
+
+          nix develop --command pnpm exec tsx scripts/static-projection-snapshot.mts sync \
+            "${{ steps.config.outputs.source_url }}" \
+            "${{ steps.config.outputs.target_path }}" \
+            --expected-source-authority tinyland.dev \
+            --expected-spoke "${{ steps.config.outputs.spoke_target }}" \
+            --actor-document "${{ steps.config.outputs.actor_url }}" \
+            --expected-actor-id "${{ steps.config.outputs.actor_url }}" \
+            --expected-actor-key-id "${{ steps.config.outputs.actor_url }}#main-key" \
+            "${signature_args[@]}"
+          nix develop --command pnpm exec prettier --write "${{ steps.config.outputs.target_path }}"
+
+      - name: Check static site after ingest
+        run: nix develop --command just check
+
+      - name: Open projection refresh PR
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: automation/tinyland-pulse-ingest
+          delete-branch: true
+          commit-message: 'chore(projection): refresh Tinyland static snapshot'
+          title: 'chore(projection): refresh Tinyland static snapshot'
+          body: |
+            ## Summary
+
+            Automated checked-in Tinyland projection snapshot refresh.
+
+            ## Validation
+
+            - source authority: `tinyland.dev`
+            - source snapshot: `${{ steps.config.outputs.source_url }}`
+            - target path: `${{ steps.config.outputs.target_path }}`
+            - actor public-key readiness: `${{ steps.config.outputs.actor_url }}`
+            - HTTP signature required: `${{ steps.config.outputs.require_signature }}`
+            - local gate: `just check`
+
+            This keeps the site static/read-only. Signature mode only proves Tinyland signed the fetched snapshot body with the matching brand actor key. It does not add runtime broker fetches, mutation APIs, checkout custody, ActivityPub delivery workers, or public federation claims.

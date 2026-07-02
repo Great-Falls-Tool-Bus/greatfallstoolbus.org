@@ -1,0 +1,11 @@
+.git
+.direnv
+node_modules
+.svelte-kit
+build
+dist
+coverage
+test-results
+playwright-report
+.lighthouseci
+tmp

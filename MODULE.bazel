@@ -1,0 +1,93 @@
+"""
+site.scaffold - Bazel Module Configuration
+
+Static-first SvelteKit consumer of the @tummycrypt/* npm packages
+produced by tinyland-inc/bazel-registry. The canonical site build is
+`pnpm run build`; Bazel exists for module-graph integrity proofs and
+is exercised via `bazel mod graph` smoke in CI.
+
+Stock module picks (replace per-site as needed):
+
+- tummycrypt_tinyland_color_utils — runtime color leaf (zero deps).
+- tummycrypt_vite_plugin_a11y      — build-time WCAG scan plugin.
+- tummycrypt_vite_plugin_skeleton_colors — Skeleton-4 color generator.
+- tummycrypt_tinyvectors            — animated vector blob backgrounds.
+
+After cloning from this template:
+  1. Update `module(name = ...)` to your_site_underscored.
+  2. Run `scripts/rebrand.sh <site.example.com>` to sed brand strings.
+  3. `bazelisk mod graph` should succeed before first commit.
+"""
+
+module(
+    name = "site_scaffold",
+    version = "0.0.1",
+    compatibility_level = 1,
+)
+
+# Core
+bazel_dep(name = "bazel_skylib", version = "1.8.2")
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "aspect_bazel_lib", version = "2.22.5")
+bazel_dep(name = "rules_pkg", version = "1.1.0")
+
+# JS/TS toolchain (Aspect)
+bazel_dep(name = "rules_nodejs", version = "6.7.3")
+bazel_dep(name = "aspect_rules_js", version = "2.9.1")
+bazel_dep(name = "aspect_rules_ts", version = "3.8.4")
+bazel_dep(name = "aspect_rules_swc", version = "2.6.1")
+
+# Tinyland building-block deps via tinyland-inc/bazel-registry
+# (versions must match package.json + the registry; verify with `just inhouse-package-parity`).
+bazel_dep(name = "tummycrypt_tinyland_color_utils", version = "0.2.3")
+bazel_dep(name = "tummycrypt_vite_plugin_a11y", version = "0.2.2")
+bazel_dep(name = "tummycrypt_vite_plugin_skeleton_colors", version = "0.2.2")
+bazel_dep(name = "tummycrypt_tinyvectors", version = "0.3.0")
+
+# Node 22.13.1
+node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")
+node.toolchain(node_version = "22.13.1")
+
+# pnpm 10.13.1
+pnpm = use_extension("@aspect_rules_js//npm:extensions.bzl", "pnpm")
+pnpm.pnpm(
+    name = "pnpm",
+    pnpm_version = "10.13.1",
+)
+use_repo(pnpm, "pnpm")
+
+# npm via pnpm-lock.yaml. Repo name "npm" matches the elders / Aspect
+# convention. Per the audit, no @npm collision risk against the
+# selected modules — they all use per-module <module>_npm naming.
+npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
+npm.npm_translate_lock(
+    name = "npm",
+    npmrc = "//:.npmrc",
+    pnpm_lock = "//:pnpm-lock.yaml",
+    data = [
+        "//:package.json",
+        "//:pnpm-workspace.yaml",
+    ],
+)
+use_repo(npm, "npm")
+
+# TypeScript 6.0.3 — must match package.json exactly (rules_ts cannot parse
+# caret ranges, and house-stack-contract.test.ts fails on any drift between
+# the two files). 6.0.3 postdates rules_ts 3.8.4's built-in version map, so
+# the npm dist integrity is pinned explicitly.
+rules_ts_ext = use_extension("@aspect_rules_ts//ts:extensions.bzl", "ext")
+rules_ts_ext.deps(
+    ts_version = "6.0.3",
+    ts_integrity = "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==",
+)
+use_repo(rules_ts_ext, "npm_typescript")
+
+# SWC for any future ts_project targets
+swc = use_extension("@aspect_rules_swc//swc:extensions.bzl", "swc")
+swc.toolchain(
+    name = "swc",
+    swc_version = "v1.10.12",
+)
+use_repo(swc, "swc_toolchains")
+
+register_toolchains("@swc_toolchains//:all")

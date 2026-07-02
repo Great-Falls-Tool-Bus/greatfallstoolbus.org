@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Tinyland Flywheel Bazel'
+  short_description: 'Cache-first Bazel and RBE for Tinyland repos'
+  default_prompt: 'Use $tinyland-flywheel-bazel to wire a Tinyland repo for cache-first Bazel and Flywheel RBE.'

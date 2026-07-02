@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Tinyland Static Spoke'
+  short_description: 'Static spoke site setup and projection rules'
+  default_prompt: 'Use $tinyland-static-spoke to customize a Tinyland static spoke site from site.scaffold.'

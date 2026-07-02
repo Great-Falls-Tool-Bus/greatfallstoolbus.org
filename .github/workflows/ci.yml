@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Thin wrapper over tinyland-inc/ci-templates' spoke-ci.yml. See
+# docs/CI-SCHEMA.md §6 + §9 for the runner-class matrix and required
+# status checks. Bump the @v... pin deliberately after reviewing the
+# ci-templates CHANGELOG.
+
+jobs:
+  ci:
+    uses: tinyland-inc/ci-templates/.github/workflows/spoke-ci.yml@v2.8.0
+    with:
+      node_version: '22'
+      pnpm_version: '10.13.1'
+      # Cache-first shared-cache enrollment (TIN-2119). flywheel_config must be
+      # `flywheel` (not local) so flywheel-bazel forwards --remote_cache; the
+      # cache_backed lane switches setup to nix-setup@v2 (exports
+      # BAZEL_REMOTE_CACHE), asserts attachment via the vendored
+      # scripts/cache-attachment-contract.sh --strict, and runs the
+      # flywheel-eligible CAS targets through the shared Bazel cache.
+      flywheel_config: flywheel
+      cache_backed: true
+      playwright_enabled: true
+      lanes_path: .github/lanes.json
+      default_runner_class: tinyland-nix
+    secrets: inherit

@@ -1,0 +1,163 @@
+name: release
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - '!CHANGELOG.md'
+      - '!RELEASING.md'
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.workflow }}
+  cancel-in-progress: false
+
+# Two-mode workflow:
+#
+# 1. On pull_request to main: assert CHANGELOG.md `## [Unreleased]` is
+#    non-empty for non-release commits. Release commits are allowed to empty
+#    Unreleased after moving entries into the version section.
+#
+# 2. On push to main: if the head commit's message starts with
+#    `release: vX.Y.Z`, cut the immutable tag, move the floating `vX` major tag
+#    with an explicit remote lease, and create the GitHub Release.
+
+jobs:
+  changelog-gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Assert CHANGELOG.md release discipline
+        run: |
+          set -euo pipefail
+          subject=$(git log -1 --pretty=%s "${{ github.event.pull_request.head.sha }}")
+          if [[ "$subject" =~ ^release:\ v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            version="${BASH_REMATCH[1]}"
+            if ! grep -qE "^## \[${version}\]" CHANGELOG.md; then
+              echo "::error file=CHANGELOG.md::Release commit $subject requires ## [${version}]"
+              exit 1
+            fi
+            if ! jq -e --arg version "$version" '.version == $version' package.json >/dev/null; then
+              echo "::error file=package.json::Release commit $subject requires package.json version ${version}"
+              exit 1
+            fi
+            echo "::notice::release PR detected ($subject); allowing empty ## [Unreleased]"
+            exit 0
+          fi
+          if [ ! -f CHANGELOG.md ]; then
+            echo "::error::CHANGELOG.md missing"
+            exit 1
+          fi
+          body=$(awk '/^## \[Unreleased\]/{flag=1;next} /^## \[/{flag=0} flag' CHANGELOG.md \
+                 | grep -vE '^\s*$' || true)
+          if [ -z "$body" ]; then
+            echo "::error file=CHANGELOG.md::## [Unreleased] is empty. Amend per RELEASING.md before merging."
+            exit 1
+          fi
+          echo "::notice::CHANGELOG.md [Unreleased] has $(echo "$body" | wc -l | tr -d ' ') line(s) of content"
+
+  tag-on-release-commit:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Detect release commit
+        id: detect
+        run: |
+          set -euo pipefail
+          subject=$(git log -1 --pretty=%s "${{ github.sha }}")
+          echo "subject: $subject"
+          if [[ ! "$subject" =~ ^release:\ v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::notice::head commit is not a release commit; skipping tag cut"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          version="v${BASH_REMATCH[1]}"
+          major="${version%%.*}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "major=$major" >> "$GITHUB_OUTPUT"
+          echo "is_release=true" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag does not exist
+        if: steps.detect.outputs.is_release == 'true'
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/${{ steps.detect.outputs.version }}" >/dev/null; then
+            echo "::error::Tag ${{ steps.detect.outputs.version }} already exists. RELEASING.md forbids tag reuse."
+            exit 1
+          fi
+
+      - name: Verify CHANGELOG.md and package.json match the release
+        if: steps.detect.outputs.is_release == 'true'
+        run: |
+          set -euo pipefail
+          v="${{ steps.detect.outputs.version }}"
+          version="${v#v}"
+          if ! grep -qE "^## \[${version}\]" CHANGELOG.md; then
+            echo "::error file=CHANGELOG.md::Missing ## [${version}] section."
+            exit 1
+          fi
+          if ! jq -e --arg version "$version" '.version == $version' package.json >/dev/null; then
+            echo "::error file=package.json::Expected package.json version ${version}."
+            exit 1
+          fi
+
+      - name: Configure git identity
+        if: steps.detect.outputs.is_release == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Cut immutable + floating tags
+        if: steps.detect.outputs.is_release == 'true'
+        run: |
+          set -euo pipefail
+          v="${{ steps.detect.outputs.version }}"
+          major="${{ steps.detect.outputs.major }}"
+          current_major_ref="$(
+            git ls-remote --tags origin "refs/tags/$major" | awk '{print $1}'
+          )"
+
+          git tag -a "$v" -m "$v"
+          git tag -f -a "$major" -m "track $v"
+
+          git push origin "$v"
+          if [ -n "$current_major_ref" ]; then
+            git push origin "refs/tags/$major" \
+              --force-with-lease="refs/tags/$major:$current_major_ref"
+          else
+            git push origin "refs/tags/$major"
+          fi
+
+      - name: Create GitHub Release
+        if: steps.detect.outputs.is_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          v="${{ steps.detect.outputs.version }}"
+          version="${v#v}"
+          notes=$(awk -v ver="$version" '
+            $0 ~ "^## \\[" ver "\\]" {flag=1; next}
+            /^## \[/ && flag {exit}
+            flag {print}
+          ' CHANGELOG.md)
+
+          gh release create "$v" --title "$v" --notes "$notes"

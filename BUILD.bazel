@@ -1,0 +1,194 @@
+"""
+Root BUILD.bazel for site.scaffold.
+
+The SvelteKit static site still has ergonomic pnpm-backed Justfile recipes, but
+Bazel owns finite graphable targets for Flywheel cache/RBE proof surfaces.
+"""
+
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_run_binary", "js_test")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@npm//:eslint/package_json.bzl", eslint_bin = "bin")
+load("@npm//:prettier/package_json.bzl", prettier_bin = "bin")
+load("@npm//:vitest/package_json.bzl", vitest = "bin")
+
+npm_link_all_packages(name = "node_modules")
+
+filegroup(
+    name = "app_srcs",
+    srcs = glob(
+        [
+            "src/**",
+            "static/**",
+            "scripts/**/*.mts",
+            "scripts/bazel/**/*.mjs",
+        ],
+        allow_empty = True,
+    ) + [
+        ".npmrc",
+        "package.json",
+        "playwright.config.ts",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "svelte.config.js",
+        "tsconfig.json",
+        "vite.config.ts",
+        "vitest.config.ts",
+    ],
+)
+
+filegroup(
+    name = "e2e_srcs",
+    srcs = glob(["e2e/**"], allow_empty = True),
+)
+
+js_binary(
+    name = "sveltekit_sync_bin",
+    data = [":node_modules"],
+    entry_point = "scripts/bazel/run-sveltekit-sync.mjs",
+)
+
+js_run_binary(
+    name = "sveltekit_types",
+    srcs = [":app_srcs"],
+    out_dirs = [".svelte-kit"],
+    tags = ["flywheel-eligible"],
+    tool = ":sveltekit_sync_bin",
+)
+
+js_binary(
+    name = "svelte_check_bin",
+    data = [":node_modules"],
+    entry_point = "scripts/bazel/run-svelte-check.mjs",
+)
+
+js_test(
+    name = "svelte_check_test",
+    data = [
+        ":app_srcs",
+        ":node_modules",
+        ":sveltekit_types",
+    ],
+    entry_point = "scripts/bazel/run-svelte-check.mjs",
+    tags = ["flywheel-eligible"],
+    timeout = "long",
+)
+
+# Remote-eligible lint as a cache-first Bazel TEST target (TIN-2226). Runs the
+# same `eslint .` the `lint` recipe runs, but as a CAS-cacheable action so the
+# GloriousFlywheel shared cache can serve a green result. READ-ONLY: no writes.
+eslint_bin.eslint_test(
+    name = "eslint_test",
+    args = ["."],
+    data = [
+        ":app_srcs",
+        ":node_modules",
+        ":sveltekit_types",
+        "eslint.config.ts",
+    ],
+    tags = ["flywheel-eligible"],
+    timeout = "moderate",
+)
+
+# Remote-eligible format check as a cache-first Bazel TEST target (TIN-2226).
+# Mirrors `prettier --check .` (the `format-check` recipe) as a CAS-cacheable,
+# READ-ONLY action — it never rewrites files.
+prettier_bin.prettier_test(
+    name = "prettier_check_test",
+    args = [
+        "--check",
+        ".",
+    ],
+    data = [
+        ":app_srcs",
+        ":node_modules",
+        ".prettierignore",
+        ".prettierrc",
+    ],
+    tags = ["flywheel-eligible"],
+    timeout = "short",
+)
+
+js_binary(
+    name = "vite_build_bin",
+    data = [":node_modules"],
+    entry_point = "scripts/bazel/run-vite-build.mjs",
+)
+
+js_run_binary(
+    name = "build",
+    srcs = [
+        ":app_srcs",
+        ":sveltekit_types",
+    ],
+    out_dirs = ["build"],
+    patch_node_fs = False,
+    tags = ["flywheel-eligible"],
+    tool = ":vite_build_bin",
+    visibility = ["//visibility:public"],
+)
+
+vitest.vitest_test(
+    name = "unit_tests",
+    data = [
+        ":app_srcs",
+        ":node_modules",
+        ":node_modules/vitest",
+        "vitest.config.ts",
+    ],
+    args = [
+        "run",
+        "--reporter=verbose",
+        "--config",
+        "$(rootpath vitest.config.ts)",
+    ],
+    tags = [
+        "flywheel-eligible",
+        "vitest",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+js_test(
+    name = "playwright_static_smoke",
+    data = [
+        ":build",
+        ":e2e_srcs",
+        ":node_modules",
+        "scripts/bazel/run-playwright-static-smoke.mjs",
+    ],
+    entry_point = "scripts/bazel/run-playwright-static-smoke.mjs",
+    tags = [
+        "gloriousflywheel-rbe-candidate",
+        "playwright",
+        "web-playwright-chromium-static-smoke",
+    ],
+    timeout = "moderate",
+    visibility = ["//visibility:public"],
+)
+
+test_suite(
+    name = "ci_validation_suite",
+    tests = [
+        ":svelte_check_test",
+        ":unit_tests",
+    ],
+)
+
+exports_files(
+    [
+        "MODULE.bazel",
+        "package.json",
+        "playwright.config.ts",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "scripts/bazel/run-playwright-static-smoke.mjs",
+        "scripts/bazel/run-svelte-check.mjs",
+        "scripts/bazel/run-sveltekit-sync.mjs",
+        "scripts/bazel/run-vite-build.mjs",
+        "svelte.config.js",
+        "tsconfig.json",
+        "vite.config.ts",
+        "vitest.config.ts",
+    ],
+    visibility = ["//visibility:public"],
+)
