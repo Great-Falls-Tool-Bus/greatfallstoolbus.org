@@ -100,12 +100,13 @@
 > change endpoint values and credential material in this org's repos, and
 > nothing else.
 >
-> **Carve-out (pending a separate edge-authority decision):** Cloudflare
-> DNS/Access/Tunnel **apply** stays blahaj-side; overlays never hold Cloudflare
-> credentials (house rule). DNS/tunnel **intent** is declared GFTB-side. Either
-> blahaj applies that intent as a substrate service, or the operator mints a
-> zone-scoped CF token for the two GFTB zones into the infra repo's protected
-> environment — deliberately NOT settled by this amendment.
+> **Carve-out — RESOLVED 2026-07-02 (TIN-2385, operator interview; ledger
+> item 20):** option (ii) — the infra repo's protected environment holds a
+> **Cloudflare token scoped to exactly the two GFTB zones**; the overlay
+> applies its own DNS/Access/Tunnel-route changes. The binding overlay-
+> credential rule is narrowed with dated notes (spokes and non-owner repos:
+> unchanged; owner overlays: own-zones-scoped tokens only). blahaj keeps CF
+> custody for house zones and its tunnel daemon.
 >
 > **The MassageIthaca precedent is demoted to legacy reference.** blahaj's own
 > doctrine already classifies `tofu/stacks/massageithaca*` as adopted-live
@@ -124,4 +125,5 @@ re-homes to the infra repo except the DKIM carve-out.
 
 **Operator signature:** directed verbatim in-session 2026-07-02 ~21:00Z ("the
 blahaj repo should be logically replaceable and not an intertangled part of our
-projects"); formal countersign requested on TIN-2360.
+projects"); **countersigned 2026-07-02 ~21:35Z** (in-session; recorded on
+TIN-2360, which re-closed Done).
