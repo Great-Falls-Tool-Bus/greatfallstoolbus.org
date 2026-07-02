@@ -5,11 +5,11 @@
 
 ## Canonical
 
-- [Agent contract](https://github.com/tinyland-inc/site.scaffold/blob/main/AGENTS.md)
-- [Claude contract](https://github.com/tinyland-inc/site.scaffold/blob/main/CLAUDE.md)
-- [README](https://github.com/tinyland-inc/site.scaffold/blob/main/README.md)
-- [Repo manifest](https://github.com/tinyland-inc/site.scaffold/blob/main/tinyland.repo.json)
-- [Repo manifest schema](https://github.com/tinyland-inc/site.scaffold/blob/main/docs/schemas/tinyland-repo-manifest.schema.json)
+- [Agent contract](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/AGENTS.md)
+- [Claude contract](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/CLAUDE.md)
+- [README](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/README.md)
+- [Repo manifest](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/tinyland.repo.json)
+- [Repo manifest schema](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/docs/schemas/tinyland-repo-manifest.schema.json)
 - [Agent adoption flow](https://github.com/tinyland-inc/site.scaffold/blob/main/docs/agent-adoption.md)
 - [CI schema](https://github.com/tinyland-inc/site.scaffold/blob/main/docs/CI-SCHEMA.md)
 - [Repo taxonomy and GitOps convergence](https://github.com/tinyland-inc/site.scaffold/blob/main/docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md)

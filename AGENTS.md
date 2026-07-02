@@ -66,7 +66,7 @@ reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
   automatically.
 - **Plugin marketplace**: `.claude-plugin/marketplace.json` exposes
   `plugins/scaffold-core/` as a git-subdir-installable plugin. Other repos
-  install via `/plugin marketplace add github:tinyland-inc/greatfallstoolbus.org` then
+  install via `/plugin marketplace add github:tinyland-inc/site.scaffold` then
   `/plugin install scaffold-core@site-scaffold`. Plugin skills are sibling
   symlinks under `plugins/scaffold-core/skills/` that resolve back to the
   canonical `.agents/skills/<name>`.
@@ -172,7 +172,7 @@ reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
 
 ## Per-Site Customization Checklist
 
-After `gh repo create --template tinyland-inc/greatfallstoolbus.org`:
+After `gh repo create --template tinyland-inc/site.scaffold`:
 
 1. `direnv allow`
 2. `scripts/rebrand.sh <site.example.com>` — rewrites name strings, env vars,
@@ -406,6 +406,6 @@ prior artifact). Both lanes are designed in
   the spoke is house-style compliant. MANUAL items (org ruleset,
   tailnet DNS) require operator verification outside this repo.
 - This scaffold conforms to `docs/CI-SCHEMA.md` at the
-  `tinyland-inc/greatfallstoolbus.org` tag this clone was spawned from. Sister
+  `tinyland-inc/site.scaffold` tag this clone was spawned from. Sister
   spokes that have not bumped past their original tag are not required
   to track schema changes until they explicitly upgrade.

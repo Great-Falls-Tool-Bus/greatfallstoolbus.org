@@ -3,7 +3,7 @@
 
 spoke_slug              = "greatfallstoolbus"
 brand_domain            = "greatfallstoolbus.org"
-github_org   = "tinyland-inc"
+github_org   = "Great-Falls-Tool-Bus"
 
 # Blahaj GitHub App installation ID. Obtain from the Blahaj App owner
 # account via: gh api /app/installations
@@ -22,4 +22,4 @@ lane_allowlist = []
 cache_quota_gib = 50
 
 # Cluster ingress CNAME target for wildcard / per-lane DNS.
-ingress_target = "ingress.cluster.tinyland.dev"
+ingress_target = "" # set blahaj-side; public tree carries no cluster hostnames (decision row d/boundary)

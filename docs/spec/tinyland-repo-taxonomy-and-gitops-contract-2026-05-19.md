@@ -48,7 +48,7 @@ Applies to repos that consume or produce Tinyland packages.
 
 ### 3. Static Spoke Contract
 
-Applies to repos spawned from `tinyland-inc/greatfallstoolbus.org`.
+Applies to repos spawned from `tinyland-inc/site.scaffold`.
 
 - The repo is a static projection consumer, not an app backend.
 - It does not own auth, user data, payments, media lifecycle, ActivityPub

@@ -61,11 +61,11 @@ Compare this repo against the scaffold tag it was spawned from.
 ```bash
 # 1. Identify the scaffold tag this repo inherits from.
 SCAFFOLD_TAG="$(jq -r '.scaffold_tag // empty' tinyland.repo.json)"
-# (If empty, fall back to the most-recent tinyland-inc/greatfallstoolbus.org release.)
+# (If empty, fall back to the most-recent tinyland-inc/site.scaffold release.)
 
 # 2. Fetch the scaffold at that tag into /tmp.
 mkdir -p /tmp/scaffold-doctor && cd /tmp/scaffold-doctor
-gh repo clone tinyland-inc/greatfallstoolbus.org scaffold-"$SCAFFOLD_TAG"
+gh repo clone tinyland-inc/site.scaffold scaffold-"$SCAFFOLD_TAG"
 cd scaffold-"$SCAFFOLD_TAG" && git checkout "$SCAFFOLD_TAG"
 
 # 3. Diff load-bearing files. Surface (not auto-fix) drift.

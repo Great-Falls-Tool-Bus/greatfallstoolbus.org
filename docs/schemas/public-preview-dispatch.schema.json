@@ -1,6 +1,6 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "https://raw.githubusercontent.com/tinyland-inc/greatfallstoolbus.org/main/docs/schemas/public-preview-dispatch.schema.json",
+	"$id": "https://raw.githubusercontent.com/tinyland-inc/site.scaffold/main/docs/schemas/public-preview-dispatch.schema.json",
 	"title": "Tinyland public preview repository_dispatch payload",
 	"description": "Canonical payload shape for explicit public/client review aliases. The spoke requests a preview; Blahaj owns Cloudflare DNS, Access, Tunnel ingress, and cleanup.",
 	"type": "object",

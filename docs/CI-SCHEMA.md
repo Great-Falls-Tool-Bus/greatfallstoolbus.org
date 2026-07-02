@@ -1,7 +1,7 @@
 # CI-SCHEMA.md — Tinyland Spoke Site CI & Lane Contract
 
 > **Status**: Normative. Every repository spawned from
-> `tinyland-inc/greatfallstoolbus.org` is governed by the contract in this
+> `tinyland-inc/site.scaffold` is governed by the contract in this
 > document and the JSON Schemas under [`./schemas/`](./schemas/).
 >
 > **Companion artifacts:**

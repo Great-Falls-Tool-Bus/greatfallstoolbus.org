@@ -1,6 +1,6 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "https://raw.githubusercontent.com/tinyland-inc/greatfallstoolbus.org/main/docs/schemas/tinyland-repo-manifest.schema.json",
+	"$id": "https://raw.githubusercontent.com/tinyland-inc/site.scaffold/main/docs/schemas/tinyland-repo-manifest.schema.json",
 	"title": "Tinyland repo manifest",
 	"description": "Declarative repo-shape manifest for Tinyland repos. This distinguishes org-wide rules from static-spoke, mothership, app/stateful spoke, CI-template, GitOps receiver, and infra-substrate contracts.",
 	"type": "object",
