@@ -4,32 +4,32 @@
 	const entrypoints = [
 		{
 			label: 'AGENTS.md',
-			href: 'https://github.com/tinyland-inc/greatfallstoolbus.org/blob/main/AGENTS.md',
+			href: 'https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/AGENTS.md',
 			text: 'Normative operator and agent contract.',
 		},
 		{
 			label: 'CI-SCHEMA.md',
-			href: 'https://github.com/tinyland-inc/greatfallstoolbus.org/blob/main/docs/CI-SCHEMA.md',
+			href: 'https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/docs/CI-SCHEMA.md',
 			text: 'Lane, Blahaj, Flywheel, runner, and conformance schema.',
 		},
 		{
 			label: 'tinyland.repo.json',
-			href: 'https://github.com/tinyland-inc/greatfallstoolbus.org/blob/main/tinyland.repo.json',
+			href: 'https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/tinyland.repo.json',
 			text: 'Machine-readable repo role, contracts, authority boundaries, and SBOM policy.',
 		},
 		{
 			label: 'Agent adoption',
-			href: 'https://github.com/tinyland-inc/greatfallstoolbus.org/blob/main/docs/agent-adoption.md',
+			href: 'https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/docs/agent-adoption.md',
 			text: 'Paste-to-agent flow for repo triage, layer mapping, smells, and conformance patches.',
 		},
 		{
 			label: 'Repo taxonomy',
-			href: 'https://github.com/tinyland-inc/greatfallstoolbus.org/blob/main/docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md',
+			href: 'https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md',
 			text: 'Static spoke, app spoke, mothership, Blahaj, and GloriousFlywheel boundaries.',
 		},
 		{
 			label: 'Justfile',
-			href: 'https://github.com/tinyland-inc/greatfallstoolbus.org/blob/main/Justfile',
+			href: 'https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/Justfile',
 			text: 'Single authoritative command surface.',
 		},
 		{
@@ -93,7 +93,7 @@
 			<h2 id="entrypoints" class="text-2xl font-bold">Entrypoints</h2>
 			<a
 				class="text-primary-600 text-sm underline underline-offset-4"
-				href="https://github.com/tinyland-inc/greatfallstoolbus.org">Repository</a
+				href="https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org">Repository</a
 			>
 		</div>
 		<div class="grid gap-3 md:grid-cols-2">
@@ -115,14 +115,14 @@
 			<h2 id="skills" class="text-2xl font-bold">Project Skills</h2>
 			<a
 				class="text-primary-600 text-sm underline underline-offset-4"
-				href="https://github.com/tinyland-inc/greatfallstoolbus.org/blob/main/.claude-plugin/marketplace.json"
+				href="https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.claude-plugin/marketplace.json"
 				>Install as plugin</a
 			>
 		</div>
 		<p class="text-surface-700-300 mb-5 max-w-3xl text-sm leading-relaxed">
 			Six skills bundled as the <code>scaffold-core</code> plugin. Rendered from
 			<code>.agents/skills/*/SKILL.md</code> at build time — single source of truth. Install with
-			<code>/plugin marketplace add github:tinyland-inc/greatfallstoolbus.org</code>.
+			<code>/plugin marketplace add github:tinyland-inc/site.scaffold</code>.
 		</p>
 		<div class="grid gap-3 lg:grid-cols-2">
 			{#each skills as skill (skill.name)}
