@@ -2,14 +2,16 @@
 #
 # TIN-2360 rows (c)/(d)/(e)/(f); prep tracked on TIN-2366.
 # This file is intent documentation only. Nothing in this repo applies it.
-# Apply authority is the blahaj plane (mail transport, Mailman/HyperKitty,
-# Anubis, Cloudflare DNS/tunnel, SOPS secrets). See README.md next to this
-# file. No endpoints, no state, no credentials — ever.
+# Apply authority is the org apply-plane overlay great-falls-tool-bus-infra
+# (Mailman/HyperKitty, Anubis, Cloudflare DNS/tunnel, SOPS secrets; packet
+# 0001 Amendment 1). House services (mail transport relay.tinyland.dev,
+# MailAccount CRDs) are substrate consumed by reference. See README.md next
+# to this file. No endpoints, no state, no credentials — ever.
 
 version: 1
 kind: mail-intent
 linear: [TIN-2360, TIN-2366]
-applied_by: blahaj # never by this repo
+applied_by: great-falls-tool-bus-infra # never by this repo
 
 domains:
   - name: latoolb.us
@@ -27,12 +29,12 @@ domains:
 
 mailboxes:
   - address: keyholders@latoolb.us
-    intent: MailAccount # mail.tinyland.dev/v1alpha1, reconciled blahaj-side
+    intent: MailAccount # mail.tinyland.dev/v1alpha1; CR applied from the infra overlay, reconciled by the house mail substrate
     notes: >-
       First production MailAccount application in the house; coordinate
       with, never absorb, TIN-373 (hello@tinyland.dev). Whether this
       account backs the list's ingest/owner path or stands alone is
-      decided in the blahaj-side mail ADR.
+      decided in the overlay's mail ADR.
 
 lists:
   - name: keyholders
@@ -46,13 +48,13 @@ lists:
       engine: hyperkitty
       visibility: public
     notes: >-
-      Staged blahaj-side before any announcement; ADR follows blahaj-side
-      (row e). Client-facing member/owner instructions are drafted in
+      Staged overlay-side before any announcement; ADR follows in the
+      overlay (row e). Client-facing member/owner instructions are drafted in
       docs/runbooks/keyholders-client-setup.md (draft-until-list-exists).
 
 anubis:
   version: 1.25.0 # first real Techaro Anubis deployment in the house (row f)
-  placement: behind-blahaj-cloudflare-tunnel
+  placement: behind-cloudflare-tunnel # edge apply in the infra overlay
   policy:
     default: ALLOW
     rules:
@@ -65,4 +67,5 @@ anubis:
     - all SEO-relevant surfaces
   notes: >-
     Signing key material is named (names-only) in secrets.contract.yaml
-    at the repo root; the key itself lives blahaj-side.
+    at the repo root; the key itself lives in the infra overlay's sops
+    lane.
