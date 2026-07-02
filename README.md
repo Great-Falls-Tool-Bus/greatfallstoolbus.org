@@ -1,11 +1,18 @@
-# site.scaffold
+# greatfallstoolbus.org
 
-Canonical Tinyland house scaffold for **static SvelteKit brand sites**.
+**Great Falls Tool Bus** — a shared tool library on wheels for Lewiston-Auburn,
+Maine. *This is a bus, the shop comes later :)*
 
-Every brand / project / sub-business site under `tinyland-inc` should be created
-from this template (`gh repo create --template tinyland-inc/site.scaffold`) so
-DX, AX, CI, theming, static projection, and Bazel integration stay homogenous across
-the enterprise.
+The public monorepo for the tool bus: the static site (what's on the bus, how to
+donate, how to get access), printable cell sheets, and the **declare-only**,
+public-safe IaC intent for the mail/list/form infrastructure. Apply authority for
+everything cluster-side (mail transport, Mailman/HyperKitty, Anubis, DNS/tunnel)
+lives in the private `blahaj` plane; runner tenancy lives in
+`Great-Falls-Tool-Bus/great-falls-tool-bus-infra`. This repo holds **zero
+secrets** by contract — see `docs/decisions/0001-gftb-mvp-decisions.md`.
+
+Spawned from [`tinyland-inc/site.scaffold`](https://github.com/tinyland-inc/site.scaffold)
+at `v0.2.0` (post-UPLIFT contract).
 
 ## Stack
 
@@ -34,7 +41,7 @@ just build
 
 Open a new coding-agent session in any Tinyland repo and paste this:
 
-> Adopt the Tinyland scaffold contract for this repo: read `AGENTS.md`, `Justfile`, `flake.nix`, `tinyland.repo.json` if present, `.github/workflows/*`, `.github/lanes.json`, `.bazelrc*`, `MODULE.bazel`, and `docs/CI-SCHEMA.md` if present; classify the repo shape and authority boundaries against `tinyland-inc/site.scaffold/docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md`; map the repo to the enforceable layers in `tinyland-inc/site.scaffold/docs/agent-adoption.md`; flag contract smells; patch only minimal conformance gaps; run through `just <recipe>` entrypoints only; validate with `just check` plus `just conformance` or the closest documented equivalent; do not remove or rewrite dirty worktrees without preserving them and reporting the stash/branch.
+> Adopt the Tinyland scaffold contract for this repo: read `AGENTS.md`, `Justfile`, `flake.nix`, `tinyland.repo.json` if present, `.github/workflows/*`, `.github/lanes.json`, `.bazelrc*`, `MODULE.bazel`, and `docs/CI-SCHEMA.md` if present; classify the repo shape and authority boundaries against `tinyland-inc/greatfallstoolbus.org/docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md`; map the repo to the enforceable layers in `tinyland-inc/greatfallstoolbus.org/docs/agent-adoption.md`; flag contract smells; patch only minimal conformance gaps; run through `just <recipe>` entrypoints only; validate with `just check` plus `just conformance` or the closest documented equivalent; do not remove or rewrite dirty worktrees without preserving them and reporting the stash/branch.
 
 The full DRY adoption flow lives in
 [`docs/agent-adoption.md`](docs/agent-adoption.md). Keep the long checklist

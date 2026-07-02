@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// site.scaffold — responsive image + SVG optimizer (TIN-2224).
+// greatfallstoolbus.org — responsive image + SVG optimizer (TIN-2224).
 //
 // Backfeed of MassageIthaca's proven web-perf craft, adapted to the
 // scaffold's static-spoke context. Two pipelines:

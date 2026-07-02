@@ -1,4 +1,4 @@
-# site.scaffold — SvelteKit static site task runner
+# greatfallstoolbus.org — SvelteKit static site task runner
 # Prerequisites: just, direnv (loads Nix devShell), Nix with flakes
 # Quick Start: direnv allow && just setup && just dev
 #
@@ -116,7 +116,7 @@ test: test-unit test-e2e
 sbom out_dir="build/sbom":
     cd {{ root }} && mkdir -p "{{ out_dir }}" && version="$(jq -r '.version' package.json)" && \
       syft scan dir:. \
-        --source-name site.scaffold \
+        --source-name greatfallstoolbus.org \
         --source-version "$version" \
         --exclude './.git/**' \
         --exclude './.direnv/**' \
@@ -124,8 +124,8 @@ sbom out_dir="build/sbom":
         --exclude './build/**' \
         --exclude './.svelte-kit/**' \
         --exclude './bazel-*' \
-        -o cyclonedx-json="{{ out_dir }}/site.scaffold.cyclonedx.json" \
-        -o spdx-json="{{ out_dir }}/site.scaffold.spdx.json"
+        -o cyclonedx-json="{{ out_dir }}/greatfallstoolbus.org.cyclonedx.json" \
+        -o spdx-json="{{ out_dir }}/greatfallstoolbus.org.spdx.json"
 
 # Run secrets scan + lint + typecheck + unit (pre-commit gate)
 check: flywheel-enrollment-contract-check secrets-scan-dir lint typecheck test-unit
@@ -517,8 +517,8 @@ install-hooks:
 
 # Show environment info
 info:
-    @echo "Site:    site.scaffold"
-    @echo "Repo:    tinyland-inc/site.scaffold"
+    @echo "Site:    greatfallstoolbus.org"
+    @echo "Repo:    tinyland-inc/greatfallstoolbus.org"
     @echo "Node:    $(node --version 2>/dev/null || echo 'not available')"
     @echo "pnpm:    $(pnpm --version 2>/dev/null || echo 'not available')"
     @echo "Just:    $(just --version 2>/dev/null || echo 'not available')"
@@ -527,4 +527,4 @@ info:
 
 # View the GitHub repo (opens in browser)
 gh-repo:
-    gh repo view tinyland-inc/site.scaffold --web
+    gh repo view tinyland-inc/greatfallstoolbus.org --web

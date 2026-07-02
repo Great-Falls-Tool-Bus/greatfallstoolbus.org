@@ -1,6 +1,6 @@
-# Releasing `site.scaffold`
+# Releasing `greatfallstoolbus.org`
 
-`site.scaffold` releases are the conformance anchor for repos spawned from the
+`greatfallstoolbus.org` releases are the conformance anchor for repos spawned from the
 template. A spoke may stay on the scaffold tag it was spawned from until it
 explicitly upgrades.
 

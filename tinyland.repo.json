@@ -1,20 +1,19 @@
 {
 	"$schema": "./docs/schemas/tinyland-repo-manifest.schema.json",
 	"schema_version": 1,
-	"scaffold_tag": "v0.1.0",
+	"scaffold_tag": "v0.2.0",
 	"repo": {
-		"name": "site.scaffold",
-		"github": "tinyland-inc/site.scaffold",
-		"domain": "site.scaffold.tinyland.dev",
-		"description": "Tinyland house scaffold for static SvelteKit spoke sites.",
+		"name": "greatfallstoolbus.org",
+		"github": "Great-Falls-Tool-Bus/greatfallstoolbus.org",
+		"domain": "greatfallstoolbus.org",
+		"description": "Great Falls Tool Bus - a shared tool library on wheels for Lewiston-Auburn, Maine. This is a bus; the shop comes later :)",
 		"linear": {
 			"initiative": "TIN-1437",
-			"issue": "TIN-1570"
+			"issue": "TIN-2360"
 		}
 	},
 	"taxonomy": {
-		"primary_role": "static-spoke-scaffold",
-		"spawned_repo_role": "static-spoke",
+		"primary_role": "static-spoke",
 		"layers": ["org-wide-repo-contract", "bazel-package-cache-rbe", "static-spoke"]
 	},
 	"enrollment": {

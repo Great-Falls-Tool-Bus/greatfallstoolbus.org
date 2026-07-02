@@ -3,7 +3,7 @@ name: tinyland-whoami
 description: Classify the current repository's role inside the Tinyland ecosystem (hub / static-spoke / dynamic-spoke / package-producer / package-authority / infra / tooling / business-internal) and surface the small set of skills, contracts, and authorities that actually apply. Use when landing in an unfamiliar tinyland repo, when AGENTS.md is missing or thin, when an agent needs to decide which other skill to invoke, or when the user asks "what kind of repo am I in?" / "what should I read first?" / "what skills apply here?".
 when_to_use: |
   Run on cold landing in any repo under tinyland-inc/* or any sister site spawned from
-  site.scaffold. Especially valuable when AGENTS.md is missing/stale, when the repo's
+  greatfallstoolbus.org. Especially valuable when AGENTS.md is missing/stale, when the repo's
   shape isn't obvious from filenames, when an agent must pick between conflicting
   conventions (mothership vs spoke vs package), or when the user asks for orientation.
 allowed-tools:
@@ -80,7 +80,7 @@ For each role, the canonical skill chain is:
   exact-pinned by consumers.
 - **infra (`blahaj`, `lab`)**: repo-contract only here. Per-repo `AGENTS.md` is
   load-bearing; do not generalize.
-- **tooling (`site.scaffold`, `ci-templates`)**: repo-contract +
+- **tooling (`greatfallstoolbus.org`, `ci-templates`)**: repo-contract +
   whatever the repo templates. This is the meta-layer.
 
 ## Outputs to produce

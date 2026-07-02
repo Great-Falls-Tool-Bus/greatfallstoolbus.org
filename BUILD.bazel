@@ -1,5 +1,5 @@
 """
-Root BUILD.bazel for site.scaffold.
+Root BUILD.bazel for greatfallstoolbus.org.
 
 The SvelteKit static site still has ergonomic pnpm-backed Justfile recipes, but
 Bazel owns finite graphable targets for Flywheel cache/RBE proof surfaces.

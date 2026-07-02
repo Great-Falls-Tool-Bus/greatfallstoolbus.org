@@ -1,7 +1,7 @@
 import { browser } from '$app/environment';
 
 /**
- * Theme store for site.scaffold.
+ * Theme store for greatfallstoolbus.org.
  *
  * Single Skeleton 4 theme (`omux`) at M2; multi-theme later. Color mode
  * (`light` | `dark` | `system`) is the user-tunable axis and is persisted

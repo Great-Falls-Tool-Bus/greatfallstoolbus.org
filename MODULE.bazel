@@ -1,5 +1,5 @@
 """
-site.scaffold - Bazel Module Configuration
+greatfallstoolbus.org - Bazel Module Configuration
 
 Static-first SvelteKit consumer of the @tummycrypt/* npm packages
 produced by tinyland-inc/bazel-registry. The canonical site build is
@@ -20,7 +20,7 @@ After cloning from this template:
 """
 
 module(
-    name = "site_scaffold",
+    name = "greatfallstoolbus_org",
     version = "0.0.1",
     compatibility_level = 1,
 )

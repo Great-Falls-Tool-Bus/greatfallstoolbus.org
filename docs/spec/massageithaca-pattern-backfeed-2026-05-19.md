@@ -3,7 +3,7 @@
 MassageIthaca is an application repo, not a static spoke, but its K8s
 productionization work exposed patterns that should become Tinyland house style
 for static spokes and sister sites. This note is the adoption checklist for
-backfeeding those lessons into `site.scaffold`, `ci-templates`, Blahaj, and
+backfeeding those lessons into `greatfallstoolbus.org`, `ci-templates`, Blahaj, and
 GloriousFlywheel without making every spoke rediscover the same decisions.
 
 Read this with
@@ -130,12 +130,12 @@ Regression coverage:
 
 | Tranche | Repo | Finish line |
 | --- | --- | --- |
-| Public preview schema + workflow | `site.scaffold`, `ci-templates` | reusable dispatch action, workflow, schema, docs |
+| Public preview schema + workflow | `greatfallstoolbus.org`, `ci-templates` | reusable dispatch action, workflow, schema, docs |
 | Public preview apply/reap authority | `blahaj` | generic route validator/reaper plus per-spoke route contract |
-| Lane TTL reap | `site.scaffold`, `ci-templates`, `blahaj` | reusable dispatch schema and Blahaj idempotent cleanup |
-| Bazel-first package parity | `site.scaffold` | conformance gate over `package.json` and `MODULE.bazel` |
+| Lane TTL reap | `greatfallstoolbus.org`, `ci-templates`, `blahaj` | reusable dispatch schema and Blahaj idempotent cleanup |
+| Bazel-first package parity | `greatfallstoolbus.org` | conformance gate over `package.json` and `MODULE.bazel` |
 | Remote proof wrapper | `ci-templates`, `GloriousFlywheel` | dispatcher-only action plus GF artifact evidence contract |
-| Agent contract refresh | `site.scaffold` | `AGENTS.md` and PR template encode current house posture |
+| Agent contract refresh | `greatfallstoolbus.org` | `AGENTS.md` and PR template encode current house posture |
 
 ## Non-Goals
 
