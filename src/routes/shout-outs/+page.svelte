@@ -18,7 +18,7 @@
 		{
 			name: 'Jess Sullivan',
 			role: 'Webmaster & mail admin',
-			note: 'Runs this site and the keyholders mail infrastructure.',
+			note: 'Runs this site; standing up the keyholders mail infrastructure.',
 		},
 	];
 

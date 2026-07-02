@@ -25,8 +25,8 @@
 	const SITE_TITLE = 'greatfallstoolbus.org — Tinyland house static-site scaffold';
 	const SITE_DESCRIPTION =
 		'Tinyland house scaffold for static SvelteKit brand sites with Just, Nix, Bazel, Skeleton, and static projection discipline.';
-	const REPO_URL = 'https://github.com/tinyland-inc/greatfallstoolbus.org';
-	const SECURITY_URL = 'https://github.com/tinyland-inc/greatfallstoolbus.org/security/advisories/new';
+	const REPO_URL = 'https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org';
+	const SECURITY_URL = 'https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/security/advisories/new';
 	const OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 	const jsonLd = {

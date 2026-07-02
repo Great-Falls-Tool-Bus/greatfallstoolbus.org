@@ -30,9 +30,13 @@
   NEW-2 follow-up work), printable cell sheets, bibliography/shout-outs/donate/
   wants pages, declare-only IaC intent, `/agent` + `/llms.txt` agent surfaces.
 - **This repo NEVER HOLDS:** `.enc.yaml` ciphertext or age keys; Cloudflare or
-  any DNS credentials; cluster hostnames / grpc:// endpoints / RFC1918 hosts
-  (`just scan-endpoints` gate); raw `--remote_cache` / `--remote_executor`
-  values; tofu state or backend coordinates; DKIM private keys.
+  any DNS credentials; cluster hostnames / grpc:// endpoints / RFC1918 hosts;
+  raw `--remote_cache` / `--remote_executor` values; tofu state or backend
+  coordinates; DKIM private keys. Enforced today by gitleaks (`just
+  secrets-scan-dir` / `secrets-scan`) + the conformance endpoint checks; a
+  dedicated `just scan-endpoints` recipe (goo's
+  `scripts/scan-internal-endpoints.sh` shape) is a tracked port on TIN-2366 —
+  it does not exist here yet, so do not cite it as a live gate.
 - **blahaj OWNS:** mail transport (postfix/dovecot/rspamd/account-controller,
   `mail.tinyland.dev/v1alpha1` CRDs), Mailman/HyperKitty runtime, Anubis
   runtime, Cloudflare DNS/tunnel, SOPS secret plane, protected plan/apply.

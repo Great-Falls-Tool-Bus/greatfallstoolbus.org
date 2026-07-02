@@ -1,6 +1,6 @@
 ---
 name: tinyland-spawn-sister-site
-description: Spawn a new Tinyland static spoke site from tinyland-inc/greatfallstoolbus.org. Wraps gh repo create --template, scripts/rebrand.sh, MODULE.bazel module renaming, theme bootstrapping, snapshot ingestion wiring, and the post-creation conformance checklist. Use when the user asks to "create a new sister site", "spawn a spoke", "add a brand site", "scaffold <domain>.com", or "stand up a new tinyland-inc/<name> from the scaffold".
+description: Spawn a new Tinyland static spoke site from tinyland-inc/site.scaffold. Wraps gh repo create --template, scripts/rebrand.sh, MODULE.bazel module renaming, theme bootstrapping, snapshot ingestion wiring, and the post-creation conformance checklist. Use when the user asks to "create a new sister site", "spawn a spoke", "add a brand site", "scaffold <domain>.com", or "stand up a new tinyland-inc/<name> from the scaffold".
 when_to_use: |
   Use when the user wants a new static spoke under the Tinyland enterprise. Not for
   hub (tinyland.dev), package-producer, infra, or tooling repos — those have different
@@ -46,7 +46,7 @@ must initiate it. The agent assists; it does not decide to spawn.
 ```bash
 # 1. Create the GitHub repo from the template.
 gh repo create tinyland-inc/<repo-name> \
-  --template tinyland-inc/greatfallstoolbus.org \
+  --template tinyland-inc/site.scaffold \
   --private \
   --description "<purpose>"
 
