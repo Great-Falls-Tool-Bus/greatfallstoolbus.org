@@ -1,8 +1,8 @@
 # Spoke-specific inputs. Rewritten by scripts/rebrand.sh on template
 # instantiation. Schema: docs/CI-SCHEMA.md §7.
 
-spoke_slug              = "greatfallstoolbus"
-brand_domain            = "greatfallstoolbus.org"
+spoke_slug   = "greatfallstoolbus"
+brand_domain = "greatfallstoolbus.org"
 github_org   = "Great-Falls-Tool-Bus"
 
 # Blahaj GitHub App installation ID. Obtain from the Blahaj App owner
