@@ -34,10 +34,10 @@
   any DNS credentials; cluster hostnames / grpc:// endpoints / RFC1918 hosts;
   raw `--remote_cache` / `--remote_executor` values; tofu state or backend
   coordinates; DKIM private keys. Enforced today by gitleaks (`just
-  secrets-scan-dir` / `secrets-scan`) + the conformance endpoint checks; a
-  dedicated `just scan-endpoints` recipe (goo's
-  `scripts/scan-internal-endpoints.sh` shape) is a tracked port on TIN-2366 —
-  it does not exist here yet, so do not cite it as a live gate.
+  secrets-scan-dir` / `secrets-scan`), the conformance endpoint checks, and
+  the dedicated `just scan-endpoints` denylist gate (goo's
+  `scripts/scan-internal-endpoints.sh` shape, ported under TIN-2366 and
+  wired into `just conformance` so the suite fails closed on leaks).
 - **blahaj OWNS:** mail transport (postfix/dovecot/rspamd/account-controller,
   `mail.tinyland.dev/v1alpha1` CRDs), Mailman/HyperKitty runtime, Anubis
   runtime, Cloudflare DNS/tunnel, SOPS secret plane, protected plan/apply.
