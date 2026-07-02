@@ -1,7 +1,8 @@
 # DNS + mail cutover — manual operator checklist
 
-**TIN-2360 row (g), DECIDED 2026-07-02.** House DNS plane is Cloudflare via
-blahaj; DreamHost stays registrar-only. Mail DNS is a **manual,
+**TIN-2360 row (g), DECIDED 2026-07-02.** House DNS plane is Cloudflare;
+GFTB zone apply is the org overlay `great-falls-tool-bus-infra`
+(zone-scoped token, TIN-2385); DreamHost stays registrar-only. Mail DNS is a **manual,
 operator-visible checklist by design**: the blahaj mail stack pins
 `external_dns_create_mx_records = False` (blahaj repo,
 `dhall/render/mail-honey.dhall`; the flag is declared in
@@ -10,10 +11,12 @@ us. Every record below is placed by a human and verified by a human.
 
 Scope: `greatfallstoolbus.org` (web) and `latoolb.us` (mail + redirect
 alias). Nothing in this repo applies any of this; this checklist is executed
-by the operator against the Cloudflare zones that blahaj owns. The
-API-level apply steps the blahaj plane runs (zone create, record create,
-redirect ruleset, DreamHost read-only capture) are documented in
-[`dns-apply-blahaj.md`](./dns-apply-blahaj.md); the declarative record set
+by the operator against the Cloudflare zones the apply plane
+(`great-falls-tool-bus-infra`) manages. The API-level apply steps (zone
+create, record create, redirect ruleset, DreamHost read-only capture) are
+documented in `great-falls-tool-bus-infra/docs/edge-apply-runbook.md`
+(local pointer stub: [`dns-apply.md`](./dns-apply.md)); the declarative
+record set
 is [`tofu/dns-intent/intent.yaml`](../../tofu/dns-intent/intent.yaml). This
 checklist stays the verification surface either way.
 
@@ -23,7 +26,7 @@ Conventions:
   `@1.1.1.1` to bypass local caches.
 - Do not proceed to a mail step until the NS cutover (step 1) is verified.
 - Values written `<like-this>` are chosen at execution time (most of them
-  blahaj-side) and must not be guessed.
+  apply-plane-side) and must not be guessed.
 
 ---
 
@@ -31,8 +34,8 @@ Conventions:
 
 DreamHost remains **registrar only**. In the DreamHost panel, replace the
 assigned nameservers for `greatfallstoolbus.org` and `latoolb.us` with the
-pair Cloudflare assigns when the zones are added (via blahaj, the house DNS
-plane). Recreate any records you still need in Cloudflare **before**
+pair Cloudflare assigns when the zones are added (via the infra overlay's
+edge-dns stack). Recreate any records you still need in Cloudflare **before**
 flipping NS.
 
 Verify (repeat per domain; expect two `*.ns.cloudflare.com.` hosts and no
@@ -135,16 +138,17 @@ dig TXT latoolb.us +short @1.1.1.1 | grep spf1
 
 ## 6. Mail: DKIM for latoolb.us
 
-The DKIM key pair is **generated blahaj-side** (row d: the private key never
-appears in this repo, not even as ciphertext; it is named — names-only — in
-`secrets.contract.yaml`). The selector is chosen blahaj-side too; for
+The DKIM key pair is **generated apply-plane-side** in the infra overlay's
+sops lane (row d: the private key never appears in this repo, not even as
+ciphertext; it is named — names-only — in `secrets.contract.yaml`). The
+selector is chosen apply-plane-side too; for
 reference, `tinyland.dev`'s live selector is `mail`.
 
-Publish the public half handed over by the blahaj operator:
+Publish the public half handed over by the apply-plane operator:
 
 | Name | Type | Value |
 | --- | --- | --- |
-| `<selector>._domainkey.latoolb.us` | `TXT` | `v=DKIM1; k=rsa; p=<public-key-from-blahaj>` |
+| `<selector>._domainkey.latoolb.us` | `TXT` | `v=DKIM1; k=rsa; p=<public-key-from-infra-overlay>` |
 
 Verify (then send a test mail to a mailbox you control and check the
 `DKIM-Signature` header validates, e.g. via the provider's "show original"):
@@ -206,4 +210,4 @@ curl -s https://mta-sts.latoolb.us/.well-known/mta-sts.txt
 - [ ] SPF, DKIM, DMARC TXT records resolve (steps 5–7)
 - [ ] A round-trip test mail to `keyholders@latoolb.us` is delivered and
       passes SPF + DKIM + DMARC in the receiving provider's headers —
-      only meaningful after the blahaj-side MailAccount/list exist
+      only meaningful after the overlay-applied MailAccount/list exist

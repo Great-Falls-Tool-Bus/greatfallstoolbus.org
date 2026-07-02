@@ -5,6 +5,15 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Re-point apply-plane references from the blahaj tenants lane to the org
+  apply-plane overlay `great-falls-tool-bus-infra` (packet 0001 Amendment 1,
+  memo 0002): `applied_by` in both intent files, secrets plane vocabulary
+  (`gftb-infra-sops`), runbook superseded into the pointer stub
+  `docs/runbooks/dns-apply.md`, and removal of the site-side `.sops.yaml`
+  recipient pin (the sops lane lives in the overlay).
+
 ### Fixed
 
 - Forward GloriousFlywheel `BAZEL_REMOTE_INSTANCE_NAME` through the Bazel
