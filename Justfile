@@ -85,6 +85,11 @@ secrets-scan-dir:
 secrets-scan:
     cd {{ root }} && gitleaks git --config .gitleaks.toml --redact --verbose .
 
+# Public-safe: scan the tracked tree for leaked internal cluster endpoints/hostnames
+# (catches what gitleaks' token-shape rules miss; also asserts tofu/ slug-correctness)
+scan-endpoints:
+    cd {{ root }} && bash scripts/scan-internal-endpoints.sh
+
 # Run Vitest unit tests
 test-unit:
     cd {{ root }} && pnpm run test:unit
@@ -211,6 +216,7 @@ scaffold-doctor:
       just repo-manifest-validate && \
       just lanes-validate && \
       just inhouse-package-parity && \
+      just scan-endpoints && \
       just secrets-scan-dir && \
       just bazel-graph && \
       echo "" && echo "=== Layer 3: authority-boundary audit ===" && \
@@ -430,7 +436,7 @@ sync-flywheel-bazelrc tag="v2.7.0":
       source_label="tinyland-inc/ci-templates@${tag}:bazelrc/flywheel.bazelrc"
     fi
 
-    if grep -Eq -- '--remote_cache=|--remote_executor=|--remote_upload_local_results=true|grpc://bazel-cache|grpc://gf-reapi-cell' "$tmp"; then
+    if grep -Eq -- '--remote_cache=|--remote_executor=|--remote_upload_local_results=true|grpcs?://' "$tmp"; then
       echo "Refusing endpointful or upload-authorizing Flywheel bazelrc from $source_label" >&2
       exit 1
     fi

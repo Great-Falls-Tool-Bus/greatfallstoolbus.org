@@ -59,10 +59,10 @@ operators set the remaining values manually:
 The S3 backend needs the **endpoint + credentials** for the cluster's **RustFS**
 instance. Pass via the standard AWS-style env vars (the `aws` provider reads them
 automatically; see [OpenTofu S3 backend docs][s3-backend]) before invoking
-`just tofu-init`: at minimum `AWS_ENDPOINT_URL_S3` (e.g.
-`http://attic-rustfs-hl.nix-cache.svc:9000`), `AWS_ACCESS_KEY_ID`, and
-`AWS_SECRET_ACCESS_KEY`. Operators typically source these from KeePassXC or
-`direnv` `.envrc.local`. **Never** Garage/MinIO — RustFS only.
+`just tofu-init`: at minimum `AWS_ENDPOINT_URL_S3` plus the standard AWS
+credential pair. These values are operator authority — they live in KeePassXC
+or a gitignored `direnv` `.envrc.local`, never in this public tree
+(decision row d / boundary). **Never** Garage/MinIO — RustFS only.
 
 [s3-backend]: https://opentofu.org/docs/language/settings/backends/s3/
 
