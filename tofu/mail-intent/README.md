@@ -39,6 +39,8 @@ That sentence is the whole contract. Expanded:
 
 - Decision packet: [`docs/decisions/0001-gftb-mvp-decisions.md`](../../docs/decisions/0001-gftb-mvp-decisions.md) (TIN-2360)
 - Names-only secrets contract: [`secrets.contract.yaml`](../../secrets.contract.yaml)
+- Declarative DNS record set: [`../dns-intent/`](../dns-intent/README.md)
 - Manual DNS checklist: [`docs/runbooks/dns-mail-checklist.md`](../../docs/runbooks/dns-mail-checklist.md)
+- Blahaj-plane apply steps: [`docs/runbooks/dns-apply-blahaj.md`](../../docs/runbooks/dns-apply-blahaj.md)
 - Draft list-client instructions: [`docs/runbooks/keyholders-client-setup.md`](../../docs/runbooks/keyholders-client-setup.md)
 - Spoke infra proper (the five composed modules): [`../README.md`](../README.md)

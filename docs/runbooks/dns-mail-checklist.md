@@ -10,7 +10,12 @@ us. Every record below is placed by a human and verified by a human.
 
 Scope: `greatfallstoolbus.org` (web) and `latoolb.us` (mail + redirect
 alias). Nothing in this repo applies any of this; this checklist is executed
-by the operator against the Cloudflare zones that blahaj owns.
+by the operator against the Cloudflare zones that blahaj owns. The
+API-level apply steps the blahaj plane runs (zone create, record create,
+redirect ruleset, DreamHost read-only capture) are documented in
+[`dns-apply-blahaj.md`](./dns-apply-blahaj.md); the declarative record set
+is [`tofu/dns-intent/intent.yaml`](../../tofu/dns-intent/intent.yaml). This
+checklist stays the verification surface either way.
 
 Conventions:
 
