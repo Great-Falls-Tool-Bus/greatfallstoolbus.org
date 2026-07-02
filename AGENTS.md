@@ -9,9 +9,11 @@ This spoke is the **Great Falls Tool Bus** public monorepo (see
 `docs/decisions/0001-gftb-mvp-decisions.md` — the binding decision packet,
 Linear TIN-2360). Non-negotiables beyond the scaffold contract: this repo holds
 **zero secrets and zero cluster endpoints, ever** (public repo; sops+age
-material lives blahaj-side under `tenants/great-falls-tool-bus/`); IaC here is
-declare-only intent — apply authority is blahaj (mail/list/Anubis/DNS) and
-`great-falls-tool-bus-infra` (runners, TIN-2299); never scaffold a runner or
+material lives in the org apply-plane overlay `great-falls-tool-bus-infra`
+under its `secrets/` lane); IaC here is declare-only intent — apply authority
+is `great-falls-tool-bus-infra` (mail/list/Anubis/DNS apply + runners,
+TIN-2299; packet 0001 Amendment 1 / memo 0002 — blahaj is replaceable
+substrate consumed by reference); never scaffold a runner or
 bake a cache/executor endpoint; the five sewing-cell ASINs stay opaque until
 operator-mediated resolution (never invent product names); all money-donation
 copy stays recipient-neutral with no tax-deductibility claims until decision

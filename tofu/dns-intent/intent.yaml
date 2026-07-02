@@ -2,9 +2,12 @@
 #
 # TIN-2360 rows (b)/(g); prep tracked on TIN-2366.
 # This file is intent documentation only. Nothing in this repo applies it.
-# Apply authority is the blahaj plane (house Cloudflare account); the exact
-# API steps blahaj runs are in docs/runbooks/dns-apply-blahaj.md and the
-# operator verification surface is docs/runbooks/dns-mail-checklist.md.
+# Apply authority is the org apply-plane overlay great-falls-tool-bus-infra
+# (tofu/stacks/edge-dns, zone-scoped Cloudflare token per TIN-2385; packet
+# 0001 Amendment 1 re-homed apply from blahaj). The exact API steps are in
+# that repo's docs/edge-apply-runbook.md (docs/runbooks/dns-apply.md here is
+# a pointer stub) and the operator verification surface is
+# docs/runbooks/dns-mail-checklist.md.
 # No endpoints, no state, no credentials — ever. Credentials are referenced
 # by NAME only (CLOUDFLARE_API_TOKEN, CF_ACCOUNT_ID, DREAMHOST_API_KEY).
 #
@@ -14,7 +17,7 @@
 version: 1
 kind: dns-intent
 linear: [TIN-2360, TIN-2366]
-applied_by: blahaj # never by this repo
+applied_by: great-falls-tool-bus-infra # never by this repo
 
 # Registrar posture (data, not mutation): both domains are registered at
 # DreamHost. Captured 2026-07-02: NS = ns1/ns2/ns3.dreamhost.com, ZERO
@@ -80,15 +83,17 @@ zones:
         type: TXT
         value: v=spf1 mx ~all
         notes: >-
-          Starting SPF; final mechanism list is blahaj-side authority
-          (must cover real list-mail egress). Do not tighten ~all to -all
+          Starting SPF; final mechanism list follows the house
+          mail-transport egress (substrate authority; must cover real
+          list-mail egress). Do not tighten ~all to -all
           until DMARC reports are quiet for a full list cycle.
       - name: <selector>._domainkey
         type: TXT
-        value: v=DKIM1; k=rsa; p=<public-key-from-blahaj>
+        value: v=DKIM1; k=rsa; p=<public-key-from-infra-overlay>
         notes: >-
           DKIM public half only. Key pair and selector are minted
-          blahaj-side; the private key is named (names-only) as
+          apply-plane-side (infra overlay sops lane); the private key is
+          named (names-only) as
           latoolbus-dkim-private-key in secrets.contract.yaml and never
           appears in this repo, not even as ciphertext.
       - name: _dmarc

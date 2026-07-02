@@ -1,7 +1,7 @@
 # keyholders@latoolb.us — client setup (DRAFT accordion content)
 
 > **DRAFT — the list does not exist yet.** This page is pre-written accordion
-> content for the site's join page, staged while the blahaj-side Mailman 3 /
+> content for the site's join page, staged while the overlay-side Mailman 3 /
 > Postorius / HyperKitty deployment (pinned trio 3.3.10 / 1.3.13 / 1.3.12,
 > TIN-2360 row e) is still being staged. Every address and URL below follows
 > the **generic Mailman 3 pattern** and must be re-verified against the real
@@ -125,4 +125,4 @@ KMail has first-class mailing-list support:
 
 *Draft authored 2026-07-02 as TIN-2360 rows (c)/(d) prep (tracked with
 TIN-2366). Re-verify every address, URL, and Postorius label against the
-real blahaj-side deployment before publishing.*
+real overlay-side deployment before publishing.*
