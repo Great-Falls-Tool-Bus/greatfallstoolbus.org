@@ -68,3 +68,60 @@
       execution across spokes); no new Linear object
 - [ ] Kate Pulham shout-out wording sign-off — still open (current copy stays
       modest/recipient-neutral)
+
+
+---
+
+## Amendment 1 — row (c): IaC home (AMENDED 2026-07-02, operator correction; ledger item 19, citing item 18)
+
+**Superseded text (retained per the no-silent-rewrite rule):**
+
+> ~~(c) IaC home — three planes: declare-only tofu/intent in this repo; runtime
+> apply (mail/list/Anubis/tunnel/DNS) in blahaj per the MassageIthaca precedent;
+> runner tenancy in `great-falls-tool-bus-infra` per TIN-2299.~~
+
+**Replacement row (c):**
+
+> **(c) IaC home.** The GFTB **apply plane** lives in
+> `Great-Falls-Tool-Bus/great-falls-tool-bus-infra` — the org's implementation
+> overlay (TIN-2299 L6), remit extended to the full **org apply-plane overlay**.
+> Runner tenancy (live), mail intent as CR manifests
+> (`mail.tinyland.dev/v1alpha1` MailDomain/MailAccount for latoolb.us), the list
+> engine (Mailman3/Postorius/HyperKitty), and Anubis all land as `tofu/stacks/*`
+> + manifests in the infra repo, planned and applied by its protected plan/apply
+> CI against substrate interfaces (namespace-scoped kubeconfig; RustFS state
+> under the repo's own prefix).
+>
+> **blahaj is a substrate**, consumed only through named interfaces — the
+> MailDomain/MailAccount CRDs, `relay.tinyland.dev` transport, the S3 tofu-state
+> endpoint, namespace-scoped kubeconfig grants, and the dispatch schemas — and
+> must remain **logically replaceable**: no GFTB stack, schema, or workflow may
+> assume blahaj internals. The replaceability test: swapping the substrate may
+> change endpoint values and credential material in this org's repos, and
+> nothing else.
+>
+> **Carve-out (pending a separate edge-authority decision):** Cloudflare
+> DNS/Access/Tunnel **apply** stays blahaj-side; overlays never hold Cloudflare
+> credentials (house rule). DNS/tunnel **intent** is declared GFTB-side. Either
+> blahaj applies that intent as a substrate service, or the operator mints a
+> zone-scoped CF token for the two GFTB zones into the infra repo's protected
+> environment — deliberately NOT settled by this amendment.
+>
+> **The MassageIthaca precedent is demoted to legacy reference.** blahaj's own
+> doctrine already classifies `tofu/stacks/massageithaca*` as adopted-live
+> transitional, "not templates." The exemplar for new tenants is the
+> consumer-owned overlay pattern (this org's infra repo).
+
+**Boundary-contract deltas:** `great-falls-tool-bus-infra` OWNS protected
+plan/apply for all GFTB stacks, GFTB state coordinates, GFTB ciphertext under
+the distinct GFTB age recipient (repo-local `.sops.yaml`), and DNS/tunnel
+intent. blahaj OWNS the cluster, the mail transport (interface: CRDs +
+relay.tinyland.dev), CF edge custody per the carve-out, the shared SOPS tenant
+rule — and, as the ONLY GFTB ciphertext it hosts, transport-consumed DKIM
+private keys under `tenants/great-falls-tool-bus/secrets/`. This public repo's
+NEVER list is unchanged. **Row (d) custody delta:** the ciphertext lane
+re-homes to the infra repo except the DKIM carve-out.
+
+**Operator signature:** directed verbatim in-session 2026-07-02 ~21:00Z ("the
+blahaj repo should be logically replaceable and not an intertangled part of our
+projects"); formal countersign requested on TIN-2360.
