@@ -1,20 +1,43 @@
 <script lang="ts">
-	// Inventory doctrine: every entry eventually resolves to a real model number
-	// with a manufacturer manual or datasheet link. Entries still awaiting
-	// operator-mediated identification are shown as unresolved — no invented
-	// product names, ever. (Resolution method owned by the tailoring manifest
-	// lane; see docs/decisions/0001-gftb-mvp-decisions.md.)
+	// Inventory doctrine: every entry resolves to a real model number with a
+	// manufacturer manual or datasheet link — no invented product names, ever.
+	// All five order-reference items resolved + operator-confirmed 2026-07-02
+	// (method owned by the tailoring manifest lane; citation table in
+	// Jesssullivan/transfemme-tailoring README).
 	const sewingCell = {
 		resolved: [
 			{
+				item: 'SINGER Heavy Duty 6600C Sterling (computerized)',
+				status: 'The working machine — 100 built-in stitches, six one-step buttonholes. Manual linked below.',
+				doc: 'https://cdn.poconosewandvac.com/web/products/instruction-manuals/pdfs/singer/hd6600c-hd6605c/hd6600c-hd6605c-instruction-manual.pdf',
+				docLabel: 'Instruction manual (PDF)',
+			},
+			{
 				item: 'Treadle Singer sewing machine (1800s)',
 				status: 'Restoration in progress — honestly framed: not yet a working machine.',
+			},
+			{
+				item: 'SINGER ProSeries scissors bundle (8.5″ bent + 4.5″ detail + snips)',
+				status: 'The kit shears. Bent shears stay dedicated to fabric.',
+				doc: 'https://www.singer.com/products/singer-8-5-proseries-scissors',
+				docLabel: 'singer.com',
+			},
+			{
+				item: 'FIVEIZERO seam-ripper set (2 large + 2 small + snips)',
+				status: 'In kit — the most-used tools in any alteration.',
+			},
+			{
+				item: 'BulingBuling bonded-nylon upholstery thread kit (8 × 210D/3)',
+				status: 'In kit. Heavy repairs only — too stiff for fine seams.',
+			},
+			{
+				item: 'Newkita 2″ T-pins (100, E0106)',
+				status: 'In kit. For blocking and heavy layers — too thick for shirting.',
 			},
 			{ item: 'Singer sewing machine oil', status: 'In kit. Oil only, never grease.' },
 			{ item: 'Small cutting surface', status: 'In kit.' },
 			{ item: 'Small handheld rotary cutter', status: 'In kit.' },
 		],
-		unresolved: ['B0D22F8JRC', 'B09V93QPB4', 'B09Y5B66R8', 'B0F9KNZ39G', 'B0F1TD3LYG'],
 	};
 </script>
 
@@ -42,22 +65,14 @@
 			{#each sewingCell.resolved as tool (tool.item)}
 				<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-4">
 					<h3 class="font-semibold">{tool.item}</h3>
-					<p class="text-surface-700-300 mt-1 text-sm leading-relaxed">{tool.status}</p>
+					<p class="text-surface-700-300 mt-1 text-sm leading-relaxed">
+						{tool.status}
+						{#if tool.doc}
+							<a class="underline" href={tool.doc} rel="external noopener">{tool.docLabel}</a>
+						{/if}
+					</p>
 				</div>
 			{/each}
-		</div>
-
-		<div class="border-surface-200-800 mt-6 rounded-lg border border-dashed p-4">
-			<h3 class="font-semibold">Awaiting identification ({sewingCell.unresolved.length})</h3>
-			<p class="text-surface-700-300 mt-1 text-sm leading-relaxed">
-				Five purchased kit items are catalogued only by order reference so far. Each will be resolved to its real model
-				number, manual, and datasheet before it gets a name here — we do not guess.
-			</p>
-			<ul class="text-surface-500 mt-3 flex flex-wrap gap-2 font-mono text-xs">
-				{#each sewingCell.unresolved as asin (asin)}
-					<li class="border-surface-200-800 rounded border px-2 py-1">{asin}</li>
-				{/each}
-			</ul>
 		</div>
 	</section>
 

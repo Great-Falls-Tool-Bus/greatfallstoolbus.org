@@ -44,9 +44,10 @@
 	<section class="border-surface-200-800 mt-12 border-t pt-8">
 		<h2 class="text-2xl font-semibold">About supporting the project</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
-			The Great Falls Tool Bus is an unincorporated community project. Tool donations are the heart of it. If you want
-			to support the project in other ways, reach out first — we will tell you honestly what we can and cannot accept,
-			and nothing here should be read as a tax-deductible charitable solicitation.
+			The Great Falls Tool Bus is an unincorporated community project, and we keep the money side simple: <strong
+				>we accept tool donations only</strong
+			> until a real entity exists. If you want to help another way, reach out and we'll talk person-to-person — nothing here
+			is a tax-deductible charitable solicitation.
 		</p>
 	</section>
 </main>
