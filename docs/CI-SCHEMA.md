@@ -1,7 +1,7 @@
 # CI-SCHEMA.md — Tinyland Spoke Site CI & Lane Contract
 
 > **Status**: Normative. Every repository spawned from
-> `tinyland-inc/site.scaffold` is governed by the contract in this
+> `tinyland-inc/greatfallstoolbus.org` is governed by the contract in this
 > document and the JSON Schemas under [`./schemas/`](./schemas/).
 >
 > **Companion artifacts:**
@@ -133,7 +133,7 @@ Top-level shape (annotated):
   "schema_version": 1,                    // const; bumped on breaking changes
   "spoke": {
     "name": "site-scaffold",              // pattern: ^[a-z][a-z0-9-]{1,62}$
-    "domain": "site.scaffold.tinyland.dev",
+    "domain": "greatfallstoolbus.org.tinyland.dev",
     "image_repository": "ghcr.io/<owner>/<name>"   // optional; default at workflow time
   },
   "defaults": {                           // optional; per-lane overrides win
@@ -171,7 +171,7 @@ This is the shipped template content. New sister sites start here.
   "schema_version": 1,
   "spoke": {
     "name": "site-scaffold",
-    "domain": "site.scaffold.tinyland.dev"
+    "domain": "greatfallstoolbus.org.tinyland.dev"
   },
   "defaults": {
     "runner_class": "tinyland-nix",
@@ -402,9 +402,9 @@ schema validation.
    - artifact ID
    - `remote_processes > 0`
    - `worker_image_digest`
-2. After merge, PR to `site.scaffold` bumping the enum in
+2. After merge, PR to `greatfallstoolbus.org` bumping the enum in
    `lanes.schema.json` and adding a row to this table. Tag the next
-   `site.scaffold` minor version.
+   `greatfallstoolbus.org` minor version.
 3. Spokes adopt by bumping their `ci-templates` SemVer pin (§11) and
    editing `lanes.json.flywheel_target_classes`.
 
@@ -625,7 +625,7 @@ authoritative gate.
 
 ### This doc's tag
 
-Every change to `CI-SCHEMA.md` bumps `site.scaffold`'s git tag. Spokes
+Every change to `CI-SCHEMA.md` bumps `greatfallstoolbus.org`'s git tag. Spokes
 consume a specific scaffold tag at template-instantiation time and may
 stay on it; conformance is checked against the tag they were spawned
 from until they explicitly upgrade.

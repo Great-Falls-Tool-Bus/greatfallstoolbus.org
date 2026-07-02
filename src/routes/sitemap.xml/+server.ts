@@ -2,7 +2,7 @@
 // XML lives at build/sitemap.xml. Add additional routes here as M5 lands them.
 import type { RequestHandler } from './$types';
 
-const SITE = 'https://site.scaffold';
+const SITE = 'https://greatfallstoolbus.org';
 const PAGES: string[] = ['/', '/agent'];
 
 export const prerender = true;

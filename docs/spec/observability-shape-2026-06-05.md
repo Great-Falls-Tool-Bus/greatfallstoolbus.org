@@ -71,7 +71,7 @@ in the page.
 
 ## Acceptance
 
-- The launch site (`site.scaffold` at M4) ships zero analytics. Verified by
+- The launch site (`greatfallstoolbus.org` at M4) ships zero analytics. Verified by
   inspecting the deployed `index.html` for any third-party `<script>`.
 - This document is the *shape*, not the implementation. Implementation
   requires its own ticket, a privacy-policy update, and a CI check that

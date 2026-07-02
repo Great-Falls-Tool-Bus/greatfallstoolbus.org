@@ -1,7 +1,21 @@
-# Agent Notes — site.scaffold
+# Agent Notes — greatfallstoolbus.org
 
 This file is the working contract for coding agents and LLMs operating in any
 sister site spawned from this scaffold.
+
+## GFTB Specifics
+
+This spoke is the **Great Falls Tool Bus** public monorepo (see
+`docs/decisions/0001-gftb-mvp-decisions.md` — the binding decision packet,
+Linear TIN-2360). Non-negotiables beyond the scaffold contract: this repo holds
+**zero secrets and zero cluster endpoints, ever** (public repo; sops+age
+material lives blahaj-side under `tenants/great-falls-tool-bus/`); IaC here is
+declare-only intent — apply authority is blahaj (mail/list/Anubis/DNS) and
+`great-falls-tool-bus-infra` (runners, TIN-2299); never scaffold a runner or
+bake a cache/executor endpoint; the five sewing-cell ASINs stay opaque until
+operator-mediated resolution (never invent product names); all money-donation
+copy stays recipient-neutral with no tax-deductibility claims until decision
+row (h) is signed.
 
 ## Repo Role
 
@@ -52,7 +66,7 @@ reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
   automatically.
 - **Plugin marketplace**: `.claude-plugin/marketplace.json` exposes
   `plugins/scaffold-core/` as a git-subdir-installable plugin. Other repos
-  install via `/plugin marketplace add github:tinyland-inc/site.scaffold` then
+  install via `/plugin marketplace add github:tinyland-inc/greatfallstoolbus.org` then
   `/plugin install scaffold-core@site-scaffold`. Plugin skills are sibling
   symlinks under `plugins/scaffold-core/skills/` that resolve back to the
   canonical `.agents/skills/<name>`.
@@ -127,7 +141,7 @@ reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
 ## Projection And Broker Display
 
 - This site is a **read-only consumer** of reviewed `tinyland.dev` content.
-- `site.scaffold` supports two read-only spoke modes:
+- `greatfallstoolbus.org` supports two read-only spoke modes:
   - **Static projection ingestion**: checked-in JSON artifacts validated at
     build time. This is the default for product, service, offer, and simple
     brand sites.
@@ -158,7 +172,7 @@ reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
 
 ## Per-Site Customization Checklist
 
-After `gh repo create --template tinyland-inc/site.scaffold`:
+After `gh repo create --template tinyland-inc/greatfallstoolbus.org`:
 
 1. `direnv allow`
 2. `scripts/rebrand.sh <site.example.com>` — rewrites name strings, env vars,
@@ -392,6 +406,6 @@ prior artifact). Both lanes are designed in
   the spoke is house-style compliant. MANUAL items (org ruleset,
   tailnet DNS) require operator verification outside this repo.
 - This scaffold conforms to `docs/CI-SCHEMA.md` at the
-  `tinyland-inc/site.scaffold` tag this clone was spawned from. Sister
+  `tinyland-inc/greatfallstoolbus.org` tag this clone was spawned from. Sister
   spokes that have not bumped past their original tag are not required
   to track schema changes until they explicitly upgrade.

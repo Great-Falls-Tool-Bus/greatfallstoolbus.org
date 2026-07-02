@@ -1,6 +1,6 @@
 ---
 name: Bug
-about: Report a bug in the site.scaffold site
+about: Report a bug in the greatfallstoolbus.org site
 title: ''
 labels: ['bug']
 assignees: ''
@@ -20,7 +20,7 @@ assignees: ''
 
 - Browser:
 - OS:
-- site.scaffold page:
+- greatfallstoolbus.org page:
 
 ## Additional Context
 

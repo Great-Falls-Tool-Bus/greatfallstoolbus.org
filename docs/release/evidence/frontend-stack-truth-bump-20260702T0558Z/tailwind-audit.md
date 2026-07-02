@@ -1,4 +1,4 @@
-# Tailwind v4 bare-utility + @source audit — site.scaffold (2026-07-02, TIN-2348)
+# Tailwind v4 bare-utility + @source audit — greatfallstoolbus.org (2026-07-02, TIN-2348)
 
 A green typecheck proves nothing visual under Tailwind v4 (unknown utilities drop silently).
 This audit checked the four house failure classes. All claims below are OBSERVED from command

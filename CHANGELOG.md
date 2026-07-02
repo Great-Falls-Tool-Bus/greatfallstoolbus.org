@@ -15,7 +15,7 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ### Added
 
-- First versioned `site.scaffold` release surface, including a release workflow
+- First versioned `greatfallstoolbus.org` release surface, including a release workflow
   that cuts immutable `vMAJOR.MINOR.PATCH` tags, moves the floating `vMAJOR`
   tag with an explicit remote lease, and creates GitHub Releases from this
   changelog.

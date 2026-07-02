@@ -1,5 +1,5 @@
 {
-  description = "site.scaffold development shell";
+  description = "greatfallstoolbus.org development shell";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -82,7 +82,7 @@
 
             ${extraHook}
 
-            echo "site.scaffold dev shell"
+            echo "greatfallstoolbus.org dev shell"
             echo "  node     $(node --version)"
             echo "  pnpm     $(pnpm --version 2>/dev/null || echo 'not available yet')"
             echo "  just     $(just --version)"

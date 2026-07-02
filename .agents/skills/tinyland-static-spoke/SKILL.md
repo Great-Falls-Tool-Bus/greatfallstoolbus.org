@@ -1,6 +1,6 @@
 ---
 name: tinyland-static-spoke
-description: Customize, review, or maintain a Tinyland static spoke site created from tinyland-inc/site.scaffold. Use when changing AGENTS.md, CLAUDE.md, README.md, SvelteKit static routes, theme files, static projection ingestion, Blahaj lane previews, llms.txt, sitemap/robots, public preview docs, or per-site brand setup.
+description: Customize, review, or maintain a Tinyland static spoke site created from tinyland-inc/greatfallstoolbus.org. Use when changing AGENTS.md, CLAUDE.md, README.md, SvelteKit static routes, theme files, static projection ingestion, Blahaj lane previews, llms.txt, sitemap/robots, public preview docs, or per-site brand setup.
 ---
 
 # Tinyland Static Spoke

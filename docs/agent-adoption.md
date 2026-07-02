@@ -1,16 +1,16 @@
 # Agent Adoption Flow
 
 This is the DRY handoff for asking an AI coding agent to adopt the
-`tinyland-inc/site.scaffold` contract in any Tinyland repo.
+`tinyland-inc/greatfallstoolbus.org` contract in any Tinyland repo.
 
 ## Paste To Agent
 
-> Adopt the Tinyland scaffold contract for this repo: read `AGENTS.md`, `Justfile`, `flake.nix`, `tinyland.repo.json` if present, `.github/workflows/*`, `.github/lanes.json`, `.bazelrc*`, `MODULE.bazel`, and `docs/CI-SCHEMA.md` if present; classify the repo shape and authority boundaries against `tinyland-inc/site.scaffold/docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md`; map the repo to the enforceable layers in `tinyland-inc/site.scaffold/docs/agent-adoption.md`; flag contract smells; patch only minimal conformance gaps; run through `just <recipe>` entrypoints only; validate with `just check` plus `just conformance` or the closest documented equivalent; do not remove or rewrite dirty worktrees without preserving them and reporting the stash/branch.
+> Adopt the Tinyland scaffold contract for this repo: read `AGENTS.md`, `Justfile`, `flake.nix`, `tinyland.repo.json` if present, `.github/workflows/*`, `.github/lanes.json`, `.bazelrc*`, `MODULE.bazel`, and `docs/CI-SCHEMA.md` if present; classify the repo shape and authority boundaries against `tinyland-inc/greatfallstoolbus.org/docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md`; map the repo to the enforceable layers in `tinyland-inc/greatfallstoolbus.org/docs/agent-adoption.md`; flag contract smells; patch only minimal conformance gaps; run through `just <recipe>` entrypoints only; validate with `just check` plus `just conformance` or the closest documented equivalent; do not remove or rewrite dirty worktrees without preserving them and reporting the stash/branch.
 
 For plugin-capable agents, install or load the scaffold skills first:
 
 ```text
-/plugin marketplace add github:tinyland-inc/site.scaffold
+/plugin marketplace add github:tinyland-inc/greatfallstoolbus.org
 /plugin install scaffold-core@site-scaffold
 ```
 

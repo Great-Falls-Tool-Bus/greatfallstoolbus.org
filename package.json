@@ -1,13 +1,13 @@
 {
-	"name": "site.scaffold",
+	"name": "greatfallstoolbus",
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",
 	"description": "Tinyland house scaffold for static SvelteKit brand sites (Skeleton 4 + Bazel + Nix + Just)",
-	"homepage": "https://github.com/tinyland-inc/site.scaffold",
+	"homepage": "https://github.com/tinyland-inc/greatfallstoolbus.org",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/tinyland-inc/site.scaffold.git"
+		"url": "https://github.com/tinyland-inc/greatfallstoolbus.org.git"
 	},
 	"license": "MIT",
 	"packageManager": "pnpm@10.13.1",

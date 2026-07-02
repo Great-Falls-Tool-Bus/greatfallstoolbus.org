@@ -20,13 +20,13 @@
 		{ href: '/#contact', label: 'Contact' },
 	];
 
-	const SITE_NAME = 'site.scaffold';
-	const SITE_URL = 'https://site.scaffold';
-	const SITE_TITLE = 'site.scaffold — Tinyland house static-site scaffold';
+	const SITE_NAME = 'greatfallstoolbus.org';
+	const SITE_URL = 'https://greatfallstoolbus.org';
+	const SITE_TITLE = 'greatfallstoolbus.org — Tinyland house static-site scaffold';
 	const SITE_DESCRIPTION =
 		'Tinyland house scaffold for static SvelteKit brand sites with Just, Nix, Bazel, Skeleton, and static projection discipline.';
-	const REPO_URL = 'https://github.com/tinyland-inc/site.scaffold';
-	const SECURITY_URL = 'https://github.com/tinyland-inc/site.scaffold/security/advisories/new';
+	const REPO_URL = 'https://github.com/tinyland-inc/greatfallstoolbus.org';
+	const SECURITY_URL = 'https://github.com/tinyland-inc/greatfallstoolbus.org/security/advisories/new';
 	const OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 	const jsonLd = {
