@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Tinyland Repo Contract'
+  short_description: 'Just, Nix, gitleaks, and validation entrypoints'
+  default_prompt: 'Use $tinyland-repo-contract to bring a Tinyland repo into the standard Just/Nix/gitleaks contract.'

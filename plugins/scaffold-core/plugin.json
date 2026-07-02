@@ -1,0 +1,16 @@
+{
+	"$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+	"name": "scaffold-core",
+	"version": "0.1.0",
+	"description": "Tinyland house-style scaffold core plugin. Six skills covering cold-landing classification, spoke spawning, drift audit, repo contract, static-spoke customization, and cache-first Bazel.",
+	"owner": "tinyland-inc",
+	"skills_dir": "./skills",
+	"skill_listing_budget_fraction": 0.02,
+	"agents_md_overlay": "../../AGENTS.md",
+	"notes": [
+		"Skill bodies are canonical at .agents/skills/<name>/SKILL.md in the repo root.",
+		"plugins/scaffold-core/skills/* are symlinks to those canonical files so the plugin is git-subdir-installable.",
+		".claude/skills/* are sibling symlinks used by Claude Code's repo-walk discovery.",
+		"When editing a skill, edit .agents/skills/<name>/SKILL.md. The symlinks resolve automatically."
+	]
+}

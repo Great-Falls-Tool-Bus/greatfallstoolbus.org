@@ -1,0 +1,64 @@
+name: Deploy to GitHub Pages
+
+# House DEFAULT deploy lane (see AGENTS.md -> "Build target"): adapter-static -> GitHub Pages.
+# Project-path hosting at https://<owner>.github.io/<repo>/ via BASE_PATH="/<repo>".
+# Custom-domain spoke: add static/CNAME and build with BASE_PATH="" (root base).
+# Cloudflare Pages is a documented opt-in: docs/deploy/cloudflare-pages.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build static site
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Install workspace dependencies
+        run: nix develop --command just setup
+
+      - name: Check static site
+        run: nix develop --command just check
+
+      - name: Build static site (project base path = /<repo>)
+        run: nix develop --command just build
+        env:
+          NODE_ENV: production
+          BASE_PATH: /${{ github.event.repository.name }}
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: build
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v5
+        id: deployment

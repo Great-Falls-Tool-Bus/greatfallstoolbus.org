@@ -1,0 +1,347 @@
+@import 'tailwindcss';
+
+@import '@skeletonlabs/skeleton';
+@import '@skeletonlabs/skeleton-svelte';
+
+/* omux Warm/Pragmatic house theme (Skeleton 4 house format, OKLCH). */
+@import './lib/styles/themes/omux.css';
+
+/* Self-hosted fonts. Inter for body + heading per omux theme.
+   FiraCode Nerd Font Mono (patched with Nerd Font glyph icons + Fira Code
+   ligatures) for all code surfaces — self-hosted woff2 below. */
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
+@import '@fontsource/inter/latin-600.css';
+@import '@fontsource/inter/latin-700.css';
+
+/* Tailwind v4 only generates utilities it can see at build time, and Skeleton's
+   component markup ships utility classes of its own (e.g. `size-4` on the
+   listbox/combobox/tree-view item indicators). Without this @source line those
+   utilities are silently never generated — the build stays green and the visual
+   surface breaks (house scars: bare `rounded` → 0 radius, `m-y-4` → no spacing).
+   Keep it pointing at the vendored dist; MassageIthaca carries the same line. */
+@source '../node_modules/@skeletonlabs/skeleton-svelte/dist';
+
+@font-face {
+	font-family: 'FiraCode Nerd Font Mono';
+	src:
+		local('FiraCodeNerdFontMono-Regular'),
+		url('/fonts/FiraCodeNerdFontMono-Regular.woff2') format('woff2');
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'FiraCode Nerd Font Mono';
+	src:
+		local('FiraCodeNerdFontMono-Bold'),
+		url('/fonts/FiraCodeNerdFontMono-Bold.woff2') format('woff2');
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+}
+
+/* Dark-mode strategy: data-mode attribute on <html>, set synchronously by the
+   FOUC-prevention script in src/app.html. Color pairs (bg-surface-100-900) use
+   the native light-dark() function which switches via document color-scheme. */
+@custom-variant dark (&:where([data-mode='dark'], [data-mode='dark'] *));
+
+[data-mode='light'] {
+	color-scheme: light;
+}
+[data-mode='dark'] {
+	color-scheme: dark;
+}
+
+/* ===== Body + global typography baseline =====
+   Skeleton 4 themes declare --typo-base/heading--font-family, but app code
+   has to anchor body to that variable so prose actually picks up Inter. */
+html {
+	overflow-x: clip;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
+}
+
+body {
+	font-family: var(--typo-base--font-family);
+	font-feature-settings:
+		'cv02' 1,
+		'cv03' 1,
+		'cv04' 1,
+		'cv11' 1;
+	overscroll-behavior-y: none;
+}
+
+/* Refined heading scale with theme typography variables.
+   omux theme already declares --typo-heading--*; we tune sizes + tracking
+   here so the visual hierarchy reads as a devtool launch surface (sharp,
+   tight) rather than generic prose. */
+h1,
+.h1 {
+	font-size: clamp(2.5rem, 5vw + 1rem, 5rem);
+	line-height: 1.05;
+	letter-spacing: -0.025em;
+	font-weight: 700;
+}
+
+h2,
+.h2 {
+	font-size: clamp(1.5rem, 2.5vw + 0.5rem, 2.25rem);
+	line-height: 1.15;
+	letter-spacing: -0.02em;
+	font-weight: 700;
+}
+
+h3,
+.h3 {
+	font-size: 1.5rem;
+	line-height: 1.25;
+	letter-spacing: -0.015em;
+	font-weight: 600;
+}
+
+h4,
+.h4 {
+	font-size: 1.25rem;
+	line-height: 1.3;
+	font-weight: 600;
+}
+
+/* Section anchor offset so #hash jumps land below the sticky AppBar.
+   AppBar is ~56px tall at our spacing; 64px gives a small breathing gap. */
+:where([id]) {
+	scroll-margin-top: 64px;
+}
+
+html {
+	scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	html {
+		scroll-behavior: auto;
+	}
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	font-family: var(--typo-heading--font-family);
+}
+
+code,
+kbd,
+pre,
+samp,
+.font-mono {
+	font-family: 'FiraCode Nerd Font Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-feature-settings:
+		'liga' 1,
+		'calt' 1;
+}
+
+/* Shiki-rendered code blocks: inherit our FiraCode Nerd Font Mono stack
+   AND wrap rather than scroll. User constraint: no scrollbars inside any
+   element, at any breakpoint. Long lines wrap on word boundaries; URLs
+   and other unbreakable tokens use overflow-wrap: anywhere. */
+pre.shiki {
+	padding: 0.875rem 1rem;
+	border-radius: 0.5rem;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	word-break: normal;
+	line-height: 1.55;
+	font-size: 0.8125rem;
+}
+
+/* Shiki dual-theme cascade.
+   With `themes: { light, dark }` + `defaultColor: false`, Shiki emits
+   inline `style="--shiki-light:#xxx; --shiki-dark:#yyy"` per token but
+   does NOT apply the colors itself — the consuming CSS below walks the
+   variables to actual `color` / `background-color`.
+   Light is the default; data-mode='dark' switches to the dark palette. */
+pre.shiki,
+pre.shiki code,
+pre.shiki span {
+	color: var(--shiki-light);
+	background-color: var(--shiki-light-bg);
+}
+[data-mode='dark'] pre.shiki,
+[data-mode='dark'] pre.shiki code,
+[data-mode='dark'] pre.shiki span {
+	color: var(--shiki-dark);
+	background-color: var(--shiki-dark-bg);
+}
+pre.shiki,
+pre.shiki code,
+pre.shiki span {
+	font-family: 'FiraCode Nerd Font Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+	font-feature-settings:
+		'liga' 1,
+		'calt' 1 !important;
+}
+
+/* Inline code in prose stays compact; no card chrome. */
+:not(pre) > code {
+	font-size: 0.875em;
+	padding: 0.1em 0.3em;
+	border-radius: 0.25rem;
+	background: color-mix(in oklch, var(--color-surface-200) 40%, transparent);
+}
+[data-mode='dark'] :not(pre) > code {
+	background: color-mix(in oklch, var(--color-surface-800) 50%, transparent);
+}
+
+/* ===== Prose styling for marketing copy =====
+   Lifted from jesssullivan.github.io-vite8 baseline, trimmed for single-page
+   devtool surface (no blog-prose, no embed images). */
+.prose {
+	line-height: 1.7;
+}
+
+.prose p {
+	margin-bottom: 1.25em;
+}
+
+.prose a {
+	color: var(--color-primary-500);
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+.prose a:hover {
+	color: var(--color-primary-600);
+}
+
+.prose ul,
+.prose ol {
+	margin-bottom: 1.25em;
+	padding-left: 1.5em;
+}
+
+.prose ul {
+	list-style: disc;
+}
+.prose ol {
+	list-style: decimal;
+}
+
+.prose li {
+	margin-bottom: 0.4em;
+}
+
+.prose blockquote {
+	border-left: 3px solid var(--color-primary-500);
+	padding-left: 1em;
+	margin: 1.5em 0;
+	font-style: italic;
+	color: var(--color-surface-700-300);
+}
+
+.prose code:not(pre code) {
+	font-size: 0.875em;
+	padding: 0.15em 0.35em;
+	border-radius: 0.25rem;
+	background: var(--color-surface-100-900);
+	color: var(--color-surface-900-100);
+}
+
+/* ===== Saturn-nav AppBar =====
+   Glass variant evolved from .glass-nav. Two saturn motifs:
+   1. A 1.5px primary-tinted bottom edge (the planet's ring line).
+   2. A faint warm radial halo at the top-right (the planet's atmosphere
+      tinting the chrome from outside the document flow).
+   Both are subtle — the brand voice, not a focal element. */
+.saturn-nav {
+	position: relative;
+	background: color-mix(in oklch, var(--color-surface-50) 88%, transparent);
+	border-bottom: 2px solid color-mix(in oklch, var(--color-primary-500) 50%, transparent);
+}
+
+[data-mode='dark'] .saturn-nav {
+	background: color-mix(in oklch, var(--color-surface-950) 85%, transparent);
+	border-bottom-color: color-mix(in oklch, var(--color-primary-500) 60%, transparent);
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+	.saturn-nav {
+		background: color-mix(in oklch, var(--color-surface-50) 55%, transparent);
+		backdrop-filter: blur(20px) saturate(160%);
+		-webkit-backdrop-filter: blur(18px) saturate(140%);
+	}
+
+	[data-mode='dark'] .saturn-nav {
+		background: color-mix(in oklch, var(--color-surface-950) 60%, transparent);
+		backdrop-filter: blur(20px) saturate(140%);
+		-webkit-backdrop-filter: blur(18px) saturate(120%);
+	}
+}
+
+/* Warm radial halo at top-right corner — only visible at md+ where the
+   AppBar has horizontal real estate. Fades into the chrome. */
+.saturn-nav::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: clamp(120px, 18vw, 240px);
+	height: 100%;
+	background: radial-gradient(
+		ellipse at 80% 20%,
+		color-mix(in oklch, var(--color-primary-500) 16%, transparent),
+		transparent 70%
+	);
+	pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.saturn-nav {
+		backdrop-filter: none !important;
+		-webkit-backdrop-filter: none !important;
+	}
+}
+
+/* ===== Focus visibility =====
+   Required for WCAG AA per the founding-prompt accessibility line. */
+:focus-visible {
+	outline: 2px solid var(--color-primary-500);
+	outline-offset: 2px;
+	border-radius: 2px;
+}
+
+/* ===== Scrollbar polish (sidebar + drawer)
+   Subtle, picks up theme surface tokens. */
+.sidebar-scroll {
+	scrollbar-width: thin;
+	scrollbar-color: var(--color-surface-400) transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+	width: 4px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+	background: var(--color-surface-400);
+	border-radius: 2px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+	background: var(--color-surface-500);
+}
+
+/* ===== Reduced motion =====
+   Disable animations + transitions for users who request it. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}

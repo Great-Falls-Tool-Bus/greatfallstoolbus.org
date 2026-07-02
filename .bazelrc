@@ -1,0 +1,56 @@
+# site.scaffold Bazel Configuration
+#
+# Bazel 8 + Bzlmod. Mirrors elders.tinyland.dev's two-registry chain:
+# tinyland-inc/bazel-registry first, then BCR. Site build remains
+# `pnpm run build`; Bazel exists for module-graph integrity proofs.
+
+common --enable_bzlmod
+common --registry=https://raw.githubusercontent.com/tinyland-inc/bazel-registry/main/
+common --registry=https://bcr.bazel.build
+
+# Build performance
+build --jobs=auto
+build --worker_sandboxing
+build --disk_cache=~/.cache/bazel-site
+build --keep_going
+build --show_timestamps
+
+# Flywheel cache + REAPI behavior lives in .bazelrc.flywheel, but endpoint
+# authority lives in scripts/gloriousflywheel-bazel.sh. The wrapper passes
+# --remote_cache and optional --remote_executor explicitly from validated env.
+# See docs/CI-SCHEMA.md §5 for the contract.
+try-import %workspace%/.bazelrc.flywheel
+
+# rules_ts: skip lib check is required for SvelteKit-style declaration files.
+build --@aspect_rules_ts//ts:skipLibCheck=always
+build --spawn_strategy=sandboxed,worker,local
+
+# CI base config. The cache-backed enrollment lane (ci.yml cache_backed: true)
+# layers `--config=ci-cached` on top of this. Empty the disk cache in CI so a
+# green cache-backed build proves the REMOTE shared cache rather than an
+# incidental local-disk hit (TIN-2119 real-attach discipline).
+build:ci --disk_cache=
+build:ci --remote_retries=3
+build:ci --jobs=auto
+build:ci --color=no
+build:ci --curses=no
+build:ci --show_progress_rate_limit=30
+build:ci --noshow_loading_progress
+
+# ci-cached: endpoint-free shared-cache behavior for the cache_backed lane,
+# mirroring tinyland-inc/ci-templates bazelrc/ci-cached.bazelrc. The workflow
+# supplies --remote_cache and upload policy at invocation after validating
+# BAZEL_REMOTE_CACHE via scripts/cache-attachment-contract.sh. CACHE-FIRST only
+# (TIN-1997 Option D): this never selects a remote executor.
+build:ci-cached --config=ci
+build:ci-cached --remote_upload_local_results=false
+build:ci-cached --remote_download_minimal
+build:ci-cached --remote_timeout=60
+
+# Test output
+test --test_output=errors
+test --test_summary=detailed
+test --test_verbose_timeout_warnings
+test --test_timeout=120,600,1800,3600
+
+try-import %workspace%/user.bazelrc

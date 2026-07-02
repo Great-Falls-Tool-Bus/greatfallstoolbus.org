@@ -1,0 +1,22 @@
+{
+	"$schema": "../docs/schemas/lanes.schema.json",
+	"schema_version": 1,
+	"spoke": {
+		"name": "site-scaffold",
+		"domain": "site.scaffold.tinyland.dev"
+	},
+	"defaults": {
+		"runner_class": "tinyland-nix",
+		"ttl_hours": 72,
+		"flywheel_target_classes": ["sveltekit-app-build", "sveltekit-unit-tests"]
+	},
+	"lanes": [
+		{
+			"name": "default",
+			"trigger": "pull_request",
+			"theme": "scaffold",
+			"snapshot_source": "checked-in",
+			"e2e": false
+		}
+	]
+}

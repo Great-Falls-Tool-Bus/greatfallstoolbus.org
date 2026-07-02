@@ -1,0 +1,37 @@
+# site.scaffold
+
+> Tinyland house scaffold for static SvelteKit spoke sites. Start with
+> `AGENTS.md`, then use the project skills for task-specific behavior.
+
+## Canonical
+
+- [Agent contract](https://github.com/tinyland-inc/site.scaffold/blob/main/AGENTS.md)
+- [Claude contract](https://github.com/tinyland-inc/site.scaffold/blob/main/CLAUDE.md)
+- [README](https://github.com/tinyland-inc/site.scaffold/blob/main/README.md)
+- [Repo manifest](https://github.com/tinyland-inc/site.scaffold/blob/main/tinyland.repo.json)
+- [Repo manifest schema](https://github.com/tinyland-inc/site.scaffold/blob/main/docs/schemas/tinyland-repo-manifest.schema.json)
+- [Agent adoption flow](https://github.com/tinyland-inc/site.scaffold/blob/main/docs/agent-adoption.md)
+- [CI schema](https://github.com/tinyland-inc/site.scaffold/blob/main/docs/CI-SCHEMA.md)
+- [Repo taxonomy and GitOps convergence](https://github.com/tinyland-inc/site.scaffold/blob/main/docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md)
+- [Justfile](https://github.com/tinyland-inc/site.scaffold/blob/main/Justfile)
+- [Bazel wrapper](https://github.com/tinyland-inc/site.scaffold/blob/main/scripts/gloriousflywheel-bazel.sh)
+
+## Skills
+
+- [tinyland-flywheel-bazel](https://github.com/tinyland-inc/site.scaffold/blob/main/.agents/skills/tinyland-flywheel-bazel/SKILL.md): cache-first Bazel and GloriousFlywheel RBE wiring.
+- [tinyland-static-spoke](https://github.com/tinyland-inc/site.scaffold/blob/main/.agents/skills/tinyland-static-spoke/SKILL.md): static spoke site customization and projection rules.
+- [tinyland-repo-contract](https://github.com/tinyland-inc/site.scaffold/blob/main/.agents/skills/tinyland-repo-contract/SKILL.md): Just, Nix, gitleaks, validation, and no-ad-hoc-file contract.
+
+## Agent Routes
+
+- [Agent AX map](https://site.scaffold/agent)
+- [Machine route map](https://site.scaffold/agent-map.md)
+- [Sitemap](https://site.scaffold/sitemap.xml)
+
+## Operating Constraints
+
+- Use `just <recipe>` for every repo operation.
+- Use `nix develop --command just <recipe>` in CI.
+- Keep Flywheel endpoints and credentials in environment-owned authority, never source.
+- Run gitleaks through Justfile recipes.
+- Keep static spokes static. Do not add runtime auth, database, payment, or broker-fetch behavior.

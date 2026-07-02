@@ -1,0 +1,41 @@
+name: Lane env
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, closed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        required: true
+        type: number
+      reap:
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+  statuses: write
+  deployments: write
+
+concurrency:
+  group: lane-env-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: false
+
+# Thin wrapper over tinyland-inc/ci-templates' spoke-lane-env.yml. See
+# docs/CI-SCHEMA.md §4 + §7 for the dispatch payload + ephemeral-env
+# contract.
+
+jobs:
+  lane-env:
+    uses: tinyland-inc/ci-templates/.github/workflows/spoke-lane-env.yml@v2.8.0
+    with:
+      spoke: site-scaffold
+      lanes_path: .github/lanes.json
+      enable_tailnet_qa: false
+      reap: ${{ github.event.action == 'closed' || inputs.reap || false }}
+      pr_number: ${{ github.event.pull_request.number || inputs.pr }}
+    secrets:
+      BLAHAJ_DISPATCH_TOKEN: ${{ secrets.BLAHAJ_DISPATCH_TOKEN }}

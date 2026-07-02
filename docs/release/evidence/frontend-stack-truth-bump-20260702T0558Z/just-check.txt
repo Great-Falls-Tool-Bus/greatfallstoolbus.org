@@ -1,0 +1,64 @@
+warning: Git tree '/Users/jess/git/site.scaffold' has uncommitted changes
+site.scaffold dev shell
+  node     v22.22.2
+  pnpm     10.13.1
+  just     just 1.50.0
+  bazel    bazel 8.2.1
+  gh       gh version 2.91.0 (nixpkgs)
+  gitleaks 8.30.1
+  python   Python 3.13.12
+  tofu     OpenTofu v1.11.6
+  jq       jq-1.8.1
+  git-cliff git-cliff 2.13.1
+cd /Users/jess/git/site.scaffold && bash scripts/flywheel-enrollment-contract-test.sh
+ok   [exit 1] unset profile fails closed
+ok   [exit 1] unattached profile refuses endpoint attachment
+ok   [exit 0] shared-cache-backed profile verifies
+ok   [exit 1] shared-cache-backed profile refuses executor mode
+ok   [exit 0] local-proof profile verifies bounded port-forward
+ok   [exit 1] local-proof profile requires explicit port-forward marker
+ok   wrapper forwards instance_name for info
+ok   wrapper forwards instance_name and executor throttles for executor-backed build
+ok   flywheel-enroll preserves shared cache auth material
+ok   flywheel-enroll legacy flags preserve executor auth material
+
+flywheel enrollment contract: 10 runtime cases passed, 0 failed
+cd /Users/jess/git/site.scaffold && gitleaks dir --config .gitleaks.toml --redact --verbose .
+
+    ○
+    │╲
+    │ ○
+    ○ ░
+    ░    gitleaks
+
+[90m2:00AM[0m [32mINF[0m [1mscanned ~2640840 bytes (2.64 MB) in 1.13s[0m
+[90m2:00AM[0m [32mINF[0m [1mno leaks found[0m
+cd /Users/jess/git/site.scaffold && pnpm run lint
+
+> site.scaffold@0.1.0 lint /Users/jess/git/site.scaffold
+> prettier --check . && eslint .
+
+Checking formatting...
+All matched files use Prettier code style!
+cd /Users/jess/git/site.scaffold && pnpm run check
+
+> site.scaffold@0.1.0 check /Users/jess/git/site.scaffold
+> svelte-kit sync && svelte-check --tsconfig ./tsconfig.json
+
+1782972031169 START "/Users/jess/git/site.scaffold"
+1782972031187 COMPLETED 5100 FILES 0 ERRORS 0 WARNINGS 0 FILES_WITH_PROBLEMS
+cd /Users/jess/git/site.scaffold && pnpm run test:unit
+
+> site.scaffold@0.1.0 test:unit /Users/jess/git/site.scaffold
+> vitest run
+
+
+ RUN  v4.1.9 /Users/jess/git/site.scaffold
+
+
+ Test Files  2 passed (2)
+      Tests  15 passed (15)
+   Start at  02:00:32
+   Duration  377ms (transform 93ms, setup 0ms, import 124ms, tests 142ms, environment 0ms)
+
+All checks passed.

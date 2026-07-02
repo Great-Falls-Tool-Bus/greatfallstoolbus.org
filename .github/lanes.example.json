@@ -1,0 +1,50 @@
+{
+	"$comment": "Three-lane reference (MassageIthaca-shaped). Not loaded by CI. Copy fields into lanes.json to enable multi-trunk posture. See docs/CI-SCHEMA.md §3 Example B.",
+	"$schema": "../docs/schemas/lanes.schema.json",
+	"schema_version": 1,
+	"spoke": {
+		"name": "example-spoke",
+		"domain": "example.tinyland.dev"
+	},
+	"defaults": {
+		"runner_class": "tinyland-nix",
+		"ttl_hours": 72,
+		"image_tag_template": "pr-{PR_NUMBER}-sha-{COMMIT_SHA}",
+		"flywheel_target_classes": ["sveltekit-app-build", "sveltekit-unit-tests", "deployment-bundle-packaging"]
+	},
+	"lanes": [
+		{
+			"name": "acuity",
+			"trigger": "pull_request",
+			"theme": "example-default",
+			"snapshot_source": "tinyland://pulse/m1",
+			"e2e": false,
+			"extra": {
+				"style": "acuity-hosted",
+				"selfServiceBooking": false
+			}
+		},
+		{
+			"name": "bridge",
+			"trigger": "pull_request",
+			"theme": "example-default",
+			"snapshot_source": "tinyland://pulse/m1",
+			"e2e": true,
+			"extra": {
+				"style": "acuity-bridge",
+				"selfServiceBooking": true
+			}
+		},
+		{
+			"name": "homegrown",
+			"trigger": "pull_request",
+			"theme": "example-default",
+			"snapshot_source": "tinyland://pulse/m1",
+			"e2e": true,
+			"extra": {
+				"style": "homegrown",
+				"selfServiceBooking": true
+			}
+		}
+	]
+}
