@@ -1,0 +1,115 @@
+# tofu/dns-intent/intent.yaml — DECLARATIVE DNS intent (Cloudflare house plane)
+#
+# TIN-2360 rows (b)/(g); prep tracked on TIN-2366.
+# This file is intent documentation only. Nothing in this repo applies it.
+# Apply authority is the blahaj plane (house Cloudflare account); the exact
+# API steps blahaj runs are in docs/runbooks/dns-apply-blahaj.md and the
+# operator verification surface is docs/runbooks/dns-mail-checklist.md.
+# No endpoints, no state, no credentials — ever. Credentials are referenced
+# by NAME only (CLOUDFLARE_API_TOKEN, CF_ACCOUNT_ID, DREAMHOST_API_KEY).
+#
+# Values written <like-this> are chosen at execution time and must not be
+# guessed.
+
+version: 1
+kind: dns-intent
+linear: [TIN-2360, TIN-2366]
+applied_by: blahaj # never by this repo
+
+# Registrar posture (data, not mutation): both domains are registered at
+# DreamHost. Captured 2026-07-02: NS = ns1/ns2/ns3.dreamhost.com, ZERO
+# records on both zones (authoritative NOERROR, empty answer), neither
+# domain has a Cloudflare zone yet. DreamHost becomes REGISTRAR-ONLY after
+# the NS cutover; its API is used read-only for state capture (the
+# DreamHost API has no registration-nameserver mutation — the NS flip is a
+# panel step, documented in the apply runbook).
+registrar:
+  provider: dreamhost
+  posture: registrar-only-after-ns-cutover
+  api_use: read-only-capture # domain-list_domains / dns-list_records
+
+zones:
+  - domain: greatfallstoolbus.org
+    role: web # canonical site domain; latoolb.us 301s here
+    plane: cloudflare-house-account # zone to be created; none exists today
+    records:
+      - name: '@'
+        type: A
+        values: # GitHub Pages apex set
+          - 185.199.108.153
+          - 185.199.109.153
+          - 185.199.110.153
+          - 185.199.111.153
+        proxied: false # grey-cloud until Pages issues the custom-domain cert
+      - name: www
+        type: CNAME
+        value: great-falls-tool-bus.github.io
+        proxied: false # grey-cloud until Pages issues the custom-domain cert
+      - name: _github-pages-challenge-great-falls-tool-bus
+        type: TXT
+        value: <issued-by-github-at-domain-verification>
+        notes: >-
+          GitHub org-level custom-domain verification record; value is
+          issued in the GitHub org settings flow at execution time.
+    preconditions:
+      - >-
+        Repo-side: static/CNAME containing greatfallstoolbus.org and a
+        BASE_PATH="" build must land before DNS points here, otherwise
+        Pages serves broken project-path URLs (today the site serves from
+        the project path at great-falls-tool-bus.github.io).
+    mail: none # no MX/mailboxes on the web domain in the MVP window (row a)
+
+  - domain: latoolb.us
+    role: mail-and-redirect-alias # never a second site repo (row a)
+    plane: cloudflare-house-account # zone to be created; none exists today
+    records:
+      - name: '@'
+        type: A
+        value: 192.0.2.1 # RFC 5737 documentation space; proxy answers first
+        proxied: true # redirect-rule anchor only
+      - name: www
+        type: CNAME
+        value: latoolb.us
+        proxied: true # redirect-rule anchor only
+      - name: '@'
+        type: MX
+        priority: 10
+        value: relay.tinyland.dev # house public MX target
+        proxied: false # MX is never proxied; Cloudflare cannot proxy SMTP
+      - name: '@'
+        type: TXT
+        value: v=spf1 mx ~all
+        notes: >-
+          Starting SPF; final mechanism list is blahaj-side authority
+          (must cover real list-mail egress). Do not tighten ~all to -all
+          until DMARC reports are quiet for a full list cycle.
+      - name: <selector>._domainkey
+        type: TXT
+        value: v=DKIM1; k=rsa; p=<public-key-from-blahaj>
+        notes: >-
+          DKIM public half only. Key pair and selector are minted
+          blahaj-side; the private key is named (names-only) as
+          latoolbus-dkim-private-key in secrets.contract.yaml and never
+          appears in this repo, not even as ciphertext.
+      - name: _dmarc
+        type: TXT
+        value: v=DMARC1; p=none; rua=mailto:<operator-chosen-report-mailbox>
+        notes: monitor-only to start; tighten after clean reports.
+    redirect_rules:
+      - match: latoolb.us/* and www.latoolb.us/*
+        action: redirect
+        status: 301
+        target: https://greatfallstoolbus.org/
+        notes: single dynamic redirect rule; the alias preserves no paths.
+    mta_sts: deferred # blahaj render ships enable_mta_sts = False today
+
+out_of_scope:
+  - >-
+    great-falls-tool-bus.org (hyphenated) is NOT registered (NXDOMAIN,
+    verified 2026-07-02); the hyphenated name exists only as the GitHub
+    org / Pages host great-falls-tool-bus.github.io. Registering the
+    hyphenated .org would be a new decision, not part of this intent.
+  - >-
+    Anubis fronting for the join/contact form origin is declared in
+    ../mail-intent/intent.yaml and is wired only AFTER mail exists
+    (operator decision 2026-07-02) — no DNS is reserved for it here.
