@@ -26,6 +26,7 @@
 		{ title: 'Tools on the bus', body: 'What we have, kitted and documented.', href: '/tools' },
 		{ title: 'Donate a tool', body: 'The criteria above, in checklist form.', href: '/donate' },
 		{ title: 'Wants', body: 'What the bus still needs.', href: '/wants' },
+		{ title: 'Plans', body: 'Where this is going, honestly.', href: '/plans' },
 		{ title: 'Bibliography', body: 'The research this project stands on.', href: '/bibliography' },
 		{ title: 'Shout-outs', body: 'The people making this real.', href: '/shout-outs' },
 	];
