@@ -1,4 +1,7 @@
 <script lang="ts">
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Card from '$lib/components/Card.svelte';
+
 	const checklist = [
 		{
 			q: 'Can it travel?',
@@ -24,20 +27,14 @@
 </svelte:head>
 
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
-	<header class="space-y-4">
-		<h1 class="text-4xl leading-tight font-bold">Donate a tool</h1>
-		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
-			We especially welcome the tools that are hard to own alone: complex, large, heavy, or blessed with many little
-			bits and bobs. Before donating, walk your tool through three questions:
-		</p>
-	</header>
+	<PageHeader
+		title="Donate a tool"
+		lead="We especially welcome the tools that are hard to own alone: complex, large, heavy, or blessed with many little bits and bobs. Before donating, walk your tool through three questions:"
+	/>
 
 	<section class="mt-10 space-y-4">
 		{#each checklist as item (item.q)}
-			<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-5">
-				<h2 class="text-lg font-semibold">{item.q}</h2>
-				<p class="text-surface-700-300 mt-2 leading-relaxed">{item.body}</p>
-			</div>
+			<Card title={item.q} body={item.body} headingLevel="h2" />
 		{/each}
 	</section>
 

@@ -1,4 +1,7 @@
 <script lang="ts">
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Card from '$lib/components/Card.svelte';
+
 	const people = [
 		{
 			name: 'Kate Pulham',
@@ -38,21 +41,17 @@
 </svelte:head>
 
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
-	<header class="space-y-4">
-		<h1 class="text-4xl leading-tight font-bold">Shout-outs</h1>
-		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
-			A tool bus is mostly people. These are the ones who made it real — plus the initial donors whose tools are already
-			in the kits.
-		</p>
-	</header>
+	<PageHeader
+		title="Shout-outs"
+		lead="A tool bus is mostly people. These are the ones who made it real — plus the initial donors whose tools are already in the kits."
+	/>
 
 	<section class="mt-10 space-y-4" aria-label="People">
 		{#each people as p (p.name)}
-			<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-5">
-				<h2 class="text-lg font-semibold">{p.name}</h2>
+			<Card title={p.name} headingLevel="h2">
 				<p class="text-surface-500 text-xs tracking-widest uppercase">{p.role}</p>
 				<p class="text-surface-700-300 mt-2 leading-relaxed">{p.note}</p>
-			</div>
+			</Card>
 		{/each}
 	</section>
 
@@ -73,10 +72,7 @@
 		<h2 class="text-2xl font-semibold">Friends of the bus</h2>
 		<div class="mt-6 space-y-3">
 			{#each friends as f (f.name)}
-				<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-4">
-					<h3 class="font-semibold">{f.name}</h3>
-					<p class="text-surface-700-300 mt-1 text-sm leading-relaxed">{f.note}</p>
-				</div>
+				<Card title={f.name} body={f.note} headingLevel="h3" compact />
 			{/each}
 		</div>
 	</section>
