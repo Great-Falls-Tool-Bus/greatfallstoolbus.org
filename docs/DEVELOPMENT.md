@@ -13,7 +13,8 @@ directly).
 
 Serving host is **Cloudflare Pages** (project `greatfallstoolbus-org`), per
 `docs/decisions/0003-hosting-and-remote-posture.md`. `.github/workflows/deploy-pages.yml`
-builds `adapter-static` `build/` and `wrangler pages deploy`s it. The apex sits
+delegates to the shared `ci-templates` Cloudflare Pages lane, which builds
+`adapter-static` `build/` and deploys it with Wrangler. The apex sits
 behind Cloudflare Access (gated to the operator during prose refinement); DNS,
 Access, and the zone live in the `great-falls-tool-bus-infra` edge tofu stack.
 

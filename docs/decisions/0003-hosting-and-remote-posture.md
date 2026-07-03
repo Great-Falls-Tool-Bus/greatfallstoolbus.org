@@ -33,9 +33,10 @@ unfinished; its same-origin-form advantage was already forfeited by row f/g).
 **Mechanics:** create the Pages project (`greatfallstoolbus-org`); attach the
 custom domain; flip `tofu/stacks/edge` `var.pages_host` from
 `great-falls-tool-bus.github.io` to the `.pages.dev` host; replace
-`deploy-pages.yml` with the documented CF workflow (proven shape preserved —
-checkout, nix, `just check`, `just build`, `wrangler pages deploy`; nothing
-invented). The Access gate, allowlist, and `latoolb.us` redirect carry over
+`deploy-pages.yml` with the shared `ci-templates` Cloudflare Pages lane (the
+proven shape preserved behind a reusable wrapper: checkout, nix, `just check`,
+`just build`, `wrangler pages deploy`; nothing invented). The Access gate,
+allowlist, and `latoolb.us` redirect carry over
 unchanged. `static/CNAME` is removed (CF Pages sets the custom domain at the
 project level; the file was a GH Pages artifact concept). The GH Pages workflow
 remains retrievable from git history as the rollback path; `pages.dev` preview
