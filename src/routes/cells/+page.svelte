@@ -2,6 +2,7 @@
 	// Tool cells index. A cell is the unit of the bus: a kit plus a captain who
 	// knows it. Inventory truth is shared with /tools and /cell-sheets via
 	// $lib/data/cells.ts so this page can never drift from the kit.
+	import { base } from '$app/paths';
 	import { cells } from '$lib/data/cells';
 </script>
 
@@ -24,8 +25,8 @@
 		<p class="text-surface-700 dark:text-surface-300 leading-relaxed">
 			Every cell gets a printable sheet that lives in the kit: the inventory as a checklist, the care rules, and who to
 			ask. Check the kit against its sheet every time it goes out and comes back. The all-cells printable set is at
-			<a class="underline" href="/cell-sheets">/cell-sheets</a>; the browsable inventory is at
-			<a class="underline" href="/tools">/tools</a>.
+			<a class="underline" href={`${base}/cell-sheets`}>/cell-sheets</a>; the browsable inventory is at
+			<a class="underline" href={`${base}/tools`}>/tools</a>.
 		</p>
 	</header>
 
@@ -33,7 +34,7 @@
 		{#each cells as cell (cell.slug)}
 			<a
 				class="border-surface-200-800 bg-surface-50-950/75 hover:border-primary-500 block rounded-lg border p-5 transition-colors"
-				href={'/cells/' + cell.slug}
+				href={`${base}/cells/${cell.slug}`}
 			>
 				<p class="text-surface-500 text-xs tracking-widest uppercase">Cell</p>
 				<h2 class="mt-1 text-lg font-semibold">{cell.name}</h2>
@@ -54,8 +55,8 @@
 			<h2 class="mt-1 text-lg font-semibold">Start the next cell</h2>
 			<p class="text-surface-700-300 mt-2 text-sm leading-relaxed">
 				Got a serious tool that is hard to own alone — and the patience to be the person who knows it? Bring the kit, be
-				the captain. The <a class="underline" href="/donate">donation criteria</a> tell you what makes a good bus tool,
-				and the <a class="underline" href="/wants">wants list</a> shows the gaps.
+				the captain. The <a class="underline" href={`${base}/donate`}>donation criteria</a> tell you what makes a good
+				bus tool, and the <a class="underline" href={`${base}/wants`}>wants list</a> shows the gaps.
 			</p>
 		</div>
 	</section>

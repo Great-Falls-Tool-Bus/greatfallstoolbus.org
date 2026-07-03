@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { base } from '$app/paths';
+
 	const wants = [
 		{
 			item: 'A nice iron and ironing table',
@@ -27,7 +29,7 @@
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
 			The honest, current list of what the bus still needs. If you have one of these gathering dust, the <a
 				class="underline"
-				href="/donate">donation criteria</a
+				href={`${base}/donate`}>donation criteria</a
 			> tell you how to send it off well.
 		</p>
 	</header>

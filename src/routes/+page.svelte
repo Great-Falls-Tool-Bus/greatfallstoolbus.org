@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { base } from '$app/paths';
+
 	const brand = {
 		name: 'Great Falls Tool Bus',
 		domain: 'greatfallstoolbus.org',
@@ -23,13 +25,17 @@
 	];
 
 	const pages = [
-		{ title: 'Tools on the bus', body: 'What we have, kitted and documented.', href: '/tools' },
-		{ title: 'Tool cells', body: 'A kit plus a captain who knows it — with printable cell sheets.', href: '/cells' },
-		{ title: 'Donate a tool', body: 'The criteria above, in checklist form.', href: '/donate' },
-		{ title: 'Wants', body: 'What the bus still needs.', href: '/wants' },
-		{ title: 'Plans', body: 'Where this is going, honestly.', href: '/plans' },
-		{ title: 'Bibliography', body: 'The research this project stands on.', href: '/bibliography' },
-		{ title: 'Shout-outs', body: 'The people making this real.', href: '/shout-outs' },
+		{ title: 'Tools on the bus', body: 'What we have, kitted and documented.', href: `${base}/tools` },
+		{
+			title: 'Tool cells',
+			body: 'A kit plus a captain who knows it — with printable cell sheets.',
+			href: `${base}/cells`,
+		},
+		{ title: 'Donate a tool', body: 'The criteria above, in checklist form.', href: `${base}/donate` },
+		{ title: 'Wants', body: 'What the bus still needs.', href: `${base}/wants` },
+		{ title: 'Plans', body: 'Where this is going, honestly.', href: `${base}/plans` },
+		{ title: 'Bibliography', body: 'The research this project stands on.', href: `${base}/bibliography` },
+		{ title: 'Shout-outs', body: 'The people making this real.', href: `${base}/shout-outs` },
 	];
 </script>
 

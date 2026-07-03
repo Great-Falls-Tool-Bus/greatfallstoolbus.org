@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { base } from '$app/paths';
 	import { Menu, X } from '@lucide/svelte';
 	import SaturnMark from '$lib/components/SaturnMark.svelte';
 	import SEOHead from '$lib/components/SEOHead.svelte';
@@ -12,12 +13,12 @@
 
 	let mobileOpen = $state(false);
 
-	// Absolute paths keep section navigation stable from any route. From a
-	// non-home route the link navigates back to `/` and scrolls to the section.
+	// Base-aware paths keep section navigation stable from any route and from
+	// the temporary github.io project-path fallback.
 	const navLinks: { href: string; label: string }[] = [
-		{ href: '/', label: 'Overview' },
-		{ href: '/agent', label: 'Agent AX' },
-		{ href: '/#contact', label: 'Contact' },
+		{ href: `${base}/`, label: 'Overview' },
+		{ href: `${base}/agent`, label: 'Agent AX' },
+		{ href: `${base}/#contact`, label: 'Contact' },
 	];
 
 	const SITE_NAME = 'greatfallstoolbus.org';
@@ -83,7 +84,7 @@
 		<AppBar.Toolbar class="grid-cols-[auto_1fr_auto] px-4 py-2">
 			<AppBar.Lead>
 				<a
-					href="/"
+					href={`${base}/`}
 					class="hover:text-primary-500 font-mono text-lg font-bold tracking-tight whitespace-nowrap transition-colors inline-flex items-center gap-2"
 					aria-label={SITE_NAME + ' home'}
 				>
