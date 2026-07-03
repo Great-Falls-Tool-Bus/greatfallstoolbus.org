@@ -332,16 +332,18 @@ and [`docs/decisions/dynamic-canary-blue-green.md`](docs/decisions/dynamic-canar
 A dynamic spoke is `app-stateful-spoke`, so the static-spoke boundary block does NOT
 constrain it — re-check `boundaries` in `tinyland.repo.json` after flipping.
 
-**Deploy lane (default = GitHub Pages).** The shipped `.github/workflows/deploy-pages.yml`
-deploys the static `build/` to **GitHub Pages** (`actions/upload-pages-artifact` +
-`actions/deploy-pages`), built with `BASE_PATH="/<repo>"` for project-path hosting at
-`https://<owner>.github.io/<repo>/`; `svelte.config.js` reads `base: process.env.BASE_PATH ?? ''`.
-A **custom-domain** spoke adds its own `static/CNAME` and builds with `BASE_PATH=""` (root base) —
-the scaffold ships **no** default `static/CNAME` (a wrong-domain marker is a DNS footgun).
-**Cloudflare Pages** is a sanctioned opt-in for org/edge spokes (org-provisioned CF creds; Blahaj
-owns the edge; spokes never hold long-lived CF creds) — copy-paste workflow in
-[`docs/deploy/cloudflare-pages.md`](docs/deploy/cloudflare-pages.md). A spoke that switches deploy
-lanes keeps docs + workflow + `svelte.config.js` `base` consistent (TIN-2230).
+**Deploy lane (GFTB = Cloudflare Pages).** This repo has taken the sanctioned
+Cloudflare Pages opt-in for org/edge spokes. `.github/workflows/deploy-pages.yml`
+is a thin wrapper around
+`tinyland-inc/ci-templates/.github/workflows/spoke-deploy-cloudflare-pages.yml@v2.10.0`.
+The shared lane builds the static `build/` with the house `nix develop --command
+just` entrypoints and deploys with Wrangler when org-provisioned
+`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` secrets exist. PRs build only;
+missing secrets skip deployment with a notice. Blahaj/the org overlay own DNS,
+Access, and Tunnel; this public repo never stores CF credentials or edge apply
+authority. The scaffold default remains GitHub Pages for personal/static spokes;
+GFTB's accepted override is ADR 0003 and
+[`docs/deploy/cloudflare-pages.md`](docs/deploy/cloudflare-pages.md).
 
 **Dynamic deploy lane.** A `--adapter=node` spoke does NOT use the Pages lane. Its
 deploy is **blue/green via the Blahaj GitOps receiver** (build a server image →
