@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import { Menu, X } from '@lucide/svelte';
 	import SaturnMark from '$lib/components/SaturnMark.svelte';
+	import Wordmark from '$lib/components/Wordmark.svelte';
 	import SEOHead from '$lib/components/SEOHead.svelte';
 	import { AppBar, Dialog, Navigation } from '@skeletonlabs/skeleton-svelte';
 	import { TinyVectors } from '@tummycrypt/tinyvectors';
@@ -86,10 +87,11 @@
 			<AppBar.Lead>
 				<a
 					href={`${base}/`}
-					class="hover:text-primary-500 font-mono text-lg font-bold tracking-tight whitespace-nowrap transition-colors inline-flex items-center gap-2"
+					class="hover:text-primary-500 inline-flex items-center gap-2 text-base whitespace-nowrap transition-colors sm:text-lg"
 					aria-label={SITE_NAME + ' home'}
 				>
-					<SaturnMark class="text-primary-500 h-[1.05em] w-[1.05em]" />{SITE_NAME}</a
+					<SaturnMark decorative class="text-primary-500 h-[1.15em] w-[1.15em]" />
+					<Wordmark text={SITE_NAME} /></a
 				>
 			</AppBar.Lead>
 			<AppBar.Headline></AppBar.Headline>
@@ -124,7 +126,10 @@
 					<Dialog.Positioner class="fixed inset-y-0 right-0 z-50 flex w-72 max-w-[85vw]">
 						<Dialog.Content class="bg-surface-50-950 flex w-full flex-col">
 							<div class="border-surface-200-800 flex items-center justify-between border-b px-4 py-3">
-								<span class="font-mono text-sm font-semibold">{SITE_NAME}</span>
+								<span class="inline-flex items-center gap-2 text-sm">
+									<SaturnMark decorative class="text-primary-500 h-[1.15em] w-[1.15em]" />
+									<Wordmark text={SITE_NAME} />
+								</span>
 								<Dialog.CloseTrigger class="hover:bg-surface-200-800 rounded-sm p-2" aria-label="Close navigation">
 									<X class="h-5 w-5" />
 								</Dialog.CloseTrigger>
