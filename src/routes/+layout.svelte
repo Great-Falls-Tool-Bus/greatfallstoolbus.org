@@ -101,7 +101,7 @@
 						{@const active = isActivePath(currentPath, item.match)}
 						<a
 							href={`${base}${item.href}`}
-							class="hover:text-primary-500 transition-colors {active ? 'text-primary-500 font-semibold' : ''}"
+							class="hover:text-primary-500 transition-colors {active ? 'text-primary-600 font-semibold' : ''}"
 							aria-current={active ? 'page' : undefined}
 							aria-label={item.label}>{item.label}</a
 						>
