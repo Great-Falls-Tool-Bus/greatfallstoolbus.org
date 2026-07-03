@@ -11,11 +11,22 @@ export interface NavItem {
  * MassageIthaca's src/lib/nav-items.ts). The logo links home, so there is
  * no "Home" item. hrefs are base-relative; the layout prepends `base`.
  */
+// Ordered as a narrative: who we are (Mission) → what's on the bus (Tools,
+// Cells) → how to use it (Access, Safety) → how to give (Donate, Wants) →
+// where it's going + credibility (Plans, Bibliography, Shout-outs) → reach us
+// (Contact). NOTE (lane B): /stewards is intentionally NOT in the primary bar
+// to avoid overstuffing — it is a footer-nav candidate (the footer lives in
+// +layout.svelte, owned by lane A). Bibliography and Shout-outs are also
+// footer-demotion candidates if the operator wants a leaner primary bar; both
+// are flagged in the PR for operator/lane-A review.
 export const navItems: NavItem[] = [
+	{ label: 'Mission', href: '/mission', match: ['/mission'] },
 	{ label: 'Tools', href: '/tools', match: ['/tools'] },
+	{ label: 'Cells', href: '/cells', match: ['/cells', '/cell-sheets'] },
+	{ label: 'Access', href: '/access', match: ['/access'] },
+	{ label: 'Safety', href: '/safety', match: ['/safety'] },
 	{ label: 'Donate', href: '/donate', match: ['/donate'] },
 	{ label: 'Wants', href: '/wants', match: ['/wants'] },
-	{ label: 'Cells', href: '/cells', match: ['/cells', '/cell-sheets'] },
 	{ label: 'Plans', href: '/plans', match: ['/plans'] },
 	{ label: 'Bibliography', href: '/bibliography', match: ['/bibliography'] },
 	{ label: 'Shout-outs', href: '/shout-outs', match: ['/shout-outs'] },

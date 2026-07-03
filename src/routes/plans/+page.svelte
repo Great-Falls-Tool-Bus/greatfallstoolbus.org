@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { base } from '$app/paths';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Card from '$lib/components/Card.svelte';
 
 	const now = [
 		{
@@ -45,22 +47,16 @@
 </svelte:head>
 
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
-	<header class="space-y-4">
-		<h1 class="text-4xl leading-tight font-bold">Plans</h1>
-		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
-			Where this is going, honestly. What exists today, what we are building next, and the dream — clearly labeled as a
-			dream. No dates promised; when something ships, it moves up this page.
-		</p>
-	</header>
+	<PageHeader
+		title="Plans"
+		lead="Where this is going, honestly. What exists today, what we are building next, and the dream — clearly labeled as a dream. No dates promised; when something ships, it moves up this page."
+	/>
 
 	<section class="mt-10" aria-label="Where we are now">
 		<h2 class="text-2xl font-semibold">Where we are now</h2>
 		<div class="mt-6 space-y-4">
 			{#each now as item (item.title)}
-				<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-5">
-					<h3 class="text-lg font-semibold">{item.title}</h3>
-					<p class="text-surface-700-300 mt-2 leading-relaxed">{item.body}</p>
-				</div>
+				<Card title={item.title} body={item.body} headingLevel="h3" />
 			{/each}
 		</div>
 	</section>
@@ -69,10 +65,7 @@
 		<h2 class="text-2xl font-semibold">Near term — this season</h2>
 		<div class="mt-6 space-y-4">
 			{#each nearTerm as item (item.title)}
-				<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-5">
-					<h3 class="text-lg font-semibold">{item.title}</h3>
-					<p class="text-surface-700-300 mt-2 leading-relaxed">{item.body}</p>
-				</div>
+				<Card title={item.title} body={item.body} headingLevel="h3" />
 			{/each}
 		</div>
 	</section>
