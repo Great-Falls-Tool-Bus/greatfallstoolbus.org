@@ -24,6 +24,7 @@
 
 	const pages = [
 		{ title: 'Tools on the bus', body: 'What we have, kitted and documented.', href: '/tools' },
+		{ title: 'Tool cells', body: 'A kit plus a captain who knows it — with printable cell sheets.', href: '/cells' },
 		{ title: 'Donate a tool', body: 'The criteria above, in checklist form.', href: '/donate' },
 		{ title: 'Wants', body: 'What the bus still needs.', href: '/wants' },
 		{ title: 'Plans', body: 'Where this is going, honestly.', href: '/plans' },
