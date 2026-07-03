@@ -130,6 +130,12 @@ jobs:
         if: env.CUSTOM_DOMAIN_READY != 'true'
         run: rm -f build/CNAME
 
+      - name: Clear Pages custom domain for fallback
+        if: env.CUSTOM_DOMAIN_READY != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/pages" -F cname=
+
       - name: Report Pages artifact mode
         run: |
           if [[ "${CUSTOM_DOMAIN_READY}" == "true" ]]; then
