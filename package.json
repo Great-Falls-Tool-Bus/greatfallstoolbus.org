@@ -31,7 +31,9 @@
 		"analyze": "ANALYZE=1 vite build"
 	},
 	"dependencies": {
+		"@fontsource/crimson-pro": "^5.2.8",
 		"@fontsource/inter": "^5.2.8",
+		"@fontsource/raleway": "^5.2.8",
 		"@lucide/svelte": "^1.23.0",
 		"@tummycrypt/tinyland-color-utils": "0.2.3",
 		"@tummycrypt/tinyvectors": "0.3.0",
