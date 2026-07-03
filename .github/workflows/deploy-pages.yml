@@ -140,11 +140,13 @@ jobs:
           NODE_ENV: production
 
       - name: Remove CNAME from fallback artifact
-        if: env.CUSTOM_DOMAIN_READY != 'true'
+        if: env.CUSTOM_DOMAIN_READY != 'true' && vars.CUSTOM_DOMAIN_LOCKED != 'true' && github.event_name != 'pull_request'
         run: rm -f build/CNAME
 
+      # Never mutate repo settings from a PR build (the PR token 403s anyway),
+      # and never while the operator lock asserts the binding is intentional.
       - name: Clear Pages custom domain for fallback
-        if: env.CUSTOM_DOMAIN_READY != 'true'
+        if: env.CUSTOM_DOMAIN_READY != 'true' && vars.CUSTOM_DOMAIN_LOCKED != 'true' && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/pages" -F cname=
@@ -154,6 +156,8 @@ jobs:
           if [[ "${CUSTOM_DOMAIN_READY}" == "true" ]]; then
             test -f build/CNAME
             echo "Artifact mode: custom domain"
+          elif [[ "${{ vars.CUSTOM_DOMAIN_LOCKED }}" == "true" || "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "Artifact mode: locked/PR build (CNAME left as committed)"
           else
             test ! -f build/CNAME
             echo "Artifact mode: github.io fallback"
