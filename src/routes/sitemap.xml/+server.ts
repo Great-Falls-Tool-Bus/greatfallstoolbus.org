@@ -3,7 +3,20 @@
 import type { RequestHandler } from './$types';
 
 const SITE = 'https://greatfallstoolbus.org';
-const PAGES: string[] = ['/', '/agent'];
+const PAGES: string[] = [
+	'/',
+	'/agent',
+	'/bibliography',
+	'/cell-sheets',
+	'/cells',
+	'/cells/sewing',
+	'/contact',
+	'/donate',
+	'/plans',
+	'/shout-outs',
+	'/tools',
+	'/wants',
+];
 
 export const prerender = true;
 
