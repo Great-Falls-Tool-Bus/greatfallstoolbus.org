@@ -3,6 +3,7 @@
 	// static/readme.txt: plain, honest, meant for paper. "Print me, pin me to
 	// a board, hand me to a friend." Inventory truth is shared with /tools via
 	// $lib/data/cells.ts so the sheet can never drift from the site.
+	import { base } from '$app/paths';
 	import { cells } from '$lib/data/cells';
 </script>
 
@@ -24,7 +25,7 @@
 		</p>
 		<p class="text-surface-700 dark:text-surface-300 leading-relaxed">
 			Looking for the general flyer instead? That is
-			<a class="underline" href="/readme.txt">readme.txt</a> — same spirit, whole project.
+			<a class="underline" href={`${base}/readme.txt`}>readme.txt</a> — same spirit, whole project.
 		</p>
 		<button
 			type="button"

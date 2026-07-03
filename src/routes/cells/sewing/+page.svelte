@@ -3,6 +3,7 @@
 	// Spirit of static/readme.txt: plain, honest, meant for paper. Inventory
 	// truth comes from $lib/data/cells.ts (shared with /tools and /cell-sheets)
 	// so the sheet in the kit can never drift from the site.
+	import { base } from '$app/paths';
 	import { cells } from '$lib/data/cells';
 
 	const cell = cells.find((c) => c.slug === 'sewing');
@@ -20,7 +21,7 @@
 <main class="mx-auto max-w-4xl px-6 py-16 md:py-24">
 	<header class="no-print space-y-4">
 		<p class="text-surface-500 text-xs tracking-widest uppercase">
-			<a class="underline" href="/cells">Tool cells</a> / Sewing
+			<a class="underline" href={`${base}/cells`}>Tool cells</a> / Sewing
 		</p>
 		<h1 class="text-4xl leading-tight font-bold">Sewing cell sheet</h1>
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">

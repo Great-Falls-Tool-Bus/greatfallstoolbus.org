@@ -22,34 +22,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build static site
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-
-      - name: Install workspace dependencies
-        run: nix develop --command just setup
-
-      - name: Check static site
-        run: nix develop --command just check
-
-      - name: Build static site (custom-domain root base)
-        run: nix develop --command just build
-        env:
-          NODE_ENV: production
-          BASE_PATH: ''
-
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: build
-
   pages-domain-ready:
     name: Pages custom domain ready
     if: github.event_name != 'pull_request'
@@ -81,13 +53,66 @@ jobs:
           if ready == "true":
               print(f"{domain} resolves: {', '.join(ips)}")
           else:
-              print(f"{domain} has no public A/AAAA records yet; skipping Pages deploy")
+              print(f"{domain} has no public A/AAAA records yet; deploying github.io fallback")
           PY
+
+  build:
+    name: Build static site
+    needs: [pages-domain-ready]
+    if: always() && (github.event_name == 'pull_request' || needs.pages-domain-ready.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CUSTOM_DOMAIN_READY: ${{ needs.pages-domain-ready.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Install workspace dependencies
+        run: nix develop --command just setup
+
+      - name: Check static site
+        run: nix develop --command just check
+
+      - name: Build static site
+        run: |
+          if [[ "${CUSTOM_DOMAIN_READY}" == "true" ]]; then
+            echo "Building for custom-domain root base"
+            export BASE_PATH=""
+          else
+            echo "Building github.io fallback with project-path base"
+            export BASE_PATH="/${GITHUB_REPOSITORY#*/}"
+          fi
+          nix develop --command just build
+        env:
+          NODE_ENV: production
+
+      - name: Remove CNAME from fallback artifact
+        if: env.CUSTOM_DOMAIN_READY != 'true'
+        run: rm -f build/CNAME
+
+      - name: Report Pages artifact mode
+        run: |
+          if [[ "${CUSTOM_DOMAIN_READY}" == "true" ]]; then
+            test -f build/CNAME
+            echo "Artifact mode: custom domain"
+          else
+            test ! -f build/CNAME
+            echo "Artifact mode: github.io fallback"
+          fi
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: build
 
   deploy:
     name: Deploy to GitHub Pages
     needs: [build, pages-domain-ready]
-    if: github.event_name != 'pull_request' && needs.pages-domain-ready.outputs.ready == 'true'
+    if: github.event_name != 'pull_request' && needs.build.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:

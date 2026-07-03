@@ -2,6 +2,7 @@
 	// Inventory truth lives in $lib/data/cells.ts, shared with the printable
 	// /cell-sheets route so the web page and the pinned-to-a-board sheet can
 	// never drift apart.
+	import { base } from '$app/paths';
 	import { cells } from '$lib/data/cells';
 </script>
 
@@ -43,8 +44,8 @@
 	{/each}
 
 	<footer class="text-surface-500 pt-12 text-sm">
-		Missing something? See the <a class="underline" href="/wants">wants list</a> or
-		<a class="underline" href="/donate">donate a tool</a>. Want this on paper? Every cell has a
-		<a class="underline" href="/cell-sheets">printable cell sheet</a>.
+		Missing something? See the <a class="underline" href={`${base}/wants`}>wants list</a> or
+		<a class="underline" href={`${base}/donate`}>donate a tool</a>. Want this on paper? Every cell has a
+		<a class="underline" href={`${base}/cell-sheets`}>printable cell sheet</a>.
 	</footer>
 </main>
