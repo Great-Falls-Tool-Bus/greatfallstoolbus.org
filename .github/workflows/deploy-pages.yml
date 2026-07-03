@@ -37,6 +37,9 @@ jobs:
           python3 - <<'PY'
           import os
           import socket
+          import urllib.error
+          import urllib.parse
+          import urllib.request
 
           domain = os.environ["PAGES_DOMAIN"]
           try:
@@ -45,15 +48,47 @@ jobs:
               answers = []
 
           ips = sorted({answer[4][0] for answer in answers})
-          ready = "true" if ips else "false"
+          ready = "false"
+          detail = f"{domain} has no public A/AAAA records"
+
+          if ips:
+              url = f"https://{domain}/"
+              request = urllib.request.Request(
+                  url,
+                  headers={"User-Agent": "greatfallstoolbus-pages-ready/1.0"},
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=10) as response:
+                      final_url = response.geturl()
+                      final_host = urllib.parse.urlparse(final_url).hostname
+                      status = response.getcode()
+                      headers = {key.lower(): value for key, value in response.headers.items()}
+
+                  cloudflare_access = (
+                      "cf-access-domain" in headers
+                      or "cloudflare-access" in headers.get("www-authenticate", "").lower()
+                  )
+                  if final_host == domain and 200 <= status < 400 and not cloudflare_access:
+                      ready = "true"
+                      detail = f"{domain} is publicly reachable at {final_url} ({status})"
+                  elif final_host != domain:
+                      detail = f"{domain} redirects unauthenticated traffic to {final_url}"
+                  elif cloudflare_access:
+                      detail = f"{domain} is gated by Cloudflare Access"
+                  else:
+                      detail = f"{domain} returned HTTP {status}"
+              except urllib.error.HTTPError as exc:
+                  detail = f"{domain} returned HTTP {exc.code}"
+              except Exception as exc:
+                  detail = f"{domain} is not publicly reachable: {exc}"
 
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
               out.write(f"ready={ready}\n")
 
           if ready == "true":
-              print(f"{domain} resolves: {', '.join(ips)}")
+              print(f"{detail}; resolved IPs: {', '.join(ips)}")
           else:
-              print(f"{domain} has no public A/AAAA records yet; deploying github.io fallback")
+              print(f"{detail}; deploying github.io fallback")
           PY
 
   build:
