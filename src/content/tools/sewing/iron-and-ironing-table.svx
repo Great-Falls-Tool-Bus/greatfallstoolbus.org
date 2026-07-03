@@ -1,0 +1,7 @@
+---
+name: 'A nice iron and ironing table'
+status: 'wants'
+cell: 'sewing'
+order: 10
+blurb: 'A proper tailoring iron and a stable pressing surface are the current priority gap.'
+---

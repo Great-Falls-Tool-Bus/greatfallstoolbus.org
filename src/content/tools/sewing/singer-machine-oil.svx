@@ -1,0 +1,7 @@
+---
+name: 'Singer sewing machine oil'
+status: 'in-kit'
+cell: 'sewing'
+order: 7
+blurb: 'In kit. Oil only, never grease.'
+---

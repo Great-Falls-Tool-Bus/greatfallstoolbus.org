@@ -1,0 +1,7 @@
+---
+name: 'Serger (Singer or Babylock class)'
+status: 'wants'
+cell: 'sewing'
+order: 11
+blurb: 'Overlock capability for finishing seams — the single most-requested missing machine.'
+---
