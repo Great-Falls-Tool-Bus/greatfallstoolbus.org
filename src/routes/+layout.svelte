@@ -23,6 +23,7 @@
 
 	const SITE_NAME = 'greatfallstoolbus.org';
 	const SITE_URL = 'https://greatfallstoolbus.org';
+	const GITHUB_PAGES_BASE = '/greatfallstoolbus.org';
 	const SITE_TITLE = 'greatfallstoolbus.org — Tinyland house static-site scaffold';
 	const SITE_DESCRIPTION =
 		'Tinyland house scaffold for static SvelteKit brand sites with Just, Nix, Bazel, Skeleton, and static projection discipline.';
@@ -50,6 +51,7 @@
 	imageAlt={SITE_TITLE}
 	siteName={SITE_NAME}
 	origin={SITE_URL}
+	canonicalBasePath={GITHUB_PAGES_BASE}
 	{jsonLd}
 />
 
