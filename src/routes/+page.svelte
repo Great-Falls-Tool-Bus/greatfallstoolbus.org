@@ -31,6 +31,11 @@
 			body: 'A kit plus a captain who knows it — with printable cell sheets.',
 			href: `${base}/cells`,
 		},
+		{
+			title: 'Contact / join',
+			body: 'How to reach keyholders while the protected form comes online.',
+			href: `${base}/contact`,
+		},
 		{ title: 'Donate a tool', body: 'The criteria above, in checklist form.', href: `${base}/donate` },
 		{ title: 'Wants', body: 'What the bus still needs.', href: `${base}/wants` },
 		{ title: 'Plans', body: 'Where this is going, honestly.', href: `${base}/plans` },
@@ -70,7 +75,8 @@
 		<h2 class="text-2xl font-semibold">Getting on the bus</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 max-w-3xl leading-relaxed">
 			Access is simple and human: you reach out, a keyholder answers. Keyholders vet requests and share the bus location
-			directly. A keyholders mailing list and contact form are planned — until they open, watch this page.
+			directly. The <a class="underline" href={`${base}/contact`}>contact / join page</a> tracks the mailing-list and protected-form
+			rollout without pretending the runtime is already live.
 		</p>
 	</section>
 
