@@ -149,3 +149,30 @@ wf_13f12359 recheck.
 > CI cache-first attach LIVE with native cache-hit proof on the legacy
 > in-cluster endpoint; zero remote execution BY DESIGN (CACHE-FIRST doctrine,
 > TIN-1997 Option D); org-grained tenancy gated on TIN-2364 L5.
+
+---
+
+## Amendment 3 — row (f): gated posture vs. "unguarded" surfaces (AMENDED 2026-07-03, citing grounding audit wf_0118a02c)
+
+Row (f) is not superseded — this amendment corrects the record on **when** its
+surface claims hold. Row (f)'s "archive, `/agent`, `/llms.txt` and all SEO
+surfaces stay unguarded" describes the **gate-open end-state**, not the
+present.
+
+**Present state (verified 2026-07-03):**
+
+- Per REV-2 the Anubis "unguarded form" activation is **deferred until
+  gate-open**. No Anubis instance is live; dormancy until mail lands and the
+  gate opens is decided (TIN-2378 comment b25465d8), not drift.
+- `/agent` + `/llms.txt` currently sit behind the **stronger apex gate**: the
+  apex, `www`, and `pages.dev` hosts all serve from Cloudflare Pages but are
+  Access-gated (302 to Access login; allowlist = jess@sulliwood.org). Nothing
+  on the site is "unguarded" today — every surface is behind a gate stronger
+  than the CHALLENGE rule row (f) scopes to the form route.
+- The Anubis **origin placement** (which hostname/origin serves the
+  challenge-guarded form) is an **explicitly deferred sub-decision, tracked
+  as TIN-2420**; 0003 Decision 2's `gftb-forms.tinyland.dev` is an example,
+  not a binding choice.
+- Exit from the gated posture is decision **D2** — see
+  `0004-gate-opening-criteria.md`. Until that packet is signed, gate-opening
+  is UNOWNED.
