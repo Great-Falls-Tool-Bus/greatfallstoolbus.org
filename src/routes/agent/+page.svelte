@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { base } from '$app/paths';
+
 	let { data } = $props();
 
 	const entrypoints = [
@@ -34,12 +36,12 @@
 		},
 		{
 			label: 'llms.txt',
-			href: '/llms.txt',
+			href: `${base}/llms.txt`,
 			text: 'Public LLM index for the deployed scaffold site.',
 		},
 		{
 			label: 'agent-map.md',
-			href: '/agent-map.md',
+			href: `${base}/agent-map.md`,
 			text: 'Compact machine route map.',
 		},
 	];
