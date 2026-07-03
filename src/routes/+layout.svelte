@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { base } from '$app/paths';
+	import { page } from '$app/state';
 	import { Menu, X } from '@lucide/svelte';
 	import SaturnMark from '$lib/components/SaturnMark.svelte';
 	import SEOHead from '$lib/components/SEOHead.svelte';
@@ -8,25 +9,23 @@
 	import { TinyVectors } from '@tummycrypt/tinyvectors';
 	import '../app.css';
 	import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
+	import { navItems, isActivePath } from '$lib/nav-items';
 
 	let { children } = $props();
 
 	let mobileOpen = $state(false);
 
-	// Base-aware paths keep section navigation stable from any route and from
-	// the temporary github.io project-path fallback.
-	const navLinks: { href: string; label: string }[] = [
-		{ href: `${base}/`, label: 'Overview' },
-		{ href: `${base}/agent`, label: 'Agent AX' },
-		{ href: `${base}/contact`, label: 'Contact' },
-	];
+	// Single source of truth for nav (see $lib/nav-items). Base-stripped
+	// pathname so active-state works at root (CF Pages) and under the
+	// github.io project-path fallback alike.
+	const currentPath = $derived(page.url.pathname.slice(base.length) || '/');
 
-	const SITE_NAME = 'greatfallstoolbus.org';
+	const SITE_NAME = 'Great Falls Tool Bus';
 	const SITE_URL = 'https://greatfallstoolbus.org';
 	const GITHUB_PAGES_BASE = '/greatfallstoolbus.org';
-	const SITE_TITLE = 'greatfallstoolbus.org — Tinyland house static-site scaffold';
+	const SITE_TITLE = 'Great Falls Tool Bus — a shared tool library on wheels for Lewiston-Auburn, Maine';
 	const SITE_DESCRIPTION =
-		'Tinyland house scaffold for static SvelteKit brand sites with Just, Nix, Bazel, Skeleton, and static projection discipline.';
+		'A shared tool library on wheels for Lewiston-Auburn, Maine. This is a bus; the shop comes later — donate tools, join the keyholders, browse the kit.';
 	const REPO_URL = 'https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org';
 	const SECURITY_URL = 'https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/security/advisories/new';
 	const OG_IMAGE = `${SITE_URL}/og-image.png`;
@@ -96,8 +95,14 @@
 			<AppBar.Headline></AppBar.Headline>
 			<AppBar.Trail>
 				<nav class="hidden items-center gap-4 text-sm lg:flex" aria-label="Section navigation">
-					{#each navLinks as { href, label } (href)}
-						<a {href} class="hover:text-primary-500 transition-colors" aria-label={label}>{label}</a>
+					{#each navItems as item (item.href)}
+						{@const active = isActivePath(currentPath, item.match)}
+						<a
+							href={`${base}${item.href}`}
+							class="hover:text-primary-500 transition-colors {active ? 'text-primary-500 font-semibold' : ''}"
+							aria-current={active ? 'page' : undefined}
+							aria-label={item.label}>{item.label}</a
+						>
 					{/each}
 					<ThemeSwitcher />
 				</nav>
@@ -127,14 +132,15 @@
 							<Navigation layout="sidebar">
 								<Navigation.Content>
 									<Navigation.Menu>
-										{#each navLinks as { href, label } (href)}
+										{#each navItems as item (item.href)}
 											<Navigation.TriggerAnchor
-												{href}
+												href={`${base}${item.href}`}
+												aria-current={isActivePath(currentPath, item.match) ? 'page' : undefined}
 												onclick={() => {
 													mobileOpen = false;
 												}}
 											>
-												<Navigation.TriggerText>{label}</Navigation.TriggerText>
+												<Navigation.TriggerText>{item.label}</Navigation.TriggerText>
 											</Navigation.TriggerAnchor>
 										{/each}
 									</Navigation.Menu>
@@ -159,10 +165,11 @@
 	<footer class="border-surface-200-800 bg-surface-100-900/80 mt-16 border-t backdrop-blur-sm">
 		<div class="container mx-auto flex flex-col gap-4 px-6 py-8 text-sm md:flex-row md:items-center md:justify-between">
 			<p class="text-surface-700-300">
-				A Tinyland static spoke. Public content may later flow from reviewed tinyland.dev projections.
+				The Great Falls Tool Bus is an unincorporated community project in Lewiston-Auburn, Maine. This is a bus; the
+				shop comes later.
 			</p>
 			<nav class="flex flex-wrap gap-4" aria-label="Footer">
-				<a href="https://tinyland.dev" class="hover:text-primary-500 transition-colors">tinyland.dev</a>
+				<a href={`${base}/agent`} class="hover:text-primary-500 transition-colors">Agent AX</a>
 				<a href={REPO_URL} target="_blank" rel="noopener" class="hover:text-primary-500 transition-colors">GitHub</a>
 				<a href={SECURITY_URL} target="_blank" rel="noopener" class="hover:text-primary-500 transition-colors"
 					>Security</a
