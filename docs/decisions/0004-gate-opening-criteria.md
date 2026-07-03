@@ -1,15 +1,17 @@
 # 0004 — Gate-opening criteria (D2, REV-3 packet)
 
-- Status: **PROPOSED** — operator signs; until signed, gate-opening remains
-  UNOWNED
-- Date: 2026-07-03 (drafted in the grounding-audit wf_0118a02c DOC-TRUTH wave)
+- Status: **DECIDED** — Option A (criteria-based opening), operator sign-off
+  dated 2026-07-03; owner = **TIN-2421**
+- Date: 2026-07-03 (drafted in the grounding-audit wf_0118a02c DOC-TRUTH wave;
+  decided same day in the DECISION-APPLICATION wave)
 - Decision ID: D2
-- Amends when signed: 0001 (row f gate-open end-state gets an owned trigger),
-  0003 ("SEO remains deferred by decision (REV-2) until the gate opens" gets
-  an exit condition)
+- Amends: 0001 (row f gate-open end-state now has an owned trigger: TIN-2421),
+  0003 ("SEO remains deferred by decision (REV-2) until the gate opens" now
+  has an exit condition: the criteria below)
 - Related: TIN-2378 (closed Done 2026-07-03T17:25Z — NS cutover executed),
   TIN-2419 (Wave-3 prose), TIN-2420 (Anubis origin placement, deferred), D4
-  (Kate Pulham wording sign-off), 0005 (Wave-1 content ratification, D3)
+  (Kate Pulham wording sign-off), 0005 (Wave-1 content ratification, D3),
+  TIN-2421 (gate-opening owner, tracks A1–A5 below)
 
 ## Problem
 
@@ -33,9 +35,9 @@ Access 302, so every share of greatfallstoolbus.org is a blank card). None of
 this is an argument against having gated — it is the argument for deciding
 how the gate opens.
 
-## Option A (RECOMMENDED) — criteria-based opening
+## Option A (DECIDED) — criteria-based opening
 
-The gate opens when **all four** criteria hold; no date is set, and no
+The gate opens when **all five** criteria hold; no date is set, and no
 criterion may be waived silently.
 
 | # | Criterion | Evidence of "done" |
@@ -44,6 +46,13 @@ criterion may be waived silently.
 | A2 | Kate Pulham wording sign-off (D4) | the open checkbox in 0001's sign-off record is checked, with the agreed copy landed |
 | A3 | Mail/list smoke green | TIN-2379 CRs applied and a keyholders@latoolb.us round-trip + list smoke passes |
 | A4 | Allowlist expanded (Alex/Kate/Joe) | the three named reviewers have seen the gated site through their own Access logins before the flip |
+| A5 | **Naming-consent sweep clean** | every named stakeholder/reference currently on the site has explicitly agreed to be named (see `docs/naming-consent.md`); any name without recorded consent is redacted from the site in the pre-flip sweep before the Access policy changes |
+
+A5 is tracked in TIN-2421 alongside A1–A4 and is a first-class gate-opening
+criterion, not a secondary cleanup step — the standing naming-consent policy
+(see `docs/naming-consent.md`) holds that names are withheld from public view
+until each stakeholder/reference has agreed to be named, and the gate must
+not open around an un-swept name.
 
 **Execution on the day the last criterion lands (small by design):**
 
@@ -71,8 +80,10 @@ accruing.
 
 ## Sign-off (operator)
 
-- [ ] Option A (criteria-based, recommended) — the four criteria above become
-      binding and gate-opening is thereby OWNED
+- [x] Option A (criteria-based) — the five criteria above (A1–A5) are
+      binding and gate-opening is thereby OWNED — **signed 2026-07-03, owner
+      TIN-2421**
 - [ ] Option B (hard date: \_\_\_\_\_\_\_\_)
 - [ ] Option C (gated-until-notice, monthly review)
-- [ ] Amendments to the criteria set (note inline)
+- [x] Amendments to the criteria set (note inline) — A5 (naming-consent
+      sweep) added per the naming-consent policy; see `docs/naming-consent.md`
