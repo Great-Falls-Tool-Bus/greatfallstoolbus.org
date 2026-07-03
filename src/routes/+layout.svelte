@@ -18,7 +18,7 @@
 	const navLinks: { href: string; label: string }[] = [
 		{ href: `${base}/`, label: 'Overview' },
 		{ href: `${base}/agent`, label: 'Agent AX' },
-		{ href: `${base}/#contact`, label: 'Contact' },
+		{ href: `${base}/contact`, label: 'Contact' },
 	];
 
 	const SITE_NAME = 'greatfallstoolbus.org';
@@ -156,7 +156,7 @@
 		{@render children?.()}
 	</div>
 
-	<footer id="contact" class="border-surface-200-800 bg-surface-100-900/80 mt-16 border-t backdrop-blur-sm">
+	<footer class="border-surface-200-800 bg-surface-100-900/80 mt-16 border-t backdrop-blur-sm">
 		<div class="container mx-auto flex flex-col gap-4 px-6 py-8 text-sm md:flex-row md:items-center md:justify-between">
 			<p class="text-surface-700-300">
 				A Tinyland static spoke. Public content may later flow from reviewed tinyland.dev projections.
