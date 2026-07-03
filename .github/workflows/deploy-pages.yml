@@ -1,8 +1,8 @@
 name: Deploy to GitHub Pages
 
 # House DEFAULT deploy lane (see AGENTS.md -> "Build target"): adapter-static -> GitHub Pages.
-# Project-path hosting at https://<owner>.github.io/<repo>/ via BASE_PATH="/<repo>".
-# Custom-domain spoke: add static/CNAME and build with BASE_PATH="" (root base).
+# This spoke is custom-domain hosted at https://greatfallstoolbus.org/.
+# static/CNAME carries the domain and BASE_PATH="" keeps emitted asset URLs root-relative.
 # Cloudflare Pages is a documented opt-in: docs/deploy/cloudflare-pages.md.
 
 on:
@@ -40,11 +40,11 @@ jobs:
       - name: Check static site
         run: nix develop --command just check
 
-      - name: Build static site (project base path = /<repo>)
+      - name: Build static site (custom-domain root base)
         run: nix develop --command just build
         env:
           NODE_ENV: production
-          BASE_PATH: /${{ github.event.repository.name }}
+          BASE_PATH: ''
 
       - uses: actions/upload-pages-artifact@v5
         with:

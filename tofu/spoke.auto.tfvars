@@ -22,4 +22,4 @@ lane_allowlist = []
 cache_quota_gib = 50
 
 # Cluster ingress CNAME target for wildcard / per-lane DNS.
-ingress_target = "" # set blahaj-side; public tree carries no cluster hostnames (decision row d/boundary)
+ingress_target = "" # set substrate-side; public tree carries no cluster hostnames (decision row d/boundary)
