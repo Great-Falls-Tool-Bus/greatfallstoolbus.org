@@ -1,4 +1,4 @@
-# ADR: the dynamic-spoke is a flagged adapter mode IN greatfallstoolbus.org
+# ADR: the dynamic-spoke is a flagged adapter mode IN site.scaffold
 
 - **Status:** Accepted (design-heavy; in-repo parts implemented)
 - **Date:** 2026-06-29
@@ -17,7 +17,7 @@ reason, and `printstack` (TIN-1280) hand-rolled the static→node swap by editin
 `svelte.config.js` and `package.json` by hand, with no reusable path and no
 manifest/role signal that the repo had become stateful.
 
-The capstone goal (TIN-2228) is to make **greatfallstoolbus.org the universal client
+The capstone goal (TIN-2228) is to make **site.scaffold the universal client
 entrypoint**: one scaffold that can spawn either a static spoke or a dynamic spoke,
 rather than maintaining a second sibling "dynamic scaffold" repo that would
 immediately drift from the static one (shared Justfile, flake, gitleaks, skills,
@@ -25,7 +25,7 @@ conformance, lanes contract, etc.).
 
 ## Decision
 
-1. **The dynamic-spoke is a flagged adapter MODE inside greatfallstoolbus.org, not a
+1. **The dynamic-spoke is a flagged adapter MODE inside site.scaffold, not a
    sibling repo.** `scripts/rebrand.sh` gains `--adapter=node|static` (default
    `static`). `--adapter=node` performs the static→node swap deterministically at
    spawn time, so no spoke has to hand-roll it the way printstack did.
@@ -57,7 +57,7 @@ conformance, lanes contract, etc.).
 
 ## Why not the alternatives
 
-- **A separate `greatfallstoolbus.org-dynamic` repo.** Rejected: it duplicates the entire
+- **A separate `site.scaffold-dynamic` repo.** Rejected: it duplicates the entire
   house contract (Justfile/flake/gitleaks/skills/lanes/conformance) and guarantees
   drift. The scaffold-is-entrypoint thesis (TIN-2228) wants ONE entrypoint.
 - **Hand-rolling the swap per spoke (the printstack/TIN-1280 path).** Rejected as

@@ -127,3 +127,25 @@ re-homes to the infra repo except the DKIM carve-out.
 blahaj repo should be logically replaceable and not an intertangled part of our
 projects"); **countersigned 2026-07-02 ~21:35Z** (in-session; recorded on
 TIN-2360, which re-closed Done).
+
+---
+
+## Amendment 2 — row (g): execution end-state record (AMENDED 2026-07-03, citing the wf_13f12359 recheck)
+
+Row (g) is not superseded — this amendment records the **executed end-state**
+of the DNS-authority decision plus the truthful CI status as verified by the
+wf_13f12359 recheck.
+
+**DNS end-state (executed 2026-07-03):**
+
+- **greatfallstoolbus.org NS is on Cloudflare** — cutover executed 2026-07-03,
+  zone active 09:13Z, apex Access-gated per REV-2.
+- **latoolb.us NS stays on DreamHost** (REV-2).
+- A **Cloudflare zone for latoolb.us exists but is undelegated** — harmless;
+  its redirect ruleset stays dormant until/unless NS delegation ever moves.
+
+**CI status (truthful line from the wf_13f12359 recheck):**
+
+> CI cache-first attach LIVE with native cache-hit proof on the legacy
+> in-cluster endpoint; zero remote execution BY DESIGN (CACHE-FIRST doctrine,
+> TIN-1997 Option D); org-grained tenancy gated on TIN-2364 L5.
