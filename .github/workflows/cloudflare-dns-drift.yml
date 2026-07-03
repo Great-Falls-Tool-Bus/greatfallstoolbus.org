@@ -1,0 +1,122 @@
+name: Cloudflare DNS Drift
+
+# READ-ONLY DNS drift detection for the greatfallstoolbus.org Cloudflare zone
+# (TIN-2401). This job is PURE dig — it only issues DNS queries, never touches
+# the Cloudflare API, and needs NO CLOUDFLARE_API_TOKEN. It therefore runs the
+# same on fork PRs and in unconfigured environments.
+#
+# It asserts what public DNS can actually observe:
+#   1. The .org parent still delegates the zone to the expected Cloudflare NS
+#      pair (austin.ns.cloudflare.com + oaklyn.ns.cloudflare.com). An NS drift
+#      here means the registrar delegation moved — a real, observable outage
+#      class. This is the strict, fail-on-drift assertion.
+#   2. The apex and www still RESOLVE (non-empty A answer). Both records are
+#      proxied (orange-cloud) CNAMEs to greatfallstoolbus-org.pages.dev, so
+#      Cloudflare FLATTENS them at the edge: public dig returns Cloudflare
+#      anycast A records, never the pages.dev origin target. The origin CNAME
+#      target is therefore NOT publicly observable and cannot be asserted here —
+#      it is owned/verified by the great-falls-tool-bus-infra tofu plan, and the
+#      live "is the gated origin serving" question is answered by
+#      production-health.yml (the Access-login 302 embeds the hostname, proving
+#      apex/www/pages.dev all serve behind the gate).
+#
+# Mirrors transscendsurvival.org's .github/workflows/cloudflare-dns-drift.yml
+# (scheduled read-only drift check with a GITHUB_STEP_SUMMARY report), simplified
+# to dig-only: the site repo does not own a zone.json here — the
+# great-falls-tool-bus-infra edge overlay owns the zone, so there is no
+# declared-record file to diff and no CF token to hold.
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/cloudflare-dns-drift.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-dns-drift-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  dns-drift:
+    name: Detect Cloudflare DNS drift (read-only, dig-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      APEX: greatfallstoolbus.org
+      WWW: www.greatfallstoolbus.org
+      # Expected .org parent delegation for the zone. Sorted-set compare below.
+      EXPECT_NS: 'austin.ns.cloudflare.com oaklyn.ns.cloudflare.com'
+    steps:
+      - name: Ensure dig is available
+        run: |
+          if ! command -v dig >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq bind9-dnsutils
+          fi
+
+      - name: Check DNS delegation and resolution
+        id: drift
+        run: |
+          set -uo pipefail
+          status=0
+
+          # --- 1. NS delegation (strict) -----------------------------------
+          # Strip trailing dots, lowercase, sort — compare as a set.
+          got_ns="$(dig +short NS "${APEX}" | sed 's/\.$//' | tr '[:upper:]' '[:lower:]' | sort | paste -sd' ' -)"
+          want_ns="$(tr ' ' '\n' <<<"${EXPECT_NS}" | sort | paste -sd' ' -)"
+          if [ "${got_ns}" = "${want_ns}" ]; then
+            ns_result="ok"
+            echo "OK   NS: ${got_ns}"
+          else
+            ns_result="DRIFT"
+            status=1
+            echo "::error title=NS delegation drift::${APEX} delegates to [${got_ns:-<empty>}], expected [${want_ns}]"
+          fi
+
+          # --- 2. apex + www resolve (proxied posture) ---------------------
+          # Proxied records flatten to Cloudflare anycast A records; we assert a
+          # non-empty answer, NOT a specific target (the pages.dev origin is
+          # masked by the proxy — see the header comment).
+          apex_a="$(dig +short A "${APEX}" | grep -E '^[0-9]+\.' | paste -sd' ' -)"
+          www_a="$(dig +short A "${WWW}" | grep -E '^[0-9]+\.' | paste -sd' ' -)"
+          if [ -n "${apex_a}" ]; then
+            apex_result="ok"
+            echo "OK   apex A: ${apex_a}"
+          else
+            apex_result="UNRESOLVED"
+            status=1
+            echo "::error title=apex does not resolve::${APEX} returned no A record"
+          fi
+          if [ -n "${www_a}" ]; then
+            www_result="ok"
+            echo "OK   www A: ${www_a}"
+          else
+            www_result="UNRESOLVED"
+            status=1
+            echo "::error title=www does not resolve::${WWW} returned no A record"
+          fi
+
+          {
+            echo "## Cloudflare DNS Drift (dig-only, read-only)"
+            echo ""
+            echo "| Check | Expected | Observed | Result |"
+            echo "| ----- | -------- | -------- | ------ |"
+            echo "| NS delegation | \`${want_ns}\` | \`${got_ns:-<empty>}\` | \`${ns_result}\` |"
+            echo "| apex resolves | non-empty A | \`${apex_a:-<empty>}\` | \`${apex_result}\` |"
+            echo "| www resolves | non-empty A | \`${www_a:-<empty>}\` | \`${www_result}\` |"
+            echo ""
+            echo "> apex/www are proxied CNAMEs to \`greatfallstoolbus-org.pages.dev\`;"
+            echo "> Cloudflare flattens them, so the origin target is not publicly"
+            echo "> observable. It is owned by the great-falls-tool-bus-infra edge"
+            echo "> overlay and asserted live by \`production-health.yml\`."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if [ "${status}" -ne 0 ]; then
+            echo "::error title=Cloudflare DNS drift detected::Public DNS for ${APEX} diverges from the expected delegation/resolution posture."
+          fi
+          exit "${status}"
