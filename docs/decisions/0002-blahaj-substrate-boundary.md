@@ -4,6 +4,15 @@
 
 **Process rule:** every surface this memo contradicts takes a **dated correction note citing the decision, never a silent rewrite** (decision-ledger-2026-07.md:103-108). Mint **ledger item 19** for this correction, citing item 18 (the TIN-2360 packet sign-off), so downstream docs have a citable number.
 
+**Amendment note — 2026-07-02, TIN-2385 / ledger item 20:** the Cloudflare
+edge-authority carve-out resolved to option (ii): the private
+`Great-Falls-Tool-Bus/great-falls-tool-bus-infra` overlay may hold a protected
+environment token scoped only to the two GFTB zones and applies GFTB
+DNS/Access/redirect resources through its edge stack. Where this memo's
+original text says blahaj keeps DNS/Access/Tunnel apply for these zones, read
+that as superseded for GFTB only. blahaj remains the substrate and retains
+custody for house zones and its shared tunnel/mail infrastructure.
+
 **Terminology (load-bearing):** the three senses of "module" stay separate (house-glorious-build-saas.md:44-57): sense-1 = registry module (bzlmod latch), sense-2 = consumer latch (endpoint-free `.bazelrc.flywheel` + env-delivered endpoints), sense-3 = **org implementation overlay** — "a thin private repo that is an org's entire on-prem integration… Five surfaces, no module logic" (organization.yaml; arc-runners tfvars; `tofu/backend/*.s3.hcl` state coordinates; Justfile wrapping GF-core scripts; pinned CI + vendored taxonomy validator — TIN-2299). That contract is **runner-plane-scoped**. This memo **extends** the overlay's remit — do not silently widen "sense-3"; name the extended role the **org apply-plane overlay**: a sense-3 overlay that additionally owns the org's runtime stacks under the arc-runners ownership model (reusable stack code upstream; overlay owns config + state coordinates + the apply lane — TIN-2299 surfaces 2–5). Record this as a TIN-2299 addendum + house-glorious-build-saas amendment.
 
 ## (a) The layering
