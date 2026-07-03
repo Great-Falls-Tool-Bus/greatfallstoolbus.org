@@ -1,6 +1,9 @@
 <script lang="ts">
 	// Every entry verified live or via scholarly index on 2026-07-02. Where a
 	// primary URL could not be verified, the entry says so — no guessed links.
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Card from '$lib/components/Card.svelte';
+
 	type Entry = { title: string; meta: string; note: string; href: string };
 	type Section = { heading: string; entries: Entry[] };
 
@@ -234,30 +237,17 @@
 </svelte:head>
 
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
-	<header class="space-y-4">
-		<h1 class="text-4xl leading-tight font-bold">Bibliography</h1>
-		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
-			The tool bus is not a guess — it stands on forty years of tool-library practice, the hackerspace design-pattern
-			tradition, and a growing body of scholarship on shared workshops. Every link below was verified on 2026-07-02.
-		</p>
-	</header>
+	<PageHeader
+		title="Bibliography"
+		lead="The tool bus is not a guess — it stands on forty years of tool-library practice, the hackerspace design-pattern tradition, and a growing body of scholarship on shared workshops. Every link below was verified on 2026-07-02."
+	/>
 
 	{#each sections as section (section.heading)}
 		<section class="mt-12" aria-label={section.heading}>
 			<h2 class="text-2xl font-semibold">{section.heading}</h2>
 			<div class="mt-6 space-y-3">
 				{#each section.entries as e (e.title)}
-					<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-4">
-						<a
-							class="hover:text-primary-600 font-semibold underline-offset-2 hover:underline"
-							href={e.href}
-							rel="external noopener"
-						>
-							{e.title}
-						</a>
-						<p class="text-surface-500 mt-1 text-xs">{e.meta}</p>
-						<p class="text-surface-700-300 mt-2 text-sm leading-relaxed">{e.note}</p>
-					</div>
+					<Card titleHref={e.href} external title={e.title} meta={e.meta} body={e.note} headingLevel="none" compact />
 				{/each}
 			</div>
 		</section>
