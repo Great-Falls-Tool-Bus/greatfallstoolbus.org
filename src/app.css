@@ -6,13 +6,23 @@
 /* omux Warm/Pragmatic house theme (Skeleton 4 house format, OKLCH). */
 @import './lib/styles/themes/omux.css';
 
-/* Self-hosted fonts. Inter for body + heading per omux theme.
-   FiraCode Nerd Font Mono (patched with Nerd Font glyph icons + Fira Code
-   ligatures) for all code surfaces — self-hosted woff2 below. */
+/* Self-hosted fonts (all @fontsource ship font-display:swap → FOUC-safe).
+   Warm-variant editorial pairing (blog-structural uplift):
+   - Crimson Pro (serif) for body copy + .prose editorial blocks.
+   - Raleway (geometric sans) for headings + the uppercase .font-display lockup.
+   - Inter retained as the base sans fallback in the omux typography vars.
+   - FiraCode Nerd Font Mono (Nerd Font glyphs + Fira Code ligatures) for all
+     code surfaces — self-hosted woff2 below. */
+@import '@fontsource/crimson-pro/latin-400.css';
+@import '@fontsource/crimson-pro/latin-400-italic.css';
+@import '@fontsource/crimson-pro/latin-600.css';
+@import '@fontsource/crimson-pro/latin-700.css';
+@import '@fontsource/raleway/latin-400.css';
+@import '@fontsource/raleway/latin-500.css';
+@import '@fontsource/raleway/latin-600.css';
+@import '@fontsource/raleway/latin-700.css';
 @import '@fontsource/inter/latin-400.css';
-@import '@fontsource/inter/latin-500.css';
 @import '@fontsource/inter/latin-600.css';
-@import '@fontsource/inter/latin-700.css';
 
 /* Tailwind v4 only generates utilities it can see at build time, and Skeleton's
    component markup ships utility classes of its own (e.g. `size-4` on the
@@ -53,6 +63,21 @@
 	color-scheme: dark;
 }
 
+/* ===== Warm-variant editorial overrides (blog-structural uplift) =====
+   Retarget the omux typography vars onto the Crimson Pro (body) / Raleway
+   (headings) pairing and flatten container radii to sharp (0), mirroring the
+   jesssullivan.github.io blog structure. The bare [data-theme] selector has the
+   SAME specificity as omux.css's [data-theme='omux']; it is placed AFTER that
+   @import so source order wins. The omux WARM palette + TinyVectors colors are
+   deliberately left untouched. Functional focus-ring / scrollbar radii further
+   down keep their 2px values — only structural container radius goes sharp. */
+[data-theme] {
+	--typo-base--font-family: 'Crimson Pro', Georgia, 'Times New Roman', serif;
+	--typo-heading--font-family: 'Raleway', 'Inter', system-ui, sans-serif;
+	--radius-base: 0;
+	--radius-container: 0;
+}
+
 /* ===== Body + global typography baseline =====
    Skeleton 4 themes declare --typo-base/heading--font-family, but app code
    has to anchor body to that variable so prose actually picks up Inter. */
@@ -65,11 +90,12 @@ html {
 
 body {
 	font-family: var(--typo-base--font-family);
+	/* Crimson Pro editorial body: 18px serif with generous leading. */
+	font-size: 18px;
+	line-height: 1.6;
 	font-feature-settings:
-		'cv02' 1,
-		'cv03' 1,
-		'cv04' 1,
-		'cv11' 1;
+		'kern' 1,
+		'liga' 1;
 	overscroll-behavior-y: none;
 }
 
@@ -106,6 +132,16 @@ h4,
 	font-size: 1.25rem;
 	line-height: 1.3;
 	font-weight: 600;
+}
+
+/* Display lockup — Raleway, uppercase, tracked. Drives the Wordmark brand
+   lockup in the AppBar + drawer and is available for editorial eyebrows. */
+.font-display {
+	font-family: 'Raleway', 'Inter', system-ui, sans-serif;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	line-height: 1.1;
 }
 
 /* Section anchor offset so #hash jumps land below the sticky AppBar.
@@ -196,11 +232,33 @@ pre.shiki span {
 	background: color-mix(in oklch, var(--color-surface-800) 50%, transparent);
 }
 
-/* ===== Prose styling for marketing copy =====
-   Lifted from jesssullivan.github.io-vite8 baseline, trimmed for single-page
-   devtool surface (no blog-prose, no embed images). */
+/* ===== Prose — editorial block (blog-structural uplift) =====
+   Ported from the jesssullivan.github.io blog .prose block and adapted to the
+   omux warm theme's paired color tokens (var(--color-*-<light>-<dark>)). Sharp
+   corners (radius 0) on code/pre/img match the flattened container radius above.
+   Crimson Pro body sets the base; Raleway headings inherit from the global h*
+   rules. Long content wraps rather than scrolls (house no-scrollbar rule). */
 .prose {
-	line-height: 1.7;
+	line-height: 1.75;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+	margin-top: 2em;
+	margin-bottom: 0.75em;
+	overflow-wrap: break-word;
+}
+
+.prose h1 {
+	font-size: 1.5em;
+}
+.prose h2 {
+	font-size: 1.3em;
+}
+.prose h3 {
+	font-size: 1.15em;
 }
 
 .prose p {
@@ -211,10 +269,16 @@ pre.shiki span {
 	color: var(--color-primary-500);
 	text-decoration: underline;
 	text-underline-offset: 2px;
+	overflow-wrap: break-word;
+	word-break: break-word;
 }
 
 .prose a:hover {
 	color: var(--color-primary-600);
+}
+
+[data-mode='dark'] .prose a:hover {
+	color: var(--color-primary-300);
 }
 
 .prose ul,
@@ -232,6 +296,8 @@ pre.shiki span {
 
 .prose li {
 	margin-bottom: 0.4em;
+	overflow-wrap: break-word;
+	word-break: break-word;
 }
 
 .prose blockquote {
@@ -240,14 +306,64 @@ pre.shiki span {
 	margin: 1.5em 0;
 	font-style: italic;
 	color: var(--color-surface-700-300);
+	overflow-wrap: break-word;
+	word-break: break-word;
 }
 
 .prose code:not(pre code) {
 	font-size: 0.875em;
 	padding: 0.15em 0.35em;
-	border-radius: 0.25rem;
+	border-radius: 0;
 	background: var(--color-surface-100-900);
 	color: var(--color-surface-900-100);
+	overflow-wrap: break-word;
+	word-break: break-word;
+}
+
+.prose pre {
+	border-radius: 0;
+	padding: 1em;
+	margin: 1.5em 0;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	word-break: normal;
+}
+
+.prose pre code {
+	padding: 0;
+	background: transparent;
+	color: inherit;
+	font-size: 0.85em;
+}
+
+.prose img {
+	max-width: 100%;
+	height: auto;
+	border-radius: 0;
+	margin: 1.5em 0;
+}
+
+.prose hr {
+	margin: 2em 0;
+	border: 0;
+	border-top: 1px solid var(--color-surface-300-700);
+}
+
+.prose table {
+	width: 100%;
+	border-collapse: collapse;
+	margin: 1.5em 0;
+	display: block;
+	overflow-x: auto;
+}
+
+.prose th,
+.prose td {
+	padding: 0.5em 0.75em;
+	border: 1px solid var(--color-surface-300-700);
+	text-align: left;
+	overflow-wrap: break-word;
+	word-break: break-word;
 }
 
 /* ===== Saturn-nav AppBar =====
