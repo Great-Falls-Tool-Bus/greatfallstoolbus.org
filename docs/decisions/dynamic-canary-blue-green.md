@@ -8,6 +8,19 @@
   infrastructure, add workflows, or run a deploy. No blue/green controller is
   built here.
 
+> **Correction note (2026-07-03, ledger item 20 / TIN-2385):** the "Blahaj
+> executes" / "Blahaj **owns** Cloudflare DNS, Access, Tunnel ingress, the
+> traffic cut-over" language in Lane B below predates the TIN-2385 carve-out
+> recorded in [`0001-gftb-mvp-decisions.md`](./0001-gftb-mvp-decisions.md)
+> Amendment 1. Under the resolved carve-out, an **owner apply-plane overlay**
+> (for GFTB: `Great-Falls-Tool-Bus/great-falls-tool-bus-infra`) holds a
+> Cloudflare token scoped to exactly its own zones and applies its own
+> DNS/Access/Tunnel-route changes; blahaj keeps CF custody for house zones and
+> its tunnel daemon. The invariant that survives unchanged: **spokes** (this
+> repo included) still never hold long-lived CF creds and still only request —
+> the executor is the owning overlay, not necessarily Blahaj. The original
+> design text is retained per the no-silent-rewrite rule.
+
 The adapter mode a spoke picks (`scripts/rebrand.sh --adapter=static|node`) also
 selects its deploy/canary lane. The two lanes have fundamentally different
 rollback shapes, so they get different safety mechanisms.
