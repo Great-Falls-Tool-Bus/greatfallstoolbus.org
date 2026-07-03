@@ -24,6 +24,7 @@
 		imageAlt?: string;
 		noindex?: boolean;
 		canonical?: string | undefined;
+		canonicalBasePath?: string;
 		ogType?: string;
 		siteName?: string;
 		/** Production origin used to build the canonical URL when no explicit `canonical` is given. */
@@ -40,15 +41,27 @@
 		imageAlt = '',
 		noindex = false,
 		canonical = undefined,
+		canonicalBasePath = '',
 		ogType = 'website',
 		siteName = 'greatfallstoolbus.org',
 		origin = 'https://greatfallstoolbus.org',
 		jsonLd = null,
 	}: Props = $props();
 
+	const canonicalPath = $derived.by(() => {
+		if (!canonicalBasePath) return page.url.pathname;
+		if (page.url.pathname === canonicalBasePath) return '/';
+		if (page.url.pathname.startsWith(`${canonicalBasePath}/`)) {
+			return page.url.pathname.slice(canonicalBasePath.length);
+		}
+		return page.url.pathname;
+	});
+
 	// Expression derivation → `$derived(expr)`. Build the full canonical URL from
-	// the current path unless an explicit one was supplied.
-	const canonicalUrl = $derived(canonical || `${origin}${page.url.pathname}`);
+	// the current route path unless an explicit one was supplied. GitHub Pages
+	// fallback builds use a project-path `base`; canonical URLs still point at the
+	// production origin and must not include that hosting prefix.
+	const canonicalUrl = $derived(canonical || `${origin}${canonicalPath}`);
 
 	// Explicit-only robots gate (see header note on prerender).
 	const shouldNoindex = $derived(noindex);
