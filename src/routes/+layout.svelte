@@ -174,6 +174,7 @@
 				shop comes later.
 			</p>
 			<nav class="flex flex-wrap gap-4" aria-label="Footer">
+				<a href={`${base}/stewards`} class="hover:text-primary-500 transition-colors">Stewards</a>
 				<a href={`${base}/agent`} class="hover:text-primary-500 transition-colors">Agent AX</a>
 				<a href={REPO_URL} target="_blank" rel="noopener" class="hover:text-primary-500 transition-colors">GitHub</a>
 				<a href={SECURITY_URL} target="_blank" rel="noopener" class="hover:text-primary-500 transition-colors"
