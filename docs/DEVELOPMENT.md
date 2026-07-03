@@ -9,6 +9,21 @@ Spawned from `tinyland-inc/site.scaffold` at `v0.2.0`. Everything runs through
 `just` inside the Nix devshell (`direnv allow`; never call pnpm/vite/bazelisk
 directly).
 
+## Deploying
+
+Serving host is **Cloudflare Pages** (project `greatfallstoolbus-org`), per
+`docs/decisions/0003-hosting-and-remote-posture.md`. `.github/workflows/deploy-pages.yml`
+builds `adapter-static` `build/` and `wrangler pages deploy`s it. The apex sits
+behind Cloudflare Access (gated to the operator during prose refinement); DNS,
+Access, and the zone live in the `great-falls-tool-bus-infra` edge tofu stack.
+
+- Secrets (repo-level, org-provisioned, never in source): `CLOUDFLARE_API_TOKEN`
+  (account-scoped, `Pages:Edit` only) + `CLOUDFLARE_ACCOUNT_ID`. The deploy step
+  skips with a notice when they are absent; PR builds never deploy.
+- Rollback: the former GitHub-Pages workflow is retrievable from git history;
+  re-point `var.pages_host` in the edge stack and restore that workflow (see the
+  transscendsurvival.org two-level rollback runbook).
+
 ## Stack
 
 - **Just** — sole authoritative DX/AX entrypoint (`Justfile`)
