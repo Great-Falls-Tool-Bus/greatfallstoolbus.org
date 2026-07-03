@@ -50,10 +50,44 @@ jobs:
         with:
           path: build
 
+  pages-domain-ready:
+    name: Pages custom domain ready
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.dns.outputs.ready }}
+    steps:
+      - name: Check apex DNS
+        id: dns
+        env:
+          PAGES_DOMAIN: greatfallstoolbus.org
+        run: |
+          python3 - <<'PY'
+          import os
+          import socket
+
+          domain = os.environ["PAGES_DOMAIN"]
+          try:
+              answers = socket.getaddrinfo(domain, 443, type=socket.SOCK_STREAM)
+          except socket.gaierror:
+              answers = []
+
+          ips = sorted({answer[4][0] for answer in answers})
+          ready = "true" if ips else "false"
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"ready={ready}\n")
+
+          if ready == "true":
+              print(f"{domain} resolves: {', '.join(ips)}")
+          else:
+              print(f"{domain} has no public A/AAAA records yet; skipping Pages deploy")
+          PY
+
   deploy:
     name: Deploy to GitHub Pages
-    needs: build
-    if: github.event_name != 'pull_request'
+    needs: [build, pages-domain-ready]
+    if: github.event_name != 'pull_request' && needs.pages-domain-ready.outputs.ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
