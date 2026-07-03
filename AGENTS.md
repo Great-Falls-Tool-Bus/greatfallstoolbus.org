@@ -112,11 +112,14 @@ reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
 
 - This spoke is **enrolled in the shared Bazel cache** via the `cache_backed`
   lane of `tinyland-inc/ci-templates/.github/workflows/spoke-ci.yml` (pinned at
-  `@v2.7.0`, `cache_backed: true`, `flywheel_config: flywheel`). The
+  `@v2.9.0`, `cache_backed: true`, `flywheel_config: flywheel`). The
   `flywheel-build` and `bazel-graph` jobs read the shared cache over the cluster
   substrate; `vite build` + `svelte-check` + `vitest` are wrapped as
   flywheel-eligible CAS-cacheable Bazel actions (`//:build`,
   `//:sveltekit_types`, `//:svelte_check_test`, `//:unit_tests`).
+  Naming note: `flywheel-test` is the template's matrix name for the pure-pnpm
+  `just check` lane (no Bazel); real Bazel cache attach lives in
+  `flywheel-build` / `bazel-graph`.
 - **Do NOT create runners.** Enrollment attaches to the existing in-cluster
   `tinyland-nix` ARC pool. Hosted / repo-shaped runner fallback is rejected
   fail-closed by `scripts/cache-attachment-contract.sh`.
