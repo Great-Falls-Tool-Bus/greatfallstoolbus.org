@@ -41,20 +41,24 @@
 
 	const clientSetups = [
 		{
+			title: 'Apple Mail',
+			body: 'Once the list runtime lands, subscribe by email; on macOS use a rule (Mail -> Settings -> Rules) to file messages from keyholders@latoolb.us into a mailbox.',
+		},
+		{
 			title: 'Gmail',
-			body: 'Subscribe by email, label messages from keyholders@latoolb.us, and mark early list mail as not spam if needed.',
+			body: 'Once the list runtime lands, label messages from keyholders@latoolb.us and mark early list mail as not spam if needed.',
 		},
 		{
 			title: 'Thunderbird',
-			body: 'Use Reply to List when present; Thunderbird reads the List-Post and List-Id headers Mailman emits.',
+			body: 'When Mailman is live, use Reply to List; Thunderbird reads the List-Post and List-Id headers Mailman emits.',
 		},
 		{
 			title: 'Geary',
-			body: 'Subscribe by email or the web archive. Server-side filters work best for sorting list mail.',
+			body: 'Once the archive exists, subscribe by email or through the web archive. Server-side filters work best for sorting list mail.',
 		},
 		{
 			title: 'KMail',
-			body: 'Use Folder -> Mailing List Management -> Detect Automatically after the first list message lands.',
+			body: 'After the first list message lands, use Folder -> Mailing List Management -> Detect Automatically.',
 		},
 	];
 </script>
