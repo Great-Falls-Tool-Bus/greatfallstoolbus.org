@@ -1,9 +1,10 @@
 <script lang="ts">
+	import { base } from '$app/paths';
 	// Printable cell sheets — one page per tool cell, in the spirit of
 	// static/readme.txt: plain, honest, meant for paper. "Print me, pin me to
-	// a board, hand me to a friend." Inventory truth is shared with /tools via
-	// $lib/data/cells.ts so the sheet can never drift from the site.
-	import { base } from '$app/paths';
+	// a board, hand me to a friend." Inventory truth is the .svx tool tree at
+	// src/content/tools/**, shared with /tools via $lib/data/cells.ts so the
+	// sheet can never drift from the site.
 	import { cells } from '$lib/data/cells';
 </script>
 
@@ -51,10 +52,10 @@
 				<section aria-label="In the kit">
 					<h3 class="sheet-h">IN THE KIT — check each box when the kit is packed</h3>
 					<ul class="sheet-list">
-						{#each cell.tools as tool (tool.item)}
+						{#each cell.tools as tool (tool.slug)}
 							<li>
 								<span class="box" aria-hidden="true"></span>
-								<span><strong>{tool.item}</strong> — {tool.status}</span>
+								<span><strong>{tool.name}</strong> — {tool.blurb}</span>
 							</li>
 						{/each}
 					</ul>

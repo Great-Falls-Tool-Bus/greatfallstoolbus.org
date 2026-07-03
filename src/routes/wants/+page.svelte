@@ -1,18 +1,10 @@
 <script lang="ts">
 	import { base } from '$app/paths';
-
-	const wants = [
-		{
-			item: 'A nice iron and ironing table',
-			cell: 'Sewing cell',
-			note: 'A proper tailoring iron and a stable pressing surface are the current priority gap.',
-		},
-		{
-			item: 'Serger (Singer or Babylock class)',
-			cell: 'Sewing cell',
-			note: 'Overlock capability for finishing seams — the single most-requested missing machine.',
-		},
-	];
+	// The wants list is driven by the same .svx tool tree as /tools and
+	// /cell-sheets: entries with frontmatter status 'wants' land here (and
+	// only here), so one tree carries the whole honest inventory — what is
+	// on the bus and what is still missing.
+	import { wants } from '$lib/data/cells';
 </script>
 
 <svelte:head>
@@ -35,11 +27,11 @@
 	</header>
 
 	<section class="mt-10 space-y-4">
-		{#each wants as w (w.item)}
+		{#each wants as w (w.slug)}
 			<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-5">
-				<p class="text-surface-500 text-xs tracking-widest uppercase">{w.cell}</p>
-				<h2 class="mt-1 text-lg font-semibold">{w.item}</h2>
-				<p class="text-surface-700-300 mt-2 leading-relaxed">{w.note}</p>
+				<p class="text-surface-500 text-xs tracking-widest uppercase">{w.cellName}</p>
+				<h2 class="mt-1 text-lg font-semibold">{w.name}</h2>
+				<p class="text-surface-700-300 mt-2 leading-relaxed">{w.blurb}</p>
 			</div>
 		{/each}
 	</section>

@@ -1,0 +1,7 @@
+---
+name: 'Small cutting surface'
+status: 'in-kit'
+cell: 'sewing'
+order: 8
+blurb: 'In kit.'
+---

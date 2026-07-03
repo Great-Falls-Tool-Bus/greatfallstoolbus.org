@@ -1,0 +1,9 @@
+---
+name: 'SINGER ProSeries scissors bundle (8.5″ bent + 4.5″ detail + snips)'
+status: 'in-kit'
+cell: 'sewing'
+order: 3
+blurb: 'The kit shears. Bent shears stay dedicated to fabric.'
+docUrl: 'https://www.singer.com/products/singer-8-5-proseries-scissors'
+docLabel: 'singer.com'
+---
