@@ -1,9 +1,15 @@
-name: Deploy to GitHub Pages
-
-# House DEFAULT deploy lane (see AGENTS.md -> "Build target"): adapter-static -> GitHub Pages.
-# This spoke is custom-domain hosted at https://greatfallstoolbus.org/.
-# static/CNAME carries the domain and BASE_PATH="" keeps emitted asset URLs root-relative.
-# Cloudflare Pages is a documented opt-in: docs/deploy/cloudflare-pages.md.
+# Serving: Cloudflare Pages (ADR 0003, operator-approved 2026-07-03).
+# Replaces the former GitHub-Pages deploy (domain-readiness probe + dual
+# BASE_PATH build + cname-clear), which self-unbound the custom domain on every
+# main push while the apex is Access-gated. The prior GH-Pages workflow is the
+# documented rollback publisher, retrievable from git history.
+#
+# base='' (root): CF Pages serves the custom domain at root; svelte.config.js
+# defaults base to '' when BASE_PATH is unset, so no BASE_PATH is set here.
+# The deploy step SKIPS gracefully when the org CF secrets are absent, so this
+# merges safely before the token is minted. PR builds never deploy and never
+# mutate repo settings.
+name: Deploy to Cloudflare Pages
 
 on:
   push:
@@ -14,106 +20,19 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
+  deployments: write
 
 concurrency:
-  group: github-pages-${{ github.ref }}
+  group: cloudflare-pages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  pages-domain-ready:
-    name: Pages custom domain ready
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    outputs:
-      ready: ${{ steps.lock.outputs.locked == 'true' && 'true' || steps.dns.outputs.ready }}
-    steps:
-      - name: Operator lock short-circuit
-        id: lock
-        if: vars.CUSTOM_DOMAIN_LOCKED == 'true'
-        run: echo "locked=true" >> "$GITHUB_OUTPUT"
-
-      # While the apex is deliberately Access-gated (packet 0001 row g REV-2),
-      # this reachability probe reads it as NOT-ready and the fallback path
-      # below would clear the Pages custom domain on every main push (the
-      # 2026-07-03 cname-null incident). vars.CUSTOM_DOMAIN_LOCKED=true is the
-      # operator's assertion that the domain is bound on purpose - the probe
-      # is skipped and the custom-domain artifact is always built. Interim
-      # hardening pending the ADR-0003 hosting decision.
-      - name: Check apex DNS
-        id: dns
-        if: steps.lock.outputs.locked != 'true'
-        env:
-          PAGES_DOMAIN: greatfallstoolbus.org
-        run: |
-          python3 - <<'PY'
-          import os
-          import socket
-          import urllib.error
-          import urllib.parse
-          import urllib.request
-
-          domain = os.environ["PAGES_DOMAIN"]
-          try:
-              answers = socket.getaddrinfo(domain, 443, type=socket.SOCK_STREAM)
-          except socket.gaierror:
-              answers = []
-
-          ips = sorted({answer[4][0] for answer in answers})
-          ready = "false"
-          detail = f"{domain} has no public A/AAAA records"
-
-          if ips:
-              url = f"https://{domain}/"
-              request = urllib.request.Request(
-                  url,
-                  headers={"User-Agent": "greatfallstoolbus-pages-ready/1.0"},
-              )
-              try:
-                  with urllib.request.urlopen(request, timeout=10) as response:
-                      final_url = response.geturl()
-                      final_host = urllib.parse.urlparse(final_url).hostname
-                      status = response.getcode()
-                      headers = {key.lower(): value for key, value in response.headers.items()}
-
-                  cloudflare_access = (
-                      "cf-access-domain" in headers
-                      or "cloudflare-access" in headers.get("www-authenticate", "").lower()
-                  )
-                  if final_host == domain and 200 <= status < 400 and not cloudflare_access:
-                      ready = "true"
-                      detail = f"{domain} is publicly reachable at {final_url} ({status})"
-                  elif final_host != domain:
-                      detail = f"{domain} redirects unauthenticated traffic to {final_url}"
-                  elif cloudflare_access:
-                      detail = f"{domain} is gated by Cloudflare Access"
-                  else:
-                      detail = f"{domain} returned HTTP {status}"
-              except urllib.error.HTTPError as exc:
-                  detail = f"{domain} returned HTTP {exc.code}"
-              except Exception as exc:
-                  detail = f"{domain} is not publicly reachable: {exc}"
-
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
-              out.write(f"ready={ready}\n")
-
-          if ready == "true":
-              print(f"{detail}; resolved IPs: {', '.join(ips)}")
-          else:
-              print(f"{detail}; deploying github.io fallback")
-          PY
-
   build:
-    name: Build static site
-    needs: [pages-domain-ready]
-    if: always() && (github.event_name == 'pull_request' || needs.pages-domain-ready.result == 'success')
+    name: Build and deploy
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      CUSTOM_DOMAIN_READY: ${{ needs.pages-domain-ready.outputs.ready }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v6
 
       - uses: cachix/install-nix-action@v31
         with:
@@ -127,55 +46,40 @@ jobs:
         run: nix develop --command just check
 
       - name: Build static site
-        run: |
-          if [[ "${CUSTOM_DOMAIN_READY}" == "true" ]]; then
-            echo "Building for custom-domain root base"
-            export BASE_PATH=""
-          else
-            echo "Building github.io fallback with project-path base"
-            export BASE_PATH="/${GITHUB_REPOSITORY#*/}"
-          fi
-          nix develop --command just build
+        run: nix develop --command just build
+
+      - name: Resolve Cloudflare Pages target
+        id: cloudflare
         env:
-          NODE_ENV: production
-
-      - name: Remove CNAME from fallback artifact
-        if: env.CUSTOM_DOMAIN_READY != 'true' && vars.CUSTOM_DOMAIN_LOCKED != 'true' && github.event_name != 'pull_request'
-        run: rm -f build/CNAME
-
-      # Never mutate repo settings from a PR build (the PR token 403s anyway),
-      # and never while the operator lock asserts the binding is intentional.
-      - name: Clear Pages custom domain for fallback
-        if: env.CUSTOM_DOMAIN_READY != 'true' && vars.CUSTOM_DOMAIN_LOCKED != 'true' && github.event_name != 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/pages" -F cname=
-
-      - name: Report Pages artifact mode
+          RAW_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
-          if [[ "${CUSTOM_DOMAIN_READY}" == "true" ]]; then
-            test -f build/CNAME
-            echo "Artifact mode: custom domain"
-          elif [[ "${{ vars.CUSTOM_DOMAIN_LOCKED }}" == "true" || "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "Artifact mode: locked/PR build (CNAME left as committed)"
+          site="${GITHUB_REPOSITORY#*/}"
+          project="${site//./-}"
+          project="${project//_/-}"
+          branch="${RAW_BRANCH:-main}"
+          branch="$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')"
+          echo "project=$project" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Check Cloudflare Pages credentials
+        id: cloudflare_credentials
+        if: github.event_name != 'pull_request'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "can_deploy=true" >> "$GITHUB_OUTPUT"
           else
-            test ! -f build/CNAME
-            echo "Artifact mode: github.io fallback"
+            echo "::notice::Skipping Cloudflare Pages deploy because CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is not configured."
+            echo "can_deploy=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/upload-pages-artifact@v5
+      - name: Deploy static site
+        if: github.event_name != 'pull_request' && steps.cloudflare_credentials.outputs.can_deploy == 'true'
+        uses: cloudflare/wrangler-action@v4
         with:
-          path: build
-
-  deploy:
-    name: Deploy to GitHub Pages
-    needs: [build, pages-domain-ready]
-    if: github.event_name != 'pull_request' && needs.build.result == 'success'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/deploy-pages@v5
-        id: deployment
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy build --project-name=${{ steps.cloudflare.outputs.project }} --branch=${{ steps.cloudflare.outputs.branch }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
