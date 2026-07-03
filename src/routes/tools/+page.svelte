@@ -1,8 +1,11 @@
 <script lang="ts">
-	// Inventory truth lives in $lib/data/cells.ts, shared with the printable
-	// /cell-sheets route so the web page and the pinned-to-a-board sheet can
-	// never drift apart.
 	import { base } from '$app/paths';
+	// Inventory truth is the .svx tool tree at src/content/tools/**, globbed
+	// at build time by $lib/data/cells.ts and shared with the printable
+	// /cell-sheets route and the /wants gap list, so the web page, the
+	// pinned-to-a-board sheet, and the wants list can never drift apart.
+	// Inventory doctrine + the transfemme-tailoring citation-table pointer
+	// live in the cells.ts header. Validate the tree with `just tools-validate`.
 	import { cells } from '$lib/data/cells';
 </script>
 
@@ -28,13 +31,13 @@
 		<section class="mt-10" aria-label={cell.name}>
 			<h2 class="text-2xl font-semibold">{cell.name}</h2>
 			<div class="mt-6 space-y-3">
-				{#each cell.tools as tool (tool.item)}
+				{#each cell.tools as tool (tool.slug)}
 					<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-4">
-						<h3 class="font-semibold">{tool.item}</h3>
+						<h3 class="font-semibold">{tool.name}</h3>
 						<p class="text-surface-700-300 mt-1 text-sm leading-relaxed">
-							{tool.status}
-							{#if tool.doc}
-								<a class="underline" href={tool.doc} rel="external noopener">{tool.docLabel}</a>
+							{tool.blurb}
+							{#if tool.docUrl}
+								<a class="underline" href={tool.docUrl} rel="external noopener">{tool.docLabel}</a>
 							{/if}
 						</p>
 					</div>

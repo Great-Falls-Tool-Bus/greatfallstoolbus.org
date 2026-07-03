@@ -94,6 +94,10 @@ scan-endpoints:
 test-unit:
     cd {{ root }} && pnpm run test:unit
 
+# Validate the .svx tool-inventory tree (src/content/tools/**) frontmatter
+tools-validate:
+    cd {{ root }} && pnpm exec tsx scripts/validate-tools.mts
+
 # Ensure local Playwright browser cache exists; CI uses Nix Chromium instead
 playwright-ensure:
     cd {{ root }} && if [ "${CI:-}" = "true" ] && command -v nix >/dev/null 2>&1; then \
@@ -132,8 +136,8 @@ sbom out_dir="build/sbom":
         -o cyclonedx-json="{{ out_dir }}/greatfallstoolbus.org.cyclonedx.json" \
         -o spdx-json="{{ out_dir }}/greatfallstoolbus.org.spdx.json"
 
-# Run secrets scan + lint + typecheck + unit (pre-commit gate)
-check: flywheel-enrollment-contract-check secrets-scan-dir lint typecheck test-unit
+# Run secrets scan + lint + typecheck + tool-inventory + unit (pre-commit gate)
+check: flywheel-enrollment-contract-check secrets-scan-dir lint typecheck tools-validate test-unit
     @echo "All checks passed."
 
 # Run full CI pipeline locally

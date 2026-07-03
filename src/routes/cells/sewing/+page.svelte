@@ -70,15 +70,15 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each cell.tools as tool (tool.item)}
+						{#each cell.tools as tool (tool.name)}
 							<tr>
-								<td class="col-item"><strong>{tool.item}</strong></td>
+								<td class="col-item"><strong>{tool.name}</strong></td>
 								<td class="col-inkit"><span class="box" aria-hidden="true"></span></td>
 								<td class="col-cond"><span class="writein" aria-label="write the condition here"></span></td>
 								<td class="col-notes">
-									{tool.status}
-									{#if tool.doc}
-										Manual: {tool.doc}
+									{tool.blurb}
+									{#if tool.docUrl}
+										Manual: {tool.docUrl}
 									{/if}
 								</td>
 							</tr>

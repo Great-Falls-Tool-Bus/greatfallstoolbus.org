@@ -100,6 +100,43 @@ broker, not from checked-in post payloads, CI materialization, or the
 `tinyland.dev` public apex. They remain static spokes: no server-side mutation
 API, no local keys, no follower ledger, and no public Fediverse delivery worker.
 
+## Adding a tool
+
+The tool inventory is a content tree: one mdsvex (`.svx`) file per tool under
+`src/content/tools/<cell>/<slug>.svx`. `$lib/data/cells.ts` globs the tree at
+build time and drives `/tools`, `/cell-sheets`, and `/wants` from the same
+files, so they can never drift apart.
+
+1. Drop a new `.svx` file in the cell's directory. Frontmatter schema
+   (validated against `src/lib/data/tool-schema.ts`):
+
+   ```markdown
+   ---
+   name: 'SINGER Heavy Duty 6600C Sterling (computerized)'
+   status: 'in-kit' # 'in-kit' | 'restoration' -> /tools; 'wants' -> /wants
+   cell: 'sewing' # must match a cell slug in tool-schema.ts CELL_SLUGS
+   order: 1 # sort position within the cell (kit-packing order)
+   blurb: 'One honest sentence — this is the card copy.'
+   docUrl: 'https://…' # optional; manufacturer manual/datasheet, https only
+   docLabel: 'Instruction manual (PDF)' # required when docUrl is set
+   ---
+
+   Optional free-form prose (markdown + Svelte) for future per-tool pages.
+   ```
+
+2. Add photos under `static/` and run `just optimize-images` (per-tool photo
+   wiring lands with the per-tool pages).
+3. Run `just tools-validate` — it compiles every `.svx` with mdsvex and fails
+   on schema drift, non-https doc links, duplicate slugs, or duplicate `order`
+   values. `just check` runs it too.
+
+Inventory doctrine: every entry resolves to a real model number with a
+manufacturer manual or datasheet link — no invented product names, ever. A
+tool that is not yet resolved gets honestly framed in its `blurb`, like the
+treadle Singer. New cells register a slug in `src/lib/data/tool-schema.ts`
+(`CELL_SLUGS`) and their captain/travel doctrine in `$lib/data/cells.ts`
+(`CELL_META`).
+
 ## Conventions
 
 - Repo name = domain with dots preserved (e.g. `tinyland-inc/phasi.space`)
