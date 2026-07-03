@@ -76,7 +76,7 @@ curl -sI https://greatfallstoolbus.org/ | head -n 5
 curl -sI https://www.greatfallstoolbus.org/ | head -n 5
 ```
 
-## 3. Web: latoolb.us root + www 301 -> greatfallstoolbus.org
+## 3. Web: latoolb.us root + www 301
 
 `latoolb.us` is a redirect/alias + mail domain, never a second site (row a).
 In the Cloudflare zone for `latoolb.us`:
@@ -86,10 +86,16 @@ In the Cloudflare zone for `latoolb.us`:
    `latoolb.us` (the `192.0.2.0/24` block is reserved documentation space;
    the proxy answers before origin contact).
 2. Add a Redirect Rule (or Bulk Redirect): requests for `latoolb.us/*` and
-   `www.latoolb.us/*` -> `https://greatfallstoolbus.org/` with status
+   `www.latoolb.us/*` -> the current `alias_redirect_target` in
+   `great-falls-tool-bus-infra/tofu/stacks/edge/variables.tf` with status
    `301`, preserving nothing (the alias carries no paths worth preserving).
 
-Verify (expect `301` and a `location: https://greatfallstoolbus.org/`):
+Current gated-phase truth (2026-07-03): `alias_redirect_target` is the raw
+GitHub Pages fallback, `https://great-falls-tool-bus.github.io/greatfallstoolbus.org/`.
+It flips to `https://greatfallstoolbus.org/` when the TIN-2421 gate opens and
+the apex is publicly loadable without Cloudflare Access.
+
+Verify (expect `301` and a `location:` equal to the current target):
 
 ```bash
 curl -sI http://latoolb.us/ | grep -i -E '^(HTTP|location)'
@@ -205,7 +211,9 @@ curl -s https://mta-sts.latoolb.us/.well-known/mta-sts.txt
 
 - [ ] Both zones answer from Cloudflare nameservers (step 1)
 - [ ] `https://greatfallstoolbus.org` and `https://www.greatfallstoolbus.org` serve the site (step 2)
-- [ ] `latoolb.us` root + www 301 to `https://greatfallstoolbus.org/` (step 3)
+- [ ] `latoolb.us` root + www 301 to the current `alias_redirect_target` (step 3;
+      GitHub Pages fallback during the gated phase, `https://greatfallstoolbus.org/`
+      after TIN-2421 opens the Access gate)
 - [ ] `dig MX latoolb.us` returns `10 relay.tinyland.dev.` (step 4)
 - [ ] SPF, DKIM, DMARC TXT records resolve (steps 5–7)
 - [ ] A round-trip test mail to `keyholders@latoolb.us` is delivered and
