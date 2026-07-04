@@ -48,10 +48,7 @@
 
 	<section class="mt-10 space-y-4" aria-label="People">
 		{#each people as p (p.name)}
-			<Card title={p.name} headingLevel="h2">
-				<p class="text-surface-500 text-xs tracking-widest uppercase">{p.role}</p>
-				<p class="text-surface-700-300 mt-2 leading-relaxed">{p.note}</p>
-			</Card>
+			<Card eyebrow={p.role} title={p.name} body={p.note} headingLevel="h2" />
 		{/each}
 	</section>
 
