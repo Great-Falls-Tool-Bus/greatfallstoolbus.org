@@ -148,7 +148,7 @@ sbom out_dir="build/sbom":
         -o spdx-json="{{ out_dir }}/greatfallstoolbus.org.spdx.json"
 
 # Run secrets scan + lint + typecheck + tool-inventory + unit (pre-commit gate)
-check: flywheel-enrollment-contract-check secrets-scan-dir lint typecheck tools-validate skills-validate skills-check test-unit
+check: flywheel-enrollment-contract-check secrets-scan-dir lint typecheck tools-validate skills-validate skills-check source-map-check test-unit
     @echo "All checks passed."
 
 # Run full CI pipeline locally
@@ -231,6 +231,15 @@ skills-build:
 # Drift guard: regenerate derived skills, then fail if the tree changed.
 skills-check: skills-build
     cd {{ root }} && git diff --exit-code -- .agents/skills .claude/skills static/llms.txt
+
+# Derive the page source map (route id -> repo-relative +page.svelte) that
+# SourceLink.svelte reads to render the "View source" / "Edit this page" affordance.
+source-map-build:
+    cd {{ root }} && pnpm exec tsx scripts/build-source-map.mjs
+
+# Drift guard: regenerate the source map, then fail if the generated file changed.
+source-map-check: source-map-build
+    cd {{ root }} && git diff --exit-code -- src/lib/generated/source-map.json
 
 # House-style drift audit: layer 1 (existing checks) + layer 3 (boundary audit). Layer 2 (tag diff) is manual; see the skill body.
 scaffold-doctor:

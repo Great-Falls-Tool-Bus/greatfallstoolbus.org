@@ -11,8 +11,18 @@
 	// (TIN-2225) house-canon rune shape. Rich leads (inline links / <strong>) are
 	// passed through the `children` snippet, which renders after the title so a
 	// page keeps full control of marked-up copy.
+	//
+	// Git-onboarding affordance (TIN-2360 view/edit source subsystem): every page
+	// that renders PageHeader gets the "View source" / "Edit this page" pair for
+	// free via SourceLink, enforced from architectural zero (no per-page opt-in).
+	// PageHeader learns its own route from `page` (same base-stripped pathname the
+	// layout derives) and hands the route id to SourceLink, which renders nothing
+	// for routes absent from the generated source map.
 	import type { Snippet } from 'svelte';
 	import type { Icon as LucideIcon } from '@lucide/svelte';
+	import { base } from '$app/paths';
+	import { page } from '$app/state';
+	import SourceLink from '$lib/components/SourceLink.svelte';
 
 	interface Props {
 		/** Small uppercase kicker above the title (optional). */
@@ -28,6 +38,8 @@
 	}
 
 	let { eyebrow = '', title, lead = '', icon: Icon, children }: Props = $props();
+
+	const routeId = $derived(page.url.pathname.slice(base.length) || '/');
 </script>
 
 <header class="space-y-4">
@@ -44,4 +56,5 @@
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">{lead}</p>
 	{/if}
 	{@render children?.()}
+	<SourceLink {routeId} />
 </header>
