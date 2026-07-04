@@ -14,7 +14,7 @@
 		},
 		{
 			q: 'Are the bits marked?',
-			body: 'Chisels, collets, blades, jigs, chargers — mark every piece so it visibly belongs to its set. Engraver, paint pen, or tag: anything durable counts.',
+			body: 'Chisels, collets, blades, jigs, chargers: mark every piece so it visibly belongs to its set. Engraver, paint pen, or tag, anything durable counts.',
 		},
 		{
 			q: 'Can it be repaired, used, and maintained?',
@@ -24,10 +24,10 @@
 </script>
 
 <svelte:head>
-	<title>Donate a tool — Great Falls Tool Bus</title>
+	<title>Donate a tool | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="We suggest tool donations — particularly complex, large, or heavy tools with many little bits and bobs. Transportable, marked, repairable."
+		content="We suggest tool donations, particularly complex, large, or heavy tools with many little bits and bobs. Transportable, marked, repairable."
 	/>
 </svelte:head>
 
@@ -46,8 +46,7 @@
 				{/each}
 			</div>
 			<p class="text-surface-500 mt-4 text-sm leading-relaxed">
-				That is the current, honest gap list — see the full <a class="underline" href={`${base}/wants`}>wants page</a> for
-				more.
+				That is the current gap list; see the full <a class="underline" href={`${base}/wants`}>wants page</a> for more.
 			</p>
 		</section>
 	{/if}
@@ -64,7 +63,7 @@
 	<section class="border-surface-200-800 mt-12 border-t pt-8" aria-label="Arrange the hand-off">
 		<h2 class="text-2xl font-semibold">Arrange the hand-off</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
-			Ready to hand off a tool, or want to talk through whether yours is a fit? Reach a keyholder — that is the whole
+			Ready to hand off a tool, or want to talk through whether yours is a fit? Reach a keyholder. That is the whole
 			process.
 		</p>
 		<a
@@ -80,7 +79,7 @@
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
 			The Great Falls Tool Bus is an unincorporated community project, and we keep the money side simple: <strong
 				>tool donations are the headline ask</strong
-			>. If you want to help with money instead, that help is framed toward tools too — it goes toward buying the tools
+			>. If you want to help with money instead, that help is framed toward tools too. It goes toward buying the tools
 			the bus still needs, not general operations. <a class="underline" href={`${base}/contact`}>Reach out</a> and we'll talk
 			person-to-person; nothing here is a tax-deductible charitable solicitation.
 		</p>

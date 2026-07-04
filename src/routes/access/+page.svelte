@@ -3,20 +3,21 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
 
-	// "How access works" — the path from first inquiry to a tool in your hands.
+	// "How access works": the path from first inquiry to a tool in your hands.
 	// This is where the /contact form points (this lane does NOT wire the form).
-	// The free-after-orientation, donations-optional model is the operator
-	// default (recommended, not confirmed — see OPERATOR-CONFIRM + PR flags).
+	// Access model (ratified): keyholders are a curated, owner-approved group;
+	// anyone may request access; non-member requests reach all keyholders.
+	// No membership fee, no paperwork wall; access is stewarded.
 	const steps = [
 		{
 			n: '1',
 			title: 'Reach out',
-			body: 'Tell a keyholder what you want to make or do. The contact page is where that starts; while the bot-guarded form and mailing list come online, a keyholder answers the human way.',
+			body: 'Tell us what you want to make or fix. The contact page is where that starts. Requests from non-members reach every keyholder, and one of them picks yours up: keyholders are a small, owner-approved group, so a real person reads every ask.',
 		},
 		{
 			n: '2',
 			title: 'Safety orientation',
-			body: 'Before your first borrow of a capability, we walk you through a short safety orientation for it — the real hazards, the protective gear, and how the kit packs and travels. It is quick, and it is required.',
+			body: 'Before your first borrow of a capability, a keyholder walks you through a short safety orientation for it: the real hazards, the protective gear, and how the kit packs and travels. It is quick, and it is required.',
 		},
 		{
 			n: '3',
@@ -26,23 +27,23 @@
 		{
 			n: '4',
 			title: 'Use the tool',
-			body: 'Borrow the kit, do the work, and return it kitted and honest — checked against its cell sheet. Access is free; donations are welcome but never required.',
+			body: 'Borrow the kit, do the work, and return it checked against its cell sheet. Borrowing is free; donations are welcome but never required.',
 		},
 	];
 </script>
 
 <svelte:head>
-	<title>How access works — Great Falls Tool Bus</title>
+	<title>How access works | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="How to borrow from the Great Falls Tool Bus: reach out, complete a short safety orientation, schedule around the bus, and use the tool. Free and open; donations optional."
+		content="How to borrow from the Great Falls Tool Bus: reach out, complete a short safety orientation, schedule around the bus, and use the tool. No membership fee, no paperwork wall; every request gets a keyholder's answer."
 	/>
 </svelte:head>
 
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
 	<PageHeader
 		title="How access works"
-		lead="Getting on the bus is simple and human. Four steps take you from a first message to a tool in your hands — and access is free and open once you have done a safety orientation for what you want to use."
+		lead="Anyone can ask to borrow, and every ask gets a human answer. Four steps take you from a first message to a tool in your hands: no membership fee, no paperwork wall, and a keyholder alongside you the whole way."
 	/>
 
 	<section class="mt-10" aria-label="The steps">
@@ -53,16 +54,18 @@
 				</li>
 			{/each}
 		</ol>
-		<!-- OPERATOR-CONFIRM: free-after-safety-orientation access, donations optional — recommended default, not operator-confirmed. -->
+		<!-- Access model (ratified): curated, owner-approved keyholders; anyone may request; non-member requests reach all keyholders. -->
 	</section>
 
 	<section class="border-surface-200-800 mt-12 border-t pt-8 prose max-w-none" aria-label="Where to start">
 		<h2 class="text-2xl font-semibold">Where to start</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
-			Reach a keyholder while the mailing list and protected form roll out — that is step one, and it is the whole ask.
-			Read the <a class="underline" href={`${base}/safety`}>safety &amp; responsible-use guide</a> before your
-			orientation, browse the <a class="underline" href={`${base}/tools`}>capability catalog</a> to see what is on the
-			bus, and meet the <a class="underline" href={`${base}/stewards`}>stewards</a> who keep it running.
+			Reach a keyholder. That is step one, and it is the whole ask. Read the <a
+				class="underline"
+				href={`${base}/safety`}>safety &amp; responsible-use guide</a
+			>
+			before your orientation, browse the <a class="underline" href={`${base}/tools`}>capability catalog</a> to see what
+			is on the bus, and meet the <a class="underline" href={`${base}/stewards`}>stewards</a> who keep it running.
 		</p>
 	</section>
 
@@ -79,7 +82,7 @@
 	</div>
 
 	<footer class="text-surface-500 pt-12 text-sm">
-		No membership fee, no means test, no gatekeeping — a safety orientation and a little coordination, and the bus is
-		yours to borrow.
+		No membership fee, no means test, no paperwork wall. A safety orientation, a keyholder's go-ahead, and a little
+		coordination, and the bus is yours to borrow.
 	</footer>
 </main>
