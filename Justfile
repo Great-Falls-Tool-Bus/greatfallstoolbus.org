@@ -407,7 +407,7 @@ dev-remote lane="default":
 # Set CI_TEMPLATES_DIR=../ci-templates to rehearse against a local checkout
 # before a release tag exists.
 # Sync vendored .bazelrc.flywheel from a pinned ci-templates release.
-sync-flywheel-bazelrc tag="v2.7.0":
+sync-flywheel-bazelrc tag="v2.9.0":
     #!/usr/bin/env bash
     set -euo pipefail
 

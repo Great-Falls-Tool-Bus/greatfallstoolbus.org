@@ -17,8 +17,8 @@
 		"layers": ["org-wide-repo-contract", "bazel-package-cache-rbe", "static-spoke"]
 	},
 	"enrollment": {
-		"forgeScope": "Jesssullivan",
-		"operatorOverlay": "jesssullivan-infra",
+		"forgeScope": "Great-Falls-Tool-Bus",
+		"operatorOverlay": "great-falls-tool-bus-infra",
 		"executionPool": "tinyland-nix",
 		"substrateMode": "shared-cache-backed"
 	},
