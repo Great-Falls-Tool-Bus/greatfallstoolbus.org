@@ -45,7 +45,7 @@ concurrency:
 jobs:
   dns-drift:
     name: Detect Cloudflare DNS drift (read-only, dig-only)
-    runs-on: ubuntu-latest
+    runs-on: tinyland-nix
     timeout-minutes: 10
     env:
       APEX: greatfallstoolbus.org
@@ -56,7 +56,13 @@ jobs:
       - name: Ensure dig is available
         run: |
           if ! command -v dig >/dev/null 2>&1; then
-            sudo apt-get update -qq && sudo apt-get install -y -qq bind9-dnsutils
+            if command -v nix >/dev/null 2>&1; then
+              # self-hosted tinyland-nix runners: no sudo/apt; dig from nixpkgs
+              out="$(nix build nixpkgs#dnsutils --no-link --print-out-paths | tail -1)"
+              echo "${out}/bin" >> "$GITHUB_PATH"
+            else
+              sudo apt-get update -qq && sudo apt-get install -y -qq bind9-dnsutils
+            fi
           fi
 
       - name: Check DNS delegation and resolution

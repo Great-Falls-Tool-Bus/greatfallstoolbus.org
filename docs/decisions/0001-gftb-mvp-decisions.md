@@ -144,6 +144,14 @@ wf_13f12359 recheck.
 - A **Cloudflare zone for latoolb.us exists but is undelegated** — harmless;
   its redirect ruleset stays dormant until/unless NS delegation ever moves.
 
+> **AMENDMENT (dated 2026-07-04, operator): repos PRIVATE for now.** Row (d)
+> made this repo PUBLIC; the operator flipped both org repos private on
+> 2026-07-04 pending launch — consistent with the gated apex + the
+> naming-consent policy (consent-pending names live in repo content). CF
+> Pages serving is unaffected (wrangler direct upload). Re-publicizing the
+> repo joins the TIN-2421 gate-opening sweep. Note: GH Pages rollback (ADR
+> 0003) requires public-or-paid — acceptable while CF Pages is primary.
+
 > **CORRECTION (dated 2026-07-04, supersedes the two latoolb.us lines above —
 > D1=A executed):** the operator repointed **latoolb.us NS to Cloudflare**
 > (austin/oaklyn) on 2026-07-03; the zone went **active** the same evening.
