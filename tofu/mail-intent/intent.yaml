@@ -61,7 +61,7 @@ anubis:
       - action: CHALLENGE
         scope: join/contact form route only
   unguarded_surfaces: # explicitly never challenged (row f)
-    - hyperkitty public archive
+    - future discuss-list public archive
     - /agent
     - /llms.txt
     - all SEO-relevant surfaces

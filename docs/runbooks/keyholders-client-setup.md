@@ -6,7 +6,8 @@
 > TIN-2360 row e) is still being staged. Every address and URL below follows
 > the **generic Mailman 3 pattern** and must be re-verified against the real
 > deployment before this content ships on the public site. Do not publish
-> until the list exists and a round-trip test has passed.
+> until the list exists, the private-role-list policy is configured, and a
+> round-trip test has passed.
 
 Each `##` section below is one accordion panel. Member panels first, owner
 panels last.
@@ -15,10 +16,13 @@ panels last.
 
 ## How the list works (read this first)
 
-- The list address is `keyholders@latoolb.us`. Mail you send there goes to
-  every subscribed member.
-- The archive is **public** (HyperKitty): anyone can read past threads
-  without subscribing, at the archive URL the deployment publishes.
+- The list address is `keyholders@latoolb.us`. Access requests from neighbors
+  may post there; subscribed keyholders receive the message and coordinate.
+- This is a private access-gating role list, not an open community discussion
+  list. The future public/open list should be `discuss@latoolb.us` or similar.
+- The archive is **private/members-only or off** (HyperKitty): access requests
+  may include names, contact details, tool needs, and location/scheduling
+  context.
 - Mailman 3 uses service addresses derived from the list name:
   - subscribe: `keyholders-join@latoolb.us`
   - unsubscribe: `keyholders-leave@latoolb.us`
@@ -26,21 +30,23 @@ panels last.
 - You do not need a special app. Any mail client works; the panels below
   are just per-client convenience.
 
-## Join or leave by email (any client)
+## Join or leave by email (approved keyholders)
 
-1. Send an empty email to `keyholders-join@latoolb.us` (subject and body
-   are ignored).
+1. After you are approved as a keyholder, send an empty email to
+   `keyholders-join@latoolb.us` (subject and body are ignored).
 2. Mailman replies with a confirmation request. **Reply to it** (again,
    content is ignored) to confirm you own the address.
-3. You will get a welcome message; you are subscribed.
+3. A list owner approves membership. You will get a welcome message once you
+   are subscribed.
 
 Leaving is symmetric: email `keyholders-leave@latoolb.us` and reply to the
 confirmation.
 
 ## Join via the web (Postorius)
 
-1. Open the list's Postorius page (linked from the join page once the list
-   exists), choose **Subscribe**, enter your address.
+1. Once you are an approved keyholder, open the list's Postorius page (linked
+   from the join page once the list exists), choose **Subscribe**, enter your
+   address.
 2. Confirm via the email Mailman sends you.
 3. In **Subscription preferences** you can switch to **digest mode**
    (bundled periodic mail instead of every message) or suspend delivery
@@ -48,8 +54,8 @@ confirmation.
 
 ## Gmail
 
-Works out of the box, subscribe with your Gmail address using either flow
-above. Quality-of-life setup:
+Works out of the box, subscribe with your Gmail address after keyholder
+approval. Quality-of-life setup:
 
 - **Label the list**: Settings gear -> **See all settings** -> **Filters
   and Blocked Addresses** -> **Create a new filter** -> in *To*, enter
@@ -59,8 +65,8 @@ above. Quality-of-life setup:
   recipients, or check the `To:`/`Cc:` line before sending, Gmail has no
   reply-to-list button.
 - Gmail collapses long threads and clips very long messages ("View entire
-  message"); the public HyperKitty archive is often the more readable view
-  of a long thread.
+  message"); use the private HyperKitty archive only if it is enabled for
+  members.
 - If list mail lands in Spam at first, open one message -> **Not spam**;
   the filter above plus "Never send it to Spam" fixes it permanently.
 
@@ -112,10 +118,10 @@ KMail has first-class mailing-list support:
 - **Members**: the **Members** tab manages subscriptions, moderation flags
   (per-member "hold posts"), and bans.
 - **Settings worth reviewing before announcement** (they default
-  reasonably in Mailman 3, but check): archive visibility (public, row e
-  says the HyperKitty archive is public), who may post
-  (members/moderated/anyone), subscription policy (confirm vs
-  confirm-then-moderate), and the welcome message text.
+  reasonably in Mailman 3, but check): archive visibility
+  (private/members-only or off), who may post (non-member posts accepted or
+  moderated-through for access requests), subscription policy
+  (owner-approved), and the welcome message text.
 - Mail sent to `keyholders-owner@latoolb.us` reaches all owners without
   going through the list.
 

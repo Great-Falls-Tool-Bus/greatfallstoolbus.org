@@ -14,7 +14,7 @@ Platforms: Linux (KDE)
 
 ## Subscribe
 
-Send an empty email to keyholders-join@latoolb.us, then confirm the reply.
+Approved keyholders send an empty email to keyholders-join@latoolb.us, then confirm the reply; owners approve membership.
 
 ## File list mail
 
@@ -30,10 +30,10 @@ For a latoolb.us mailbox, add an account with mail.latoolb.us: IMAP 993 (SSL/TLS
 
 ## Archive
 
-HyperKitty web archive: https://lists.latoolb.us/hyperkitty/list/keyholders@latoolb.us/ (pending (TIN-2380)).
+HyperKitty web archive: https://lists.latoolb.us/hyperkitty/list/keyholders@latoolb.us/ (private or off, pending TIN-2380).
 
 ## Agent steps
 
-1. Send an empty message to keyholders-join@latoolb.us and confirm the reply.
+1. For an approved keyholder, send an empty message to keyholders-join@latoolb.us and confirm the reply.
 2. On the folder that receives list mail, enable Mailing List Management with Detect Automatically.
 3. Use Reply to List so replies go to keyholders@latoolb.us.
