@@ -19,7 +19,7 @@ panels last.
 - The list address is `keyholders@latoolb.us`. Access requests from neighbors
   may post there; subscribed keyholders receive the message and coordinate.
 - This is a private access-gating role list, not an open community discussion
-  list. The future public/open list should be `discuss@latoolb.us` or similar.
+  list. Public/open community discussion belongs on `discuss@latoolb.us`.
 - The archive is **private/members-only or off** (HyperKitty): access requests
   may include names, contact details, tool needs, and location/scheduling
   context.
