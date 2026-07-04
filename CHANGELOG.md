@@ -29,6 +29,26 @@ Versioning: [SemVer 2.0](https://semver.org/).
   source-map-build` and the `just source-map-check` drift gate into `just
   check`, mirroring `skills-build` / `skills-check`, and added a Vitest contract
   asserting every route that renders `PageHeader` resolves to a source-map entry.
+- Two new tool cells welded into the shared `.svx` inventory tree: the
+  **network and tracing cell** (Jess's, captain Jess) with a Fluke tone
+  generator and probe set, a PortaPack Mayhem SDR, a G2 base-station LoRa
+  radio, and assorted ethernet splicing and testing gear; and the **welding
+  cell** (Ripley's, captain Ripley) with a multiprocess arc/MIG welder, work
+  holding and related gear, arc-rated eye protection, and clamps. Both get a
+  printable cell sheet at `/cells/network` and `/cells/welding`, appear
+  automatically on `/tools`, `/cell-sheets`, and the `/cells` index, and are
+  registered in the sitemap.
+- A wiki "citation needed" pattern for the tool inventory: a per-item
+  `detailsNeeded` frontmatter flag plus an optional `detailsWanted` list, and a
+  calm `DetailsNeeded.svelte` chip that names exactly what is missing (model
+  number, photo, config) and links "Edit this page" to the tool's `.svx` source
+  on GitHub. This lets an owner fill in a real specific instead of the site ever
+  inventing a make, model, year, or spec. The edit URL resolves through a new
+  `$lib/repo.ts` helper (mirroring `tinyland.repo.json` `repo.github`), which is
+  the convergence point for the #60 view-source source map when it lands.
+  Applied truthfully: the welder (brand and model unknown), the Fluke kit (exact
+  model plus photo), the SDR and LoRa radio (photo plus config), and the
+  assorted ethernet gear (itemized contents plus photo) all carry the flag.
 - Wave-2.5 media pipeline: manifest-driven `Picture.svelte` component and
   `src/lib/responsive-image.ts` srcset builder (AVIF/WebP sources, lazy
   loading by default, intrinsic width/height plus aspect-ratio to prevent

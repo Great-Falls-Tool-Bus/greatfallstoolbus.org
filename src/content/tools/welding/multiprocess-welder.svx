@@ -1,0 +1,9 @@
+---
+name: 'Multiprocess arc/MIG welder'
+status: 'in-kit'
+cell: 'welding'
+order: 1
+blurb: 'In kit. One machine that runs more than one process for joining and repairing steel. Brand and model are still to be recorded.'
+detailsNeeded: true
+detailsWanted: ['brand', 'model number', 'photo']
+---

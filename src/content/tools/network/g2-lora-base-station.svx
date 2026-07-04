@@ -1,0 +1,9 @@
+---
+name: 'G2 base-station LoRa radio'
+status: 'in-kit'
+cell: 'network'
+order: 3
+blurb: 'In kit. A long-range, low-power radio base station for off-grid sensor and mesh experiments.'
+detailsNeeded: true
+detailsWanted: ['photo', 'config notes']
+---

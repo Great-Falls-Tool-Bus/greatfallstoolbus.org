@@ -21,6 +21,16 @@ export interface CellTool {
 	blurb: string;
 	docUrl?: string;
 	docLabel?: string;
+	/** Wiki "citation needed": in the kit, but a real specific is undocumented. */
+	detailsNeeded?: boolean;
+	/** What is still missing, in fill order (e.g. ['model number', 'photo']). */
+	detailsWanted?: readonly string[];
+	/**
+	 * Repo-relative path of the .svx source for this tool, e.g.
+	 * `src/content/tools/network/g2-lora-base-station.svx`. The DetailsNeeded
+	 * chip turns this into a GitHub edit URL so an owner can fill in the gap.
+	 */
+	sourcePath: string;
 }
 
 export interface ToolCell {
@@ -50,6 +60,20 @@ const CELL_META: Array<Omit<ToolCell, 'tools'>> = [
 		travels:
 			'Machine in its case, notions boxed, every bit marked as part of the set. If the kit cannot be repacked and rolling in ten minutes, something is missing — tell a keyholder.',
 	},
+	{
+		slug: 'network',
+		name: 'Network and tracing cell',
+		captain: 'Jess',
+		travels:
+			'Meters and radios in a padded case, cables coiled and tied, every probe and adapter marked as part of the set. If the kit cannot be repacked and rolling in ten minutes, something is missing, tell a keyholder.',
+	},
+	{
+		slug: 'welding',
+		name: 'Welding cell',
+		captain: 'Ripley',
+		travels:
+			'Welder and leads on the cart or in the case, work holding and clamps boxed, eye protection with the kit, consumables handled to their own rules. Nothing sharp or live rides loose. If the kit cannot be repacked and secured, something is missing, tell a keyholder.',
+	},
 ];
 
 const modules = import.meta.glob('/src/content/tools/**/*.svx', { eager: true }) as Record<
@@ -65,8 +89,13 @@ const entries = Object.entries(modules).map(([path, mod]) => {
 			.replace(/\.svx$/, '')
 			.split('/')
 			.pop() ?? path;
+	// Glob keys are absolute-from-root (`/src/content/tools/<cell>/<slug>.svx`);
+	// strip the leading slash so `sourcePath` is a repo-relative path the
+	// DetailsNeeded edit link (and, when it lands, the #60 source map) can turn
+	// into a GitHub edit URL.
+	const sourcePath = path.replace(/^\//, '');
 	try {
-		return { slug, fm: decodeFrontmatter(mod.metadata) };
+		return { slug, sourcePath, fm: decodeFrontmatter(mod.metadata) };
 	} catch (error) {
 		throw new Error(`Invalid tool frontmatter in ${path} (run \`just tools-validate\`): ${String(error)}`);
 	}
@@ -83,13 +112,16 @@ export const cells: ToolCell[] = CELL_META.map((meta) => ({
 	tools: entries
 		.filter(({ fm }) => fm.cell === meta.slug && fm.status !== 'wants')
 		.sort((a, b) => a.fm.order - b.fm.order)
-		.map(({ slug, fm }) => ({
+		.map(({ slug, sourcePath, fm }) => ({
 			slug,
 			name: fm.name,
 			status: fm.status as 'in-kit' | 'restoration',
 			blurb: fm.blurb,
+			sourcePath,
 			...(fm.docUrl !== undefined ? { docUrl: fm.docUrl } : {}),
 			...(fm.docLabel !== undefined ? { docLabel: fm.docLabel } : {}),
+			...(fm.detailsNeeded !== undefined ? { detailsNeeded: fm.detailsNeeded } : {}),
+			...(fm.detailsWanted !== undefined ? { detailsWanted: fm.detailsWanted } : {}),
 		})),
 }));
 

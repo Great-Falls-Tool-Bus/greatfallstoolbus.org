@@ -1,0 +1,9 @@
+---
+name: 'Fluke tone generator and probe set'
+status: 'in-kit'
+cell: 'network'
+order: 1
+blurb: 'In kit. Puts a tone on a dead pair and traces it through wall and bundle, so a mystery cable finally gets a name.'
+detailsNeeded: true
+detailsWanted: ['exact model number', 'photo']
+---

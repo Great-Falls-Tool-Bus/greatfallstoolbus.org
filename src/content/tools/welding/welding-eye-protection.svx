@@ -1,0 +1,9 @@
+---
+name: 'Welding eye protection'
+status: 'in-kit'
+cell: 'welding'
+order: 3
+blurb: 'In kit. Eye protection rated for the arc, for the operator. Shop safety glasses are not enough for welding.'
+detailsNeeded: true
+detailsWanted: ['shade rating', 'photo']
+---

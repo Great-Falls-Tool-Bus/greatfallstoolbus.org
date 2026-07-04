@@ -1,0 +1,7 @@
+---
+name: 'Clamps'
+status: 'in-kit'
+cell: 'welding'
+order: 4
+blurb: 'In kit. General clamps for holding stock, jigs, and fixtures to the table.'
+---
