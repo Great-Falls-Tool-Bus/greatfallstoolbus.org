@@ -11,17 +11,17 @@
 		{
 			name: 'J.',
 			role: 'Alderman, Lewiston',
-			note: 'Provides the bus a home on his property — the first stop on every route.',
+			note: 'Provides the bus a home on his property, the first stop on every route.',
 		},
 		{
 			name: 'Alex',
 			role: 'Founder',
-			note: 'Started it. “This is a bus, the shop comes later” is the founding doctrine.',
+			note: 'Started it. The tagline on the front page is the founding doctrine, in Alex’s own words.',
 		},
 		{
 			name: 'Jess Sullivan',
 			role: 'Webmaster & mail admin',
-			note: 'Runs this site; standing up the keyholders mail infrastructure.',
+			note: 'Runs this site and the keyholders mail infrastructure.',
 		},
 	];
 
@@ -36,14 +36,14 @@
 </script>
 
 <svelte:head>
-	<title>Shout-outs — Great Falls Tool Bus</title>
+	<title>Shout-outs | Great Falls Tool Bus</title>
 	<meta name="description" content="The people and communities making the Great Falls Tool Bus real." />
 </svelte:head>
 
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
 	<PageHeader
 		title="Shout-outs"
-		lead="A tool bus is mostly people. These are the ones who made it real — plus the initial donors whose tools are already in the kits."
+		lead="A tool bus is mostly people. These are the ones who made it real, plus the first donors whose tools are already in the kits."
 	/>
 
 	<section class="mt-10 space-y-4" aria-label="People">
@@ -74,7 +74,5 @@
 		</div>
 	</section>
 
-	<footer class="text-surface-500 pt-12 text-sm">
-		The Great Falls Tool Bus is an unincorporated community project in Lewiston-Auburn, Maine.
-	</footer>
+	<footer class="text-surface-500 pt-12 text-sm">Belong on this list? Tell a keyholder.</footer>
 </main>

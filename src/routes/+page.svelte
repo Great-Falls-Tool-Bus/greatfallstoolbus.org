@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { base } from '$app/paths';
 	// Real-data trust strip (lane B mandate): counts come from $lib/data/cells,
-	// the exact module /tools, /cells, and /wants already import from — globbed
+	// the exact module /tools, /cells, and /wants already import from, globbed
 	// at build time from the src/content/tools/**/*.svx tree. No invented
 	// numbers; if the tree changes, these change with it.
 	import { cells, wants } from '$lib/data/cells';
@@ -12,7 +12,7 @@
 		domain: 'greatfallstoolbus.org',
 		tagline: 'This is a bus, the shop comes later :)',
 		blurb:
-			'A shared tool library on wheels for Lewiston-Auburn, Maine. We collect serious tools — the big, heavy, many-little-bits kind — kit them for transport, and lend them to neighbors who ask.',
+			'A shared tool library on wheels for Lewiston-Auburn, Maine. We collect serious tools: the big, heavy, many-little-bits kind. We kit them for transport and lend them to neighbors who ask.',
 	};
 
 	const criteria = [
@@ -40,7 +40,7 @@
 		{ value: wantCount, label: wantCount === 1 ? 'tool still wanted' : 'tools still wanted' },
 	];
 
-	// Primary tier — the 2-3 asks a Lewiston neighbor actually needs (lane B
+	// Primary tier: the 2-3 asks a Lewiston neighbor actually needs (lane B
 	// punch list: Tools, Donate a tool, Access/Contact), elevated above the
 	// rest so the page stops reading as a flat sitemap.
 	const primaryPages = [
@@ -64,7 +64,7 @@
 		},
 	];
 
-	// Everything else — demoted and condensed to a single link row instead of
+	// Everything else: demoted and condensed to a single link row instead of
 	// duplicating the primary nav bar as another 8-card grid.
 	const morePages = [
 		{ title: 'Tool cells', href: `${base}/cells` },
@@ -77,7 +77,7 @@
 </script>
 
 <svelte:head>
-	<title>Great Falls Tool Bus — a shared tool library on wheels for Lewiston-Auburn, Maine</title>
+	<title>Great Falls Tool Bus: a shared tool library on wheels for Lewiston-Auburn, Maine</title>
 	<meta name="description" content={brand.blurb} />
 </svelte:head>
 
@@ -136,9 +136,9 @@
 	<section class="border-surface-200-800 mt-12 border-y py-8" aria-label="How access works">
 		<h2 class="text-2xl font-semibold">Getting on the bus</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 max-w-3xl leading-relaxed">
-			Access is simple and human: you reach out, a keyholder answers. Keyholders vet requests and share the bus location
-			directly. The <a class="underline" href={`${base}/contact`}>contact / join page</a> tracks the mailing-list and protected-form
-			rollout without pretending the runtime is already live.
+			Anyone can ask to borrow: no membership fee, no paperwork wall. Reach out and a keyholder answers. Keyholders
+			review each request and share the bus location directly. Start on the
+			<a class="underline" href={`${base}/contact`}>contact / join page</a>.
 		</p>
 	</section>
 
@@ -165,6 +165,6 @@
 	</section>
 
 	<footer class="text-surface-500 pt-12 text-sm">
-		A community project — the long-term dream is a full lab, but today it is a bus, and that is the point.
+		A community project. The dream is a full shop someday; today it is a bus, and that is the point.
 	</footer>
 </main>
