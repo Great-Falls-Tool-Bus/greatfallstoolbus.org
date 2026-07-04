@@ -82,7 +82,13 @@ async function loadSkills(): Promise<SkillEntry[]> {
 	return skills;
 }
 
+const MAIL_SKILL_PREFIX = 'gftb-mail-laceup-';
+
 export async function load() {
-	const skills = await loadSkills();
-	return { skills };
+	const all = await loadSkills();
+	// Mail lace-up skills are derived from src/lib/data/mail-clients.ts and get
+	// their own index section; keep them out of the scaffold-core plugin grid.
+	const mailSkills = all.filter((s) => s.name.startsWith(MAIL_SKILL_PREFIX));
+	const skills = all.filter((s) => !s.name.startsWith(MAIL_SKILL_PREFIX));
+	return { skills, mailSkills };
 }
