@@ -136,8 +136,8 @@ sbom out_dir="build/sbom":
         -o cyclonedx-json="{{ out_dir }}/greatfallstoolbus.org.cyclonedx.json" \
         -o spdx-json="{{ out_dir }}/greatfallstoolbus.org.spdx.json"
 
-# Run secrets scan + lint + typecheck + tool-inventory + unit (pre-commit gate)
-check: flywheel-enrollment-contract-check secrets-scan-dir lint typecheck tools-validate test-unit
+# Run generated-surface check + secrets scan + lint + typecheck + tool-inventory + unit (pre-commit gate)
+check: flywheel-enrollment-contract-check agent-surfaces-check skills-validate secrets-scan-dir lint typecheck tools-validate test-unit
     @echo "All checks passed."
 
 # Run full CI pipeline locally
@@ -200,6 +200,14 @@ repo-manifest-validate:
 # Cold-landing orientation: classify this repo's role and surface the skills that apply.
 whoami:
     cd {{ root }} && python3 scripts/whoami.py
+
+# Regenerate derived mail, skill, and public agent index surfaces.
+agent-surfaces:
+    cd {{ root }} && pnpm exec tsx scripts/render-keyholders-mail-surfaces.mts
+
+# Verify derived mail, skill, and public agent index surfaces are current.
+agent-surfaces-check:
+    cd {{ root }} && pnpm exec tsx scripts/render-keyholders-mail-surfaces.mts --check
 
 # List the agent skills published by this repo (canonical at .agents/skills/*).
 skills-list:

@@ -19,16 +19,16 @@ WHAT WE NEED RIGHT NOW
 GET ACCESS
 ----------
 Reach out, a keyholder answers. Keyholders vet requests and share
-the bus location directly. The keyholders mailing list and contact
-form are being built -- until they open, watch:
+the bus location directly. The keyholders mailbox is live; the
+Mailman list/archive and bot-guarded direct-submit form are still
+separate follow-up work. Start here:
 
     https://greatfallstoolbus.org
 
 WHO
 ---
-Alex (founder) * Kate Pulham (founding supporter) * Joe (Lewiston
-alderman -- the bus lives on his property) * Jess Sullivan
-(webmaster & mail admin) * and the initial tool donors.
+Founders, hosts, initial tool donors, and site/mail stewards are
+recorded privately until each name is confirmed for public use.
 
 The Great Falls Tool Bus is an unincorporated community project.
 Print me, pin me to a board, hand me to a friend.

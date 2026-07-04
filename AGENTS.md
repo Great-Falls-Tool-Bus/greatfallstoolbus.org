@@ -63,16 +63,17 @@ reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
   enforceable layers, flag smells, preserve dirty worktrees, and patch toward
   conformance.
 - **Canonical skill location**: `.agents/skills/<name>/SKILL.md`. Edit here.
-- **Claude Code discovery**: `.claude/skills/<name>` is a symlink to
-  `../../.agents/skills/<name>`. Do not author here — the symlink resolves
-  automatically.
+- **Provider-specific discovery shims**: `.claude/skills/<name>` is a symlink
+  to `../../.agents/skills/<name>` for Claude-compatible discovery. Do not
+  author there — the symlink resolves to the canonical `.agents/skills/`
+  directory automatically.
 - **Plugin marketplace**: `.claude-plugin/marketplace.json` exposes
   `plugins/scaffold-core/` as a git-subdir-installable plugin. Other repos
   install via `/plugin marketplace add github:tinyland-inc/site.scaffold` then
   `/plugin install scaffold-core@site-scaffold`. Plugin skills are sibling
   symlinks under `plugins/scaffold-core/skills/` that resolve back to the
   canonical `.agents/skills/<name>`.
-- **Published skills** (six):
+- **Published skills**:
   - `tinyland-whoami` — cold-landing repo-role classifier. Run via `just whoami`.
   - `tinyland-spawn-sister-site` — user-only; wraps the `gh repo create
     --template` + `scripts/rebrand.sh` ritual.
@@ -80,13 +81,18 @@ reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
   - `tinyland-repo-contract` — house-style baseline (Justfile/flake/gitleaks).
   - `tinyland-static-spoke` — per-spoke customization for static brand sites.
   - `tinyland-flywheel-bazel` — cache-first Bazel through GloriousFlywheel.
+  - `gftb-keyholders-mail` — user-facing mail client setup for the keyholders
+    mailbox and future Mailman/HyperKitty list.
 - **Validation**: `just skills-validate` checks every SKILL.md frontmatter for
-  required fields and the Anthropic 1,536-char description cap. Wire into
+  required fields and the 1,536-character compatibility cap. Wire into
   `just check` in any consuming repo that publishes its own skills.
 - **Public agent index**: `static/llms.txt`, `static/agent-map.md`, and the
-  `/agent` SvelteKit route. The `/agent` route renders skill bodies from
-  `.agents/skills/*/SKILL.md` at build time — do not hand-edit the route to
-  list skills; update the SKILL.md and rebuild.
+  `/agent` SvelteKit route. `static/llms.txt`, `static/agent-map.md`, the
+  keyholders mail runbook, and the GFTB mail skill are generated from
+  `src/lib/data/keyholders-mail.ts` via `just agent-surfaces`; use
+  `just agent-surfaces-check` to catch drift. The `/agent` route renders skill
+  bodies from `.agents/skills/*/SKILL.md` at build time — do not hand-edit the
+  route to list skills; update the SKILL.md and rebuild.
 - `tinyland.repo.json` is the machine-readable repo-shape manifest. It declares
   that this repo is a `static-spoke-scaffold`, not a mothership or stateful app.
 - Durable operating truth belongs in repo files, schemas, tests, and Just

@@ -18,6 +18,14 @@ type SkillEntry = SkillFrontmatter & {
 const SKILLS_DIR = '.agents/skills';
 const REPO_URL = 'https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org';
 
+function publicAgentText(text: string): string {
+	return text
+		.replace(/\bCLAUDE\.md\b/g, 'provider compatibility shims')
+		.replace(/\btinyland-inc\/site\.scaffold\b/g, 'the Tinyland scaffold contract')
+		.replace(/\bsite\.scaffold\b/g, 'the Tinyland scaffold')
+		.replace(/\bsite-scaffold\b/g, 'scaffold-core');
+}
+
 function parseFrontmatter(raw: string): { fields: SkillFrontmatter; body: string } | null {
 	const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
 	if (!match) return null;
@@ -41,7 +49,7 @@ function parseFrontmatter(raw: string): { fields: SkillFrontmatter; body: string
 	return {
 		fields: {
 			name: fields.name,
-			description: fields.description,
+			description: publicAgentText(fields.description),
 			disable_model_invocation: fields['disable-model-invocation'] === 'true',
 			argument_hint: fields['argument-hint'],
 		},
@@ -69,14 +77,14 @@ async function loadSkills(): Promise<SkillEntry[]> {
 		if (!parsed) continue;
 		const preview = parsed.body
 			.split('\n')
-			.filter((l) => l.trim().length > 0 && !l.startsWith('#'))
+			.filter((l) => l.trim().length > 0 && !l.startsWith('#') && !l.trim().startsWith('<!--'))
 			.slice(0, 2)
 			.join(' ')
 			.slice(0, 220);
 		skills.push({
 			...parsed.fields,
 			href: `${REPO_URL}/blob/main/${SKILLS_DIR}/${dir}/SKILL.md`,
-			body_preview: preview,
+			body_preview: publicAgentText(preview),
 		});
 	}
 	return skills;

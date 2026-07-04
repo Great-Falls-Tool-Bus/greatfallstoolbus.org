@@ -5,6 +5,13 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Derive the keyholders mail client runbook, public agent indexes, and
+  `gftb-keyholders-mail` skill from a shared mail surface source so Apple Mail,
+  Gmail, Thunderbird, Geary, KMail, Mailman, and HyperKitty guidance stays
+  consistent across the contact page, `/agent`, `llms.txt`, and runbooks.
+
 ### Changed
 
 - Re-point apply-plane references from the blahaj tenants lane to the org

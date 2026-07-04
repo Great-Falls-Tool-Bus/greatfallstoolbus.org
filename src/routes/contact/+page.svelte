@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { keyholdersMail } from '$lib/data/keyholders-mail';
+
 	const formEndpoint =
 		typeof import.meta.env.PUBLIC_GFTB_FORM_ENDPOINT === 'string' ? import.meta.env.PUBLIC_GFTB_FORM_ENDPOINT : '';
 	// Progressive enhancement (TIN-2420 Path A): the latoolb.us mailbox
@@ -6,7 +8,7 @@
 	// still separate proof gates. Until the endpoint ships, the static form
 	// opens a mail draft in the visitor's own mail app.
 	const endpointLive = formEndpoint.length > 0;
-	const KEYHOLDERS = 'keyholders@latoolb.us';
+	const KEYHOLDERS = keyholdersMail.addresses.post;
 
 	function composeMail(event: SubmitEvent) {
 		if (endpointLive) return; // real endpoint: let the POST happen
@@ -20,46 +22,8 @@
 		window.location.href = `mailto:${KEYHOLDERS}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 	}
 
-	const listAddresses = [
-		{
-			label: 'Join the keyholders list',
-			address: 'keyholders-join@latoolb.us',
-			note: 'Send an empty email here once the list runtime is applied.',
-		},
-		{
-			label: 'Post to the list',
-			address: 'keyholders@latoolb.us',
-			note: 'For members after Mailman confirms the subscription.',
-		},
-		{
-			label: 'Reach list owners',
-			address: 'keyholders-owner@latoolb.us',
-			note: 'The operator-facing owner address after the list runtime is live.',
-		},
-	];
-
-	const clientSetups = [
-		{
-			title: 'Apple Mail',
-			body: 'Once the list runtime lands, subscribe by email; on macOS use a rule (Mail -> Settings -> Rules) to file messages from keyholders@latoolb.us into a mailbox.',
-		},
-		{
-			title: 'Gmail',
-			body: 'Once the list runtime lands, label messages from keyholders@latoolb.us and mark early list mail as not spam if needed.',
-		},
-		{
-			title: 'Thunderbird',
-			body: 'When Mailman is live, use Reply to List; Thunderbird reads the List-Post and List-Id headers Mailman emits.',
-		},
-		{
-			title: 'Geary',
-			body: 'Once the archive exists, subscribe by email or through the web archive. Server-side filters work best for sorting list mail.',
-		},
-		{
-			title: 'KMail',
-			body: 'After the first list message lands, use Folder -> Mailing List Management -> Detect Automatically.',
-		},
-	];
+	const listAddresses = keyholdersMail.addressCards;
+	const clientSetups = keyholdersMail.clientSetups;
 </script>
 
 <svelte:head>
@@ -75,8 +39,8 @@
 		<p class="text-surface-500 text-xs tracking-widest uppercase">Contact / join</p>
 		<h1 class="text-4xl leading-tight font-bold md:text-5xl">Reach the bus</h1>
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
-			The keyholders mailbox accepts inbound mail. The form below composes an email in your own mail app; a bot-guarded
-			direct-submit endpoint and the public Mailman list are the next upgrades.
+			{keyholdersMail.status.mailbox} The form below composes an email in your own mail app; a bot-guarded direct-submit endpoint
+			and the public Mailman list are separate upgrades.
 		</p>
 	</header>
 
@@ -140,8 +104,8 @@
 	<section class="mt-12" aria-labelledby="list-heading">
 		<h2 id="list-heading" class="text-2xl font-semibold">Keyholders list</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-3 leading-relaxed">
-			The keyholders mailbox receives inbound mail. The join/owner addresses below are the Mailman list surface — those
-			activate when the list runtime lands, and list round-trip smoke is the proof before list delivery is claimed.
+			{keyholdersMail.status.mailbox} The join/owner addresses below are the Mailman list surface — those activate when the
+			list runtime lands, and list round-trip smoke is the proof before list delivery is claimed.
 		</p>
 		<div class="mt-6 grid gap-3 md:grid-cols-3">
 			{#each listAddresses as item (item.address)}
@@ -157,10 +121,10 @@
 	<section class="mt-12" aria-labelledby="clients-heading">
 		<h2 id="clients-heading" class="text-2xl font-semibold">Mail client notes</h2>
 		<div class="mt-6 grid gap-3 md:grid-cols-2">
-			{#each clientSetups as item (item.title)}
+			{#each clientSetups as item (item.id)}
 				<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-5">
-					<h3 class="text-lg font-semibold">{item.title}</h3>
-					<p class="text-surface-700-300 mt-2 text-sm leading-relaxed">{item.body}</p>
+					<h3 class="text-lg font-semibold">{item.name}</h3>
+					<p class="text-surface-700-300 mt-2 text-sm leading-relaxed">{item.cardSummary}</p>
 				</div>
 			{/each}
 		</div>

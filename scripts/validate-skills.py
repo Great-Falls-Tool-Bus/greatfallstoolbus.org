@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate every .agents/skills/<name>/SKILL.md against the Anthropic SKILL.md
+"""Validate every .agents/skills/<name>/SKILL.md against the project skill
 contract: frontmatter present, required fields (name, description), name matches
 directory, description length cap (1536 chars combined with when_to_use), body
 under 500 lines.

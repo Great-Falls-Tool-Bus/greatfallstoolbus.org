@@ -37,7 +37,7 @@
 		{
 			label: 'llms.txt',
 			href: `${base}/llms.txt`,
-			text: 'Public LLM index for the deployed scaffold site.',
+			text: 'Generated public LLM index for this GFTB site.',
 		},
 		{
 			label: 'agent-map.md',
@@ -85,7 +85,7 @@
 		<p class="text-surface-500 text-xs tracking-widest uppercase">Agent AX</p>
 		<h1 class="text-4xl leading-tight font-bold md:text-5xl">greatfallstoolbus.org traversal map</h1>
 		<p class="text-surface-700-300 text-lg leading-relaxed">
-			The scaffold is itself a static spoke: public site, machine-readable index, reusable project skills, and a single
+			Great Falls Tool Bus is a static spoke: public site, machine-readable index, reusable project skills, and a single
 			Justfile-backed command surface.
 		</p>
 	</header>
@@ -117,14 +117,14 @@
 			<h2 id="skills" class="text-2xl font-bold">Project Skills</h2>
 			<a
 				class="text-primary-600 text-sm underline underline-offset-4"
-				href="https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.claude-plugin/marketplace.json"
-				>Install as plugin</a
+				href="https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/tree/main/.agents/skills"
+				>Canonical skills</a
 			>
 		</div>
 		<p class="text-surface-700-300 mb-5 max-w-3xl text-sm leading-relaxed">
-			Six skills bundled as the <code>scaffold-core</code> plugin. Rendered from
-			<code>.agents/skills/*/SKILL.md</code> at build time — single source of truth. Install with
-			<code>/plugin marketplace add github:tinyland-inc/site.scaffold</code>.
+			Rendered from <code>.agents/skills/*/SKILL.md</code> at build time. The keyholders mail skill and public agent
+			indexes are generated from <code>src/lib/data/keyholders-mail.ts</code>; run <code>just agent-surfaces</code>
+			after changing that source.
 		</p>
 		<div class="grid gap-3 lg:grid-cols-2">
 			{#each skills as skill (skill.name)}

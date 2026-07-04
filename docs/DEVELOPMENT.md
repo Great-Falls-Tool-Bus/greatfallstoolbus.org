@@ -30,7 +30,8 @@ Access, and the zone live in the `great-falls-tool-bus-infra` edge tofu stack.
 - **Just** — sole authoritative DX/AX entrypoint (`Justfile`)
 - **Nix flake + direnv** — reproducible dev shell (`flake.nix`, `.envrc`)
 - **Bazel 8 + Bzlmod** — Bazel-first in-house package authority with GloriousFlywheel cache / executor proof
-- **Agent skills** — Codex/agent project skills with Claude-compatible entrypoints
+- **Agent skills** — canonical `.agents/skills/*` project skills with
+  provider-specific discovery shims where needed
 - **SvelteKit + adapter-static** — static-only, prerendered
 - **Skeleton 4.15.2** — pinned exact, Tailwind v4 with v4-compat shim
 - **Tummycrypt vite plugins** — `vite-plugin-a11y`, `vite-plugin-skeleton-colors`, `tinyvectors`, `tinyland-color-utils`
@@ -64,11 +65,11 @@ This scaffold dogfoods its agent-facing contract:
 
 - `tinyland.repo.json`
 - [`docs/agent-adoption.md`](docs/agent-adoption.md)
-- `.agents/skills/tinyland-flywheel-bazel/SKILL.md`
-- `.agents/skills/tinyland-static-spoke/SKILL.md`
-- `.agents/skills/tinyland-repo-contract/SKILL.md`
-- `.claude/skills/*` symlinks for Claude project skills
+- `.agents/skills/*/SKILL.md`
+- `.claude/skills/*` symlinks for Claude-compatible local discovery
 - `static/llms.txt`, `static/agent-map.md`, and `/agent`
+- `src/lib/data/keyholders-mail.ts` plus `just agent-surfaces`, which derives
+  the keyholders mail runbook, mail setup skill, and public agent indexes
 
 The public surface is intentionally thin. `AGENTS.md` and
 [`docs/CI-SCHEMA.md`](docs/CI-SCHEMA.md) remain the normative contracts.
