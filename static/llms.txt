@@ -34,6 +34,7 @@ src/lib/data/mail-clients.ts.
 - [gftb-mail-laceup-apple-mail](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/gftb-mail-laceup-apple-mail/SKILL.md): Lace up Apple Mail for the Great Falls Tool Bus keyholders mailing list (keyholders@latoolb.us).
 - [gftb-mail-laceup-kmail](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/gftb-mail-laceup-kmail/SKILL.md): Lace up KMail for the Great Falls Tool Bus keyholders mailing list (keyholders@latoolb.us).
 - [gftb-mail-laceup-geary](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/gftb-mail-laceup-geary/SKILL.md): Lace up Geary for the Great Falls Tool Bus keyholders mailing list (keyholders@latoolb.us).
+- [gftb-mail-laceup-sieve](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/gftb-mail-laceup-sieve/SKILL.md): Lace up Server-side Sieve for the Great Falls Tool Bus keyholders mailing list (keyholders@latoolb.us).
 - [gftb-mail-laceup-outlook](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/gftb-mail-laceup-outlook/SKILL.md): Lace up Outlook for the Great Falls Tool Bus keyholders mailing list (keyholders@latoolb.us).
 <!-- END generated: mail-laceup skills -->
 

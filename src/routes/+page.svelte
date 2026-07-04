@@ -155,8 +155,10 @@
 		<h2 class="text-surface-500 text-xs tracking-widest uppercase">More about the project</h2>
 		<nav class="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm" aria-label="More pages">
 			{#each morePages as p (p.title)}
-				<a class="text-surface-700-300 hover:text-primary-600 underline-offset-4 hover:underline" href={p.href}
-					>{p.title}</a
+				<a
+					class="text-surface-700-300 hover:text-primary-600 underline-offset-4 hover:underline"
+					href={p.href}
+					aria-label={`Open ${p.title}`}>{p.title}</a
 				>
 			{/each}
 		</nav>
