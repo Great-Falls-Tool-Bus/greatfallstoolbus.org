@@ -3,7 +3,7 @@
 	import { base } from '$app/paths';
 	import { page } from '$app/state';
 	import { Menu, X } from '@lucide/svelte';
-	import SaturnMark from '$lib/components/SaturnMark.svelte';
+	import BusMark from '$lib/components/BusMark.svelte';
 	import Wordmark from '$lib/components/Wordmark.svelte';
 	import SEOHead from '$lib/components/SEOHead.svelte';
 	import { AppBar, Dialog, Navigation } from '@skeletonlabs/skeleton-svelte';
@@ -90,7 +90,7 @@
 					class="hover:text-primary-500 inline-flex items-center gap-2 text-base whitespace-nowrap transition-colors sm:text-lg"
 					aria-label={SITE_NAME + ' home'}
 				>
-					<SaturnMark decorative class="text-primary-500 h-[1.15em] w-[1.15em]" />
+					<BusMark decorative class="text-primary-500 h-[1.15em] w-[1.15em]" />
 					<Wordmark text={SITE_NAME} /></a
 				>
 			</AppBar.Lead>
@@ -127,7 +127,7 @@
 						<Dialog.Content class="bg-surface-50-950 flex w-full flex-col">
 							<div class="border-surface-200-800 flex items-center justify-between border-b px-4 py-3">
 								<span class="inline-flex items-center gap-2 text-sm">
-									<SaturnMark decorative class="text-primary-500 h-[1.15em] w-[1.15em]" />
+									<BusMark decorative class="text-primary-500 h-[1.15em] w-[1.15em]" />
 									<Wordmark text={SITE_NAME} />
 								</span>
 								<Dialog.CloseTrigger class="hover:bg-surface-200-800 rounded-sm p-2" aria-label="Close navigation">
