@@ -59,14 +59,24 @@
 	<section class="border-surface-200-800 mt-12 border-t pt-8 prose max-w-none" aria-label="Where to start">
 		<h2 class="text-2xl font-semibold">Where to start</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
-			Start on the <a class="underline" href={`${base}/contact`}>contact / join page</a> — it is where you reach a
-			keyholder while the mailing list and protected form roll out. Read the
-			<a class="underline" href={`${base}/safety`}>safety &amp; responsible-use guide</a> before your orientation,
-			browse the <a class="underline" href={`${base}/tools`}>capability catalog</a> to see what is on the bus, and meet
-			the
-			<a class="underline" href={`${base}/stewards`}>stewards</a> who keep it running.
+			Reach a keyholder while the mailing list and protected form roll out — that is step one, and it is the whole ask.
+			Read the <a class="underline" href={`${base}/safety`}>safety &amp; responsible-use guide</a> before your
+			orientation, browse the <a class="underline" href={`${base}/tools`}>capability catalog</a> to see what is on the
+			bus, and meet the <a class="underline" href={`${base}/stewards`}>stewards</a> who keep it running.
 		</p>
 	</section>
+
+	<div class="mt-6">
+		<!-- Outside the `.prose` section on purpose: the house `.prose a` rule
+			(src/app.css) recolors any anchor inside a prose block to primary-on-
+			transparent, which would clobber this button's white-on-primary text. -->
+		<a
+			class="bg-primary-500 hover:bg-primary-600 inline-block rounded-sm px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+			href={`${base}/contact`}
+		>
+			Contact / join page
+		</a>
+	</div>
 
 	<footer class="text-surface-500 pt-12 text-sm">
 		No membership fee, no means test, no gatekeeping — a safety orientation and a little coordination, and the bus is

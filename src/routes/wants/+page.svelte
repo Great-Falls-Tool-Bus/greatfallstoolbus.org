@@ -32,4 +32,21 @@
 			<Card eyebrow={w.cellName} title={w.name} body={w.blurb} headingLevel="h2" />
 		{/each}
 	</section>
+
+	<section class="border-surface-200-800 mt-12 border-t pt-8" aria-label="How wants get filled">
+		<h2 class="text-2xl font-semibold">How a want gets filled</h2>
+		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
+			A want comes off this list the same way anything joins a kit: someone donates a tool that passes the <a
+				class="underline"
+				href={`${base}/donate`}>donation criteria</a
+			>
+			— transportable, marked, repairable — and a cell captain checks it in. See
+			<a class="underline" href={`${base}/donate`}>donate a tool</a> for what makes a good fit, or reach out if you are not
+			sure.
+		</p>
+	</section>
+
+	<footer class="text-surface-500 pt-12 text-sm">
+		This list only grows shorter with donations — nothing here is invented or aspirational padding.
+	</footer>
 </main>

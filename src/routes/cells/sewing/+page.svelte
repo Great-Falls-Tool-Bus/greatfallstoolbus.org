@@ -37,7 +37,9 @@
 		</button>
 	</header>
 
-	<article class="sheet border-surface-200-800 bg-surface-50-950/75 mt-10 rounded-lg border p-6 font-mono md:p-8">
+	<article
+		class="sheet border-surface-200-800 bg-surface-50-950/75 rounded-container mt-10 border p-6 font-mono md:p-8"
+	>
 		<header>
 			<p class="sheet-kicker">GREAT FALLS TOOL BUS — CELL SHEET</p>
 			<h2 class="sheet-title">{cell.name.toUpperCase()}</h2>
