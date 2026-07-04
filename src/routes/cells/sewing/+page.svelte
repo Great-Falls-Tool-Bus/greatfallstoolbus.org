@@ -295,6 +295,9 @@
 		:global(body) {
 			background: #fff !important;
 		}
+		:global(body) {
+			color: #000 !important;
+		}
 		main {
 			max-width: none;
 			padding: 0;
@@ -305,8 +308,7 @@
 			border-radius: 0;
 			padding: 0;
 			margin: 0;
-			background: #fff !important;
-			color: #000 !important;
+			background: transparent !important;
 			font-size: 10.5pt;
 		}
 		.table-wrap {

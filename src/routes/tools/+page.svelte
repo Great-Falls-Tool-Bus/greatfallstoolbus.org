@@ -68,7 +68,12 @@
 						<p class="text-surface-700-300 mt-1 text-sm leading-relaxed">
 							{tool.blurb}
 							{#if tool.docUrl}
-								<a class="underline" href={tool.docUrl} rel="external noopener">{tool.docLabel}</a>
+								<a
+									class="underline"
+									href={tool.docUrl}
+									rel="external noopener"
+									aria-label={`Open ${tool.name} documentation: ${tool.docLabel}`}>{tool.docLabel}</a
+								>
 							{/if}
 						</p>
 					</Card>
