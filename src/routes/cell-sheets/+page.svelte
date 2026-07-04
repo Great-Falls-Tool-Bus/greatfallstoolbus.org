@@ -6,6 +6,7 @@
 	// src/content/tools/**, shared with /tools via $lib/data/cells.ts so the
 	// sheet can never drift from the site.
 	import { cells } from '$lib/data/cells';
+	import DetailsNeeded from '$lib/components/DetailsNeeded.svelte';
 </script>
 
 <svelte:head>
@@ -55,7 +56,12 @@
 						{#each cell.tools as tool (tool.slug)}
 							<li>
 								<span class="box" aria-hidden="true"></span>
-								<span><strong>{tool.name}</strong> — {tool.blurb}</span>
+								<span
+									><strong>{tool.name}</strong> — {tool.blurb}
+									{#if tool.detailsNeeded}
+										<DetailsNeeded wanted={tool.detailsWanted} sourcePath={tool.sourcePath} name={tool.name} />
+									{/if}
+								</span>
 							</li>
 						{/each}
 					</ul>

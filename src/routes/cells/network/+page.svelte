@@ -1,33 +1,43 @@
 <script lang="ts">
-	// The sewing cell sheet: the printable one-pager that lives in the kit.
-	// Spirit of static/readme.txt: plain, honest, meant for paper. Inventory
-	// truth comes from $lib/data/cells.ts (shared with /tools and /cell-sheets)
-	// so the sheet in the kit can never drift from the site.
+	// The network and tracing cell sheet: the printable one-pager that lives in
+	// the kit. Same shape and spirit as the sewing cell sheet (static/readme.txt:
+	// plain, honest, meant for paper). Inventory truth comes from
+	// $lib/data/cells.ts (shared with /tools and /cell-sheets) so the sheet in
+	// the kit can never drift from the site. Several items carry a details-needed
+	// flag: they are in the kit, but a real specific (model number, photo,
+	// config) is not documented yet, so the sheet invites the owner to fill it in
+	// rather than printing an invented spec.
 	import { base } from '$app/paths';
 	import { cells } from '$lib/data/cells';
 	import DetailsNeeded from '$lib/components/DetailsNeeded.svelte';
 
-	const cell = cells.find((c) => c.slug === 'sewing');
-	if (!cell) throw new Error('sewing cell missing from $lib/data/cells');
+	const cell = cells.find((c) => c.slug === 'network');
+	if (!cell) throw new Error('network cell missing from $lib/data/cells');
 </script>
 
 <svelte:head>
-	<title>Sewing cell sheet | Great Falls Tool Bus</title>
+	<title>Network and tracing cell sheet | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="The printable sewing cell sheet: the kit inventory as a checklist table, care rules, captain line, and who to ask. Print it and keep it in the kit."
+		content="The printable network and tracing cell sheet: the diagnostics kit inventory as a checklist table, care rules, captain line, and who to ask. Print it and keep it in the kit."
 	/>
 </svelte:head>
 
 <main class="mx-auto max-w-4xl px-6 py-16 md:py-24">
 	<header class="no-print space-y-4">
 		<p class="text-surface-500 text-xs tracking-widest uppercase">
-			<a class="underline" href={`${base}/cells`}>Tool cells</a> / Sewing
+			<a class="underline" href={`${base}/cells`}>Tool cells</a> / Network and tracing
 		</p>
-		<h1 class="text-4xl leading-tight font-bold">Sewing cell sheet</h1>
+		<h1 class="text-4xl leading-tight font-bold">Network and tracing cell sheet</h1>
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
-			This page is made for paper. Print it, keep one in the kit, pin one to a board. Check the kit against the table
-			every time it goes out and comes back: the checkboxes and blanks are real.
+			The diagnostics cell: cable tracing, network testing, and RF exploration. This page is made for paper. Print it,
+			keep one in the kit, pin one to a board. Check the kit against the table every time it goes out and comes back:
+			the checkboxes and blanks are real.
+		</p>
+		<p class="text-surface-700 dark:text-surface-300 leading-relaxed">
+			Some rows are marked <strong>details needed</strong>. Those tools are in the kit, but a real specific (a model
+			number, a photo, a config) has not been written down yet. If you know one, follow the edit link on the row and
+			fill it in. That is the whole idea: an honest gap is a link, not a guess.
 		</p>
 		<button
 			type="button"
@@ -101,9 +111,9 @@
 		<section aria-label="Mark the bits">
 			<h3 class="sheet-h">MARK THE BITS</h3>
 			<p>
-				Every piece (bobbins, feet, rippers, snips, pins) is marked as part of this set. If you find an unmarked bit,
-				mark it (paint pen, engraver, or tag) before it goes back in the box. You should always know this tool belongs
-				to the sewing kit it came in.
+				Every piece (probes, adapters, patch leads, antennas, the radios themselves) is marked as part of this set. If
+				you find an unmarked bit, mark it (paint pen, engraver, or tag) before it goes back in the box. You should
+				always know this tool belongs to the network kit it came in.
 			</p>
 		</section>
 
@@ -113,23 +123,26 @@
 				<li>
 					<span class="box" aria-hidden="true"></span>
 					<span
-						><strong>Oil only, never grease</strong>, especially the 1800s treadle Singer. Singer sewing machine oil is
-						in the kit; grease gums the old works and ruins the restoration.</span
+						><strong>Listen first.</strong> The SDR and LoRa radio are for learning what is on the air. Transmit only where
+						and when it is legal, and know the band before you key up.</span
 					>
 				</li>
 				<li>
 					<span class="box" aria-hidden="true"></span>
-					<span>The treadle Singer is a restoration in progress, not yet a working machine. Do not sew on it.</span>
+					<span
+						>Keep the tone generator off live network ports. It injects a signal; put it on a pair you know is dead,
+						then trace.</span
+					>
 				</li>
 				<li>
 					<span class="box" aria-hidden="true"></span>
-					<span>The bent ProSeries shears stay dedicated to fabric. Paper kills shears.</span>
+					<span>Coil and tie every cable back to its length before it goes away. A tangled kit is a slow kit.</span>
 				</li>
 				<li>
 					<span class="box" aria-hidden="true"></span>
 					<span
-						>Bonded-nylon upholstery thread is for heavy repairs only: too stiff for fine seams. T-pins are for blocking
-						and heavy layers: too thick for shirting.</span
+						>Radios and meters are static-sensitive and knock-sensitive. They ride padded, not loose in the bottom of a
+						bag.</span
 					>
 				</li>
 				<li>
@@ -152,7 +165,10 @@
 				</li>
 				<li>
 					<span aria-hidden="true">*</span>
-					<span>Machine trouble: the model manual first (links in the table), then the captain.</span>
+					<span
+						>Know a model number, a config, or have a photo of a details-needed item? Edit its page from the online
+						sheet at https://greatfallstoolbus.org/cells/network</span
+					>
 				</li>
 			</ul>
 		</section>
@@ -268,6 +284,7 @@
 	}
 	.col-notes {
 		min-width: 16em;
+		overflow-wrap: anywhere;
 	}
 	.writein {
 		display: inline-block;
@@ -275,9 +292,6 @@
 		min-width: 6em;
 		border-bottom: 1px solid currentColor;
 		height: 1em;
-	}
-	.col-notes {
-		overflow-wrap: anywhere;
 	}
 
 	/* ===== Print: strip the site chrome, black on white, paper-honest ===== */

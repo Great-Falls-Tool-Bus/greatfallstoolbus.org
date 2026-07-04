@@ -17,6 +17,7 @@
 	import { cells } from '$lib/data/cells';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import DetailsNeeded from '$lib/components/DetailsNeeded.svelte';
 </script>
 
 <svelte:head>
@@ -77,6 +78,9 @@
 								>
 							{/if}
 						</p>
+						{#if tool.detailsNeeded}
+							<DetailsNeeded wanted={tool.detailsWanted} sourcePath={tool.sourcePath} name={tool.name} />
+						{/if}
 					</Card>
 				{/each}
 			</div>

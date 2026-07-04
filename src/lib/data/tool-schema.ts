@@ -10,7 +10,7 @@ import { Schema } from 'effect';
 export const TOOL_STATUSES = ['in-kit', 'restoration', 'wants'] as const;
 
 /** Canonical cell slugs. New cells register here AND in $lib/data/cells.ts CELL_META. */
-export const CELL_SLUGS = ['sewing'] as const;
+export const CELL_SLUGS = ['sewing', 'network', 'welding'] as const;
 
 export const ToolFrontmatter = Schema.Struct({
 	/** Display name — the real product, as it would appear on an order reference. */
@@ -29,9 +29,25 @@ export const ToolFrontmatter = Schema.Struct({
 	),
 	/** Link text for docUrl; required whenever docUrl is present. */
 	docLabel: Schema.optional(Schema.NonEmptyString),
+	/**
+	 * Wiki "citation needed" flag: this entry is in the kit but a real
+	 * specific (model number, photo, config) is not yet documented. The site
+	 * shows a calm "details needed" chip with an edit-source link instead of
+	 * inventing the missing fact. Never set this to hide a fact we actually
+	 * know; set it to invite the owner to fill in what they know.
+	 */
+	detailsNeeded: Schema.optional(Schema.Boolean),
+	/**
+	 * What specifically is still missing, in the order it should be filled
+	 * (e.g. ['model number', 'photo']). Only meaningful when detailsNeeded.
+	 */
+	detailsWanted: Schema.optional(Schema.Array(Schema.NonEmptyString)),
 }).pipe(
 	Schema.filter(
 		(fm) => fm.docUrl === undefined || fm.docLabel !== undefined || 'docLabel is required when docUrl is set',
+	),
+	Schema.filter(
+		(fm) => fm.detailsWanted === undefined || fm.detailsNeeded === true || 'detailsWanted requires detailsNeeded: true',
 	),
 );
 

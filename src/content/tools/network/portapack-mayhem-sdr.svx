@@ -1,0 +1,9 @@
+---
+name: 'PortaPack Mayhem SDR (HackRF-based)'
+status: 'in-kit'
+cell: 'network'
+order: 2
+blurb: 'In kit. A handheld software radio for listening across the RF spectrum and learning what is on the air around us.'
+detailsNeeded: true
+detailsWanted: ['photo', 'firmware and config notes']
+---

@@ -1,0 +1,9 @@
+---
+name: 'Ethernet splicing and testing gear (assorted)'
+status: 'in-kit'
+cell: 'network'
+order: 4
+blurb: 'In kit. Crimpers, testers, and splicing bits for building and checking network runs on site.'
+detailsNeeded: true
+detailsWanted: ['itemized contents', 'photo']
+---
