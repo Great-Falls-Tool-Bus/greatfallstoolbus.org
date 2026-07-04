@@ -17,6 +17,18 @@ Versioning: [SemVer 2.0](https://semver.org/).
   Shout-outs (Megaphone), Contact (Mail), plus Stewards (Users) on its page
   header. All icons are tree-shaken named imports, sized to match the site's
   existing 16-20px icon convention, and marked `aria-hidden` as decoration.
+- View/edit page source subsystem (TIN-2360): `scripts/build-source-map.mjs`
+  walks `src/routes/**/+page.svelte` and derives
+  `src/lib/generated/source-map.json` (route id to repo-relative source path,
+  plus the repo URL and branch resolved from `tinyland.repo.json` /
+  `package.json`, never hardcoded in a component). A new `SourceLink.svelte`
+  renders a calm "Edit this page" / "View source" pair linking to GitHub's web
+  editor and blob view, wired into the shared `PageHeader` so every page with a
+  header gets the git-onboarding affordance from architectural zero (no per-page
+  opt-in; routes absent from the map render nothing). Wired `just
+  source-map-build` and the `just source-map-check` drift gate into `just
+  check`, mirroring `skills-build` / `skills-check`, and added a Vitest contract
+  asserting every route that renders `PageHeader` resolves to a source-map entry.
 - Wave-2.5 media pipeline: manifest-driven `Picture.svelte` component and
   `src/lib/responsive-image.ts` srcset builder (AVIF/WebP sources, lazy
   loading by default, intrinsic width/height plus aspect-ratio to prevent
