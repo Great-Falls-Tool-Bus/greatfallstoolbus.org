@@ -25,19 +25,19 @@
 
 	const listAddresses = [
 		{
-			label: 'Join the keyholders list',
+			label: 'Approved keyholder subscribe',
 			address: LIST.join,
-			note: 'Send an empty email here once the list runtime is applied.',
+			note: 'For people already approved as keyholders; owners approve membership.',
 		},
 		{
 			label: 'Post to the list',
 			address: LIST.post,
-			note: 'For members after Mailman confirms the subscription.',
+			note: 'Public access requests may post here; keyholders receive and coordinate them.',
 		},
 		{
 			label: 'Reach list owners',
 			address: LIST.owner,
-			note: 'The operator-facing owner address after the list runtime is live.',
+			note: 'Owner/moderator contact for the private keyholders role list.',
 		},
 	];
 
@@ -124,8 +124,8 @@
 	<section class="mt-12" aria-labelledby="list-heading">
 		<h2 id="list-heading" class="text-2xl font-semibold">Keyholders list</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-3 leading-relaxed">
-			The keyholders mailbox receives inbound mail. The join/owner addresses below are the Mailman list surface — those
-			activate when the list runtime lands, and list round-trip smoke is the proof before list delivery is claimed.
+			The keyholders mailbox receives inbound mail. The list runtime turns this into a private access-gating role list:
+			keyholder membership is curated, public access requests can still reach the group, and the archive is not public.
 		</p>
 		<div class="mt-6 grid gap-3 md:grid-cols-3">
 			{#each listAddresses as item (item.address)}
