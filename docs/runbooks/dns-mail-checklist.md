@@ -1,5 +1,15 @@
 # DNS + mail cutover — manual operator checklist
 
+> **STATUS (2026-07-04): this checklist is EXECUTED.** latoolb.us NS is on
+> Cloudflare (zone active), MX/SPF/DKIM/DMARC live and tofu-managed in
+> great-falls-tool-bus-infra `tofu/stacks/edge` (`mail_dns_enabled=true`) —
+> records are no longer manual-panel steps. Live SPF:
+> `v=spf1 ip4:45.61.188.177 ip4:71.168.64.84 mx ~all` (relay + honey egress,
+> live-evidence reconcile, infra PR #28). Certification: port25 SPF pass +
+> DKIM pass, 2026-07-04. This document remains as the historical procedure +
+> verify matrix.
+
+
 **TIN-2360 row (g), DECIDED 2026-07-02.** House DNS plane is Cloudflare;
 GFTB zone apply is the org overlay `great-falls-tool-bus-infra`
 (zone-scoped token, TIN-2385); DreamHost stays registrar-only. Mail DNS is a **manual,
