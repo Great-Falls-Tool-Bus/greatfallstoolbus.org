@@ -4,10 +4,9 @@
 
 	const formEndpoint =
 		typeof import.meta.env.PUBLIC_GFTB_FORM_ENDPOINT === 'string' ? import.meta.env.PUBLIC_GFTB_FORM_ENDPOINT : '';
-	// Progressive enhancement (TIN-2420 Path A): the latoolb.us mailbox
-	// accepts inbound mail; the Mailman/list and Anubis submit endpoint are
-	// still separate proof gates. Until the endpoint ships, the static form
-	// opens a mail draft in the visitor's own mail app.
+	// Progressive enhancement (TIN-2420 Path A): keyholders@latoolb.us is the
+	// private access-gating role list. Until the Anubis-protected endpoint
+	// ships, the static form opens a mail draft in the visitor's own mail app.
 	const endpointLive = formEndpoint.length > 0;
 	const KEYHOLDERS = LIST.post;
 
@@ -50,7 +49,7 @@
 	<title>Contact / join — Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="How to contact the Great Falls Tool Bus while the protected form endpoint and keyholders list come online."
+		content="How to contact the Great Falls Tool Bus through the private keyholders list while the protected form endpoint is pending."
 	/>
 </svelte:head>
 
@@ -59,8 +58,8 @@
 		<p class="text-surface-500 text-xs tracking-widest uppercase">Contact / join</p>
 		<h1 class="text-4xl leading-tight font-bold md:text-5xl">Reach the bus</h1>
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
-			The keyholders mailbox accepts inbound mail. The form below composes an email in your own mail app; a bot-guarded
-			direct-submit endpoint and the public Mailman list are the next upgrades.
+			The private keyholders list accepts access requests. The form below composes an email in your own mail app; a
+			bot-guarded direct-submit endpoint is the next upgrade.
 		</p>
 	</header>
 
@@ -72,7 +71,7 @@
 					{#if endpointLive}
 						Submissions post directly to the bot-guarded endpoint.
 					{:else}
-						Sending opens a pre-filled email to the keyholders mailbox in your own mail app. A bot-guarded direct-submit
+						Sending opens a pre-filled email to the keyholders list in your own mail app. A bot-guarded direct-submit
 						endpoint replaces this hand-off later with no change to the form.
 					{/if}
 				</p>
@@ -124,8 +123,8 @@
 	<section class="mt-12" aria-labelledby="list-heading">
 		<h2 id="list-heading" class="text-2xl font-semibold">Keyholders list</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-3 leading-relaxed">
-			The keyholders mailbox receives inbound mail. The list runtime turns this into a private access-gating role list:
-			keyholder membership is curated, public access requests can still reach the group, and the archive is not public.
+			The keyholders address is a private access-gating role list: keyholder membership is curated, public access
+			requests can still reach the group, and the archive is not public.
 		</p>
 		<div class="mt-6 grid gap-3 md:grid-cols-3">
 			{#each listAddresses as item (item.address)}
