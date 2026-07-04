@@ -47,6 +47,7 @@
 	];
 
 	const skills = $derived(data.skills);
+	const mailSkills = $derived(data.mailSkills);
 
 	const recipes = [
 		'just setup',
@@ -145,6 +146,32 @@
 		</div>
 	</section>
 
+	<section class="mt-12" aria-labelledby="mail-skills">
+		<div class="mb-5 flex items-end justify-between gap-4">
+			<h2 id="mail-skills" class="text-2xl font-bold">Mail lace-up skills</h2>
+			<a class="text-primary-600 text-sm underline underline-offset-4" href={`${base}/llms.txt`}>llms.txt index</a>
+		</div>
+		<p class="text-surface-700-300 mb-5 max-w-3xl text-sm leading-relaxed">
+			One skill per mail client, derived from <code>src/lib/data/mail-clients.ts</code> by
+			<code>just skills-build</code>. Point your own agent at a skill and it laces up your client for the keyholders
+			list. Regenerated and drift-checked in CI, so the cards on
+			<a class="text-primary-600 underline underline-offset-4" href={`${base}/contact`}>/contact</a> and these skills never
+			disagree.
+		</p>
+		<div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+			{#each mailSkills as skill (skill.name)}
+				<a
+					class="border-surface-200-800 bg-surface-50-950/75 hover:border-primary-500 block rounded-lg border p-4 transition-colors"
+					href={skill.href}
+					aria-label={skill.name}
+				>
+					<span class="font-mono text-sm font-semibold">{skill.name}</span>
+					<span class="text-surface-700-300 mt-2 block text-sm leading-relaxed">{skill.description}</span>
+				</a>
+			{/each}
+		</div>
+	</section>
+
 	<section class="mt-12 grid gap-8 lg:grid-cols-[1fr_1.1fr]" aria-label="Recipes and Flywheel">
 		<div>
 			<h2 class="mb-5 text-2xl font-bold">Recipes</h2>
@@ -161,10 +188,10 @@
 			<div class="border-surface-200-800 bg-surface-50-950/75 overflow-hidden rounded-lg border">
 				{#each flywheel as [env, meaning] (env)}
 					<div
-						class="border-surface-200-800 grid gap-2 border-b p-4 last:border-b-0 md:grid-cols-[minmax(0,0.9fr)_1fr]"
+						class="border-surface-200-800 grid gap-x-4 gap-y-1 border-b p-4 last:border-b-0 md:grid-cols-[minmax(0,1fr)_1.3fr]"
 					>
-						<code class="text-sm">{env}</code>
-						<p class="text-surface-700-300 text-sm leading-relaxed">{meaning}</p>
+						<code class="min-w-0 text-sm break-words">{env}</code>
+						<p class="text-surface-700-300 min-w-0 text-sm leading-relaxed">{meaning}</p>
 					</div>
 				{/each}
 			</div>

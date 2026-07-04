@@ -137,7 +137,7 @@ sbom out_dir="build/sbom":
         -o spdx-json="{{ out_dir }}/greatfallstoolbus.org.spdx.json"
 
 # Run secrets scan + lint + typecheck + tool-inventory + unit (pre-commit gate)
-check: flywheel-enrollment-contract-check secrets-scan-dir lint typecheck tools-validate test-unit
+check: flywheel-enrollment-contract-check secrets-scan-dir lint typecheck tools-validate skills-validate skills-check test-unit
     @echo "All checks passed."
 
 # Run full CI pipeline locally
@@ -212,6 +212,14 @@ skills-list:
 # Validate every SKILL.md frontmatter has required fields (name, description).
 skills-validate:
     cd {{ root }} && python3 scripts/validate-skills.py
+
+# Derive the mail lace-up skills + llms.txt mail section from src/lib/data/mail-clients.ts.
+skills-build:
+    cd {{ root }} && pnpm exec tsx scripts/build-agent-skills.mjs
+
+# Drift guard: regenerate derived skills, then fail if the tree changed.
+skills-check: skills-build
+    cd {{ root }} && git diff --exit-code -- .agents/skills .claude/skills static/llms.txt
 
 # House-style drift audit: layer 1 (existing checks) + layer 3 (boundary audit). Layer 2 (tag diff) is manual; see the skill body.
 scaffold-doctor:
