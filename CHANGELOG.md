@@ -12,6 +12,13 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ### Changed
 
+- Rewrite site prose in the Wave-2.5 voice pass: remove every em-dash from the
+  page copy, dedupe the tagline and other boilerplate echoes to one canonical
+  home each, cut the self-describing "honest" tic and build-status leaks, and
+  align `/access`, `/mission`, `/tools`, and the home page with the ratified
+  access model (keyholders are a curated, owner-approved group; anyone may
+  request access and non-member requests reach all keyholders; no membership
+  fee, no paperwork wall).
 - Re-point apply-plane references from the blahaj tenants lane to the org
   apply-plane overlay `great-falls-tool-bus-infra` (packet 0001 Amendment 1,
   memo 0002): `applied_by` in both intent files, secrets plane vocabulary

@@ -10,7 +10,7 @@
 	// This page is the capability CATALOG: each tool cell is presented as a
 	// capability (what it puts in your hands + how it rides the bus + the
 	// safety gate before use), then the kitted tools underneath. The catalog is
-	// driven entirely by the shared cells data source — no per-tool data was
+	// driven entirely by the shared cells data source; no per-tool data was
 	// invented for the capability framing; the safety gate is the project-wide
 	// orientation model (see /safety, /access).
 	import { cells } from '$lib/data/cells';
@@ -19,26 +19,26 @@
 </script>
 
 <svelte:head>
-	<title>Tools on the bus — Great Falls Tool Bus</title>
+	<title>Tools on the bus | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="The tool bus capability catalog: each cell is a kitted capability — what it puts in your hands, how it rides the bus, and the safety gate before use."
+		content="The tool bus capability catalog: each cell is a kitted capability. What it puts in your hands, how it rides the bus, and the safety gate before use."
 	/>
 </svelte:head>
 
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
 	<PageHeader
 		title="Tools on the bus"
-		lead="A capability catalog. The bus is organized into cells — each cell is a capability: a kitted set of tools that puts a specific kind of work in your hands. Every tool is kitted for transport, its bits marked as part of a set, and its documentation resolves to a real model number and manufacturer manual — or it is honestly listed as not-yet-resolved."
+		lead="A capability catalog. The bus is organized into cells, and each cell is a capability: a kitted set of tools that puts a specific kind of work in your hands. Every tool is kitted for transport, its bits marked as part of a set, and its documentation resolves to a real model number and manufacturer manual, or it is listed as not yet resolved."
 	/>
 
 	<section class="border-surface-200-800 mt-8 border-y py-6" aria-label="How the catalog works">
 		<p class="text-surface-700 dark:text-surface-300 leading-relaxed">
-			Each capability below lists what it enables, how the kit rides the bus, and its safety gate. Access is free and
-			open once you have completed a short safety orientation for the capability you want to use — see
+			Each capability below lists what it enables, how the kit rides the bus, and its safety gate. There is no
+			membership fee; a short safety orientation and a keyholder's go-ahead open the capability you want to use. See
 			<a class="underline" href={`${base}/safety`}>safety &amp; responsible use</a> and
 			<a class="underline" href={`${base}/access`}>how access works</a>.
-			<!-- OPERATOR-CONFIRM: free-after-safety-orientation access model is a recommended default, not operator-confirmed. -->
+			<!-- Access model (ratified): stewarded access; anyone may request; non-member requests reach all keyholders. -->
 		</p>
 	</section>
 
@@ -58,7 +58,6 @@
 					<span class="font-semibold">Safety gate:</span> a short safety orientation for this capability before first
 					use, then it is yours to borrow.
 					<a class="underline" href={`${base}/safety`}>Read the safety &amp; responsible-use guide</a>.
-					<!-- OPERATOR-CONFIRM: per-capability safety-orientation gate is a recommended default, not operator-confirmed. -->
 				</p>
 			</header>
 

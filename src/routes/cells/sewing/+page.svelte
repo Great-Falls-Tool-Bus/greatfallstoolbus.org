@@ -1,5 +1,5 @@
 <script lang="ts">
-	// The sewing cell sheet — the printable one-pager that lives in the kit.
+	// The sewing cell sheet: the printable one-pager that lives in the kit.
 	// Spirit of static/readme.txt: plain, honest, meant for paper. Inventory
 	// truth comes from $lib/data/cells.ts (shared with /tools and /cell-sheets)
 	// so the sheet in the kit can never drift from the site.
@@ -11,7 +11,7 @@
 </script>
 
 <svelte:head>
-	<title>Sewing cell sheet — Great Falls Tool Bus</title>
+	<title>Sewing cell sheet | Great Falls Tool Bus</title>
 	<meta
 		name="description"
 		content="The printable sewing cell sheet: the kit inventory as a checklist table, care rules, captain line, and who to ask. Print it and keep it in the kit."
@@ -26,7 +26,7 @@
 		<h1 class="text-4xl leading-tight font-bold">Sewing cell sheet</h1>
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
 			This page is made for paper. Print it, keep one in the kit, pin one to a board. Check the kit against the table
-			every time it goes out and comes back — the checkboxes and blanks are real.
+			every time it goes out and comes back: the checkboxes and blanks are real.
 		</p>
 		<button
 			type="button"
@@ -41,26 +41,26 @@
 		class="sheet border-surface-200-800 bg-surface-50-950/75 rounded-container mt-10 border p-6 font-mono md:p-8"
 	>
 		<header>
-			<p class="sheet-kicker">GREAT FALLS TOOL BUS — CELL SHEET</p>
+			<p class="sheet-kicker">GREAT FALLS TOOL BUS: CELL SHEET</p>
 			<h2 class="sheet-title">{cell.name.toUpperCase()}</h2>
 			<p class="sheet-sub">
 				A shared tool library on wheels for Lewiston-Auburn, Maine.<br />
-				This is a bus — the shop comes later :)
+				This is a bus, the shop comes later :)
 			</p>
 		</header>
 
 		<section aria-label="Cell captain">
-			<h3 class="sheet-h">CELL CAPTAIN — one person who knows the kit</h3>
+			<h3 class="sheet-h">CELL CAPTAIN: one person who knows the kit</h3>
 			{#if cell.captain}
 				<p>Captain: {cell.captain}</p>
 			{:else}
 				<p>Captain: <span class="blank" aria-label="write the captain's name here"></span></p>
-				<p class="sheet-note">This cell still needs a captain — it could be you. Ask a keyholder.</p>
+				<p class="sheet-note">This cell still needs a captain. Ask a keyholder how to take it on.</p>
 			{/if}
 		</section>
 
 		<section aria-label="Kit inventory checklist">
-			<h3 class="sheet-h">THE KIT — check it in, check it out</h3>
+			<h3 class="sheet-h">THE KIT: check it in, check it out</h3>
 			<div class="table-wrap">
 				<table class="sheet-table">
 					<thead>
@@ -97,7 +97,7 @@
 		<section aria-label="Mark the bits">
 			<h3 class="sheet-h">MARK THE BITS</h3>
 			<p>
-				Every piece — bobbins, feet, rippers, snips, pins — is marked as part of this set. If you find an unmarked bit,
+				Every piece (bobbins, feet, rippers, snips, pins) is marked as part of this set. If you find an unmarked bit,
 				mark it (paint pen, engraver, or tag) before it goes back in the box. You should always know this tool belongs
 				to the sewing kit it came in.
 			</p>
@@ -109,13 +109,13 @@
 				<li>
 					<span class="box" aria-hidden="true"></span>
 					<span
-						><strong>Oil only, never grease</strong> — especially the 1800s treadle Singer. Singer sewing machine oil is in
-						the kit; grease gums the old works and ruins the restoration.</span
+						><strong>Oil only, never grease</strong>, especially the 1800s treadle Singer. Singer sewing machine oil is
+						in the kit; grease gums the old works and ruins the restoration.</span
 					>
 				</li>
 				<li>
 					<span class="box" aria-hidden="true"></span>
-					<span>The treadle Singer is a restoration in progress — not yet a working machine. Do not sew on it.</span>
+					<span>The treadle Singer is a restoration in progress, not yet a working machine. Do not sew on it.</span>
 				</li>
 				<li>
 					<span class="box" aria-hidden="true"></span>
@@ -124,8 +124,8 @@
 				<li>
 					<span class="box" aria-hidden="true"></span>
 					<span
-						>Bonded-nylon upholstery thread is for heavy repairs only — too stiff for fine seams. T-pins are for
-						blocking and heavy layers — too thick for shirting.</span
+						>Bonded-nylon upholstery thread is for heavy repairs only: too stiff for fine seams. T-pins are for blocking
+						and heavy layers: too thick for shirting.</span
 					>
 				</li>
 				<li>
@@ -140,24 +140,21 @@
 			<ul class="sheet-list">
 				<li>
 					<span aria-hidden="true">*</span>
-					<span>The cell captain (named above) — anything about this kit.</span>
+					<span>The cell captain (named above): anything about this kit.</span>
 				</li>
 				<li>
 					<span aria-hidden="true">*</span>
-					<span
-						>A keyholder — access, borrowing, and the bus location. Reach out, a keyholder answers:
-						https://greatfallstoolbus.org</span
-					>
+					<span>A keyholder: access, borrowing, and the bus location. Ask at https://greatfallstoolbus.org</span>
 				</li>
 				<li>
 					<span aria-hidden="true">*</span>
-					<span>Machine trouble — the model manual first (links in the table), then the captain.</span>
+					<span>Machine trouble: the model manual first (links in the table), then the captain.</span>
 				</li>
 			</ul>
 		</section>
 
 		<footer class="sheet-foot">
-			This kit belongs to the Great Falls Tool Bus — https://greatfallstoolbus.org<br />
+			This kit belongs to the Great Falls Tool Bus: https://greatfallstoolbus.org<br />
 			Print me, keep me in the kit, hand me to a friend.
 		</footer>
 	</article>

@@ -24,9 +24,9 @@
 	const SITE_NAME = 'Great Falls Tool Bus';
 	const SITE_URL = 'https://greatfallstoolbus.org';
 	const GITHUB_PAGES_BASE = '/greatfallstoolbus.org';
-	const SITE_TITLE = 'Great Falls Tool Bus — a shared tool library on wheels for Lewiston-Auburn, Maine';
+	const SITE_TITLE = 'Great Falls Tool Bus: a shared tool library on wheels for Lewiston-Auburn, Maine';
 	const SITE_DESCRIPTION =
-		'A shared tool library on wheels for Lewiston-Auburn, Maine. This is a bus; the shop comes later — donate tools, join the keyholders, browse the kit.';
+		'A shared tool library on wheels for Lewiston-Auburn, Maine. Browse the kit, donate a tool, or reach out to borrow.';
 	const REPO_URL = 'https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org';
 	const SECURITY_URL = 'https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/security/advisories/new';
 	const OG_IMAGE = `${SITE_URL}/og-image.png`;
@@ -56,7 +56,7 @@
 />
 
 <div class="relative flex min-h-screen flex-col bg-transparent">
-	<!-- TinyVectors warm Tinyland background. Browser-only — the component uses
+	<!-- TinyVectors warm Tinyland background. Browser-only: the component uses
 	     window/navigator APIs and Svelte effects that crash under SSR. Fixed
 	     full-viewport, behind everything, low opacity. (TIN-801 phase 3.) -->
 	{#if browser}
@@ -175,8 +175,7 @@
 	<footer class="border-surface-200-800 bg-surface-100-900/80 mt-16 border-t backdrop-blur-sm">
 		<div class="container mx-auto grid gap-8 px-6 py-10 text-sm md:grid-cols-[2fr_1fr_1fr_1fr]">
 			<p class="text-surface-700-300 max-w-sm">
-				The Great Falls Tool Bus is an unincorporated community project in Lewiston-Auburn, Maine. This is a bus; the
-				shop comes later.
+				The Great Falls Tool Bus is an unincorporated community project in Lewiston-Auburn, Maine.
 			</p>
 			{#each footerNavGroups as group (group.heading)}
 				<nav aria-label={group.heading}>

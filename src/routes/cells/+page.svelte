@@ -9,7 +9,7 @@
 </script>
 
 <svelte:head>
-	<title>Tool cells — Great Falls Tool Bus</title>
+	<title>Tool cells | Great Falls Tool Bus</title>
 	<meta
 		name="description"
 		content="A tool cell is a kit plus a captain who knows it. The sewing cell is the first; yours could be next. Every cell gets a printable sheet that lives in the kit."
@@ -20,7 +20,7 @@
 	<PageHeader title="Tool cells">
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
 			A tool cell is the unit the bus is organized around: <strong>a kit plus a captain who knows it</strong>. The kit
-			travels as a set — bits marked, manuals linked, packed to roll. The captain is one person who knows what is in the
+			travels as a set, bits marked, manuals linked, packed to roll. The captain is one person who knows what is in the
 			kit, how it packs, and who to ask when something needs care.
 		</p>
 		<p class="text-surface-700 dark:text-surface-300 leading-relaxed">
@@ -39,7 +39,7 @@
 					{#if cell.captain}
 						Captain: {cell.captain}.
 					{:else}
-						Captain: still needed — it could be you.
+						Captain: still needed. It could be you.
 					{/if}
 				</p>
 				<p class="text-primary-600 mt-3 text-sm font-semibold">Printable cell sheet →</p>
@@ -48,7 +48,7 @@
 
 		<Card dashed eyebrow="Your cell here" title="Start the next cell" headingLevel="h2">
 			<p class="text-surface-700-300 mt-2 text-sm leading-relaxed">
-				Got a serious tool that is hard to own alone — and the patience to be the person who knows it? Bring the kit, be
+				Got a serious tool that is hard to own alone, and the patience to be the person who knows it? Bring the kit, be
 				the captain. The <a class="underline" href={`${base}/donate`}>donation criteria</a> tell you what makes a good
 				bus tool, and the <a class="underline" href={`${base}/wants`}>wants list</a> shows the gaps.
 			</p>
@@ -56,6 +56,6 @@
 	</section>
 
 	<footer class="text-surface-500 pt-12 text-sm">
-		One person per cell who knows the kit — that is the whole job description. Reach out, a keyholder answers.
+		One person per cell who knows the kit: that is the whole job description. Ask a keyholder to get started.
 	</footer>
 </main>
