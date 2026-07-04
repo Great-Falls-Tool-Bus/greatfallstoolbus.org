@@ -144,6 +144,18 @@ wf_13f12359 recheck.
 - A **Cloudflare zone for latoolb.us exists but is undelegated** — harmless;
   its redirect ruleset stays dormant until/unless NS delegation ever moves.
 
+> **CORRECTION (dated 2026-07-04, supersedes the two latoolb.us lines above —
+> D1=A executed):** the operator repointed **latoolb.us NS to Cloudflare**
+> (austin/oaklyn) on 2026-07-03; the zone went **active** the same evening.
+> MX/SPF/DKIM/DMARC are live and CI-managed in the infra edge stack
+> (`mail_dns_enabled=true`; SPF authorizes the relay + honey egress IPs per
+> infra PR #28). The **mail stack is certified both directions** — port25
+> verifier: SPF pass + DKIM pass (2026-07-04; TIN-2379 comment 5e2038c9).
+> The redirect ruleset now serves (301 target still github.io until the gate
+> opens, TIN-2421). TIN-2379's runtime split: inbound + outbound-signed mail
+> LIVE; list/archive = TIN-2380 (draft infra PR #27, not applied); Anubis
+> direct-submit = TIN-2420 Path B.
+
 **CI status (truthful line from the wf_13f12359 recheck):**
 
 > CI cache-first attach LIVE with native cache-hit proof on the legacy
