@@ -38,7 +38,7 @@ That sentence is the whole contract. Expanded:
 | `greatfallstoolbus.org` | Web domain for this repo's static site |
 | `keyholders@latoolb.us` | First production `MailAccount` application (`mail.tinyland.dev/v1alpha1`; CR applied from the infra overlay, reconciled by the house mail substrate) |
 | `keyholders` list | Mailman 3 + Postorius + HyperKitty, pinned trio 3.3.10 / 1.3.13 / 1.3.12, private/members-only archive or archive off (row e corrected 2026-07-04) |
-| Future `discuss` list | Intended public/open discussion list with public archive; not part of the first keyholders access-gating list |
+| `discuss` list | Public/open discussion list with public archive; source/transport reconciled, smoke proof tracked on TIN-2498 |
 | Anubis v1.25.0 | Behind the Cloudflare tunnel (edge apply in the infra overlay); default-allow with a single CHALLENGE rule scoped to the join/contact form route only; `/agent`, `/llms.txt`, and SEO surfaces stay unguarded once the apex gate opens (row f) |
 
 ## Related
@@ -48,5 +48,5 @@ That sentence is the whole contract. Expanded:
 - Declarative DNS record set: [`../dns-intent/`](../dns-intent/README.md)
 - Manual DNS checklist: [`docs/runbooks/dns-mail-checklist.md`](../../docs/runbooks/dns-mail-checklist.md)
 - Apply-plane runbook: `great-falls-tool-bus-infra/docs/edge-apply-runbook.md` (local pointer stub: [`docs/runbooks/dns-apply.md`](../../docs/runbooks/dns-apply.md))
-- Draft list-client instructions: [`docs/runbooks/keyholders-client-setup.md`](../../docs/runbooks/keyholders-client-setup.md)
+- Keyholders list-client instructions: [`docs/runbooks/keyholders-client-setup.md`](../../docs/runbooks/keyholders-client-setup.md)
 - Spoke infra proper (the five composed modules): [`../README.md`](../README.md)
