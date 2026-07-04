@@ -1,4 +1,4 @@
-# DNS + mail cutover — manual operator checklist
+# DNS + mail cutover — verification matrix and historical checklist
 
 > **STATUS (2026-07-04): this checklist is EXECUTED.** latoolb.us NS is on
 > Cloudflare (zone active), MX/SPF/DKIM/DMARC live and tofu-managed in
@@ -10,14 +10,14 @@
 > verify matrix.
 
 
-**TIN-2360 row (g), DECIDED 2026-07-02.** House DNS plane is Cloudflare;
-GFTB zone apply is the org overlay `great-falls-tool-bus-infra`
-(zone-scoped token, TIN-2385); DreamHost stays registrar-only. Mail DNS is a **manual,
-operator-visible checklist by design**: the blahaj mail stack pins
-`external_dns_create_mx_records = False` (blahaj repo,
-`dhall/render/mail-honey.dhall`; the flag is declared in
-`dhall/stacks/mail.dhall`), so no controller will ever create MX records for
-us. Every record below is placed by a human and verified by a human.
+**TIN-2360 row (g), DECIDED 2026-07-02; executed state amended 2026-07-04.**
+House DNS plane is Cloudflare; GFTB zone apply is the org overlay
+`great-falls-tool-bus-infra` (zone-scoped token, TIN-2385); DreamHost stays
+registrar-only. The original checklist was deliberately operator-visible
+because the shared blahaj mail stack does not create tenant MX records
+automatically. The current state is newer: DNS records are now managed by the
+GFTB infra overlay, and this file is the repo-local verification matrix plus
+historical procedure.
 
 Scope: `greatfallstoolbus.org` (web) and `latoolb.us` (mail + redirect
 alias). Nothing in this repo applies any of this; this checklist is executed
@@ -34,9 +34,10 @@ Conventions:
 
 - Every step ends with a verification command. Run it from any laptop; add
   `@1.1.1.1` to bypass local caches.
-- Do not proceed to a mail step until the NS cutover (step 1) is verified.
-- Values written `<like-this>` are chosen at execution time (most of them
-  apply-plane-side) and must not be guessed.
+- For future replays, do not proceed to a mail step until the NS cutover
+  (step 1) is verified.
+- Values written `<like-this>` are apply-plane/operator choices and must not be
+  guessed from this public repo.
 
 ---
 
@@ -56,26 +57,18 @@ dig NS greatfallstoolbus.org +short @1.1.1.1
 dig NS latoolb.us +short @1.1.1.1
 ```
 
-## 2. Web: apex + www for greatfallstoolbus.org -> Pages
+## 2. Web: apex + www for greatfallstoolbus.org -> Cloudflare Pages
 
-Repo-side precondition (scaffold contract, see `AGENTS.md` "Deploy lane"):
-add `static/CNAME` containing `greatfallstoolbus.org` and build with
-`BASE_PATH=""` before pointing DNS, otherwise the Pages build serves broken
-project-path URLs.
+Current truth is ADR 0003 and [`docs/deploy/cloudflare-pages.md`](../deploy/cloudflare-pages.md):
+GFTB serves from Cloudflare Pages through the reusable `ci-templates`
+Cloudflare Pages lane. Do **not** add `static/CNAME`; that was a GitHub Pages
+artifact. GitHub Pages remains only the cold-standby rollback publisher.
 
-In the Cloudflare zone for `greatfallstoolbus.org` (GitHub Pages lane, the
-shipped default in `.github/workflows/deploy-pages.yml`):
-
-| Name | Type | Value |
-| --- | --- | --- |
-| `greatfallstoolbus.org` (apex) | `A` | `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153` |
-| `www` | `CNAME` | `great-falls-tool-bus.github.io` |
-
-Set both records **DNS-only (grey cloud)** until GitHub Pages finishes
-custom-domain verification and issues the certificate; only then optionally
-enable the Cloudflare proxy. If the spoke later opts into Cloudflare Pages
-(`docs/deploy/cloudflare-pages.md`), replace both rows with the CNAMEs that
-lane documents.
+DNS, Cloudflare Access, and tunnel/edge apply authority live in
+`great-falls-tool-bus-infra`. This public repo owns only the static artifact
+and the wrapper that asks Cloudflare Pages to publish it. During the REV-2
+gated phase, the healthy external response is a Cloudflare Access `302`, not a
+public `200`.
 
 Verify:
 
@@ -89,7 +82,8 @@ curl -sI https://www.greatfallstoolbus.org/ | head -n 5
 ## 3. Web: latoolb.us root + www 301
 
 `latoolb.us` is a redirect/alias + mail domain, never a second site (row a).
-In the Cloudflare zone for `latoolb.us`:
+Current state is managed by `great-falls-tool-bus-infra` in the Cloudflare zone
+for `latoolb.us`:
 
 1. Create proxied (orange-cloud) placeholder records so the redirect rules
    have something to attach to: apex `A` -> `192.0.2.1` and `www` `CNAME` ->
@@ -117,8 +111,8 @@ curl -sI https://www.latoolb.us/anything | grep -i -E '^(HTTP|location)'
 
 The house public MX target is `relay.tinyland.dev` (blahaj
 `docs/services/mail/dns-records.md`; it is also the live MX for
-`tinyland.dev`). In the `latoolb.us` zone add — **DNS-only, never
-proxied** (Cloudflare cannot proxy SMTP):
+`tinyland.dev`). In the `latoolb.us` zone this record is live and must remain
+**DNS-only, never proxied** (Cloudflare cannot proxy SMTP):
 
 | Name | Type | Priority | Value |
 | --- | --- | --- | --- |
@@ -133,18 +127,16 @@ dig A relay.tinyland.dev +short @1.1.1.1 # sanity: relay resolves
 
 ## 5. Mail: SPF for latoolb.us
 
-Starting record (authorizes the MX host; soft-fail while ramping):
+Current live record authorizes the relay plus honey egress IPs; soft-fail stays
+in place while list traffic ramps:
 
 | Name | Type | Value |
 | --- | --- | --- |
-| `latoolb.us` | `TXT` | `v=spf1 mx ~all` |
+| `latoolb.us` | `TXT` | `v=spf1 ip4:45.61.188.177 ip4:71.168.64.84 mx ~all` |
 
-The final mechanism list is **blahaj-side authority**: it must cover the
-actual outbound egress path for list mail (per blahaj
-`docs/services/mail/dns-records.md`, house outbound currently goes direct
-from the on-prem edge, not through the relay), so expect to widen this
-record when the Mailman deployment lands. Do not tighten `~all` to `-all`
-until DMARC reports (step 7) have been quiet for a full list cycle.
+The mechanism list is apply-plane authority and must cover the actual outbound
+egress path for mailbox and list mail. Do not tighten `~all` to `-all` until
+DMARC reports (step 7) have been quiet for a full list cycle.
 
 Verify:
 
@@ -157,30 +149,28 @@ dig TXT latoolb.us +short @1.1.1.1 | grep spf1
 The DKIM key pair is **generated apply-plane-side** in the infra overlay's
 sops lane (row d: the private key never appears in this repo, not even as
 ciphertext; it is named — names-only — in `secrets.contract.yaml`). The
-selector is chosen apply-plane-side too; for
-reference, `tinyland.dev`'s live selector is `mail`.
-
-Publish the public half handed over by the apply-plane operator:
+selector is chosen apply-plane-side too. The public half is published by the
+infra overlay:
 
 | Name | Type | Value |
 | --- | --- | --- |
 | `<selector>._domainkey.latoolb.us` | `TXT` | `v=DKIM1; k=rsa; p=<public-key-from-infra-overlay>` |
 
-Verify (then send a test mail to a mailbox you control and check the
-`DKIM-Signature` header validates, e.g. via the provider's "show original"):
+Verify the public selector from the overlay, then send a test mail to a mailbox
+you control and check that the `DKIM-Signature` header validates:
 
 ```bash
 dig TXT <selector>._domainkey.latoolb.us +short @1.1.1.1
 ```
 
-## 7. Mail: DMARC for latoolb.us — start at p=none
+## 7. Mail: DMARC for latoolb.us — monitor mode
 
-Start in monitor-only mode with aggregate reports; tighten later, after the
-list has real traffic and the reports are clean:
+Current live policy is monitor-only with aggregate reports. Tighten later,
+after the list has real traffic and the reports are clean:
 
 | Name | Type | Value |
 | --- | --- | --- |
-| `_dmarc.latoolb.us` | `TXT` | `v=DMARC1; p=none; rua=mailto:<operator-chosen report mailbox>` |
+| `_dmarc.latoolb.us` | `TXT` | `v=DMARC1; p=none; rua=mailto:postmaster@latoolb.us` |
 
 The `rua=` mailbox must exist before publishing. If it is on a different
 domain than `latoolb.us`, that domain must publish the external-destination
@@ -219,13 +209,15 @@ curl -s https://mta-sts.latoolb.us/.well-known/mta-sts.txt
 
 ## Exit criteria
 
-- [ ] Both zones answer from Cloudflare nameservers (step 1)
-- [ ] `https://greatfallstoolbus.org` and `https://www.greatfallstoolbus.org` serve the site (step 2)
-- [ ] `latoolb.us` root + www 301 to the current `alias_redirect_target` (step 3;
-      GitHub Pages fallback during the gated phase, `https://greatfallstoolbus.org/`
-      after TIN-2421 opens the Access gate)
-- [ ] `dig MX latoolb.us` returns `10 relay.tinyland.dev.` (step 4)
-- [ ] SPF, DKIM, DMARC TXT records resolve (steps 5–7)
-- [ ] A round-trip test mail to `keyholders@latoolb.us` is delivered and
-      passes SPF + DKIM + DMARC in the receiving provider's headers —
-      only meaningful after the overlay-applied MailAccount/list exist
+- [x] Both zones answer from Cloudflare nameservers (step 1)
+- [x] `https://greatfallstoolbus.org` and `https://www.greatfallstoolbus.org`
+      serve the gated site by returning Cloudflare Access `302` responses
+      during REV-2 (step 2)
+- [x] `latoolb.us` root + www 301 to the current `alias_redirect_target`
+      (step 3; GitHub Pages fallback during the gated phase,
+      `https://greatfallstoolbus.org/` after TIN-2421 opens the Access gate)
+- [x] `dig MX latoolb.us` returns `10 relay.tinyland.dev.` (step 4)
+- [x] SPF, DKIM, DMARC TXT records resolve (steps 5–7)
+- [x] Mailbox round-trip is certified with SPF + DKIM pass (TIN-2379)
+- [ ] Mailman/HyperKitty list/archive round-trip remains TIN-2380; do not
+      imply the list runtime is live from mailbox DNS success

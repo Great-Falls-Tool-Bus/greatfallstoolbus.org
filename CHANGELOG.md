@@ -7,6 +7,8 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ### Changed
 
+- Align the DNS/mail cutover runbook with the executed Cloudflare Pages,
+  infra-overlay DNS, SPF, DMARC, and TIN-2380 list-runtime state.
 - Re-point apply-plane references from the blahaj tenants lane to the org
   apply-plane overlay `great-falls-tool-bus-infra` (packet 0001 Amendment 1,
   memo 0002): `applied_by` in both intent files, secrets plane vocabulary
