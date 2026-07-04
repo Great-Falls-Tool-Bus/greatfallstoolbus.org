@@ -77,10 +77,13 @@ if (analyzeRequested) {
 }
 
 // NOTE on @sveltejs/enhanced-img: deliberately NOT wired here. It is still
-// 0.x / experimental and is a build-time `<enhanced:img>` transform — it does
+// 0.x / experimental and is a build-time `<enhanced:img>` transform; it does
 // NOT cover runtime/static assets in `static/`, which is the scaffold's
 // default image path. The committed pipeline is `just optimize-images`
-// (sharp + svgo -> webp/avif + manifest). Spokes that want the build-time
+// (sharp + svgo -> webp/avif renditions plus static/image-manifest.json with
+// intrinsic width/height), chained into `just build` when static/photos has
+// assets. Consumption goes through src/lib/responsive-image.ts and the
+// manifest-driven Picture.svelte component. Spokes that want the build-time
 // transform can opt in by adding `enhancedImages()` to the plugins below,
 // but it is not the default and is not a dependency of this scaffold.
 export default defineConfig({
