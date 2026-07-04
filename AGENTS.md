@@ -1,4 +1,4 @@
-# Agent Notes — greatfallstoolbus.org
+# Agent Notes: greatfallstoolbus.org
 
 This file is the working contract for coding agents and LLMs operating in any
 sister site spawned from this scaffold.
@@ -6,13 +6,13 @@ sister site spawned from this scaffold.
 ## GFTB Specifics
 
 This spoke is the **Great Falls Tool Bus** public monorepo (see
-`docs/decisions/0001-gftb-mvp-decisions.md` — the binding decision packet,
+`docs/decisions/0001-gftb-mvp-decisions.md`, the binding decision packet,
 Linear TIN-2360). Non-negotiables beyond the scaffold contract: this repo holds
 **zero secrets and zero cluster endpoints, ever** (public repo; sops+age
 material lives in the org apply-plane overlay `great-falls-tool-bus-infra`
-under its `secrets/` lane); IaC here is declare-only intent — apply authority
+under its `secrets/` lane); IaC here is declare-only intent, apply authority
 is `great-falls-tool-bus-infra` (mail/list/Anubis/DNS apply + runners,
-TIN-2299; packet 0001 Amendment 1 / memo 0002 — blahaj is replaceable
+TIN-2299; packet 0001 Amendment 1 / memo 0002, blahaj is replaceable
 substrate consumed by reference); never scaffold a runner or
 bake a cache/executor endpoint; the five sewing-cell ASINs stay opaque until
 operator-mediated resolution (never invent product names); all money-donation
@@ -21,8 +21,7 @@ row (h) is signed.
 
 ## Repo Role
 
-This repo is **a static brand/project site under the Tinyland enterprise** —
-one of many static projection consumers of the `tinyland.dev` authority
+This repo is **a static brand/project site under the Tinyland enterprise**, one of many static projection consumers of the `tinyland.dev` authority
 monolith. It is **not** an application backend. It does not own user data,
 auth, payments, or business logic. Public content may later flow in through
 reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
@@ -47,7 +46,7 @@ reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
 - **DX/AX**: `Justfile` is the single source of truth for every operation.
   Always invoke through `just <recipe>`. Do not call `pnpm` / `vite` /
   `bazelisk` directly outside the Justfile unless adding a new recipe.
-- **Shell**: `nix develop` (auto-loaded by `direnv`) — never assume host
+- **Shell**: `nix develop` (auto-loaded by `direnv`), never assume host
   toolchain. CI runs `nix develop --command just <recipe>`.
 - **Build**: `just build` produces a static `build/` (adapter-static).
 - **Check**: `just check` runs sync + svelte-check.
@@ -64,7 +63,7 @@ reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
   conformance.
 - **Canonical skill location**: `.agents/skills/<name>/SKILL.md`. Edit here.
 - **Claude Code discovery**: `.claude/skills/<name>` is a symlink to
-  `../../.agents/skills/<name>`. Do not author here — the symlink resolves
+  `../../.agents/skills/<name>`. Do not author here, the symlink resolves
   automatically.
 - **Plugin marketplace**: `.claude-plugin/marketplace.json` exposes
   `plugins/scaffold-core/` as a git-subdir-installable plugin. Other repos
@@ -73,19 +72,19 @@ reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
   symlinks under `plugins/scaffold-core/skills/` that resolve back to the
   canonical `.agents/skills/<name>`.
 - **Published skills** (six):
-  - `tinyland-whoami` — cold-landing repo-role classifier. Run via `just whoami`.
-  - `tinyland-spawn-sister-site` — user-only; wraps the `gh repo create
+  - `tinyland-whoami`, cold-landing repo-role classifier. Run via `just whoami`.
+  - `tinyland-spawn-sister-site`, user-only; wraps the `gh repo create
     --template` + `scripts/rebrand.sh` ritual.
-  - `tinyland-scaffold-doctor` — drift audit. Run via `just scaffold-doctor`.
-  - `tinyland-repo-contract` — house-style baseline (Justfile/flake/gitleaks).
-  - `tinyland-static-spoke` — per-spoke customization for static brand sites.
-  - `tinyland-flywheel-bazel` — cache-first Bazel through GloriousFlywheel.
+  - `tinyland-scaffold-doctor`, drift audit. Run via `just scaffold-doctor`.
+  - `tinyland-repo-contract`, house-style baseline (Justfile/flake/gitleaks).
+  - `tinyland-static-spoke`, per-spoke customization for static brand sites.
+  - `tinyland-flywheel-bazel`, cache-first Bazel through GloriousFlywheel.
 - **Validation**: `just skills-validate` checks every SKILL.md frontmatter for
   required fields and the Anthropic 1,536-char description cap. Wire into
   `just check` in any consuming repo that publishes its own skills.
 - **Public agent index**: `static/llms.txt`, `static/agent-map.md`, and the
   `/agent` SvelteKit route. The `/agent` route renders skill bodies from
-  `.agents/skills/*/SKILL.md` at build time — do not hand-edit the route to
+  `.agents/skills/*/SKILL.md` at build time, do not hand-edit the route to
   list skills; update the SKILL.md and rebuild.
 - `tinyland.repo.json` is the machine-readable repo-shape manifest. It declares
   that this repo is a `static-spoke-scaffold`, not a mothership or stateful app.
@@ -180,7 +179,7 @@ reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
 After `gh repo create --template tinyland-inc/site.scaffold`:
 
 1. `direnv allow`
-2. `scripts/rebrand.sh <site.example.com>` — rewrites name strings, env vars,
+2. `scripts/rebrand.sh <site.example.com>`, rewrites name strings, env vars,
    bazel cache name, etc.
 3. Update `MODULE.bazel` `module(name = ...)` to underscored site name.
 4. Update `README.md` / `AGENTS.md` with the per-site brand purpose.
@@ -195,7 +194,7 @@ After `gh repo create --template tinyland-inc/site.scaffold`:
   Pin via the BCR.
 - Don't add in-house npm package ranges or allow `package.json` to drift from
   `MODULE.bazel`; use `just inhouse-package-parity` or `just conformance`.
-- Don't bypass `Justfile` in CI or local — DX/AX must stay homogenous.
+- Don't bypass `Justfile` in CI or local, DX/AX must stay homogenous.
 - Don't unpin Skeleton or Tailwind v4-compat shim without coordination.
 
 ## Multi-Lane Posture
@@ -205,11 +204,11 @@ After `gh repo create --template tinyland-inc/site.scaffold`:
   any `tofu/` file, or any `flywheel-*` Justfile recipe.
 - A spoke runs one or more **lanes** declared in `.github/lanes.json`. The
   default scaffold ships a single `default` lane; multi-trunk spokes
-  (MassageIthaca-shaped) add more — up to 8.
+  (MassageIthaca-shaped) add more, up to 8.
 - Lane edits are a one-file change. After editing `.github/lanes.json`,
   run `just lanes-validate` and `just conformance` before committing.
 - A three-lane reference is checked in at `.github/lanes.example.json`
-  (not loaded by CI — copy fields you need into `lanes.json`).
+  (not loaded by CI, copy fields you need into `lanes.json`).
 
 ## Flywheel Binding
 
@@ -271,7 +270,7 @@ illustrative, not scaffold content.
   wrappers** that each set a `*_RBE_SMOKE_SCENARIO` env var and `await import()` a
   single shared orchestrator (server spawn + Chromium launch + network mocks +
   the scenario). One runner, N cheap wrappers. Two **load-bearing tag gotchas**:
-  - `test_suite` `tags` are *filters*, not metadata — keep them to the shared tag
+  - `test_suite` `tags` are *filters*, not metadata, keep them to the shared tag
     set or the suite silently resolves to zero targets.
   - A target needs `tags = ["flywheel-eligible"]` or `--config=flywheel-executor`'s
     tag filter matches **zero** targets (a silent no-op). Add `manual` so bare
@@ -280,24 +279,23 @@ illustrative, not scaffold content.
     fallback; cache hits or processwrapper/local execution are not RBE proof.
 - **The proof cell has NO fonts and NO WebGL** (same as the gstack `/browse`
   headless cell). Consequences, learned the hard way:
-  - The MapLibre/WebGL canvas **never paints** in CI — assert layout/DOM, not
+  - The MapLibre/WebGL canvas **never paints** in CI, assert layout/DOM, not
     pixels. Text-only nodes render zero-size, so use Playwright
     `waitFor({ state: 'attached' })` + `textContent`/attributes, **not**
     `{ state: 'visible' }` or `.click()` on them.
-  - **Click the map canvas at its own CENTER** — `canvas.click()` with **no**
+  - **Click the map canvas at its own CENTER**, `canvas.click()` with **no**
     `position`. A viewport-relative `position` breaks once the map is inset
     (framed/gutter layouts): the click point falls outside the smaller canvas and
     times out as "not visible/stable". (Real regression caught only by the live
     proof, never by static review.)
-  - **Trust the live browser-RBE proof over static analysis** for smoke impact —
-    a static read of the smokes cannot see runtime actionability failures.
+  - **Trust the live browser-RBE proof over static analysis** for smoke impact, a static read of the smokes cannot see runtime actionability failures.
 - **Font/WebGL-dependent visuals are CI-blind.** Verify them **locally** with a
   SwiftShader Chrome capture tool (`just capture-shipped-ui` →
   `scripts/capture-shipped-ui.mjs`): it serves the build and drives the system
   Chrome with `--enable-unsafe-swiftshader --use-gl=angle --use-angle=swiftshader`
   (+ real fonts) so the canvas actually renders for per-route screenshots. This is
   the only camera that can see a framed/gutter layout regression.
-- **`root_lib_test` lists files explicitly — NO glob.** Top-level `src/lib/*.ts` +
+- **`root_lib_test` lists files explicitly, NO glob.** Top-level `src/lib/*.ts` +
   `*.test.ts` are enrolled by explicit label in `BUILD.bazel` (Bazel globs stop at
   sub-package boundaries, and aspect_rules_js rejects raw cross-package file
   labels). A new lib module + its test must be **added to both the `data` and
@@ -309,15 +307,15 @@ illustrative, not scaffold content.
 
 The scaffold default is **adapter-static → GitHub Pages** (cheap, DB-less, no edge
 auth) and that is the house baseline for content/brand spokes. **adapter-node** is
-a *sanctioned opt-in*, not the default — adopt it only when a spoke genuinely needs
+a *sanctioned opt-in*, not the default, adopt it only when a spoke genuinely needs
 a server: a secret-holding proxy, upstream normalization (e.g. ad-header stripping
 / bbox rewriting), or thin API routes the browser can't do safely. The
 `darkmap.phasi.space` spoke is the adapter-node reference (it proxies + normalizes
 an upstream GeoServer). A spoke that switches must also flip its deploy lane
 (container build → server) and its smoke serve path (`node build/index.js` vs a
-static file server) — keep both documented; never silently switch the default.
+static file server), keep both documented; never silently switch the default.
 
-**Dynamic-spoke variant (adapter-node, flagged at spawn — TIN-2228).** Rather than
+**Dynamic-spoke variant (adapter-node, flagged at spawn, TIN-2228).** Rather than
 hand-rolling the static→node swap (the way `printstack`/TIN-1280 did), the swap is a
 flagged mode IN this scaffold. `scripts/rebrand.sh` takes `--adapter=node|static`
 (default `static`): `--adapter=node <domain>` jq-swaps the `@sveltejs/adapter-static`
@@ -330,7 +328,7 @@ the static-vs-dynamic deploy lanes live in
 [`docs/decisions/dynamic-spoke-adapter-mode.md`](docs/decisions/dynamic-spoke-adapter-mode.md)
 and [`docs/decisions/dynamic-canary-blue-green.md`](docs/decisions/dynamic-canary-blue-green.md).
 A dynamic spoke is `app-stateful-spoke`, so the static-spoke boundary block does NOT
-constrain it — re-check `boundaries` in `tinyland.repo.json` after flipping.
+constrain it, re-check `boundaries` in `tinyland.repo.json` after flipping.
 
 **Deploy lane (GFTB = Cloudflare Pages).** This repo has taken the sanctioned
 Cloudflare Pages opt-in for org/edge spokes. `.github/workflows/deploy-pages.yml`
@@ -396,11 +394,11 @@ prior artifact). Both lanes are designed in
   credentials, retention, and restore behavior are environment/operator
   authority.
 - Consumed modules (from `tinyland-inc/GloriousFlywheel@spoke-tofu-modules-v1.0.0`):
-  - `spoke-state-namespace` — S3 prefix + reaper IAM.
-  - `spoke-dns-pr-env` — wildcard CNAME `*.pr.<domain>`.
-  - `spoke-cache-quota` — Attic + Bazel cache allocation.
-  - `spoke-runner-binding` — runner-class ACL (hard-deny).
-  - `spoke-blahaj-app-install` — Blahaj GitHub App binding.
+  - `spoke-state-namespace`, S3 prefix + reaper IAM.
+  - `spoke-dns-pr-env`, wildcard CNAME `*.pr.<domain>`.
+  - `spoke-cache-quota`, Attic + Bazel cache allocation.
+  - `spoke-runner-binding`, runner-class ACL (hard-deny).
+  - `spoke-blahaj-app-install`, Blahaj GitHub App binding.
 - Required spoke inputs (in `tofu/spoke.auto.tfvars`): `spoke_slug`,
   `brand_domain`, `github_org`, `blahaj_installation_id`,
   `allowed_runner_classes`, `lane_allowlist`. `scripts/rebrand.sh`
@@ -408,7 +406,7 @@ prior artifact). Both lanes are designed in
 
 ## Conformance
 
-- `just conformance` runs `scripts/check-conformance.sh` — the
+- `just conformance` runs `scripts/check-conformance.sh`, the
   seventeen-item checklist in `docs/CI-SCHEMA.md` §12. A green run means
   the spoke is house-style compliant. MANUAL items (org ruleset,
   tailnet DNS) require operator verification outside this repo.

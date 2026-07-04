@@ -8,9 +8,9 @@ transscendsurvival.org's `docs/runbooks/dns-cutover-and-rollback.md`
 ("ROLLBACK: revert apex serving" as the cheap application-level path, and a
 separate heavier authority/serving-substrate revert). The two levels here are:
 
-- **Fast path** — roll the Cloudflare Pages _deployment_ back to a prior
+- **Fast path**: roll the Cloudflare Pages _deployment_ back to a prior
   known-good build. Same origin, same DNS, same gate. Minutes.
-- **Full path** — move the serving _substrate_ off Cloudflare Pages back to
+- **Full path**: move the serving _substrate_ off Cloudflare Pages back to
   GitHub Pages (re-point `var.pages_host`, restore the GH-Pages workflow, re-enable
   GitHub Pages). Larger blast radius; use only when Cloudflare Pages itself is the
   problem.
@@ -28,7 +28,7 @@ separate heavier authority/serving-substrate revert). The two levels here are:
   Cloudflare Access (`cloudflare_zero_trust_access_application.web_apex` /
   `web_www` / `pages_dev`). An unauthenticated request returns
   `302 -> <team>.cloudflareaccess.com/cdn-cgi/access/login/...`. That 302 is the
-  health signal — see `.github/workflows/production-health.yml`.
+  health signal, see `.github/workflows/production-health.yml`.
 - **Rollback publisher of record:** GitHub Pages at
   `great-falls-tool-bus.github.io` remains the substrate-level fallback. The infra
   `var.pages_host` default and `var.alias_redirect_target`
@@ -48,23 +48,23 @@ Substrate fallback (full path only):
 
 | Symptom | Path |
 | ------- | ---- |
-| A bad build shipped (broken page, wrong content, regression) but the Pages project/edge/gate are healthy | **Fast path** — promote a prior Pages deployment |
+| A bad build shipped (broken page, wrong content, regression) but the Pages project/edge/gate are healthy | **Fast path**: promote a prior Pages deployment |
 | `production-health.yml` fails (no `302` to `cloudflareaccess.com`) but DNS delegation is intact and the Pages dashboard shows the project healthy | Investigate the Access app first; if the Pages origin itself is down, escalate toward **Full path** |
-| Cloudflare Pages is the failure mode: project build pipeline broken, Pages origin returning 5xx behind the gate, account/project lockout — AND GitHub Pages is healthy | **Full path** — move the substrate back to GitHub Pages |
-| `cloudflare-dns-drift.yml` fails on **NS** drift | Neither — this is a registrar/delegation incident, not a Pages rollback. Fix the delegation. |
+| Cloudflare Pages is the failure mode: project build pipeline broken, Pages origin returning 5xx behind the gate, account/project lockout, AND GitHub Pages is healthy | **Full path**: move the substrate back to GitHub Pages |
+| `cloudflare-dns-drift.yml` fails on **NS** drift | Neither: this is a registrar/delegation incident, not a Pages rollback. Fix the delegation. |
 
-Default to the **fast path**. It is immutable-deployment promotion — no DNS
+Default to the **fast path**. It is immutable-deployment promotion, no DNS
 change, no gate change, instantly reversible. Only reach for the full path when
 Cloudflare Pages as a serving substrate is the thing that is broken, exactly as
 transscend's runbook warns not to revert the heavier layer for an
 application-level regression ("Do **not** revert NS for an application-level Pages
 issue").
 
-## Fast path — promote a prior Cloudflare Pages deployment
+## Fast path: promote a prior Cloudflare Pages deployment
 
 Cloudflare Pages deployments are **immutable**: every build is retained and
 addressable, so "rollback" is really "re-promote a known-good deployment to
-production." DNS, the custom domains, and the Access gate are untouched — only
+production." DNS, the custom domains, and the Access gate are untouched, only
 which immutable build the production alias points at changes.
 
 **Dashboard (preferred, fastest):**
@@ -87,7 +87,7 @@ which immutable build the production alias points at changes.
 
 **API (when the dashboard is unavailable):** use a short-lived, least-privilege
 token with **Account -> Cloudflare Pages: Edit** for this project only (never a
-Global API Key — same auth rule as transscend's runbook). The account id is read
+Global API Key, same auth rule as transscend's runbook). The account id is read
 off the zone lookup and never committed.
 
 ```sh
@@ -106,7 +106,7 @@ Never log the token value.
 **Root-cause the bad build in git** afterward: the regression came from `main`.
 Revert or fix-forward the offending commit so the next deploy does not re-ship it.
 
-## Full path — move the serving substrate back to GitHub Pages
+## Full path: move the serving substrate back to GitHub Pages
 
 Use this only when Cloudflare Pages is the failure mode and GitHub Pages
 (`great-falls-tool-bus.github.io`) is healthy. This is heavier: it changes the
@@ -124,7 +124,7 @@ to GitHub Pages" section.
    ```
 
    The apex/`www` records stay **proxied CNAMEs**; only their `content` (origin)
-   changes. Apply through the normal infra review/plan/apply loop — do not
+   changes. Apply through the normal infra review/plan/apply loop, do not
    hand-edit the Cloudflare dashboard out of band (keep IaC and live in lockstep,
    same discipline as transscend's "change DNS via IaC, not the dashboard").
 
@@ -182,17 +182,17 @@ to GitHub Pages" section.
   Pages are owned by the `great-falls-tool-bus-infra` overlay; use short-lived,
   least-privilege, project-scoped tokens for any manual API rollback and revoke
   them after.
-- Do **not** hand-edit the Cloudflare dashboard for the `full path` DNS change —
-  route it through the infra `var.pages_host` change so IaC and the live zone stay
+- Do **not** hand-edit the Cloudflare dashboard for the `full path` DNS change.
+  Route it through the infra `var.pages_host` change so IaC and the live zone stay
   in lockstep.
 
 ## Related surfaces
 
-- `.github/workflows/production-health.yml` — the gate-302 health probe (TIN-2401).
-- `.github/workflows/cloudflare-dns-drift.yml` — dig-only NS + resolution drift
+- `.github/workflows/production-health.yml`, the gate-302 health probe (TIN-2401).
+- `.github/workflows/cloudflare-dns-drift.yml`, dig-only NS + resolution drift
   guard (TIN-2401).
-- `great-falls-tool-bus-infra` `tofu/stacks/edge` — the authoritative DNS + Access
+- `great-falls-tool-bus-infra` `tofu/stacks/edge`, the authoritative DNS + Access
   + `var.pages_host` definitions.
-- `docs/deploy/cloudflare-pages.md` — the CF-Pages opt-in deploy lane.
+- `docs/deploy/cloudflare-pages.md`, the CF-Pages opt-in deploy lane.
 - Precedent: transscendsurvival.org `docs/runbooks/dns-cutover-and-rollback.md`
   (the two-level rollback model this runbook mirrors).

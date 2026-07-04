@@ -1,4 +1,4 @@
-# Development — greatfallstoolbus.org
+# Development: greatfallstoolbus.org
 
 Scaffold-inherited operational docs, moved out of the root README to keep it
 human-first (the root README is the community call-for-help). Normative
@@ -27,15 +27,15 @@ Access, and the zone live in the `great-falls-tool-bus-infra` edge tofu stack.
 
 ## Stack
 
-- **Just** — sole authoritative DX/AX entrypoint (`Justfile`)
-- **Nix flake + direnv** — reproducible dev shell (`flake.nix`, `.envrc`)
-- **Bazel 8 + Bzlmod** — Bazel-first in-house package authority with GloriousFlywheel cache / executor proof
-- **Agent skills** — Codex/agent project skills with Claude-compatible entrypoints
-- **SvelteKit + adapter-static** — static-only, prerendered
-- **Skeleton 4.15.2** — pinned exact, Tailwind v4 with v4-compat shim
-- **Tummycrypt vite plugins** — `vite-plugin-a11y`, `vite-plugin-skeleton-colors`, `tinyvectors`, `tinyland-color-utils`
-- **CI** — gitleaks secrets-scan, build-and-test, bazel-graph (all run inside `nix develop`)
-- **Preview lanes** — tailnet PR lanes by default; opt-in public client previews via Blahaj + Cloudflare Access
+- **Just**: sole authoritative DX/AX entrypoint (`Justfile`)
+- **Nix flake + direnv**: reproducible dev shell (`flake.nix`, `.envrc`)
+- **Bazel 8 + Bzlmod**: Bazel-first in-house package authority with GloriousFlywheel cache / executor proof
+- **Agent skills**: Codex/agent project skills with Claude-compatible entrypoints
+- **SvelteKit + adapter-static**: static-only, prerendered
+- **Skeleton 4.15.2**: pinned exact, Tailwind v4 with v4-compat shim
+- **Tummycrypt vite plugins**: `vite-plugin-a11y`, `vite-plugin-skeleton-colors`, `tinyvectors`, `tinyland-color-utils`
+- **CI**: gitleaks secrets-scan, build-and-test, bazel-graph (all run inside `nix develop`)
+- **Preview lanes**: tailnet PR lanes by default; opt-in public client previews via Blahaj + Cloudflare Access
 
 ## After creating from template
 
@@ -132,7 +132,7 @@ files, so they can never drift apart.
    status: 'in-kit' # 'in-kit' | 'restoration' -> /tools; 'wants' -> /wants
    cell: 'sewing' # must match a cell slug in tool-schema.ts CELL_SLUGS
    order: 1 # sort position within the cell (kit-packing order)
-   blurb: 'One honest sentence — this is the card copy.'
+   blurb: 'One honest sentence: this is the card copy.'
    docUrl: 'https://…' # optional; manufacturer manual/datasheet, https only
    docLabel: 'Instruction manual (PDF)' # required when docUrl is set
    ---
@@ -142,12 +142,12 @@ files, so they can never drift apart.
 
 2. Add photos under `static/` and run `just optimize-images` (per-tool photo
    wiring lands with the per-tool pages).
-3. Run `just tools-validate` — it compiles every `.svx` with mdsvex and fails
+3. Run `just tools-validate`. It compiles every `.svx` with mdsvex and fails
    on schema drift, non-https doc links, duplicate slugs, or duplicate `order`
    values. `just check` runs it too.
 
 Inventory doctrine: every entry resolves to a real model number with a
-manufacturer manual or datasheet link — no invented product names, ever. A
+manufacturer manual or datasheet link (no invented product names, ever). A
 tool that is not yet resolved gets honestly framed in its `blurb`, like the
 treadle Singer. New cells register a slug in `src/lib/data/tool-schema.ts`
 (`CELL_SLUGS`) and their captain/travel doctrine in `$lib/data/cells.ts`
