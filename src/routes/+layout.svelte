@@ -184,7 +184,9 @@
 					<ul class="mt-3 space-y-2">
 						{#each group.items as item (item.href)}
 							<li>
-								<a href={`${base}${item.href}`} class="hover:text-primary-500 transition-colors">{item.label}</a>
+								<a href={`${base}${item.href}`} class="hover:text-primary-500 transition-colors" aria-label={item.label}
+									>{item.label}</a
+								>
 							</li>
 						{/each}
 						{#if group.heading === 'Get involved'}

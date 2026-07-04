@@ -5,6 +5,11 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Add a derived Server-side Sieve mail lace-up profile so agents can set up
+  mailbox-side keyholders filing without inventing mail-host endpoints.
+
 ### Changed
 
 - Re-point apply-plane references from the blahaj tenants lane to the org
@@ -16,6 +21,8 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ### Fixed
 
+- Restore a clean static-build accessibility pass by labeling home secondary
+  navigation and footer navigation links.
 - Remove static build warning noise by giving card/tool links explicit
   accessible labels, splitting printable-sheet print colors for Svelte's
   accessibility validator, and normalizing mdsvex module scripts to Svelte 5
