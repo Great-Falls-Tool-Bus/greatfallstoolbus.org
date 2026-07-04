@@ -3,6 +3,27 @@
 This file is the working contract for coding agents and LLMs operating in any
 sister site spawned from this scaffold.
 
+## Agent Coordination (multi-session)
+
+Multiple agent sessions (any provider or runtime) may work these repos in
+parallel. Rules, learned from a real duplicate-work collision (PRs #43/#47
+duplicated merged #44/#37 on 2026-07-04):
+
+1. **One lead session holds merge authority.** Other sessions propose only:
+   open PRs, never merge, never close another session's PR. The operator
+   designates the lead; as of 2026-07-04 the lead is the operator's primary
+   interactive session.
+2. **Before starting a lane: sync main and scan open PRs** (`git pull`,
+   `gh pr list`). If an open PR or fresh main commit already covers your
+   task, extend it or stand down; do not build a parallel solution.
+3. **Branch naming declares the session**: use a session prefix
+   (`codex/...`, `feat/...` from the lead, etc.) so provenance is legible.
+4. **File fences win.** If a PR or issue names files another lane owns,
+   do not touch them; note the handoff instead.
+5. Generated artifacts (`.agents/skills/gftb-mail-laceup-*`, `static/llms.txt`
+   mail section) are owned by `just skills-build`; edit the source
+   (`src/lib/data/mail-clients.ts`), never the outputs.
+
 ## GFTB Specifics
 
 This spoke is the **Great Falls Tool Bus** public monorepo (see
