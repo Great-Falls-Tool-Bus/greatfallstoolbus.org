@@ -137,6 +137,23 @@ export const MAIL_CLIENTS: MailClient[] = [
 		],
 	},
 	{
+		id: 'sieve',
+		name: 'Server-side Sieve',
+		platforms: 'IMAP hosts with Sieve or webmail filters',
+		summary: `Server-side filing for clients with weak local filters; confirm filter support first.`,
+		subscribe: `Send an empty email to ${LIST.join}, then confirm the reply from any mail client.`,
+		filing: `If the mailbox host exposes Sieve or webmail filters, match List-Id "${LIST.listId}" and move matches to a "Keyholders" folder.`,
+		replyToList: `Sieve only files mail; reply from a mail client and keep ${LIST.post} as the recipient.`,
+		mailbox: `For a latoolb.us mailbox, use ${imapSmtp} Do not assume a ManageSieve host or port until the operator or provider exposes one.`,
+		agentHints: [
+			`Ask the user or provider whether Sieve or webmail filters are available; do not invent a ManageSieve host or port.`,
+			`Create or verify a server-side folder named "Keyholders".`,
+			`Install a rule that matches header List-Id "${LIST.listId}" and moves matching mail to the "Keyholders" folder.`,
+			`If List-Id is unavailable before the first Mailman message arrives, temporarily match To or Cc "${LIST.post}".`,
+			`Do not handle credentials directly; let the user authorize the mail host or webmail session.`,
+		],
+	},
+	{
 		id: 'outlook',
 		name: 'Outlook',
 		platforms: 'Web, Windows, macOS',
