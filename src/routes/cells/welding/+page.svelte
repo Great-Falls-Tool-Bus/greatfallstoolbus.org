@@ -1,33 +1,42 @@
 <script lang="ts">
-	// The sewing cell sheet: the printable one-pager that lives in the kit.
-	// Spirit of static/readme.txt: plain, honest, meant for paper. Inventory
-	// truth comes from $lib/data/cells.ts (shared with /tools and /cell-sheets)
-	// so the sheet in the kit can never drift from the site.
+	// The welding cell sheet: the printable one-pager that lives in the kit.
+	// Same shape and spirit as the sewing cell sheet (static/readme.txt: plain,
+	// honest, meant for paper). Inventory truth comes from $lib/data/cells.ts
+	// (shared with /tools and /cell-sheets) so the sheet in the kit can never
+	// drift from the site. The welder itself is details-needed: it is in the kit,
+	// but its brand and model are not documented yet, so the sheet invites the
+	// captain to fill that in rather than printing an invented make.
 	import { base } from '$app/paths';
 	import { cells } from '$lib/data/cells';
 	import DetailsNeeded from '$lib/components/DetailsNeeded.svelte';
 
-	const cell = cells.find((c) => c.slug === 'sewing');
-	if (!cell) throw new Error('sewing cell missing from $lib/data/cells');
+	const cell = cells.find((c) => c.slug === 'welding');
+	if (!cell) throw new Error('welding cell missing from $lib/data/cells');
 </script>
 
 <svelte:head>
-	<title>Sewing cell sheet | Great Falls Tool Bus</title>
+	<title>Welding cell sheet | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="The printable sewing cell sheet: the kit inventory as a checklist table, care rules, captain line, and who to ask. Print it and keep it in the kit."
+		content="The printable welding cell sheet: the kit inventory as a checklist table, arc-safety care rules, captain line, and who to ask. Print it and keep it in the kit."
 	/>
 </svelte:head>
 
 <main class="mx-auto max-w-4xl px-6 py-16 md:py-24">
 	<header class="no-print space-y-4">
 		<p class="text-surface-500 text-xs tracking-widest uppercase">
-			<a class="underline" href={`${base}/cells`}>Tool cells</a> / Sewing
+			<a class="underline" href={`${base}/cells`}>Tool cells</a> / Welding
 		</p>
-		<h1 class="text-4xl leading-tight font-bold">Sewing cell sheet</h1>
+		<h1 class="text-4xl leading-tight font-bold">Welding cell sheet</h1>
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
-			This page is made for paper. Print it, keep one in the kit, pin one to a board. Check the kit against the table
-			every time it goes out and comes back: the checkboxes and blanks are real.
+			Ripley's cell: joining and repairing steel. This page is made for paper. Print it, keep one in the kit, pin one to
+			a board. Check the kit against the table every time it goes out and comes back: the checkboxes and blanks are
+			real.
+		</p>
+		<p class="text-surface-700 dark:text-surface-300 leading-relaxed">
+			Some rows are marked <strong>details needed</strong>. The welder is in the kit, but its brand and model have not
+			been written down yet, so the sheet says so instead of guessing. If you know a make, a model, or have a photo,
+			follow the edit link on the row and fill it in. An honest gap is a link, not a guess.
 		</p>
 		<button
 			type="button"
@@ -101,36 +110,43 @@
 		<section aria-label="Mark the bits">
 			<h3 class="sheet-h">MARK THE BITS</h3>
 			<p>
-				Every piece (bobbins, feet, rippers, snips, pins) is marked as part of this set. If you find an unmarked bit,
-				mark it (paint pen, engraver, or tag) before it goes back in the box. You should always know this tool belongs
-				to the sewing kit it came in.
+				Every piece (clamps, fixtures, eye protection, leads) is marked as part of this set. If you find an unmarked
+				bit, mark it (paint pen, engraver, or tag) before it goes back in the box. You should always know this tool
+				belongs to the welding kit it came in.
 			</p>
 		</section>
 
 		<section aria-label="Care rules">
-			<h3 class="sheet-h">CARE RULES</h3>
+			<h3 class="sheet-h">CARE AND SAFETY RULES</h3>
 			<ul class="sheet-list">
 				<li>
 					<span class="box" aria-hidden="true"></span>
 					<span
-						><strong>Oil only, never grease</strong>, especially the 1800s treadle Singer. Singer sewing machine oil is
-						in the kit; grease gums the old works and ruins the restoration.</span
+						><strong>Eye protection rated for the arc, every time.</strong> For the operator and for anyone nearby. Shop safety
+						glasses are not enough. No bare eyes near a live arc.</span
 					>
-				</li>
-				<li>
-					<span class="box" aria-hidden="true"></span>
-					<span>The treadle Singer is a restoration in progress, not yet a working machine. Do not sew on it.</span>
-				</li>
-				<li>
-					<span class="box" aria-hidden="true"></span>
-					<span>The bent ProSeries shears stay dedicated to fabric. Paper kills shears.</span>
 				</li>
 				<li>
 					<span class="box" aria-hidden="true"></span>
 					<span
-						>Bonded-nylon upholstery thread is for heavy repairs only: too stiff for fine seams. T-pins are for blocking
-						and heavy layers: too thick for shirting.</span
+						>Weld on a clear, non-flammable surface, away from anything that can catch. Know where the extinguisher is
+						before you strike an arc.</span
 					>
+				</li>
+				<li>
+					<span class="box" aria-hidden="true"></span>
+					<span>Ventilate. Welding fumes are not shop dust; move the air or move outside.</span>
+				</li>
+				<li>
+					<span class="box" aria-hidden="true"></span>
+					<span
+						>Let hot metal and the work cool, or quench it deliberately. Nothing hot, sharp, or live goes back in the
+						kit.</span
+					>
+				</li>
+				<li>
+					<span class="box" aria-hidden="true"></span>
+					<span>Coil the leads, cap the connectors, and check the cables for nicks before every use.</span>
 				</li>
 				<li>
 					<span class="box" aria-hidden="true"></span>
@@ -144,7 +160,9 @@
 			<ul class="sheet-list">
 				<li>
 					<span aria-hidden="true">*</span>
-					<span>The cell captain (named above): anything about this kit.</span>
+					<span
+						>The cell captain (named above): anything about this kit, and a safety orientation before first use.</span
+					>
 				</li>
 				<li>
 					<span aria-hidden="true">*</span>
@@ -152,7 +170,10 @@
 				</li>
 				<li>
 					<span aria-hidden="true">*</span>
-					<span>Machine trouble: the model manual first (links in the table), then the captain.</span>
+					<span
+						>Know the welder's make and model, or have a photo of a details-needed item? Edit its page from the online
+						sheet at https://greatfallstoolbus.org/cells/welding</span
+					>
 				</li>
 			</ul>
 		</section>
@@ -268,6 +289,7 @@
 	}
 	.col-notes {
 		min-width: 16em;
+		overflow-wrap: anywhere;
 	}
 	.writein {
 		display: inline-block;
@@ -275,9 +297,6 @@
 		min-width: 6em;
 		border-bottom: 1px solid currentColor;
 		height: 1em;
-	}
-	.col-notes {
-		overflow-wrap: anywhere;
 	}
 
 	/* ===== Print: strip the site chrome, black on white, paper-honest ===== */

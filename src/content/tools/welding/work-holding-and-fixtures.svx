@@ -1,0 +1,9 @@
+---
+name: 'Work holding and related gear'
+status: 'in-kit'
+cell: 'welding'
+order: 2
+blurb: 'In kit. The rests and fixtures that hold a workpiece steady and square while it is welded.'
+detailsNeeded: true
+detailsWanted: ['itemized contents', 'photo']
+---
