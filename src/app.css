@@ -6,23 +6,25 @@
 /* omux Warm/Pragmatic house theme (Skeleton 4 house format, OKLCH). */
 @import './lib/styles/themes/omux.css';
 
-/* Self-hosted fonts (all @fontsource ship font-display:swap → FOUC-safe).
-   Warm-variant editorial pairing (blog-structural uplift):
+/* Self-hosted fonts (all @fontsource ship font-display:swap, FOUC-safe).
+   Wave-2.5 typography pairing:
    - Crimson Pro (serif) for body copy + .prose editorial blocks.
-   - Raleway (geometric sans) for headings + the uppercase .font-display lockup.
-   - Inter retained as the base sans fallback in the omux typography vars.
-   - FiraCode Nerd Font Mono (Nerd Font glyphs + Fira Code ligatures) for all
-     code surfaces — self-hosted woff2 below. */
+   - Fraunces Variable (display serif, wght axis) for headings + the uppercase
+     .font-display wordmark lockup.
+   - Inter retained for UI chrome and as the base sans fallback in the omux
+     typography vars.
+   - Fira Code Variable for all code surfaces, ligatures on (liga + calt).
+     Replaces the previously hand-vendored FiraCode Nerd Font Mono woff2 files;
+     everything is self-hosted through fontsource, no runtime external font
+     fetches. */
 @import '@fontsource/crimson-pro/latin-400.css';
 @import '@fontsource/crimson-pro/latin-400-italic.css';
 @import '@fontsource/crimson-pro/latin-600.css';
 @import '@fontsource/crimson-pro/latin-700.css';
-@import '@fontsource/raleway/latin-400.css';
-@import '@fontsource/raleway/latin-500.css';
-@import '@fontsource/raleway/latin-600.css';
-@import '@fontsource/raleway/latin-700.css';
+@import '@fontsource-variable/fraunces';
 @import '@fontsource/inter/latin-400.css';
 @import '@fontsource/inter/latin-600.css';
+@import '@fontsource-variable/fira-code';
 
 /* Tailwind v4 only generates utilities it can see at build time, and Skeleton's
    component markup ships utility classes of its own (e.g. `size-4` on the
@@ -32,23 +34,17 @@
    Keep it pointing at the vendored dist; MassageIthaca carries the same line. */
 @source '../node_modules/@skeletonlabs/skeleton-svelte/dist';
 
-@font-face {
-	font-family: 'FiraCode Nerd Font Mono';
-	src:
-		local('FiraCodeNerdFontMono-Regular'),
-		url('/fonts/FiraCodeNerdFontMono-Regular.woff2') format('woff2');
-	font-weight: 400;
-	font-style: normal;
-	font-display: swap;
-}
-@font-face {
-	font-family: 'FiraCode Nerd Font Mono';
-	src:
-		local('FiraCodeNerdFontMono-Bold'),
-		url('/fonts/FiraCodeNerdFontMono-Bold.woff2') format('woff2');
-	font-weight: 700;
-	font-style: normal;
-	font-display: swap;
+/* ===== Typography tokens (Wave-2.5) =====
+   Tailwind v4 theme tokens. --font-mono drives the generated font-mono
+   utility and carries the Fira Code ligature axes (liga + calt) into every
+   consumer via the paired --font-mono--font-feature-settings key. Fallback
+   stacks lead with metric-close local faces (Georgia for the serifs,
+   ui-monospace for code) so the font-display:swap handoff stays CLS-safe. */
+@theme {
+	--font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-serif: 'Crimson Pro', Georgia, 'Times New Roman', serif;
+	--font-mono: 'Fira Code Variable', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	--font-mono--font-feature-settings: 'liga' 1, 'calt' 1;
 }
 
 /* Dark-mode strategy: data-mode attribute on <html>, set synchronously by the
@@ -64,16 +60,18 @@
 }
 
 /* ===== Warm-variant editorial overrides (blog-structural uplift) =====
-   Retarget the omux typography vars onto the Crimson Pro (body) / Raleway
-   (headings) pairing and flatten container radii to sharp (0), mirroring the
-   jesssullivan.github.io blog structure. The bare [data-theme] selector has the
-   SAME specificity as omux.css's [data-theme='omux']; it is placed AFTER that
-   @import so source order wins. The omux WARM palette + TinyVectors colors are
-   deliberately left untouched. Functional focus-ring / scrollbar radii further
-   down keep their 2px values — only structural container radius goes sharp. */
+   Retarget the omux typography vars onto the Crimson Pro (body) / Fraunces
+   (headings + display) pairing and flatten container radii to sharp (0),
+   mirroring the jesssullivan.github.io blog structure. The bare [data-theme]
+   selector has the SAME specificity as omux.css's [data-theme='omux']; it is
+   placed AFTER that @import so source order wins. The omux WARM palette +
+   TinyVectors colors are deliberately left untouched. Functional focus-ring /
+   scrollbar radii further down keep their 2px values; only structural
+   container radius goes sharp. */
 [data-theme] {
-	--typo-base--font-family: 'Crimson Pro', Georgia, 'Times New Roman', serif;
-	--typo-heading--font-family: 'Raleway', 'Inter', system-ui, sans-serif;
+	--typo-base--font-family: var(--font-serif);
+	--typo-heading--font-family: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
+	--typo-display--font-family: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
 	--radius-base: 0;
 	--radius-container: 0;
 }
@@ -134,10 +132,10 @@ h4,
 	font-weight: 600;
 }
 
-/* Display lockup — Raleway, uppercase, tracked. Drives the Wordmark brand
+/* Display lockup: Fraunces, uppercase, tracked. Drives the Wordmark brand
    lockup in the AppBar + drawer and is available for editorial eyebrows. */
 .font-display {
-	font-family: 'Raleway', 'Inter', system-ui, sans-serif;
+	font-family: var(--typo-display--font-family, 'Fraunces Variable', Georgia, serif);
 	font-weight: 700;
 	text-transform: uppercase;
 	letter-spacing: 0.12em;
@@ -174,13 +172,13 @@ kbd,
 pre,
 samp,
 .font-mono {
-	font-family: 'FiraCode Nerd Font Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-family: var(--font-mono);
 	font-feature-settings:
 		'liga' 1,
 		'calt' 1;
 }
 
-/* Shiki-rendered code blocks: inherit our FiraCode Nerd Font Mono stack
+/* Shiki-rendered code blocks: inherit our Fira Code Variable stack
    AND wrap rather than scroll. User constraint: no scrollbars inside any
    element, at any breakpoint. Long lines wrap on word boundaries; URLs
    and other unbreakable tokens use overflow-wrap: anywhere. */
@@ -215,7 +213,7 @@ pre.shiki span {
 pre.shiki,
 pre.shiki code,
 pre.shiki span {
-	font-family: 'FiraCode Nerd Font Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+	font-family: var(--font-mono) !important;
 	font-feature-settings:
 		'liga' 1,
 		'calt' 1 !important;
@@ -236,7 +234,7 @@ pre.shiki span {
    Ported from the jesssullivan.github.io blog .prose block and adapted to the
    omux warm theme's paired color tokens (var(--color-*-<light>-<dark>)). Sharp
    corners (radius 0) on code/pre/img match the flattened container radius above.
-   Crimson Pro body sets the base; Raleway headings inherit from the global h*
+   Crimson Pro body sets the base; Fraunces headings inherit from the global h*
    rules. Long content wraps rather than scrolls (house no-scrollbar rule). */
 .prose {
 	line-height: 1.75;

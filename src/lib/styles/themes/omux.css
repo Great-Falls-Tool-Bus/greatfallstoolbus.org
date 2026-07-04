@@ -26,7 +26,7 @@
 	--typo-base--text-transform: none;
 
 	/* Typography: Heading */
-	--typo-heading--font-family: 'Inter', system-ui, -apple-system, sans-serif;
+	--typo-heading--font-family: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
 	--typo-heading--font-size: inherit;
 	--typo-heading--color-light: var(--color-surface-950);
 	--typo-heading--color-dark: var(--color-surface-50);
