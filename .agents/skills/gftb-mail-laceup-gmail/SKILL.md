@@ -14,7 +14,7 @@ Platforms: Web, Android, iOS
 
 ## Subscribe
 
-Send an empty email to keyholders-join@latoolb.us from your Gmail address, then confirm the reply.
+Approved keyholders send an empty email to keyholders-join@latoolb.us from their Gmail address, then confirm the reply; owners approve membership.
 
 ## File list mail
 
@@ -30,10 +30,10 @@ If you hold a latoolb.us mailbox, add it as a full account (not send-as) with ma
 
 ## Archive
 
-HyperKitty web archive: https://lists.latoolb.us/hyperkitty/list/keyholders@latoolb.us/ (pending (TIN-2380)).
+HyperKitty web archive: https://lists.latoolb.us/hyperkitty/list/keyholders@latoolb.us/ (private or off, pending TIN-2380).
 
 ## Agent steps
 
-1. Compose an email to keyholders-join@latoolb.us with an empty subject and body, send it, and watch for the confirmation reply.
+1. For an approved keyholder, compose an email to keyholders-join@latoolb.us with an empty subject and body, send it, and watch for the confirmation reply.
 2. Create a Gmail filter with criteria from=keyholders@latoolb.us, actions add label "keyholders" and never-spam.
 3. When replying to a list thread, address the reply to keyholders@latoolb.us only.

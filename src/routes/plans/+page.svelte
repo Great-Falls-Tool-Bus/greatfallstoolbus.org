@@ -21,7 +21,7 @@
 	const nearTerm = [
 		{
 			title: 'Keyholders mailing list',
-			body: 'A mailing list with a public archive, so lending conversations and decisions stay readable by anyone who cares to look.',
+			body: 'A private role list for access requests, so any keyholder can pick up the work without turning requester details into public archive material.',
 		},
 		{
 			title: 'Contact form',
