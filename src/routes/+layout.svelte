@@ -10,7 +10,7 @@
 	import { TinyVectors } from '@tummycrypt/tinyvectors';
 	import '../app.css';
 	import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
-	import { navItems, isActivePath } from '$lib/nav-items';
+	import { primaryNavItems, footerNavGroups, isActivePath } from '$lib/nav-items';
 
 	let { children } = $props();
 
@@ -97,7 +97,7 @@
 			<AppBar.Headline></AppBar.Headline>
 			<AppBar.Trail>
 				<nav class="hidden items-center gap-4 text-sm lg:flex" aria-label="Section navigation">
-					{#each navItems as item (item.href)}
+					{#each primaryNavItems as item (item.href)}
 						{@const active = isActivePath(currentPath, item.match)}
 						<a
 							href={`${base}${item.href}`}
@@ -137,7 +137,7 @@
 							<Navigation layout="sidebar">
 								<Navigation.Content>
 									<Navigation.Menu>
-										{#each navItems as item (item.href)}
+										{#each primaryNavItems as item (item.href)}
 											<Navigation.TriggerAnchor
 												href={`${base}${item.href}`}
 												aria-current={isActivePath(currentPath, item.match) ? 'page' : undefined}
@@ -167,19 +167,46 @@
 		{@render children?.()}
 	</div>
 
+	<!-- Footer groups mirror $lib/nav-items's footerGroup metadata (lane B
+	     nav-regroup): items demoted off the ≤6-item primary bar land here,
+	     grouped, instead of vanishing. "Get involved" and the meta group are
+	     hand-authored (Wants/Stewards and Stewards/Agent AX/GitHub/Security
+	     predate + extend the shared array). -->
 	<footer class="border-surface-200-800 bg-surface-100-900/80 mt-16 border-t backdrop-blur-sm">
-		<div class="container mx-auto flex flex-col gap-4 px-6 py-8 text-sm md:flex-row md:items-center md:justify-between">
-			<p class="text-surface-700-300">
+		<div class="container mx-auto grid gap-8 px-6 py-10 text-sm md:grid-cols-[2fr_1fr_1fr_1fr]">
+			<p class="text-surface-700-300 max-w-sm">
 				The Great Falls Tool Bus is an unincorporated community project in Lewiston-Auburn, Maine. This is a bus; the
 				shop comes later.
 			</p>
-			<nav class="flex flex-wrap gap-4" aria-label="Footer">
-				<a href={`${base}/stewards`} class="hover:text-primary-500 transition-colors">Stewards</a>
-				<a href={`${base}/agent`} class="hover:text-primary-500 transition-colors">Agent AX</a>
-				<a href={REPO_URL} target="_blank" rel="noopener" class="hover:text-primary-500 transition-colors">GitHub</a>
-				<a href={SECURITY_URL} target="_blank" rel="noopener" class="hover:text-primary-500 transition-colors"
-					>Security</a
-				>
+			{#each footerNavGroups as group (group.heading)}
+				<nav aria-label={group.heading}>
+					<p class="text-surface-500 text-xs tracking-widest uppercase">{group.heading}</p>
+					<ul class="mt-3 space-y-2">
+						{#each group.items as item (item.href)}
+							<li>
+								<a href={`${base}${item.href}`} class="hover:text-primary-500 transition-colors">{item.label}</a>
+							</li>
+						{/each}
+						{#if group.heading === 'Get involved'}
+							<li><a href={`${base}/stewards`} class="hover:text-primary-500 transition-colors">Stewards</a></li>
+						{/if}
+					</ul>
+				</nav>
+			{/each}
+			<nav aria-label="Meta">
+				<p class="text-surface-500 text-xs tracking-widest uppercase">Meta</p>
+				<ul class="mt-3 space-y-2">
+					<li><a href={`${base}/agent`} class="hover:text-primary-500 transition-colors">Agent AX</a></li>
+					<li>
+						<a href={REPO_URL} target="_blank" rel="noopener" class="hover:text-primary-500 transition-colors">GitHub</a
+						>
+					</li>
+					<li>
+						<a href={SECURITY_URL} target="_blank" rel="noopener" class="hover:text-primary-500 transition-colors"
+							>Security</a
+						>
+					</li>
+				</ul>
 			</nav>
 		</div>
 	</footer>
