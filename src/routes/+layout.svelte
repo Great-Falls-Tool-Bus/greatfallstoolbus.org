@@ -99,11 +99,19 @@
 				<nav class="hidden items-center gap-4 text-sm lg:flex" aria-label="Section navigation">
 					{#each primaryNavItems as item (item.href)}
 						{@const active = isActivePath(currentPath, item.match)}
+						{@const Icon = item.icon}
 						<a
 							href={`${base}${item.href}`}
-							class="hover:text-primary-500 transition-colors {active ? 'text-primary-600 font-semibold' : ''}"
+							class="hover:text-primary-500 inline-flex items-center gap-1.5 transition-colors {active
+								? 'text-primary-600 font-semibold'
+								: ''}"
 							aria-current={active ? 'page' : undefined}
-							aria-label={item.label}>{item.label}</a
+							aria-label={item.label}
+						>
+							{#if Icon}
+								<Icon class="h-4 w-4" aria-hidden="true" />
+							{/if}
+							{item.label}</a
 						>
 					{/each}
 					<ThemeSwitcher />
@@ -138,6 +146,7 @@
 								<Navigation.Content>
 									<Navigation.Menu>
 										{#each primaryNavItems as item (item.href)}
+											{@const Icon = item.icon}
 											<Navigation.TriggerAnchor
 												href={`${base}${item.href}`}
 												aria-current={isActivePath(currentPath, item.match) ? 'page' : undefined}
@@ -145,6 +154,9 @@
 													mobileOpen = false;
 												}}
 											>
+												{#if Icon}
+													<Icon class="h-4 w-4" aria-hidden="true" />
+												{/if}
 												<Navigation.TriggerText>{item.label}</Navigation.TriggerText>
 											</Navigation.TriggerAnchor>
 										{/each}

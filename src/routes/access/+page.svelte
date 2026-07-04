@@ -2,6 +2,7 @@
 	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import { KeyRound } from '@lucide/svelte';
 
 	// "How access works": the path from first inquiry to a tool in your hands.
 	// This is where the /contact form points (this lane does NOT wire the form).
@@ -44,6 +45,7 @@
 	<PageHeader
 		title="How access works"
 		lead="Anyone can ask to borrow, and every ask gets a human answer. Four steps take you from a first message to a tool in your hands: no membership fee, no paperwork wall, and a keyholder alongside you the whole way."
+		icon={KeyRound}
 	/>
 
 	<section class="mt-10" aria-label="The steps">

@@ -6,6 +6,7 @@
 	import { cells } from '$lib/data/cells';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import { Boxes } from '@lucide/svelte';
 </script>
 
 <svelte:head>
@@ -17,7 +18,7 @@
 </svelte:head>
 
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
-	<PageHeader title="Tool cells">
+	<PageHeader title="Tool cells" icon={Boxes}>
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
 			A tool cell is the unit the bus is organized around: <strong>a kit plus a captain who knows it</strong>. The kit
 			travels as a set, bits marked, manuals linked, packed to roll. The captain is one person who knows what is in the

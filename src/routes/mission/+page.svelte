@@ -2,6 +2,7 @@
 	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import { Compass } from '@lucide/svelte';
 
 	// Mission framing:
 	//   • tax status = unincorporated community project. NO 501(c)(3), NO fiscal
@@ -40,6 +41,7 @@
 		eyebrow="Lewiston-Auburn, Maine"
 		title="Mission"
 		lead="The Great Falls Tool Bus exists to put serious, hard-to-own-alone tools into the hands of neighbors in Lewiston-Auburn: safely, with no membership fee and no paperwork wall."
+		icon={Compass}
 	/>
 
 	<section class="mt-10 prose max-w-none" aria-label="What we are">

@@ -2,6 +2,7 @@
 	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import { ShieldCheck } from '@lucide/svelte';
 
 	// Safety + responsible-use is MANDATORY for a public power-tool organization
 	// (Artisan's Asylum / Station North precedent: safety orientation before
@@ -49,6 +50,7 @@
 	<PageHeader
 		title="Safety &amp; responsible use"
 		lead="Shared power tools only work when everyone borrows them safely and treats the community with care. These are the ground rules: read them before you borrow. They are community defaults drawn from established makerspace and tool-library practice, pending steward review."
+		icon={ShieldCheck}
 	/>
 
 	<section class="mt-10" aria-label="Ground rules">

@@ -7,6 +7,16 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ### Added
 
+- Wave-2.5 icon vocabulary: expand `@lucide/svelte` usage from the theme and
+  drawer utility icons to a curated set of decorative icons across the
+  primary nav, mobile drawer, and page headers. `NavItem` in `nav-items.ts`
+  gains an optional `icon` field so the desktop nav, mobile drawer, and each
+  route's `PageHeader` share one icon per section: Mission (Compass), Tools
+  (Hammer), Cells (Boxes), Access (KeyRound), Safety (ShieldCheck), Donate
+  (Gift), Wants (ClipboardList), Plans (Map), Bibliography (BookOpen),
+  Shout-outs (Megaphone), Contact (Mail), plus Stewards (Users) on its page
+  header. All icons are tree-shaken named imports, sized to match the site's
+  existing 16-20px icon convention, and marked `aria-hidden` as decoration.
 - Wave-2.5 media pipeline: manifest-driven `Picture.svelte` component and
   `src/lib/responsive-image.ts` srcset builder (AVIF/WebP sources, lazy
   loading by default, intrinsic width/height plus aspect-ratio to prevent
