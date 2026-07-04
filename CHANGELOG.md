@@ -27,6 +27,14 @@ Versioning: [SemVer 2.0](https://semver.org/).
   access model (keyholders are a curated, owner-approved group; anyone may
   request access and non-member requests reach all keyholders; no membership
   fee, no paperwork wall).
+- Wave-2.5 typography: swap the display/wordmark face from Raleway to
+  self-hosted Fraunces Variable (`@fontsource-variable/fraunces`), keeping
+  Crimson Pro body and Inter UI chrome; replace the hand-vendored FiraCode
+  Nerd Font Mono woff2 files in `static/fonts/` with
+  `@fontsource-variable/fira-code`, ligatures on (liga + calt) through a
+  Tailwind v4 `@theme` mono token; wire `--typo-*` tokens and CLS-safe
+  fallback stacks in `app.css` and the omux theme. No runtime external font
+  fetches; everything stays self-hosted through fontsource.
 - Re-point apply-plane references from the blahaj tenants lane to the org
   apply-plane overlay `great-falls-tool-bus-infra` (packet 0001 Amendment 1,
   memo 0002): `applied_by` in both intent files, secrets plane vocabulary
