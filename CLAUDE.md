@@ -1,22 +1,12 @@
-# Claude — greatfallstoolbus.org sister site
+# CLAUDE.md: greatfallstoolbus.org (Claude Code overlay)
 
-This is a sister site spawned from `tinyland-inc/site.scaffold`. Read
-`AGENTS.md` first for the authoritative operating contract.
+This is a thin, Claude Code-specific overlay for a sister site spawned from
+`tinyland-inc/site.scaffold`. `AGENTS.md` is the canonical, provider-neutral
+operating contract; read it first for every operational detail (Just
+recipes, Bazel/Flywheel wiring, gitleaks, Skeleton pin, agent routes, and
+the parent scaffold link). This file does not duplicate that contract.
 
-Quick reminders:
+Claude Code-specific note:
 
-- Use `just <recipe>` for every operation — do not invoke pnpm/vite/bazelisk
-  directly unless extending the Justfile.
-- Project skills are available under `.claude/skills/*`; the canonical copies
-  live under `.agents/skills/*`.
-- GloriousFlywheel-backed Bazel work goes through
-  `scripts/gloriousflywheel-bazel.sh`; do not hard-code remote cache or executor
-  endpoints in `.bazelrc`.
-- Run gitleaks through `just secrets-scan-dir` or `just secrets-scan`.
-- Sites are static. No runtime DB, no auth at the edge — federate via
-  `tinyland.dev` snapshots.
-- Public agent routes: `/agent`, `/llms.txt`, and `/agent-map.md`.
-- Skeleton 4.15.2 pinned exact. Tailwind v4 with `skeletonTailwindV4Compat()`
-  shim. Do not unpin.
-- Bazel registry: `tinyland-inc/bazel-registry` first, then BCR.
-- See parent: https://github.com/tinyland-inc/site.scaffold
+- Project skills resolve via `.claude/skills/*`, a symlink mirror of the
+  canonical `.agents/skills/*`. Edit the canonical copy, not the mirror.

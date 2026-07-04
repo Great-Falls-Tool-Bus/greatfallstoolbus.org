@@ -1,6 +1,6 @@
-# keyholders@latoolb.us — client setup (DRAFT accordion content)
+# keyholders@latoolb.us: client setup (DRAFT accordion content)
 
-> **DRAFT — the list does not exist yet.** This page is pre-written accordion
+> **DRAFT: the list does not exist yet.** This page is pre-written accordion
 > content for the site's join page, staged while the overlay-side Mailman 3 /
 > Postorius / HyperKitty deployment (pinned trio 3.3.10 / 1.3.13 / 1.3.12,
 > TIN-2360 row e) is still being staged. Every address and URL below follows
@@ -48,7 +48,7 @@ confirmation.
 
 ## Gmail
 
-Works out of the box — subscribe with your Gmail address using either flow
+Works out of the box, subscribe with your Gmail address using either flow
 above. Quality-of-life setup:
 
 - **Label the list**: Settings gear -> **See all settings** -> **Filters
@@ -56,7 +56,7 @@ above. Quality-of-life setup:
   `keyholders@latoolb.us` -> **Create filter** -> *Apply the label*
   `keyholders` (create it), optionally *Skip the Inbox*.
 - **Reply to the list, not the sender**: use **Reply all** and trim the
-  recipients, or check the `To:`/`Cc:` line before sending — Gmail has no
+  recipients, or check the `To:`/`Cc:` line before sending, Gmail has no
   reply-to-list button.
 - Gmail collapses long threads and clips very long messages ("View entire
   message"); the public HyperKitty archive is often the more readable view
@@ -68,10 +68,9 @@ above. Quality-of-life setup:
 
 Thunderbird is mailing-list aware:
 
-- On a message from the list, Thunderbird shows a **Reply List** button —
-  prefer it over Reply/Reply All; it addresses `keyholders@latoolb.us`
+- On a message from the list, Thunderbird shows a **Reply List** button, prefer it over Reply/Reply All; it addresses `keyholders@latoolb.us`
   only (it reads the `List-Post` header Mailman sets).
-- **Filter into a folder**: Tools -> **Message Filters** -> New — match
+- **Filter into a folder**: Tools -> **Message Filters** -> New, match
   the header `List-Id` *contains* `keyholders` -> *Move to folder*.
   Filtering on `List-Id` survives address changes and catches service
   notifications too.
@@ -87,7 +86,7 @@ Geary is deliberately minimal:
 - Geary has **no reply-to-list button and no local filters**. Check the
   `To:` line by hand when replying, and create any sorting rules
   **server-side** (e.g. in your provider's webmail rules, or via Sieve if
-  your mail host supports it) — Geary will then show the sorted folder.
+  your mail host supports it), Geary will then show the sorted folder.
 
 ## KMail
 
@@ -97,8 +96,7 @@ KMail has first-class mailing-list support:
   Management** -> **Detect Automatically**. KMail reads the `List-Post` /
   `List-Id` headers and wires up **Reply to Mailing-List** and **Post to
   Mailing-List** actions for that folder.
-- **Filter into a folder**: Settings -> **Configure Filters** -> New —
-  condition `List-Id` *contains* `keyholders`, action *Move into folder*.
+- **Filter into a folder**: Settings -> **Configure Filters** -> New, condition `List-Id` *contains* `keyholders`, action *Move into folder*.
 - The message structure viewer shows the full `List-*` headers if you want
   to confirm what the list engine is doing.
 
@@ -108,13 +106,13 @@ KMail has first-class mailing-list support:
 
 - Log in to Postorius with the account the deploying operator provisions
   for you; the list appears under **Lists you own**.
-- **Held messages**: Postorius -> the list -> **Held messages** — approve,
+- **Held messages**: Postorius -> the list -> **Held messages**, approve,
   reject, or discard. Mailman also emails moderators when something is
   held.
 - **Members**: the **Members** tab manages subscriptions, moderation flags
   (per-member "hold posts"), and bans.
 - **Settings worth reviewing before announcement** (they default
-  reasonably in Mailman 3, but check): archive visibility (public — row e
+  reasonably in Mailman 3, but check): archive visibility (public, row e
   says the HyperKitty archive is public), who may post
   (members/moderated/anyone), subscription policy (confirm vs
   confirm-then-moderate), and the welcome message text.
