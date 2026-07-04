@@ -1,16 +1,20 @@
 #!/usr/bin/env node
-// greatfallstoolbus.org — responsive image + SVG optimizer (TIN-2224).
+// greatfallstoolbus.org responsive image + SVG optimizer (TIN-2224, Wave-2.5).
 //
 // Backfeed of MassageIthaca's proven web-perf craft, adapted to the
 // scaffold's static-spoke context. Two pipelines:
-//   • sharp  — rasters (jpg/jpeg/png/webp) -> webp + avif at responsive
-//              widths, plus an optimized original-size pair.
-//   • svgo   — vector assets (svg) -> minified copies under optimized/.
-// Both feed a single manifest at src/lib/image-manifest.json so callers
-// can resolve the best candidate without re-scanning the filesystem.
+//   sharp: rasters (jpg/jpeg/png/webp) -> webp + avif at responsive
+//          widths, plus an optimized original-size pair.
+//   svgo:  vector assets (svg) -> minified copies under optimized/.
+// Both feed a single manifest at static/image-manifest.json (a committed
+// empty fallback carries zero-photo builds) so callers can resolve the
+// best candidate without re-scanning the filesystem. Each raster entry
+// also records intrinsic width/height so Picture.svelte can reserve the
+// layout box and prevent CLS.
 //
 // Source assets in static/ are never mutated; every artifact lands under
-// static/optimized/ (gitignored). Run via `just optimize-images`.
+// static/optimized/ (gitignored). Run via `just optimize-images`, or let
+// `just build` chain it automatically when static/photos exists.
 import sharp from 'sharp';
 import { optimize as svgoOptimize } from 'svgo';
 import { promises as fs } from 'fs';
@@ -22,7 +26,7 @@ const __dirname = path.dirname(__filename);
 
 const STATIC_DIR = path.join(__dirname, '..', 'static');
 const OUTPUT_DIR = path.join(STATIC_DIR, 'optimized');
-const MANIFEST_PATH = path.join(__dirname, '..', 'src', 'lib', 'image-manifest.json');
+const MANIFEST_PATH = path.join(STATIC_DIR, 'image-manifest.json');
 
 // Responsive widths (mirrors MassageIthaca/scripts/optimize-images.js).
 const SIZES = {
@@ -143,6 +147,21 @@ async function optimizeVector(inputPath) {
 	console.log(`  ✓ svg (${saved >= 0 ? '-' : '+'}${Math.abs(saved)} bytes)`);
 }
 
+// Intrinsic pixel size, best effort. Rasters always resolve; vectors resolve
+// when librsvg can rasterize them. Consumers (Picture.svelte) use these to
+// set width/height + aspect-ratio and eliminate layout shift (CLS).
+async function intrinsicSize(inputPath) {
+	try {
+		const metadata = await sharp(inputPath).metadata();
+		if (typeof metadata.width === 'number' && typeof metadata.height === 'number') {
+			return { width: metadata.width, height: metadata.height };
+		}
+	} catch {
+		// Unreadable by sharp (unusual svg, etc.); entry ships without size.
+	}
+	return {};
+}
+
 async function generateManifest(raster, vector) {
 	const manifest = {};
 
@@ -154,6 +173,7 @@ async function generateManifest(raster, vector) {
 		manifest[baseName] = {
 			type: 'raster',
 			original: '/' + relativePath.replace(/\\/g, '/'),
+			...(await intrinsicSize(imagePath)),
 			optimized: {},
 		};
 
@@ -185,6 +205,7 @@ async function generateManifest(raster, vector) {
 		manifest[baseName] = {
 			type: 'vector',
 			original: '/' + relativePath.replace(/\\/g, '/'),
+			...(await intrinsicSize(svgPath)),
 			optimized: {
 				svg: path.posix.join('/optimized', parsed.dir.replace(/\\/g, '/'), `${parsed.name}.svg`),
 			},

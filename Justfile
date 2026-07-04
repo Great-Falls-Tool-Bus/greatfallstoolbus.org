@@ -34,9 +34,20 @@ dev-open:
 # Build
 # ─────────────────────────────────────────────
 
-# Production static build (adapter-static -> build/)
-build:
+# Production static build (adapter-static -> build/). Runs the image
+# pipeline first when static/photos has assets; otherwise the committed
+# static/image-manifest.json fallback carries the build.
+build: _optimize-images-if-photos
     cd {{ root }} && pnpm run build
+
+# Chain optimize-images into the build path only when there is something to
+# process. No-op safe with zero photos so fresh spokes build clean.
+_optimize-images-if-photos:
+    cd {{ root }} && if [ -d static/photos ] && [ -n "$(ls -A static/photos 2>/dev/null)" ]; then \
+        node scripts/optimize-images.js; \
+    else \
+        echo "No static/photos assets; keeping committed image-manifest fallback."; \
+    fi
 
 # Clean then build
 rebuild: clean build
@@ -504,7 +515,8 @@ analyze:
     cd {{ root }} && ANALYZE=1 pnpm run build
 
 # Optimize static images: sharp -> webp/avif responsive widths, svgo -> SVG,
-# plus a manifest at src/lib/image-manifest.json. Artifacts land in
+# plus a manifest at static/image-manifest.json with intrinsic width/height
+# per entry (CLS sizing for Picture.svelte). Renditions land in
 # static/optimized/ (gitignored). See scripts/optimize-images.js (TIN-2224).
 optimize-images:
     cd {{ root }} && node scripts/optimize-images.js

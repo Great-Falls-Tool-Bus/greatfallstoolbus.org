@@ -7,6 +7,14 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ### Added
 
+- Wave-2.5 media pipeline: manifest-driven `Picture.svelte` component and
+  `src/lib/responsive-image.ts` srcset builder (AVIF/WebP sources, lazy
+  loading by default, intrinsic width/height plus aspect-ratio to prevent
+  layout shift). `scripts/optimize-images.js` now emits intrinsic
+  width/height per entry and writes the manifest to
+  `static/image-manifest.json` (a committed empty fallback keeps zero-photo
+  builds green), and `just build` chains the optimizer automatically when
+  `static/photos` has assets.
 - Add a derived Server-side Sieve mail lace-up profile so agents can set up
   mailbox-side keyholders filing without inventing mail-host endpoints.
 
