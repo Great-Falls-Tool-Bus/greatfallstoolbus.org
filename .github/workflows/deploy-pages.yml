@@ -25,4 +25,12 @@ jobs:
       contents: read
       deployments: write
     uses: tinyland-inc/ci-templates/.github/workflows/spoke-deploy-cloudflare-pages.yml@v2.10.0
-    secrets: inherit
+    # Pass the CF credentials EXPLICITLY, not via `secrets: inherit`. The
+    # reusable workflow lives in a different org (tinyland-inc) than this repo
+    # (Great-Falls-Tool-Bus); `inherit` did not deliver these repo secrets
+    # cross-org, so the deploy step silently no-op'd ("Skipping ... not
+    # configured") on every push while the build stayed green. Explicit mapping
+    # of the declared optional secrets is the reliable form.
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
