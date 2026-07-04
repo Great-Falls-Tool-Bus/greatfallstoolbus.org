@@ -40,7 +40,7 @@ concurrency:
 jobs:
   gate-health:
     name: Assert Access gate is serving (302 -> cloudflareaccess.com)
-    runs-on: ubuntu-latest
+    runs-on: tinyland-nix
     timeout-minutes: 10
     steps:
       - name: Probe gated production hostnames
