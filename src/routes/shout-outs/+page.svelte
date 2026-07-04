@@ -1,6 +1,7 @@
 <script lang="ts">
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import { Megaphone } from '@lucide/svelte';
 
 	const people = [
 		{
@@ -44,6 +45,7 @@
 	<PageHeader
 		title="Shout-outs"
 		lead="A tool bus is mostly people. These are the ones who made it real, plus the first donors whose tools are already in the kits."
+		icon={Megaphone}
 	/>
 
 	<section class="mt-10 space-y-4" aria-label="People">

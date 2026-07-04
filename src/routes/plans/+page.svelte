@@ -2,6 +2,7 @@
 	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import { Map } from '@lucide/svelte';
 
 	const now = [
 		{
@@ -46,6 +47,7 @@
 	<PageHeader
 		title="Plans"
 		lead="Where this is going: what exists today, what we are building next, and the dream, clearly labeled as a dream."
+		icon={Map}
 	/>
 
 	<section class="mt-10" aria-label="Where we are now">

@@ -2,6 +2,7 @@
 	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import { Users } from '@lucide/svelte';
 
 	// Stewardship SCAFFOLD: the three-tier makerspace leadership model (Artisan's
 	// Asylum precedent) scaled down for a bus: Coordinator, Cell / Shop Leads,
@@ -36,6 +37,7 @@
 	<PageHeader
 		title="Stewards"
 		lead="A bus this small runs on a few clear roles, not an org chart. This is the stewardship scaffold, the roles that keep the tools shared safely, adapted from established makerspace practice and scaled down to a bus."
+		icon={Users}
 	/>
 
 	<section class="mt-10" aria-label="The roles">

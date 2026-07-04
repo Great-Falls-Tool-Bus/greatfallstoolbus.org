@@ -12,6 +12,7 @@
 	// passed through the `children` snippet, which renders after the title so a
 	// page keeps full control of marked-up copy.
 	import type { Snippet } from 'svelte';
+	import type { Icon as LucideIcon } from '@lucide/svelte';
 
 	interface Props {
 		/** Small uppercase kicker above the title (optional). */
@@ -19,18 +20,26 @@
 		title: string;
 		/** Plain-text lead paragraph. For marked-up leads, use `children`. */
 		lead?: string;
+		/** Optional decorative icon rendered beside the title (Wave-2.5 icons,
+		 *  TIN-2423 PR2b). Pass a named `@lucide/svelte` import, e.g. `Hammer`. */
+		icon?: typeof LucideIcon;
 		/** Extra header content (rich lead paragraphs, etc.), rendered after the lead. */
 		children?: Snippet;
 	}
 
-	let { eyebrow = '', title, lead = '', children }: Props = $props();
+	let { eyebrow = '', title, lead = '', icon: Icon, children }: Props = $props();
 </script>
 
 <header class="space-y-4">
 	{#if eyebrow}
 		<p class="text-surface-500 text-xs tracking-widest uppercase">{eyebrow}</p>
 	{/if}
-	<h1 class="text-4xl leading-tight font-bold">{title}</h1>
+	<h1 class="flex items-center gap-3 text-4xl leading-tight font-bold">
+		{#if Icon}
+			<Icon class="text-primary-500 h-8 w-8 shrink-0" aria-hidden="true" />
+		{/if}
+		{title}
+	</h1>
 	{#if lead}
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">{lead}</p>
 	{/if}

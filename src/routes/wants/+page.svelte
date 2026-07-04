@@ -7,6 +7,7 @@
 	import { wants } from '$lib/data/cells';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import { ClipboardList } from '@lucide/svelte';
 </script>
 
 <svelte:head>
@@ -18,7 +19,7 @@
 </svelte:head>
 
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
-	<PageHeader title="Wants">
+	<PageHeader title="Wants" icon={ClipboardList}>
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
 			The current list of what the bus still needs. If you have one of these gathering dust, the <a
 				class="underline"

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { base } from '$app/paths';
+	import { Hammer } from '@lucide/svelte';
 	// Inventory truth is the .svx tool tree at src/content/tools/**, globbed
 	// at build time by $lib/data/cells.ts and shared with the printable
 	// /cell-sheets route and the /wants gap list, so the web page, the
@@ -29,6 +30,7 @@
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
 	<PageHeader
 		title="Tools on the bus"
+		icon={Hammer}
 		lead="A capability catalog. The bus is organized into cells, and each cell is a capability: a kitted set of tools that puts a specific kind of work in your hands. Every tool is kitted for transport, its bits marked as part of a set, and its documentation resolves to a real model number and manufacturer manual, or it is listed as not yet resolved."
 	/>
 
