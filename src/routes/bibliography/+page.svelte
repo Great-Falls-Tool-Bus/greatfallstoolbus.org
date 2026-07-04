@@ -3,6 +3,7 @@
 	// primary URL could not be verified, the entry says so — no guessed links.
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import { BookOpen } from '@lucide/svelte';
 
 	type Entry = { title: string; meta: string; note: string; href: string };
 	type Section = { heading: string; entries: Entry[] };
@@ -240,6 +241,7 @@
 	<PageHeader
 		title="Bibliography"
 		lead="The tool bus is not a guess — it stands on forty years of tool-library practice, the hackerspace design-pattern tradition, and a growing body of scholarship on shared workshops. Every link below was verified on 2026-07-02."
+		icon={BookOpen}
 	/>
 
 	{#each sections as section (section.heading)}

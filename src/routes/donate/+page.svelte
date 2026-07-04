@@ -6,6 +6,7 @@
 	import { wants } from '$lib/data/cells';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import { Gift } from '@lucide/svelte';
 
 	const checklist = [
 		{
@@ -35,6 +36,7 @@
 	<PageHeader
 		title="Donate a tool"
 		lead="Tools are the headline ask. We especially welcome the ones that are hard to own alone: complex, large, heavy, or blessed with many little bits and bobs."
+		icon={Gift}
 	/>
 
 	{#if wants.length > 0}

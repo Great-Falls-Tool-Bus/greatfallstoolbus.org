@@ -1,3 +1,22 @@
+// Icon vocabulary (Wave-2.5 icons, TIN-2423 PR2b): tree-shaken named imports
+// from @lucide/svelte, never the barrel. Each nav item's icon is reused as the
+// matching route's PageHeader icon, so the vocabulary stays curated instead of
+// growing per surface.
+import {
+	Compass,
+	Hammer,
+	Boxes,
+	KeyRound,
+	ShieldCheck,
+	Gift,
+	ClipboardList,
+	Map,
+	BookOpen,
+	Megaphone,
+	Mail,
+	type Icon as LucideIcon,
+} from '@lucide/svelte';
+
 export interface NavItem {
 	label: string;
 	href: string;
@@ -9,6 +28,10 @@ export interface NavItem {
 	/** When not `primary`, which footer group this item is demoted into.
 	 *  Rendered by the footer in +layout.svelte. */
 	footerGroup?: 'About' | 'Get involved';
+	/** Optional decorative icon, rendered beside the label in the primary bar
+	 *  and mobile drawer (see +layout.svelte). Also handed to the matching
+	 *  route's <PageHeader icon> so nav and page header agree. */
+	icon?: typeof LucideIcon;
 }
 
 /**
@@ -29,17 +52,23 @@ export interface NavItem {
 // and Shout-outs demote to footer groups; /stewards remains a footer-only
 // link hard-coded in +layout.svelte (predates this array).
 export const navItems: NavItem[] = [
-	{ label: 'Mission', href: '/mission', match: ['/mission'], footerGroup: 'About' },
-	{ label: 'Tools', href: '/tools', match: ['/tools'], primary: true },
-	{ label: 'Cells', href: '/cells', match: ['/cells', '/cell-sheets'], primary: true },
-	{ label: 'Access', href: '/access', match: ['/access'], primary: true },
-	{ label: 'Safety', href: '/safety', match: ['/safety'], primary: true },
-	{ label: 'Donate', href: '/donate', match: ['/donate'], primary: true },
-	{ label: 'Wants', href: '/wants', match: ['/wants'], footerGroup: 'Get involved' },
-	{ label: 'Plans', href: '/plans', match: ['/plans'], footerGroup: 'About' },
-	{ label: 'Bibliography', href: '/bibliography', match: ['/bibliography'], footerGroup: 'About' },
-	{ label: 'Shout-outs', href: '/shout-outs', match: ['/shout-outs'], footerGroup: 'About' },
-	{ label: 'Contact', href: '/contact', match: ['/contact'], primary: true },
+	{ label: 'Mission', href: '/mission', match: ['/mission'], footerGroup: 'About', icon: Compass },
+	{ label: 'Tools', href: '/tools', match: ['/tools'], primary: true, icon: Hammer },
+	{ label: 'Cells', href: '/cells', match: ['/cells', '/cell-sheets'], primary: true, icon: Boxes },
+	{ label: 'Access', href: '/access', match: ['/access'], primary: true, icon: KeyRound },
+	{ label: 'Safety', href: '/safety', match: ['/safety'], primary: true, icon: ShieldCheck },
+	{ label: 'Donate', href: '/donate', match: ['/donate'], primary: true, icon: Gift },
+	{ label: 'Wants', href: '/wants', match: ['/wants'], footerGroup: 'Get involved', icon: ClipboardList },
+	{ label: 'Plans', href: '/plans', match: ['/plans'], footerGroup: 'About', icon: Map },
+	{
+		label: 'Bibliography',
+		href: '/bibliography',
+		match: ['/bibliography'],
+		footerGroup: 'About',
+		icon: BookOpen,
+	},
+	{ label: 'Shout-outs', href: '/shout-outs', match: ['/shout-outs'], footerGroup: 'About', icon: Megaphone },
+	{ label: 'Contact', href: '/contact', match: ['/contact'], primary: true, icon: Mail },
 ];
 
 /** Primary AppBar bar + mobile drawer top — derived, never hand-duplicated. */
