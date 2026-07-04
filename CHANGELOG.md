@@ -16,6 +16,10 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ### Fixed
 
+- Remove static build warning noise by giving card/tool links explicit
+  accessible labels, splitting printable-sheet print colors for Svelte's
+  accessibility validator, and normalizing mdsvex module scripts to Svelte 5
+  syntax.
 - Forward GloriousFlywheel `BAZEL_REMOTE_INSTANCE_NAME` through the Bazel
   wrapper so tenant-scoped REAPI tokens do not fall back to Bazel's `default`
   instance.
