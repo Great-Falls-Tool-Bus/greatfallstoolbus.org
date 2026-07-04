@@ -1,9 +1,9 @@
-# DNS + mail cutover — manual operator checklist
+# DNS + mail cutover: manual operator checklist
 
 > **STATUS (2026-07-04): this checklist is EXECUTED.** latoolb.us NS is on
 > Cloudflare (zone active), MX/SPF/DKIM/DMARC live and tofu-managed in
-> great-falls-tool-bus-infra `tofu/stacks/edge` (`mail_dns_enabled=true`) —
-> records are no longer manual-panel steps. Live SPF:
+> great-falls-tool-bus-infra `tofu/stacks/edge` (`mail_dns_enabled=true`).
+> Records are no longer manual-panel steps. Live SPF:
 > `v=spf1 ip4:45.61.188.177 ip4:71.168.64.84 mx ~all` (relay + honey egress,
 > live-evidence reconcile, infra PR #28). Certification: port25 SPF pass +
 > DKIM pass, 2026-07-04. This document remains as the historical procedure +
@@ -117,7 +117,7 @@ curl -sI https://www.latoolb.us/anything | grep -i -E '^(HTTP|location)'
 
 The house public MX target is `relay.tinyland.dev` (blahaj
 `docs/services/mail/dns-records.md`; it is also the live MX for
-`tinyland.dev`). In the `latoolb.us` zone add — **DNS-only, never
+`tinyland.dev`). In the `latoolb.us` zone add, **DNS-only, never
 proxied** (Cloudflare cannot proxy SMTP):
 
 | Name | Type | Priority | Value |
@@ -156,7 +156,7 @@ dig TXT latoolb.us +short @1.1.1.1 | grep spf1
 
 The DKIM key pair is **generated apply-plane-side** in the infra overlay's
 sops lane (row d: the private key never appears in this repo, not even as
-ciphertext; it is named — names-only — in `secrets.contract.yaml`). The
+ciphertext; it is named, names-only, in `secrets.contract.yaml`). The
 selector is chosen apply-plane-side too; for
 reference, `tinyland.dev`'s live selector is `mail`.
 
@@ -173,7 +173,7 @@ Verify (then send a test mail to a mailbox you control and check the
 dig TXT <selector>._domainkey.latoolb.us +short @1.1.1.1
 ```
 
-## 7. Mail: DMARC for latoolb.us — start at p=none
+## 7. Mail: DMARC for latoolb.us (start at p=none)
 
 Start in monitor-only mode with aggregate reports; tighten later, after the
 list has real traffic and the reports are clean:
@@ -198,7 +198,7 @@ dig TXT _dmarc.latoolb.us +short @1.1.1.1
 Optional hardening; note the blahaj mail render currently ships
 `enable_mta_sts = False` with `mta_sts_mode = "testing"`
 (`dhall/render/mail-honey.dhall`), so coordinate blahaj-side before
-enabling — the policy host and the MX must present matching certificates.
+enabling, the policy host and the MX must present matching certificates.
 When enabled:
 
 | Name | Type | Value |
@@ -227,5 +227,5 @@ curl -s https://mta-sts.latoolb.us/.well-known/mta-sts.txt
 - [ ] `dig MX latoolb.us` returns `10 relay.tinyland.dev.` (step 4)
 - [ ] SPF, DKIM, DMARC TXT records resolve (steps 5–7)
 - [ ] A round-trip test mail to `keyholders@latoolb.us` is delivered and
-      passes SPF + DKIM + DMARC in the receiving provider's headers —
+      passes SPF + DKIM + DMARC in the receiving provider's headers,
       only meaningful after the overlay-applied MailAccount/list exist
