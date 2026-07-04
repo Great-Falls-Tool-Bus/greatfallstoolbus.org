@@ -45,7 +45,7 @@ concurrency:
 jobs:
   dns-drift:
     name: Detect Cloudflare DNS drift (read-only, dig-only)
-    runs-on: ubuntu-latest
+    runs-on: tinyland-nix
     timeout-minutes: 10
     env:
       APEX: greatfallstoolbus.org
