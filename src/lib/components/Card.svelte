@@ -67,6 +67,7 @@
 	});
 
 	const titleMt = $derived(eyebrow ? 'mt-1' : '');
+	const linkLabel = $derived(title || eyebrow || meta || body || 'Open linked card');
 </script>
 
 {#snippet inner()}
@@ -79,6 +80,7 @@
 				class="hover:text-primary-600 font-semibold underline-offset-2 hover:underline {titleMt}"
 				href={titleHref}
 				rel={external ? 'external noopener' : undefined}
+				aria-label={title}
 			>
 				{title}
 			</a>
@@ -100,7 +102,7 @@
 {/snippet}
 
 {#if href}
-	<a class={cardClass} {href}>
+	<a class={cardClass} {href} aria-label={linkLabel}>
 		{@render inner()}
 	</a>
 {:else}
