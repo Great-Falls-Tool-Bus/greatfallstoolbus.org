@@ -43,3 +43,8 @@ from this PR, the UI wave should reference the chosen file from
 - This is explicitly **interim** — supersede with the TIN-2419 designer mark
   when it lands; this decision note should be marked superseded at that
   point.
+
+
+## Decision (operator, 2026-07-04)
+
+Chose **bus-silhouette.svg** (CC0, public domain, no attribution required beyond courtesy). The two alternates (sinnbild-lastwagenbus, waterfall-delapouite) were removed. Wired as the brand glyph (`BusMark.svelte`) in the header and mobile drawer, and as the favicon, replacing the scaffold saturn mark. This is INTERIM; the real logo remains designer work (TIN-2419).

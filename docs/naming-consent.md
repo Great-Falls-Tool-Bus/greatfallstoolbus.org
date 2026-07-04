@@ -22,9 +22,9 @@ is a blocker to the gate opening at all.
 
 | Name / org | Surface | Asked? | Agreed? | Date | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Kate Pulham | /shout-outs (Founding supporter) | Yes (D4 packet drafted) | PENDING | — | Consent = D4 wording sign-off; A2 in 0004 depends on the same sign-off landing |
-| Joe (Alderman, Lewiston) | /shout-outs (hosts the bus) | No | PENDING | — | First-name-only credit; confirm naming + role wording together |
-| Alex | /shout-outs (Founder) | No | PENDING | — | First-name-only credit; confirm naming + role wording together |
+| Ripley (gh: krosepulham) | /shout-outs (Founding supporter) | Yes | CONSENTED | 2026-07-04 | Operator ruling 2026-07-04: public name = Ripley (was Kate Pulham). D4 wording sign-off still tracked separately. |
+| J. (Alderman, Lewiston) | /shout-outs (hosts the bus) | Yes | CONSENTED | 2026-07-04 | Operator ruling 2026-07-04: initial-only credit approved. |
+| Alex | /shout-outs (Founder) | Yes | CONSENTED | 2026-07-04 | Operator ruling 2026-07-04: first-name credit approved. |
 | Jess Sullivan | /shout-outs, /stewards (footer/links) | N/A | SELF | 2026-07-03 | Operator's own name/bio; self-consent stands, listed here for completeness only |
 | The Portland makerspace community | /shout-outs (Friends of the bus) | No | PENDING | — | Community reference, not an individual — confirm who can speak for it before public flip |
 | Ithaca Generator | /shout-outs (Friends of the bus) | No | PENDING | — | Added per D10; org reference (501(c)(3) makerspace), needs org-level consent before public flip |

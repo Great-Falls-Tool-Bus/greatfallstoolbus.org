@@ -4,12 +4,12 @@
 
 	const people = [
 		{
-			name: 'Kate Pulham',
+			name: 'Ripley',
 			role: 'Founding supporter',
 			note: 'Whose backing turned the tool bus from an idea into a thing with wheels.',
 		},
 		{
-			name: 'Joe',
+			name: 'J.',
 			role: 'Alderman, Lewiston',
 			note: 'Provides the bus a home on his property — the first stop on every route.',
 		},
