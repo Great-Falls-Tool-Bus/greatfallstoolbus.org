@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { base } from '$app/paths';
+	import { LIST, MAIL_CLIENTS } from '$lib/data/mail-clients';
+
 	const formEndpoint =
 		typeof import.meta.env.PUBLIC_GFTB_FORM_ENDPOINT === 'string' ? import.meta.env.PUBLIC_GFTB_FORM_ENDPOINT : '';
 	// Progressive enhancement (TIN-2420 Path A): the latoolb.us mailbox
@@ -6,7 +9,7 @@
 	// still separate proof gates. Until the endpoint ships, the static form
 	// opens a mail draft in the visitor's own mail app.
 	const endpointLive = formEndpoint.length > 0;
-	const KEYHOLDERS = 'keyholders@latoolb.us';
+	const KEYHOLDERS = LIST.post;
 
 	function composeMail(event: SubmitEvent) {
 		if (endpointLive) return; // real endpoint: let the POST happen
@@ -23,43 +26,24 @@
 	const listAddresses = [
 		{
 			label: 'Join the keyholders list',
-			address: 'keyholders-join@latoolb.us',
+			address: LIST.join,
 			note: 'Send an empty email here once the list runtime is applied.',
 		},
 		{
 			label: 'Post to the list',
-			address: 'keyholders@latoolb.us',
+			address: LIST.post,
 			note: 'For members after Mailman confirms the subscription.',
 		},
 		{
 			label: 'Reach list owners',
-			address: 'keyholders-owner@latoolb.us',
+			address: LIST.owner,
 			note: 'The operator-facing owner address after the list runtime is live.',
 		},
 	];
 
-	const clientSetups = [
-		{
-			title: 'Apple Mail',
-			body: 'Once the list runtime lands, subscribe by email; on macOS use a rule (Mail -> Settings -> Rules) to file messages from keyholders@latoolb.us into a mailbox.',
-		},
-		{
-			title: 'Gmail',
-			body: 'Once the list runtime lands, label messages from keyholders@latoolb.us and mark early list mail as not spam if needed.',
-		},
-		{
-			title: 'Thunderbird',
-			body: 'When Mailman is live, use Reply to List; Thunderbird reads the List-Post and List-Id headers Mailman emits.',
-		},
-		{
-			title: 'Geary',
-			body: 'Once the archive exists, subscribe by email or through the web archive. Server-side filters work best for sorting list mail.',
-		},
-		{
-			title: 'KMail',
-			body: 'After the first list message lands, use Folder -> Mailing List Management -> Detect Automatically.',
-		},
-	];
+	// Single source of truth: the same client data drives the derived per-client
+	// agent skills (see scripts/build-agent-skills.mjs) and the cards below.
+	const clientSetups = MAIL_CLIENTS;
 </script>
 
 <svelte:head>
@@ -156,11 +140,32 @@
 
 	<section class="mt-12" aria-labelledby="clients-heading">
 		<h2 id="clients-heading" class="text-2xl font-semibold">Mail client notes</h2>
+		<p class="text-surface-700 dark:text-surface-300 mt-3 max-w-3xl text-sm leading-relaxed">
+			Your own agent can lace up any of these clients from the matching skill in
+			<a class="text-primary-600 underline underline-offset-4" href="{base}/llms.txt">llms.txt</a>.
+		</p>
 		<div class="mt-6 grid gap-3 md:grid-cols-2">
-			{#each clientSetups as item (item.title)}
+			{#each clientSetups as item (item.id)}
 				<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-5">
-					<h3 class="text-lg font-semibold">{item.title}</h3>
-					<p class="text-surface-700-300 mt-2 text-sm leading-relaxed">{item.body}</p>
+					<div class="flex items-baseline justify-between gap-3">
+						<h3 class="text-lg font-semibold">{item.name}</h3>
+						<span class="text-surface-500 text-xs">{item.platforms}</span>
+					</div>
+					<p class="text-surface-700-300 mt-2 text-sm leading-relaxed">{item.summary}</p>
+					<dl class="mt-3 grid gap-1 text-sm">
+						<div class="grid gap-0.5">
+							<dt class="text-surface-500 text-xs tracking-wide uppercase">Subscribe</dt>
+							<dd class="text-surface-700-300 leading-relaxed">{item.subscribe}</dd>
+						</div>
+						<div class="grid gap-0.5">
+							<dt class="text-surface-500 text-xs tracking-wide uppercase">File</dt>
+							<dd class="text-surface-700-300 leading-relaxed">{item.filing}</dd>
+						</div>
+						<div class="grid gap-0.5">
+							<dt class="text-surface-500 text-xs tracking-wide uppercase">Reply</dt>
+							<dd class="text-surface-700-300 leading-relaxed">{item.replyToList}</dd>
+						</div>
+					</dl>
 				</div>
 			{/each}
 		</div>

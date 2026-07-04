@@ -22,6 +22,21 @@
 - [tinyland-static-spoke](https://github.com/tinyland-inc/site.scaffold/blob/main/.agents/skills/tinyland-static-spoke/SKILL.md): static spoke site customization and projection rules.
 - [tinyland-repo-contract](https://github.com/tinyland-inc/site.scaffold/blob/main/.agents/skills/tinyland-repo-contract/SKILL.md): Just, Nix, gitleaks, validation, and no-ad-hoc-file contract.
 
+## Mail lace-up skills
+
+<!-- BEGIN generated: mail-laceup skills (just skills-build) -->
+Point any agent at these to lace up a mail client for the keyholders list
+(keyholders@latoolb.us). One skill per client, derived from
+src/lib/data/mail-clients.ts.
+
+- [gftb-mail-laceup-gmail](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/gftb-mail-laceup-gmail/SKILL.md): Lace up Gmail for the Great Falls Tool Bus keyholders mailing list (keyholders@latoolb.us).
+- [gftb-mail-laceup-thunderbird](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/gftb-mail-laceup-thunderbird/SKILL.md): Lace up Thunderbird for the Great Falls Tool Bus keyholders mailing list (keyholders@latoolb.us).
+- [gftb-mail-laceup-apple-mail](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/gftb-mail-laceup-apple-mail/SKILL.md): Lace up Apple Mail for the Great Falls Tool Bus keyholders mailing list (keyholders@latoolb.us).
+- [gftb-mail-laceup-kmail](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/gftb-mail-laceup-kmail/SKILL.md): Lace up KMail for the Great Falls Tool Bus keyholders mailing list (keyholders@latoolb.us).
+- [gftb-mail-laceup-geary](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/gftb-mail-laceup-geary/SKILL.md): Lace up Geary for the Great Falls Tool Bus keyholders mailing list (keyholders@latoolb.us).
+- [gftb-mail-laceup-outlook](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/gftb-mail-laceup-outlook/SKILL.md): Lace up Outlook for the Great Falls Tool Bus keyholders mailing list (keyholders@latoolb.us).
+<!-- END generated: mail-laceup skills -->
+
 ## Agent Routes
 
 - [Agent AX map](https://site.scaffold/agent)
