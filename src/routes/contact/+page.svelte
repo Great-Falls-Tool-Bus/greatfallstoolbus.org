@@ -151,6 +151,7 @@
 			title: 'Return the tool',
 			body: 'Read about how to use it.  Phone a friend if you need help.  Please bring the tools back ^w^',
 		},
+		{
 			n: '5',
 			title: 'Fix the tool',
 			body: 'Did you break it?  Fear not, we can fix it; I hear there is a tool bus in town with just thing...',
