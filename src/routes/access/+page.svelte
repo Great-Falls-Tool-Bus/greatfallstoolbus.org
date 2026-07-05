@@ -22,8 +22,8 @@
 		},
 		{
 			n: '3',
-			title: 'Schedule around the bus',
-			body: 'The bus moves, so we find a time and place that works: when the capability you need is on the bus and near you. Keyholders coordinate the where and when.',
+			title: 'Get the location and a time',
+			body: 'The bus sits at a fixed location in Lewiston-Auburn, shared privately on request. A keyholder gives you the exact spot and settles on a time that works, once the capability you need is ready for you.',
 		},
 		{
 			n: '4',
@@ -37,7 +37,7 @@
 	<title>How access works | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="How to borrow from the Great Falls Tool Bus: reach out, complete a short safety orientation, schedule around the bus, and use the tool. No membership fee, no paperwork wall; every request gets a keyholder's answer."
+		content="How to borrow from the Great Falls Tool Bus: reach out, complete a short safety orientation, get the privately shared location and a time from a keyholder, and use the tool. No membership fee, no paperwork wall; every request gets a keyholder's answer."
 	/>
 </svelte:head>
 
