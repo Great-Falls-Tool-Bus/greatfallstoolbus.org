@@ -44,6 +44,9 @@ Thumbs.db
 result
 result-*
 
+# Daemonless OCI image tarball from `just container-image-build` (TIN-2543)
+*-oci.tar
+
 # Bazel
 bazel-*
 bazel-bin/

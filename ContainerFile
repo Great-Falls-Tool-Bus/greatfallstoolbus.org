@@ -13,7 +13,14 @@
 # ADAPTER=node (set in this builder) selects adapter-node. See
 # docs/deploy/oncluster-container-readiness.md.
 #
-# Usage (local, declare-only — CI does NOT build this by default):
+# CI does NOT use this file (TIN-2543): GFTB's ARC pool has no `tinyland-dind`
+# /buildx runner, so .github/workflows/container-ghcr.yml builds the on-cluster
+# image DAEMONLESS via Nix (nix/oci-image.nix -> dockerTools.streamLayeredImage,
+# `just container-image-publish`) on the shared `tinyland-nix` runner. This
+# ContainerFile is retained as the LOCAL podman/docker convenience (and mirror
+# of the same adapter-node -> `node build/index.js` shape).
+#
+# Usage (local, on a machine that HAS a Docker/podman daemon):
 #   podman build -f ContainerFile -t greatfallstoolbus.org:local .
 #   podman run --rm -p 3000:3000 greatfallstoolbus.org:local
 #
