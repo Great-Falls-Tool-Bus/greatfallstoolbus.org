@@ -1,25 +1,118 @@
 <script lang="ts">
 	import { base } from '$app/paths';
+	import { MediaQuery } from 'svelte/reactivity';
+	import { fade } from 'svelte/transition';
+	import { LoaderCircle, Mail, MailCheck, RotateCcw, Send, TriangleAlert } from '@lucide/svelte';
 	import { LIST, MAIL_CLIENTS } from '$lib/data/mail-clients';
+	import {
+		buildMailtoHref,
+		contactApiUrl,
+		emptyContactValues,
+		hasErrors,
+		isHoneypotTripped,
+		toContactPayload,
+		validateContactForm,
+		type ContactFieldErrors,
+		type ContactFormValues,
+	} from '$lib/contact-form';
 
+	// Progressive enhancement (TIN-2420 Path B): the keyholders list is the
+	// private access-gating role list. When PUBLIC_GFTB_FORM_ENDPOINT is set the
+	// form POSTs JSON to the Anubis-guarded form-handler, which injects the
+	// message to keyholders@ over LMTP. Until that endpoint ships, the same form
+	// composes a mail draft in the visitor's own app: the deliberate fallback,
+	// not a lesser path. The mailto compose also becomes the manual retry offered
+	// when a live POST fails.
 	const formEndpoint =
 		typeof import.meta.env.PUBLIC_GFTB_FORM_ENDPOINT === 'string' ? import.meta.env.PUBLIC_GFTB_FORM_ENDPOINT : '';
-	// Progressive enhancement (TIN-2420 Path A): keyholders@latoolb.us is the
-	// private access-gating role list. Until the Anubis-protected endpoint
-	// ships, the static form opens a mail draft in the visitor's own mail app.
 	const endpointLive = formEndpoint.length > 0;
 	const KEYHOLDERS = LIST.post;
+	const REQUEST_TIMEOUT_MS = 15_000;
 
-	function composeMail(event: SubmitEvent) {
-		if (endpointLive) return; // real endpoint: let the POST happen
+	// The honeypot and field validation live in $lib/contact-form (unit-tested).
+	// This component owns only the DOM, the fetch, the timeout, and the
+	// four-state machine below.
+	type Status = 'idle' | 'submitting' | 'success' | 'error';
+	let status = $state<Status>('idle');
+	let values = $state<ContactFormValues>(emptyContactValues());
+	let fieldErrors = $state<ContactFieldErrors>({});
+	let submitError = $state('');
+
+	const reducedMotion = new MediaQuery('(prefers-reduced-motion: reduce)');
+	// A zero-duration fade collapses the panel swap to an instant cut under
+	// reduced-motion, honoring the setting without branching the markup.
+	const swapDuration = $derived(reducedMotion.current ? 0 : 180);
+
+	const mailtoHref = $derived(buildMailtoHref(KEYHOLDERS, values));
+
+	function validateNow(): boolean {
+		fieldErrors = validateContactForm(values);
+		return !hasErrors(fieldErrors);
+	}
+
+	function focusFirstError() {
+		const order: (keyof ContactFieldErrors)[] = ['name', 'email', 'message'];
+		const first = order.find((f) => fieldErrors[f]);
+		if (first && typeof document !== 'undefined') {
+			document.getElementById(`contact-${first}`)?.focus();
+		}
+	}
+
+	async function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
-		const data = new FormData(event.currentTarget as HTMLFormElement);
-		const name = String(data.get('name') ?? '');
-		const email = String(data.get('email') ?? '');
-		const message = String(data.get('message') ?? '');
-		const subject = `Tool Bus contact — ${name}`;
-		const body = `Name: ${name}\nEmail: ${email}\n\n${message}`;
-		window.location.href = `mailto:${KEYHOLDERS}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+		submitError = '';
+
+		// Silent honeypot: a filled hidden field means a bot walked the form.
+		// Show the same confirmation a human sees, and send nothing.
+		if (isHoneypotTripped(values)) {
+			status = 'success';
+			return;
+		}
+
+		if (!validateNow()) {
+			focusFirstError();
+			return;
+		}
+
+		// No live endpoint (today): the mail draft IS the path. Hand off to the
+		// visitor's own mail app and stop; the actual send happens there.
+		if (!endpointLive) {
+			window.location.href = mailtoHref;
+			return;
+		}
+
+		status = 'submitting';
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+		try {
+			const res = await fetch(contactApiUrl(formEndpoint), {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(toContactPayload(values)),
+				signal: controller.signal,
+			});
+			if (!res.ok) {
+				throw new Error(`The keyholders form service answered ${res.status}. Please try again.`);
+			}
+			status = 'success';
+		} catch (err) {
+			const aborted = err instanceof DOMException && err.name === 'AbortError';
+			submitError = aborted
+				? 'That took too long to reach the keyholders. Check your connection and try again.'
+				: err instanceof Error
+					? err.message
+					: 'Something went wrong reaching the keyholders. Please try again.';
+			status = 'error';
+		} finally {
+			clearTimeout(timer);
+		}
+	}
+
+	// Retry from the error state keeps every field value the visitor typed; only
+	// the alert clears so they can resubmit or reach for the mail fallback.
+	function retry() {
+		submitError = '';
+		status = 'idle';
 	}
 
 	const listAddresses = [
@@ -49,7 +142,7 @@
 	<title>Contact / join — Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="How to contact the Great Falls Tool Bus through the private keyholders list while the protected form endpoint is pending."
+		content="Reach the Great Falls Tool Bus keyholders. The contact form sends your request straight to the list; a real person replies."
 	/>
 </svelte:head>
 
@@ -58,8 +151,8 @@
 		<p class="text-surface-500 text-xs tracking-widest uppercase">Contact / join</p>
 		<h1 class="text-4xl leading-tight font-bold md:text-5xl">Reach the bus</h1>
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
-			The private keyholders list accepts access requests. The form below composes an email in your own mail app; a
-			bot-guarded direct-submit endpoint is the next upgrade.
+			The private keyholders list takes access requests, and a real person answers each one. Fill in the form below and
+			your request goes straight to the list.
 		</p>
 	</header>
 
@@ -69,55 +162,164 @@
 				<h2 id="form-heading" class="text-2xl font-semibold">Contact form</h2>
 				<p class="text-surface-700-300 mt-2 max-w-2xl leading-relaxed">
 					{#if endpointLive}
-						Submissions post directly to the bot-guarded endpoint.
+						Your request posts straight to the keyholders through a bot-guarded endpoint. No mail app needed.
 					{:else}
-						Sending opens a pre-filled email to the keyholders list in your own mail app. A bot-guarded direct-submit
-						endpoint replaces this hand-off later with no change to the form.
+						Sending opens a pre-filled draft to the keyholders list in your own mail app. That hand-off is the
+						deliberate fallback while the bot-guarded direct-submit endpoint is finished; when it lands, this same form
+						posts your request with no change to how it looks.
 					{/if}
 				</p>
 			</div>
-			<span class="bg-success-100 text-success-800 rounded-sm px-2 py-1 text-xs font-semibold">
-				{endpointLive ? 'Endpoint live' : 'Mail draft hand-off'}
+			<span class="bg-success-100 text-success-800 rounded-sm px-2 py-1 text-xs font-semibold whitespace-nowrap">
+				{endpointLive ? 'Direct submit' : 'Mail draft fallback'}
 			</span>
 		</div>
 
-		<form method="post" action={formEndpoint || undefined} onsubmit={composeMail} class="mt-6 grid gap-4">
-			<div class="grid gap-1">
-				<label class="text-sm font-medium" for="contact-name">Name</label>
-				<input
-					id="contact-name"
-					class="border-surface-300-700 bg-surface-50-950 rounded-sm border px-3 py-2"
-					name="name"
-					aria-label="Name"
-					autocomplete="name"
-					required
-				/>
+		{#if status === 'success'}
+			<div
+				class="border-success-300-700 bg-success-50-950/60 mt-6 rounded-md border p-5"
+				role="status"
+				aria-live="polite"
+				in:fade={{ duration: swapDuration }}
+			>
+				<div class="flex items-start gap-3">
+					<MailCheck class="text-success-600 dark:text-success-400 mt-0.5 h-6 w-6 shrink-0" aria-hidden="true" />
+					<div class="space-y-2">
+						<p class="text-lg font-semibold">Your request is on its way to the keyholders.</p>
+						<p class="text-surface-700-300 leading-relaxed">
+							Expect a reply from a real person. A keyholder reads every request, and one of them will follow up at the
+							email you gave, usually to sort out a first safety orientation and a time the bus can meet you.
+						</p>
+					</div>
+				</div>
 			</div>
-			<div class="grid gap-1">
-				<label class="text-sm font-medium" for="contact-email">Email</label>
-				<input
-					id="contact-email"
-					class="border-surface-300-700 bg-surface-50-950 rounded-sm border px-3 py-2"
-					name="email"
-					type="email"
-					aria-label="Email"
-					autocomplete="email"
-					required
-				/>
-			</div>
-			<div class="grid gap-1">
-				<label class="text-sm font-medium" for="contact-message">What are you reaching out about?</label>
-				<textarea
-					id="contact-message"
-					class="border-surface-300-700 bg-surface-50-950 min-h-32 rounded-sm border px-3 py-2"
-					name="message"
-					aria-label="What are you reaching out about?"
-					required></textarea>
-			</div>
-			<button type="submit" class="bg-primary-600 text-surface-50 w-fit rounded-sm px-4 py-2 text-sm font-semibold">
-				Send to keyholders
-			</button>
-		</form>
+		{:else}
+			<form
+				method="post"
+				action={formEndpoint || undefined}
+				onsubmit={handleSubmit}
+				class="mt-6 grid gap-4"
+				aria-busy={status === 'submitting'}
+				novalidate
+				in:fade={{ duration: swapDuration }}
+			>
+				{#if status === 'error'}
+					<div class="border-error-300-700 bg-error-50-950/60 rounded-md border p-4" role="alert" aria-live="assertive">
+						<div class="flex items-start gap-3">
+							<TriangleAlert class="text-error-600 dark:text-error-400 mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+							<div class="space-y-3">
+								<p class="text-surface-800-200 leading-relaxed">{submitError}</p>
+								<div class="flex flex-wrap items-center gap-3">
+									<button
+										type="button"
+										onclick={retry}
+										class="border-error-400-600 text-error-700 dark:text-error-300 inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 text-sm font-semibold"
+									>
+										<RotateCcw class="h-4 w-4" aria-hidden="true" />
+										Try again
+									</button>
+									<a
+										href={mailtoHref}
+										class="text-primary-700 dark:text-primary-300 inline-flex items-center gap-1.5 text-sm font-semibold underline underline-offset-4"
+									>
+										<Mail class="h-4 w-4" aria-hidden="true" />
+										Send by email instead
+									</a>
+								</div>
+							</div>
+						</div>
+					</div>
+				{/if}
+
+				<div class="grid gap-1">
+					<label class="text-sm font-medium" for="contact-name">Name</label>
+					<input
+						id="contact-name"
+						class="border-surface-300-700 bg-surface-50-950 rounded-sm border px-3 py-2"
+						name="name"
+						autocomplete="name"
+						bind:value={values.name}
+						aria-invalid={fieldErrors.name ? 'true' : undefined}
+						aria-describedby={fieldErrors.name ? 'contact-name-error' : undefined}
+						required
+					/>
+					{#if fieldErrors.name}
+						<p id="contact-name-error" class="text-error-700 dark:text-error-400 text-sm">{fieldErrors.name}</p>
+					{/if}
+				</div>
+
+				<div class="grid gap-1">
+					<label class="text-sm font-medium" for="contact-email">Email</label>
+					<input
+						id="contact-email"
+						class="border-surface-300-700 bg-surface-50-950 rounded-sm border px-3 py-2"
+						name="email"
+						type="email"
+						autocomplete="email"
+						bind:value={values.email}
+						aria-invalid={fieldErrors.email ? 'true' : undefined}
+						aria-describedby={fieldErrors.email ? 'contact-email-error' : undefined}
+						required
+					/>
+					{#if fieldErrors.email}
+						<p id="contact-email-error" class="text-error-700 dark:text-error-400 text-sm">{fieldErrors.email}</p>
+					{/if}
+				</div>
+
+				<div class="grid gap-1">
+					<label class="text-sm font-medium" for="contact-message">What are you reaching out about?</label>
+					<textarea
+						id="contact-message"
+						class="border-surface-300-700 bg-surface-50-950 min-h-32 rounded-sm border px-3 py-2"
+						name="message"
+						bind:value={values.message}
+						aria-invalid={fieldErrors.message ? 'true' : undefined}
+						aria-describedby={fieldErrors.message ? 'contact-message-error' : undefined}
+						required></textarea>
+					{#if fieldErrors.message}
+						<p id="contact-message-error" class="text-error-700 dark:text-error-400 text-sm">{fieldErrors.message}</p>
+					{/if}
+				</div>
+
+				<!-- Honeypot. Off-screen, untabbable, and hidden from assistive tech;
+				     a real person never touches it, so any value marks a bot. -->
+				<div aria-hidden="true" class="pointer-events-none absolute -left-[9999px] h-0 w-0 overflow-hidden">
+					<label for="contact-website">Website (leave blank)</label>
+					<input
+						id="contact-website"
+						name="website"
+						type="text"
+						tabindex="-1"
+						autocomplete="off"
+						bind:value={values.website}
+					/>
+				</div>
+
+				<button
+					type="submit"
+					disabled={status === 'submitting'}
+					class="bg-primary-600 text-surface-50 inline-flex w-fit items-center gap-2 rounded-sm px-4 py-2 text-sm font-semibold disabled:opacity-70"
+				>
+					{#if status === 'submitting'}
+						<LoaderCircle class="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />
+						Sending to keyholders
+					{:else}
+						<Send class="h-4 w-4" aria-hidden="true" />
+						{endpointLive ? 'Send to keyholders' : 'Compose to keyholders'}
+					{/if}
+				</button>
+
+				<noscript>
+					<p class="text-surface-700-300 mt-1 text-sm leading-relaxed">
+						With JavaScript off, email the keyholders list directly at
+						<a
+							class="text-primary-700 dark:text-primary-300 font-mono underline underline-offset-4"
+							href={`mailto:${KEYHOLDERS}`}>{KEYHOLDERS}</a
+						>. Include your name and what you want to make or fix; a keyholder will reply.
+					</p>
+				</noscript>
+			</form>
+		{/if}
 	</section>
 
 	<section class="mt-12" aria-labelledby="list-heading">
