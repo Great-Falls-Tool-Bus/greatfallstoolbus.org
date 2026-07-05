@@ -6,10 +6,11 @@
 	import BusMark from '$lib/components/BusMark.svelte';
 	import Wordmark from '$lib/components/Wordmark.svelte';
 	import SEOHead from '$lib/components/SEOHead.svelte';
-	import { AppBar, Dialog, Navigation } from '@skeletonlabs/skeleton-svelte';
+	import { AppBar, Dialog, Navigation, Toast } from '@skeletonlabs/skeleton-svelte';
 	import { TinyVectors } from '@tummycrypt/tinyvectors';
 	import '../app.css';
 	import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
+	import { toaster } from '$lib/toaster';
 	import { primaryNavItems, footerNavGroups, isActivePath } from '$lib/nav-items';
 
 	let { children } = $props();
@@ -223,4 +224,32 @@
 			</nav>
 		</div>
 	</footer>
+
+	<Toast.Group {toaster} class="fixed right-4 bottom-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-3">
+		{#snippet children(toast)}
+			<Toast
+				{toast}
+				class="border-surface-300-700 bg-surface-50-950 text-surface-900-50 rounded-lg border p-4 shadow-lg"
+			>
+				<div class="flex items-start justify-between gap-3">
+					<div class="space-y-1">
+						{#if toast.title}
+							<Toast.Title class="text-sm font-semibold">{toast.title}</Toast.Title>
+						{/if}
+						{#if toast.description}
+							<Toast.Description class="text-surface-700-300 text-sm leading-relaxed">
+								{toast.description}
+							</Toast.Description>
+						{/if}
+					</div>
+					<Toast.CloseTrigger
+						class="hover:bg-surface-200-800 rounded-sm px-2 py-1 text-sm"
+						aria-label="Dismiss notification"
+					>
+						×
+					</Toast.CloseTrigger>
+				</div>
+			</Toast>
+		{/snippet}
+	</Toast.Group>
 </div>
