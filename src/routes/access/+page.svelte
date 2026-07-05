@@ -44,7 +44,7 @@
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
 	<PageHeader
 		title="How access works"
-		lead="Anyone can ask to borrow, and every ask gets a human answer. Four steps take you from a first message to a tool in your hands: no membership fee, no paperwork wall, and a keyholder alongside you the whole way."
+		lead="Anyone can ask to borrow, and every request gets a human answer. Four steps take you from a first message to a tool in your hands: no membership fee, no paperwork wall, and a keyholder alongside you the whole way."
 		icon={KeyRound}
 	/>
 
@@ -70,7 +70,7 @@
 			/>
 		</div>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
-			Reach a keyholder. That is step one, and it is the whole ask. Read the <a
+			Reach a keyholder. That is step one, and that is all it takes. Read the <a
 				class="underline"
 				href={`${base}/safety`}>safety &amp; responsible-use guide</a
 			>
