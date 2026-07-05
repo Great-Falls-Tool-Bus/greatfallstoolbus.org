@@ -98,7 +98,7 @@ const ENTRIES: RegistryEntry[] = [
 		slug: 'oncluster-container-readiness',
 		title: 'On-cluster container readiness',
 		summary:
-			'Declare-only optionality for serving the same source in-cluster as a Node server. Additive, flagged, dormant, and not a hosting change.',
+			'The accepted on-cluster serving target (ADR 0008): the same source served in-cluster as an adapter-node server. Image build is active; the production cutover is operator-gated and not yet done, so Cloudflare Pages is still the live host.',
 		group: 'Deploy and launch',
 		order: 2,
 	},
