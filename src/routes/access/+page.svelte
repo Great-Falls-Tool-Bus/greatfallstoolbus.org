@@ -53,7 +53,7 @@
 			{#each steps as step (step.n)}
 				<li>
 					<span class="text-surface-500 block text-xs tracking-widest uppercase">Step {step.n}</span>
-					<h3 class="mt-1 text-lg font-semibold">{step.title}</h3>
+					<h2 class="mt-1 text-lg font-semibold">{step.title}</h2>
 					<p class="text-surface-700-300 mt-2 text-sm leading-relaxed">{step.body}</p>
 				</li>
 			{/each}
