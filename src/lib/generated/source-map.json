@@ -12,6 +12,7 @@
 		"/cells/sewing": "src/routes/cells/sewing/+page.svelte",
 		"/cells/welding": "src/routes/cells/welding/+page.svelte",
 		"/contact": "src/routes/contact/+page.svelte",
+		"/discuss": "src/routes/discuss/+page.svelte",
 		"/donate": "src/routes/donate/+page.svelte",
 		"/keyholders": "src/routes/keyholders/+page.svelte",
 		"/mission": "src/routes/mission/+page.svelte",
