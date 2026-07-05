@@ -55,11 +55,14 @@
 
 	<section class="mt-12" aria-label="Before you donate">
 		<h2 class="text-2xl font-semibold">Before you donate, walk it through three questions</h2>
-		<div class="mt-6 space-y-4">
+		<dl class="mt-6 space-y-4">
 			{#each checklist as item (item.q)}
-				<Card title={item.q} body={item.body} headingLevel="h3" />
+				<div>
+					<dt class="font-semibold">{item.q}</dt>
+					<dd class="text-surface-700-300 mt-1 text-sm leading-relaxed">{item.body}</dd>
+				</div>
 			{/each}
-		</div>
+		</dl>
 	</section>
 
 	<section class="border-surface-200-800 mt-12 border-t pt-8" aria-label="Arrange the hand-off">
