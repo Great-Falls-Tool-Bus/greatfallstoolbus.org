@@ -6,6 +6,7 @@
 	// numbers; if the tree changes, these change with it.
 	import { cells, wants } from '$lib/data/cells';
 	import Card from '$lib/components/Card.svelte';
+	import { reveal } from '$lib/motion.svelte';
 
 	const brand = {
 		name: 'Great Falls Tool Bus',
@@ -125,8 +126,11 @@
 	<section class="mt-12" aria-label="Shared-tool criteria">
 		<h2 class="text-2xl font-semibold">What makes a good bus tool</h2>
 		<div class="mt-6 grid gap-3 md:grid-cols-3">
-			{#each criteria as item (item.title)}
-				<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-5">
+			{#each criteria as item, i (item.title)}
+				<div
+					class="border-surface-200-800 bg-surface-50-950/75 reveal-armed rounded-lg border p-5"
+					use:reveal={{ delay: i * 70 }}
+				>
 					<h3 class="text-lg font-semibold">{item.title}</h3>
 					<p class="text-surface-700-300 mt-3 text-sm leading-relaxed">{item.body}</p>
 				</div>
@@ -134,7 +138,7 @@
 		</div>
 	</section>
 
-	<section class="border-surface-200-800 mt-12 border-y py-8" aria-label="How access works">
+	<section class="border-surface-200-800 reveal-armed mt-12 border-y py-8" use:reveal aria-label="How access works">
 		<h2 class="text-2xl font-semibold">Getting on the bus</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 max-w-3xl leading-relaxed">
 			Anyone can ask to borrow: no membership fee, no paperwork wall. Reach out and a keyholder answers. Keyholders
@@ -144,7 +148,7 @@
 		</p>
 	</section>
 
-	<section class="mt-12" aria-label="Where to start">
+	<section class="reveal-armed mt-12" use:reveal aria-label="Where to start">
 		<h2 class="text-2xl font-semibold">Where to start</h2>
 		<div class="mt-6 grid gap-4 md:grid-cols-3">
 			{#each primaryPages as p (p.title)}
@@ -153,7 +157,11 @@
 		</div>
 	</section>
 
-	<section class="border-surface-200-800 mt-10 border-t pt-8" aria-label="More about the project">
+	<section
+		class="border-surface-200-800 reveal-armed mt-10 border-t pt-8"
+		use:reveal
+		aria-label="More about the project"
+	>
 		<h2 class="text-surface-500 text-xs tracking-widest uppercase">More about the project</h2>
 		<nav class="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm" aria-label="More pages">
 			{#each morePages as p (p.title)}

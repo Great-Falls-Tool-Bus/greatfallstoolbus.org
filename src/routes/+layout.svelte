@@ -10,6 +10,7 @@
 	import { TinyVectors } from '@tummycrypt/tinyvectors';
 	import '../app.css';
 	import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
+	import ExternalLink from '$lib/components/ExternalLink.svelte';
 	import { toaster } from '$lib/toaster';
 	import { primaryNavItems, footerNavGroups, isActivePath } from '$lib/nav-items';
 
@@ -212,13 +213,10 @@
 				<ul class="mt-3 space-y-2">
 					<li><a href={`${base}/agent`} class="hover:text-primary-500 transition-colors">Agent AX</a></li>
 					<li>
-						<a href={REPO_URL} target="_blank" rel="noopener" class="hover:text-primary-500 transition-colors">GitHub</a
-						>
+						<ExternalLink href={REPO_URL} class="hover:text-primary-500 transition-colors">GitHub</ExternalLink>
 					</li>
 					<li>
-						<a href={SECURITY_URL} target="_blank" rel="noopener" class="hover:text-primary-500 transition-colors"
-							>Security</a
-						>
+						<ExternalLink href={SECURITY_URL} class="hover:text-primary-500 transition-colors">Security</ExternalLink>
 					</li>
 				</ul>
 			</nav>
