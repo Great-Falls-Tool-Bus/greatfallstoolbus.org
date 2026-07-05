@@ -1,6 +1,7 @@
 <script lang="ts">
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import Avatar from '$lib/components/Avatar.svelte';
 	import InfoTip from '$lib/components/InfoTip.svelte';
 	import { Megaphone } from '@lucide/svelte';
 
@@ -58,7 +59,9 @@
 			/>
 		</div>
 		{#each people as p (p.name)}
-			<Card eyebrow={p.role} title={p.name} body={p.note} headingLevel="h2" />
+			<Card eyebrow={p.role} title={p.name} body={p.note} headingLevel="h2">
+				{#snippet lead()}<Avatar name={p.name} />{/snippet}
+			</Card>
 		{/each}
 	</section>
 
