@@ -15,19 +15,19 @@ const modernMdsvexPreprocess = {
 	},
 };
 
-// On-cluster readiness (TIN-2541). The PRODUCTION default is unchanged:
-// adapter-static -> Cloudflare Pages (ADR 0003), DB-less, no edge auth. Setting
-// ADAPTER=node selects @sveltejs/adapter-node so the same source can be served
-// in-cluster as `node build/index.js` (see ContainerFile). This is declare-only
-// optionality, NOT a hosting change: ADR 0003 keeps CF Pages as the bound host
-// and explicitly rejected cluster-served static as the production host.
+// On-cluster readiness (TIN-2541). The build default is unchanged: adapter-static
+// -> Cloudflare Pages, DB-less, no edge auth. Setting ADAPTER=node selects
+// @sveltejs/adapter-node so the same source can be served in-cluster as
+// `node build/index.js` (see ContainerFile). On-cluster is now the accepted
+// direction: ADR 0008 (Accepted) supersedes ADR 0003 for production hosting.
+// adapter-static stays the current default build until the cutover applies.
 //
-// adapter-node is imported lazily and is intentionally NOT a committed
-// devDependency yet: the frozen-lockfile static build (the default) never
-// touches it, so every default gate stays green. The ContainerFile installs it
-// at image-build time. Promoting it to a package.json devDependency is a
-// deliberate follow-up contract bump (pnpm lockfile + Bazel graph); see
-// docs/deploy/oncluster-container-readiness.md.
+// adapter-node is now a committed devDependency (TIN-2543, MassageIthaca parity
+// @sveltejs/adapter-node ^5.5.7): package.json and pnpm-lock.yaml carry it, and
+// the Bazel npm graph resolves it from the lock via npm_translate_lock. It is
+// still imported lazily and only under ADAPTER=node, so the frozen-lockfile
+// static build (the default) never loads it and every default gate stays green;
+// see docs/deploy/oncluster-container-readiness.md.
 const useNodeAdapter = process.env.ADAPTER === 'node';
 
 let adapter;
