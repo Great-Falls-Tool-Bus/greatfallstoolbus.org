@@ -58,7 +58,7 @@ interface ParallaxOptions {
 //
 // REDUCED-MOTION-SAFE by construction: the action reads the reduced-motion
 // media query up front and, when motion is not allowed (or there is no window,
-// i.e. SSR), returns without attaching any listener — the layer stays put and
+// i.e. SSR), returns without attaching any listener; the layer stays put and
 // simply covers the band as a static image. No prefers-reduced-motion branch is
 // needed in CSS; the effect just never starts.
 //

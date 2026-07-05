@@ -294,7 +294,7 @@
 			);
 	}
 
-	/* Print: the spec-sheet stays ink-on-white — drop the whole photographic band
+	/* Print: the spec-sheet stays ink-on-white, so drop the whole photographic band
 	   so no dark scrim or postcard bleeds into a printed page. */
 	@media print {
 		.hero-band__media {
