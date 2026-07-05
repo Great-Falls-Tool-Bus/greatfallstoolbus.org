@@ -482,3 +482,129 @@ pre.shiki span {
 		scroll-behavior: auto !important;
 	}
 }
+
+/* ===== External-link mark (Quiet Devtool) =====
+   The [↗] "leaves the site" mark on <ExternalLink>. Monospace, muted, lifts to
+   primary alongside the link on hover/focus. */
+.external-link__mark {
+	font-family: var(--font-mono);
+	font-size: 0.8em;
+	margin-inline-start: 0.25em;
+	color: var(--color-surface-500);
+	white-space: nowrap;
+}
+.external-link:hover .external-link__mark,
+.external-link:focus-visible .external-link__mark {
+	color: var(--color-primary-500);
+}
+
+/* ===== Avatar identity tile (Quiet Devtool) =====
+   Sharp square, monospace initials; optional photo via <img>. Mode-correct via
+   the native light-dark() (color-scheme is set by data-mode). Deliberately not
+   Skeleton's rounded Avatar — square + mono reads as agent-legible, matching
+   the view-source voice. */
+.avatar-tile {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	overflow: hidden;
+	user-select: none;
+	line-height: 1;
+	font-family: var(--font-mono);
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	color: light-dark(var(--color-primary-700), var(--color-primary-300));
+	background: light-dark(
+		color-mix(in oklch, var(--color-primary-500) 14%, white),
+		color-mix(in oklch, var(--color-primary-500) 22%, #1a1512)
+	);
+	border: 1px solid color-mix(in oklch, var(--color-primary-500) 35%, transparent);
+}
+.avatar-tile img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+/* ===== Scroll-reveal (Quiet Devtool) =====
+   Flash-free + no-JS-safe + reduced-motion-safe: the hidden start state applies
+   ONLY under html.motion-safe-ready, a class the app.html sync script sets
+   before first paint and ONLY when motion is allowed. SSR / no-JS / reduced
+   motion therefore always render content at rest. The `use:reveal` action
+   (src/lib/motion.svelte.ts) adds .reveal-in when the element scrolls in. */
+html.motion-safe-ready .reveal-armed {
+	opacity: 0;
+	transform: translateY(10px);
+	transition:
+		opacity 150ms ease,
+		transform 150ms ease;
+	transition-delay: var(--reveal-delay, 0ms);
+	will-change: opacity, transform;
+}
+html.motion-safe-ready .reveal-armed.reveal-in {
+	opacity: 1;
+	transform: none;
+}
+
+/* ===== Print — spec-sheet (Quiet Devtool) =====
+   Global print treatment for every route; the cell-sheets layer their own more
+   specific @media print rules on top. Drop chrome + background, ink on white,
+   expand outbound URLs (spec-sheet transparency), sharpen corners, avoid awkward
+   breaks. */
+@media print {
+	.saturn-nav,
+	.site-footer,
+	[data-testid='brand-vectors-bg'] {
+		display: none !important;
+	}
+	html,
+	body {
+		background: #fff !important;
+		color: #000 !important;
+	}
+	body {
+		font-size: 11pt;
+		line-height: 1.4;
+	}
+	main {
+		max-width: none !important;
+		margin: 0 !important;
+		padding: 0 !important;
+	}
+	a {
+		color: #000 !important;
+		text-decoration: underline;
+	}
+	.external-link[href^='http']::after {
+		content: ' <' attr(href) '>';
+		font-family: var(--font-mono);
+		font-size: 0.85em;
+		word-break: break-all;
+	}
+	.external-link__mark {
+		display: none !important;
+	}
+	.avatar-tile {
+		background: #fff !important;
+		color: #000 !important;
+		border: 1px solid #000 !important;
+	}
+	.reveal-armed {
+		opacity: 1 !important;
+		transform: none !important;
+	}
+	:where(h1, h2, h3) {
+		page-break-after: avoid;
+	}
+	section,
+	li,
+	.avatar-tile,
+	.rounded-container {
+		break-inside: avoid;
+	}
+	[class*='rounded'] {
+		border-radius: 0 !important;
+	}
+}

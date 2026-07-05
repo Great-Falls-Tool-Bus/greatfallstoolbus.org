@@ -39,6 +39,8 @@
 		compact?: boolean;
 		/** Dashed "empty slot" variant (e.g. start-the-next-cell). */
 		dashed?: boolean;
+		/** Optional left-column visual rendered beside the text (e.g. an <Avatar/>). */
+		lead?: Snippet;
 		children?: Snippet;
 	}
 
@@ -53,6 +55,7 @@
 		headingLevel = 'h3',
 		compact = false,
 		dashed = false,
+		lead,
 		children,
 	}: Props = $props();
 
@@ -101,12 +104,23 @@
 	{@render children?.()}
 {/snippet}
 
+{#snippet framed()}
+	{#if lead}
+		<div class="flex items-start gap-3">
+			<div class="shrink-0">{@render lead()}</div>
+			<div class="min-w-0 flex-1">{@render inner()}</div>
+		</div>
+	{:else}
+		{@render inner()}
+	{/if}
+{/snippet}
+
 {#if href}
 	<a class={cardClass} {href} aria-label={linkLabel}>
-		{@render inner()}
+		{@render framed()}
 	</a>
 {:else}
 	<div class={cardClass}>
-		{@render inner()}
+		{@render framed()}
 	</div>
 {/if}
