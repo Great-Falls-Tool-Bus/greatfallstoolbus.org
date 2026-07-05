@@ -14,8 +14,10 @@ import {
 	BookOpen,
 	Megaphone,
 	MailCheck,
+	MessagesSquare,
 	type Icon as LucideIcon,
 } from '@lucide/svelte';
+import { publicArchiveLive } from '$lib/flags';
 
 export interface NavItem {
 	label: string;
@@ -73,6 +75,24 @@ export const navItems: NavItem[] = [
 	},
 	{ label: 'Shout-outs', href: '/shout-outs', match: ['/shout-outs'], footerGroup: 'About', icon: Megaphone },
 	{ label: 'Get access', href: '/contact', match: ['/contact'], primary: true, icon: KeyRound },
+	// Discuss: the public `discuss@latoolb.us` community board archive (TIN-2528).
+	// GATED behind the fail-closed PUBLIC_ARCHIVE_LIVE flag: this nav entry only
+	// appears once an operator has flipped the archive live (after the Anubis edge
+	// + privacy pre-flight go-live checklist). Until then the /discuss route still
+	// exists and explains the board is coming, it is simply not advertised in nav
+	// and carries no outbound link. The conditional spread means a false flag is
+	// inlined at build and the item is dead-code-eliminated from the bundle.
+	...(publicArchiveLive
+		? [
+				{
+					label: 'Discuss',
+					href: '/discuss',
+					match: ['/discuss'],
+					footerGroup: 'Get involved',
+					icon: MessagesSquare,
+				} satisfies NavItem,
+			]
+		: []),
 ];
 
 /** Primary AppBar bar + mobile drawer top — derived, never hand-duplicated. */
