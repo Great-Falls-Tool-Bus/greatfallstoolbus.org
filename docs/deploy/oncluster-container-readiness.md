@@ -4,11 +4,17 @@
   operator-gated. This repo builds the on-cluster serve artifact; it does not
   flip the live host.
 - ADR 0008 (Accepted 2026-07-05) supersedes ADR 0003 for production hosting: it
-  accepts on-cluster (`adapter-node` -> OCI image -> K8s -> `cloudflared`) as the
-  target for the static-production surface, on the MassageIthaca precedent.
+  accepts on-cluster (`adapter-node` -> OCI image -> K8s Deployment -> ClusterIP
+  Service -> in-cluster `cloudflared` tunnel -> apex) as the **primary** target
+  for the static-production surface, on the MassageIthaca precedent.
+- The direction reduces reliance on Cloudflare Pages: after cutover, Cloudflare
+  Pages is retained as the **warm standby** (ADR 0007) rather than the primary
+  publisher. That warm standby is the named mitigation for the site-level
+  single-location tradeoff on-cluster serving carries (ADR 0008 SPOF analysis).
 - Current serving host is still Cloudflare Pages (project
   `greatfallstoolbus-org`, `adapter-static`, behind Cloudflare Access) and stays
-  so until the operator applies the overlay stack and bumps the image pin.
+  the primary host until the operator applies the overlay stack, flips the tunnel
+  ingress, and bumps the image pin.
 
 ## What this is
 
@@ -50,6 +56,25 @@ That cutover re-checks the static-spoke `boundaries` in `tinyland.repo.json`
 and `owns_cloudflare_mutation` stay false, so the overlay still owns the pin and
 apply) and moves the deploy lane to the blahaj GitOps receiver (see
 `docs/decisions/dynamic-canary-blue-green.md`).
+
+## What changes at cutover: Cloudflare Pages becomes the warm standby
+
+The direction does not delete Cloudflare Pages; it demotes it from primary
+publisher to **warm standby**. Once serving is on-cluster:
+
+- The primary origin is the in-cluster tunnel fronting the ClusterIP web Service
+  fronting the adapter-node Deployment. Rollback becomes an overlay image-pin
+  revert (re-pin the previous `sha-<commit>` and re-apply, ADR 0008 §5), not the
+  Cloudflare Pages / GitHub Pages model in `docs/runbooks/cf-pages-rollback.md`.
+- Cloudflare Pages is kept warm as the second origin and the site-level-outage
+  mitigation (the cluster is one physical location; the warm Pages publisher is
+  the named fallback in ADR 0008's SPOF analysis, tied to the ADR 0007 rollback
+  posture). Keeping it warm rather than cold is the reduce-reliance step, not a
+  removal.
+
+Until the operator rules the cutover, none of this is in effect: Cloudflare Pages
+is the primary and only production publisher, and the on-cluster serving path
+described here is a prepared, build-active target.
 
 ## Boundary posture (public repo holds nothing operational)
 
