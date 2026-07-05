@@ -4,7 +4,6 @@
 	"branch": "main",
 	"routes": {
 		"/": "src/routes/+page.svelte",
-		"/access": "src/routes/access/+page.svelte",
 		"/agent": "src/routes/agent/+page.svelte",
 		"/bibliography": "src/routes/bibliography/+page.svelte",
 		"/cell-sheets": "src/routes/cell-sheets/+page.svelte",
@@ -14,7 +13,6 @@
 		"/cells/welding": "src/routes/cells/welding/+page.svelte",
 		"/contact": "src/routes/contact/+page.svelte",
 		"/donate": "src/routes/donate/+page.svelte",
-		"/find-the-bus": "src/routes/find-the-bus/+page.svelte",
 		"/keyholders": "src/routes/keyholders/+page.svelte",
 		"/mission": "src/routes/mission/+page.svelte",
 		"/plans": "src/routes/plans/+page.svelte",
