@@ -25,6 +25,20 @@ Versioning: [SemVer 2.0](https://semver.org/).
   section and more-pages row so a visitor looking for "where" finds it. The
   `/access` step-three copy is corrected to match: the bus sits at a fixed
   location a keyholder shares, rather than one that moves.
+- Media pipeline proven end-to-end with a verifiably public-domain image. Adds
+  `static/photos/hand-tools-plate-1922.jpg` — a labeled 1922 plate of
+  woodworking hand tools from Louis M. Roehl's _Manual Training for the Rural
+  Schools_ (published 1922, US public domain; verified via the Wikimedia Commons
+  imageinfo API), with no identifiable people. A new `src/lib/data/credits.ts`
+  license ledger records the exact source page, asset URL, author, and license
+  for every content image and exposes `creditFor(src)`; `/mission` renders the
+  plate through `Picture.svelte` off the generated `static/image-manifest.json`
+  (AVIF/WebP renditions + intrinsic dimensions) with an auto-resolved credit
+  caption. Adds `docs/contributing-photos.md`, a keyholder walkthrough for
+  adding a photo through the `SourceLink` "Edit this page" view-source flow
+  (grounded in the `detailsNeeded` / `detailsWanted: ['photo']` pattern), with
+  the license rules: only CC0 / public-domain / own photos, no random web
+  images, no AI passed off as real, no hotlinking.
 - In-page contact form submission UX (TIN-2420 Path B, site side): the
   `/contact` form graduates from a plain mailto compose to a modern in-page
   flow with an idle to submitting to success or error state machine. On
