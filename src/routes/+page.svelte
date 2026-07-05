@@ -67,6 +67,7 @@
 	// Everything else: demoted and condensed to a single link row instead of
 	// duplicating the primary nav bar as another 8-card grid.
 	const morePages = [
+		{ title: 'Find the bus', href: `${base}/find-the-bus` },
 		{ title: 'Tool cells', href: `${base}/cells` },
 		{ title: 'Wants', href: `${base}/wants` },
 		{ title: 'Plans', href: `${base}/plans` },
@@ -137,7 +138,8 @@
 		<h2 class="text-2xl font-semibold">Getting on the bus</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 max-w-3xl leading-relaxed">
 			Anyone can ask to borrow: no membership fee, no paperwork wall. Reach out and a keyholder answers. Keyholders
-			review each request and share the bus location directly. Start on the
+			review each request and share the bus location directly. See
+			<a class="underline" href={`${base}/find-the-bus`}>where to find the bus</a>, then start on the
 			<a class="underline" href={`${base}/contact`}>contact / join page</a>.
 		</p>
 	</section>
