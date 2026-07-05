@@ -41,7 +41,7 @@ src/lib/data/mail-clients.ts.
 
 ## Agent Routes
 
-- [Agent AX map](https://greatfallstoolbus.org/agent)
+- [AX map](https://greatfallstoolbus.org/agent)
 - [Machine route map](https://greatfallstoolbus.org/agent-map.md)
 - [Sitemap](https://greatfallstoolbus.org/sitemap.xml)
 

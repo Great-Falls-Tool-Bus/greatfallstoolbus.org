@@ -92,6 +92,7 @@
 	</div>
 
 	<footer class="text-surface-500 pt-12 text-sm">
-		A safety orientation, a keyholder's go-ahead, and a little coordination, and the bus is yours to borrow.
+		No means test. A safety orientation, a keyholder's go-ahead, and a little coordination, and the bus is yours to
+		borrow.
 	</footer>
 </main>
