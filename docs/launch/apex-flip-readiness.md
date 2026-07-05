@@ -143,10 +143,13 @@ owned by this pack.
 
 ### SEO-3 — informational: no `static/CNAME`
 
-There is no `static/CNAME`. Primary hosting is Cloudflare Pages (ADR 0003), for
-which a `CNAME` file is not required, so this is **not a flip blocker**. It only
-matters for the GitHub-Pages fallback lane described in
-`docs/runbooks/dns-mail-checklist.md` §2. Flagged for operator awareness.
+There is no `static/CNAME`. Primary hosting is Cloudflare Pages (ADR 0003; note
+ADR 0008, Accepted 2026-07-05, supersedes 0003 for the production-hosting
+direction toward on-cluster, but that cutover is operator-gated and not yet done,
+so CF Pages is still the live host), for which a `CNAME` file is not required, so
+this is **not a flip blocker**. It only matters for the GitHub-Pages fallback
+lane described in `docs/runbooks/dns-mail-checklist.md` §2. Flagged for operator
+awareness.
 
 ---
 

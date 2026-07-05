@@ -3,6 +3,14 @@
 Two-level rollback for the apex/`www` production surface of greatfallstoolbus.org
 (TIN-2401). This is the explicit rollback path the CD audit flagged as missing.
 
+> Hosting direction (ADR 0008, Accepted 2026-07-05): on-cluster (`adapter-node`
+> -> image -> K8s -> `cloudflared`) is the accepted target for production
+> hosting, superseding ADR 0003, but the cutover is operator-gated and not yet
+> done. This runbook governs the **current** Cloudflare Pages production surface
+> and stays authoritative while CF Pages is the live host. After a migrated
+> surface moves on-cluster, rollback becomes an overlay image-pin revert (0008
+> §5), not this CF Pages / GitHub Pages model.
+
 It deliberately mirrors the **two-level** model in
 transscendsurvival.org's `docs/runbooks/dns-cutover-and-rollback.md`
 ("ROLLBACK: revert apex serving" as the cheap application-level path, and a
