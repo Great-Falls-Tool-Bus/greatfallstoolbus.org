@@ -29,6 +29,12 @@
 			Looking for the general flyer instead? That is
 			<a class="underline" href={`${base}/readme.txt`}>readme.txt</a> — same spirit, whole project.
 		</p>
+		<p class="text-surface-700 dark:text-surface-300 leading-relaxed">
+			Starting a cell that is not here yet? Print a
+			<a class="underline" href={`${base}/cell-sheets/new`}>blank cell sheet</a> to fill by hand, or write it up with
+			the
+			<a class="underline" href={`${base}/cells/new`}>cell-doc form</a>.
+		</p>
 		<button
 			type="button"
 			class="bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-colors"

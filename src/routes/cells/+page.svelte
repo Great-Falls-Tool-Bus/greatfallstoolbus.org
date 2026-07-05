@@ -53,6 +53,10 @@
 				the captain. The <a class="underline" href={`${base}/donate`}>donation criteria</a> tell you what makes a good
 				bus tool, and the <a class="underline" href={`${base}/wants`}>wants list</a> shows the gaps.
 			</p>
+			<p class="text-surface-700-300 mt-3 text-sm leading-relaxed">
+				Ready to write it down? The <a class="underline" href={`${base}/cells/new`}>cell-doc form</a> builds the file
+				for you, or print a <a class="underline" href={`${base}/cell-sheets/new`}>blank cell sheet</a> to fill by hand.
+			</p>
 		</Card>
 	</section>
 
