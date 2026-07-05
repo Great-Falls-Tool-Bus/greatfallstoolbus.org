@@ -1,10 +1,11 @@
-// Mail lace-up truth for the keyholders list. ONE source of truth for three
+// Mail lace-up truth for the keyholders list. ONE source of truth for four
 // consumers, so they can never drift:
 //   1. /contact renders the mail-client cards from MAIL_CLIENTS.
-//   2. scripts/build-agent-skills.mjs derives one provider-neutral SKILL.md per
+//   2. /keyholders renders the ordered onboarding guide from KEYHOLDER_MAIL_GUIDE.
+//   3. scripts/build-agent-skills.mjs derives one provider-neutral SKILL.md per
 //      client under .agents/skills/gftb-mail-laceup-<id>/ (mirrored to
 //      .claude/skills/) so a keyholder's own agent can lace up their client.
-//   3. The same generator rewrites the mail section of static/llms.txt so any
+//   4. The same generator rewrites the mail section of static/llms.txt so any
 //      agent pointed at greatfallstoolbus.org/llms.txt discovers each skill.
 // Regenerate + drift-check with `just skills-build` / `just skills-check`.
 // Keep prose brief and free of em-dashes (operator directive).
@@ -57,6 +58,34 @@ export interface MailClient {
 	mailbox: string;
 	/** Machine-actionable steps an agent can run against the user's config. */
 	agentHints: string[];
+}
+
+export interface ListAddress {
+	label: string;
+	address: string;
+	note: string;
+}
+
+export interface KeyholderGuideDetail {
+	label: string;
+	value: string;
+}
+
+export interface KeyholderGuideItem {
+	title: string;
+	body: string;
+	meta?: string;
+	address?: string;
+	href?: string;
+	ctaLabel?: string;
+	details?: KeyholderGuideDetail[];
+}
+
+export interface KeyholderGuideSection {
+	id: string;
+	title: string;
+	summary: string;
+	items: KeyholderGuideItem[];
 }
 
 const imapSmtp = `${MAILBOX.host}: IMAP ${MAILBOX.imapPort} (${MAILBOX.imapSecurity}), submission ${MAILBOX.submissionPort} (${MAILBOX.submissionSecurity}, ${MAILBOX.auth}).`;
@@ -167,6 +196,142 @@ export const MAIL_CLIENTS: MailClient[] = [
 			`For an approved keyholder, send an empty message to ${LIST.join} and confirm the reply.`,
 			`Create an inbox rule: condition From "${LIST.post}", action move to folder "Keyholders".`,
 			`On reply, keep ${LIST.post} as the recipient and remove others.`,
+		],
+	},
+];
+
+export const LIST_ADDRESSES: ListAddress[] = [
+	{
+		label: 'Approved keyholder subscribe',
+		address: LIST.join,
+		note: 'For people already approved as keyholders; owners approve membership.',
+	},
+	{
+		label: 'Post to the list',
+		address: LIST.post,
+		note: 'Public access requests may post here; keyholders receive and coordinate them.',
+	},
+	{
+		label: 'Reach list owners',
+		address: LIST.owner,
+		note: 'Owner/moderator contact for the private keyholders role list.',
+	},
+];
+
+const clientGuideItems: KeyholderGuideItem[] = MAIL_CLIENTS.map((client) => ({
+	title: client.name,
+	meta: client.platforms,
+	body: client.summary,
+	details: [
+		{ label: 'Subscribe', value: client.subscribe },
+		{ label: 'File list mail', value: client.filing },
+		{ label: 'Reply', value: client.replyToList },
+		{ label: 'Mailbox', value: client.mailbox },
+	],
+}));
+
+export const KEYHOLDER_MAIL_GUIDE: KeyholderGuideSection[] = [
+	{
+		id: 'list-role',
+		title: 'Know what the list is',
+		summary:
+			'The keyholders list is the private role list that lets keyholders coordinate access requests and list operations.',
+		items: [
+			{
+				title: 'Private role list',
+				body: 'Membership is curated and owner-approved. It is for keyholders who steward access to the bus, not a public discussion room.',
+			},
+			{
+				title: 'Public requests can still arrive',
+				body: 'Non-member posts may reach the list for access requests, then keyholders coordinate the answer. The public contact form uses the same role-list path.',
+			},
+			{
+				title: 'No public archive',
+				body: `Access requests can contain personal details, so the HyperKitty archive is ${ARCHIVE.status}.`,
+				href: ARCHIVE.url,
+				ctaLabel: 'Open archive',
+			},
+		],
+	},
+	{
+		id: 'addresses',
+		title: 'Use the right address',
+		summary: 'Mailman uses different addresses for joining, posting, and owner/moderator contact.',
+		items: LIST_ADDRESSES.map((address) => ({
+			title: address.label,
+			body: address.note,
+			address: address.address,
+		})),
+	},
+	{
+		id: 'join',
+		title: 'Join after approval',
+		summary:
+			'Approval happens before subscription. Once approved, join by email and finish the confirmation round trip.',
+		items: [
+			{
+				title: 'Send the subscribe email',
+				body: `From the address you want subscribed, send an empty email to ${LIST.join}. Keep the confirmation reply where you can find it.`,
+				address: LIST.join,
+			},
+			{
+				title: 'Confirm and wait for owners',
+				body: 'Reply to the Mailman confirmation as instructed. Owners approve membership, then normal list posts arrive in your inbox.',
+			},
+			{
+				title: 'Use the posting address after approval',
+				body: `Once subscribed, post list traffic to ${LIST.post}. Use the owner address only for moderation or membership trouble.`,
+				address: LIST.post,
+			},
+		],
+	},
+	{
+		id: 'clients',
+		title: 'Pick a mail client setup',
+		summary: `File list mail by Mailman's List-Id header (${LIST.listId}) when your client supports it. Otherwise, file by the posting address.`,
+		items: clientGuideItems,
+	},
+	{
+		id: 'reply-privacy',
+		title: 'Reply with list context',
+		summary:
+			'Reply behavior varies by client, but the rule is simple: put the list on the reply and trim people who do not need the thread.',
+		items: [
+			{
+				title: 'Prefer reply-to-list when available',
+				body: `Thunderbird and KMail read Mailman's List-Post header and can target ${LIST.post} directly.`,
+			},
+			{
+				title: 'Use Reply All carefully elsewhere',
+				body: `Gmail, Apple Mail, Geary, and Outlook need Reply All for list threads. Keep ${LIST.post} and remove extra recipients when the reply should stay list-only.`,
+			},
+			{
+				title: 'Respect request privacy',
+				body: 'Do not forward access-request details outside the role list unless the requester has clearly asked for that path.',
+			},
+		],
+	},
+	{
+		id: 'agent-help',
+		title: 'Let your agent lace up the client',
+		summary:
+			'The public agent index exposes one generated skill per mail client, all derived from this same data module.',
+		items: [
+			{
+				title: 'Open the agent index',
+				body: 'Point your own coding or desktop agent at llms.txt and choose the skill for your mail client.',
+				href: '/llms.txt',
+				ctaLabel: 'Open llms.txt',
+			},
+			{
+				title: 'Keep credentials user-authorized',
+				body: 'The skills describe configuration steps only. They do not contain passwords, tokens, or private mailbox state.',
+			},
+			{
+				title: 'Ask owners when mail acts strange',
+				body: 'For subscription loops, moderation holds, or list delivery trouble, contact the list owners rather than guessing at Mailman state.',
+				address: LIST.owner,
+			},
 		],
 	},
 ];
