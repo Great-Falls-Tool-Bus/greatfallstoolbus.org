@@ -1,0 +1,115 @@
+# ContainerFile — on-cluster readiness for greatfallstoolbus.org (TIN-2541).
+#
+# DECLARE-ONLY / OPTIONALITY. The production host is unchanged: adapter-static
+# -> Cloudflare Pages (ADR 0003). This image lets the SAME source be served
+# in-cluster as `node build/index.js` when a server is genuinely needed. It is
+# built with ADAPTER=node so svelte.config.js selects @sveltejs/adapter-node;
+# the default (no ADAPTER) still produces the static build and never touches
+# this file.
+#
+# adapter-node is intentionally NOT a committed devDependency (that is a
+# follow-up contract bump: pnpm lockfile + Bazel graph). The builder stage adds
+# it at image-build time only, so the repo's frozen-lockfile static build stays
+# green. See docs/deploy/oncluster-container-readiness.md.
+#
+# Usage (local, declare-only — CI does NOT build this by default):
+#   podman build -f ContainerFile -t greatfallstoolbus.org:local .
+#   podman run --rm -p 3000:3000 greatfallstoolbus.org:local
+#
+# Override the base image to dodge Docker Hub rate limits / use a mirror:
+#   podman build --build-arg NODE_IMAGE=registry.example.com/node:22-alpine ...
+
+ARG NODE_IMAGE=docker.io/node:22-alpine
+ARG PNPM_VERSION=10.13.1
+# Pinned to match the sanctioned dynamic-spoke reference (ADR
+# dynamic-spoke-adapter-mode.md: adapter-node ^5.5.3, MassageIthaca parity).
+ARG ADAPTER_NODE_VERSION=^5.5.3
+
+# --- pnpm base -------------------------------------------------------------
+FROM ${NODE_IMAGE} AS pnpm-base
+ARG PNPM_VERSION
+RUN corepack enable && \
+    for attempt in 1 2 3 4 5; do \
+      corepack prepare "pnpm@${PNPM_VERSION}" --activate && break; \
+      status=$?; \
+      if [ "$attempt" = "5" ]; then exit "$status"; fi; \
+      echo "corepack prepare pnpm@${PNPM_VERSION} failed; retrying"; \
+    done
+
+# --- builder ---------------------------------------------------------------
+FROM pnpm-base AS builder
+ARG ADAPTER_NODE_VERSION
+ARG BUILD_COMMIT_SHA=unknown
+ARG BUILD_COMMIT_REF=unknown
+ARG BUILD_DATE
+
+RUN apk add --no-cache git python3 make g++ jq bash
+
+WORKDIR /app
+
+# Install the committed, frozen dependency set first (cache-friendly layer).
+COPY package.json pnpm-lock.yaml .npmrc ./
+RUN pnpm install --frozen-lockfile
+
+# Add adapter-node OUT-OF-BAND at build time only. This mutates the in-container
+# lockfile (never the committed one), so the repo default build is untouched.
+RUN pnpm add -D "@sveltejs/adapter-node@${ADAPTER_NODE_VERSION}"
+
+# Copy config + sources.
+COPY svelte.config.js vite.config.ts tsconfig.json eslint.config.ts ./
+COPY src/ ./src/
+COPY static/ ./static/
+COPY scripts/ ./scripts/
+
+# ADAPTER=node makes svelte.config.js select @sveltejs/adapter-node; output is
+# a Node server under build/ (entry build/index.js). Image optimization is
+# skipped here — the committed static/image-manifest.json fallback carries it,
+# exactly like `pnpm run build` does off the `just build` image prestep.
+ENV ADAPTER=node
+ENV BUILD_COMMIT_SHA=${BUILD_COMMIT_SHA}
+ENV BUILD_COMMIT_REF=${BUILD_COMMIT_REF}
+ENV BUILD_DATE=${BUILD_DATE}
+RUN pnpm run build
+
+# --- production ------------------------------------------------------------
+FROM pnpm-base AS production
+ARG BUILD_COMMIT_SHA=unknown
+ARG BUILD_COMMIT_REF=unknown
+ARG BUILD_DATE
+
+LABEL org.opencontainers.image.source="https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org"
+LABEL org.opencontainers.image.revision="${BUILD_COMMIT_SHA}"
+LABEL org.opencontainers.image.ref.name="${BUILD_COMMIT_REF}"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
+RUN apk add --no-cache dumb-init curl
+
+WORKDIR /app
+
+# Non-root runtime user. Copy build output + node_modules with the target
+# ownership set on COPY (a recursive chown of /app would rewrite node_modules
+# into a large extra layer — the MassageIthaca lesson).
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001 -G nodejs
+
+COPY --from=builder --chown=nodejs:nodejs /app/build ./build
+COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nodejs:nodejs /app/package.json ./package.json
+
+USER nodejs
+
+EXPOSE 3000
+
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3000
+
+# adapter-node serves the site at `/`; there is no separate /health route on a
+# static-content spoke, so the readiness probe hits `/`.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -fsS http://localhost:3000/ >/dev/null || exit 1
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "build/index.js"]
