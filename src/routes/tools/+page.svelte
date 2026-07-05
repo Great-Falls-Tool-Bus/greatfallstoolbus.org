@@ -16,6 +16,7 @@
 	// orientation model (see /safety, /contact#access).
 	import { cells } from '$lib/data/cells';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import SourceLink from '$lib/components/SourceLink.svelte';
 	import Card from '$lib/components/Card.svelte';
 	import DetailsNeeded from '$lib/components/DetailsNeeded.svelte';
 </script>
@@ -88,8 +89,11 @@
 	{/each}
 
 	<footer class="text-surface-500 pt-12 text-sm">
-		Missing a capability? See the <a class="underline" href={`${base}/wants`}>wants list</a> or
-		<a class="underline" href={`${base}/donate`}>donate a tool</a>. Want this on paper? Every cell has a
-		<a class="underline" href={`${base}/cell-sheets`}>printable cell sheet</a>.
+		<p>
+			Missing a capability? See the <a class="underline" href={`${base}/wants`}>wants list</a> or
+			<a class="underline" href={`${base}/donate`}>donate a tool</a>. Want this on paper? Every cell has a
+			<a class="underline" href={`${base}/cell-sheets`}>printable cell sheet</a>.
+		</p>
+		<SourceLink routeId="/tools" />
 	</footer>
 </main>

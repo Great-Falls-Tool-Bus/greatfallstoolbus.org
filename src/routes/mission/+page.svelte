@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import SourceLink from '$lib/components/SourceLink.svelte';
 	import Picture from '$lib/components/Picture.svelte';
 	import { creditFor } from '$lib/data/credits';
 	import { Compass } from '@lucide/svelte';
@@ -28,10 +29,6 @@
 		{
 			title: 'Equity-forward',
 			body: 'The bus is meant to lower the barrier to making things, not raise it. There is no membership fee, and nobody is turned away for inability to pay. A short safety orientation and a keyholder who says yes are the whole gate.',
-		},
-		{
-			title: 'Honest and documented',
-			body: 'We say what is true today, cite the practice we borrow from, and never dress a bus up as a building. When reality changes, the site changes.',
 		},
 	];
 </script>
@@ -118,5 +115,8 @@
 		</p>
 	</section>
 
-	<footer class="text-surface-500 pt-12 text-sm">Ready to borrow or donate a tool? Start with a keyholder.</footer>
+	<footer class="text-surface-500 pt-12 text-sm">
+		<p>Ready to borrow or donate a tool? Start with a keyholder.</p>
+		<SourceLink routeId="/mission" />
+	</footer>
 </main>
