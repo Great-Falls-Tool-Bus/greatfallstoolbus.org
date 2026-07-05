@@ -69,7 +69,7 @@
 			eyebrow: 'Get access',
 			title: 'Access & contact',
 			body: 'How access works, and how to reach a keyholder directly.',
-			href: `${base}/access`,
+			href: `${base}/contact#access`,
 		},
 	];
 </script>
@@ -108,7 +108,7 @@
 				>Donate a tool</a
 			>
 			<a
-				href={`${base}/access`}
+				href={`${base}/contact#access`}
 				class="border-primary-500 text-primary-600 rounded-container hover:bg-primary-500/10 inline-flex items-center justify-center border px-6 py-3 text-sm font-semibold transition-colors"
 				>How access works</a
 			>
@@ -152,7 +152,7 @@
 		<p class="text-surface-700 dark:text-surface-300 mt-4 max-w-3xl leading-relaxed">
 			Anyone can ask to borrow: no membership fee, no paperwork wall. Reach out and a keyholder answers. Keyholders
 			review each request and share the bus location directly. See
-			<a class="underline" href={`${base}/find-the-bus`}>where to find the bus</a>, then start on the
+			<a class="underline" href={`${base}/contact#find-the-bus`}>where to find the bus</a>, then start on the
 			<a class="underline" href={`${base}/contact`}>contact / join page</a>.
 		</p>
 	</section>

@@ -13,7 +13,7 @@
 	// safety gate before use), then the kitted tools underneath. The catalog is
 	// driven entirely by the shared cells data source; no per-tool data was
 	// invented for the capability framing; the safety gate is the project-wide
-	// orientation model (see /safety, /access).
+	// orientation model (see /safety, /contact#access).
 	import { cells } from '$lib/data/cells';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
@@ -40,7 +40,7 @@
 			Each capability lists what it enables, how the kit rides the bus, and its safety gate. There is no membership fee;
 			a short safety orientation and a keyholder's go-ahead open the capability you want to use. See
 			<a class="underline" href={`${base}/safety`}>safety &amp; responsible use</a> and
-			<a class="underline" href={`${base}/access`}>how access works</a>.
+			<a class="underline" href={`${base}/contact#access`}>how access works</a>.
 			<!-- Access model (ratified): stewarded access; anyone may request; non-member requests reach all keyholders. -->
 		</p>
 	</section>
