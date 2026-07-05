@@ -74,7 +74,7 @@
 </script>
 
 <svelte:head>
-	<title>Agent AX map - greatfallstoolbus.org</title>
+	<title>Agent AX map | Great Falls Tool Bus</title>
 	<meta
 		name="description"
 		content="Agent-readable entrypoints, project skills, Just recipes, and Flywheel cache-first constraints for greatfallstoolbus.org."

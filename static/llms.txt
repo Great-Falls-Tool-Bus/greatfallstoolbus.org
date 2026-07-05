@@ -1,7 +1,8 @@
-# site.scaffold
+# Great Falls Tool Bus
 
-> Tinyland house scaffold for static SvelteKit spoke sites. Start with
-> `AGENTS.md`, then use the project skills for task-specific behavior.
+> The Great Falls Tool Bus is a shared tool library on wheels for
+> Lewiston-Auburn, Maine: a static site with agent routes at /agent, /llms.txt,
+> and /agent-map.md.
 
 ## Canonical
 
@@ -40,9 +41,9 @@ src/lib/data/mail-clients.ts.
 
 ## Agent Routes
 
-- [Agent AX map](https://site.scaffold/agent)
-- [Machine route map](https://site.scaffold/agent-map.md)
-- [Sitemap](https://site.scaffold/sitemap.xml)
+- [Agent AX map](https://greatfallstoolbus.org/agent)
+- [Machine route map](https://greatfallstoolbus.org/agent-map.md)
+- [Sitemap](https://greatfallstoolbus.org/sitemap.xml)
 
 ## Operating Constraints
 
