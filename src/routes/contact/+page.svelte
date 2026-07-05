@@ -5,7 +5,7 @@
 	import { KeyRound, LoaderCircle, Mail, MailCheck, MapPin, RotateCcw, Send, TriangleAlert } from '@lucide/svelte';
 	import CopyAddressButton from '$lib/components/CopyAddressButton.svelte';
 	import InfoTip from '$lib/components/InfoTip.svelte';
-	import { LIST, LIST_ADDRESSES, MAIL_CLIENTS } from '$lib/data/mail-clients';
+	import { LIST, LIST_ADDRESSES } from '$lib/data/mail-clients';
 	import {
 		buildMailtoHref,
 		contactApiUrl,
@@ -124,10 +124,6 @@
 
 	const listAddresses = LIST_ADDRESSES;
 
-	// Single source of truth: the same client data drives the derived per-client
-	// agent skills (see scripts/build-agent-skills.mjs) and the cards below.
-	const clientSetups = MAIL_CLIENTS;
-
 	// "How access works": the path from first inquiry to a tool in your hands,
 	// folded in from the former /access route (TIN-2536 route consolidation) so
 	// reach out -> get access -> find the bus reads as one page. Copy is verbatim.
@@ -159,7 +155,7 @@
 </script>
 
 <svelte:head>
-	<title>Contact / join — Great Falls Tool Bus</title>
+	<title>Contact / join | Great Falls Tool Bus</title>
 	<meta
 		name="description"
 		content="Reach the Great Falls Tool Bus keyholders. The contact form sends your request straight to the list; a real person replies."
@@ -440,39 +436,6 @@
 						<CopyAddressButton value={item.address} label={`Copy ${item.label.toLowerCase()}`} />
 					</div>
 					<p class="text-surface-700-300 mt-3 text-sm leading-relaxed">{item.note}</p>
-				</div>
-			{/each}
-		</div>
-	</section>
-
-	<section class="mt-12" aria-labelledby="clients-heading">
-		<h2 id="clients-heading" class="text-2xl font-semibold">Mail client notes</h2>
-		<p class="text-surface-700 dark:text-surface-300 mt-3 max-w-3xl text-sm leading-relaxed">
-			Your own agent can lace up any of these clients from the matching skill in
-			<a class="text-primary-600 underline underline-offset-4" href="{base}/llms.txt">llms.txt</a>.
-		</p>
-		<div class="mt-6 grid gap-3 md:grid-cols-2">
-			{#each clientSetups as item (item.id)}
-				<div class="border-surface-200-800 bg-surface-50-950/75 border p-5">
-					<div class="flex items-baseline justify-between gap-3">
-						<h3 class="text-lg font-semibold">{item.name}</h3>
-						<span class="text-surface-500 text-xs">{item.platforms}</span>
-					</div>
-					<p class="text-surface-700-300 mt-2 text-sm leading-relaxed">{item.summary}</p>
-					<dl class="mt-3 grid gap-1 text-sm">
-						<div class="grid gap-0.5">
-							<dt class="text-surface-500 text-xs tracking-wide uppercase">Subscribe</dt>
-							<dd class="text-surface-700-300 leading-relaxed">{item.subscribe}</dd>
-						</div>
-						<div class="grid gap-0.5">
-							<dt class="text-surface-500 text-xs tracking-wide uppercase">File</dt>
-							<dd class="text-surface-700-300 leading-relaxed">{item.filing}</dd>
-						</div>
-						<div class="grid gap-0.5">
-							<dt class="text-surface-500 text-xs tracking-wide uppercase">Reply</dt>
-							<dd class="text-surface-700-300 leading-relaxed">{item.replyToList}</dd>
-						</div>
-					</dl>
 				</div>
 			{/each}
 		</div>

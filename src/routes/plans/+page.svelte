@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import SourceLink from '$lib/components/SourceLink.svelte';
 	import { Accordion } from '@skeletonlabs/skeleton-svelte';
 	import { ChevronDown, Map } from '@lucide/svelte';
 
@@ -130,6 +131,7 @@
 	</section>
 
 	<footer class="text-surface-500 pt-12 text-sm">
-		No dates promised. When something ships, it moves up this page.
+		<p>No dates promised. When something ships, it moves up this page.</p>
+		<SourceLink routeId="/plans" />
 	</footer>
 </main>

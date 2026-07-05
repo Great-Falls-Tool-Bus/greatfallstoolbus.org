@@ -5,7 +5,9 @@
 	// at build time from the src/content/tools/**/*.svx tree. No invented
 	// numbers; if the tree changes, these change with it.
 	import { cells, wants } from '$lib/data/cells';
+	import { creditFor } from '$lib/data/credits';
 	import Picture from '$lib/components/Picture.svelte';
+	import SourceLink from '$lib/components/SourceLink.svelte';
 	import { reveal, parallax } from '$lib/motion.svelte';
 
 	// Full-bleed blurred + parallax hero backdrop: the Tichnor Bros. c.1930s linen
@@ -16,13 +18,14 @@
 	// parallax is reduced-motion-safe (see $lib/motion). Provenance in
 	// $lib/data/credits.
 	const heroImage = '/photos/great-falls-lewiston-1930s.jpg';
+	const heroCredit = creditFor(heroImage);
 
 	const brand = {
 		name: 'Great Falls Tool Bus',
 		domain: 'greatfallstoolbus.org',
 		tagline: 'This is a bus, the shop comes later :)',
 		blurb:
-			'A shared tool library on wheels for Lewiston-Auburn, Maine. We collect serious tools: the big, heavy, many-little-bits kind. We kit them for transport and lend them to neighbors who ask.',
+			'A shared tool library on wheels for Lewiston-Auburn, Maine. We kit them for transport and lend them to neighbors who ask.',
 	};
 
 	const criteria = [
@@ -141,6 +144,24 @@
 		</div>
 	</section>
 
+	<!-- Hero image credit (TIN-2419): the falls backdrop is a decorative,
+	     aria-hidden full-bleed layer, so it carries no figure/figcaption of its
+	     own. This quiet caption surfaces the same provenance the mission tool-plate
+	     figcaption does (title, author, license, source), resolved from
+	     $lib/data/credits, plus a note of our own crop. -->
+	<p class="text-surface-600-400 mt-4 text-sm leading-relaxed">
+		Hero image: {heroCredit?.title ?? 'The Falls and Old Man, Auburn and Lewiston, Maine'}
+		{#if heroCredit}
+			<span>
+				, {heroCredit.author}. {heroCredit.license}.
+				<a class="underline underline-offset-4" href={heroCredit.source} target="_blank" rel="noopener noreferrer"
+					>Source</a
+				>. Cropped to the image area (postcard caption, catalog number, and card margins removed) and optimized for the
+				web.
+			</span>
+		{/if}
+	</p>
+
 	<!-- Uncontained editorial criteria: each is a hairline-divided term/description
 	     row (dl), not a boxed card. Reads as one continuous page. -->
 	<section class="mt-16" aria-label="Shared-tool criteria">
@@ -192,6 +213,10 @@
 			{/each}
 		</ul>
 	</section>
+
+	<footer class="text-surface-500 pt-16 text-sm">
+		<SourceLink routeId="/" />
+	</footer>
 </main>
 
 <style>
@@ -228,7 +253,7 @@
 	.hero-band__parallax {
 		position: absolute;
 		inset: -20% -8%;
-		filter: blur(16px);
+		filter: blur(10px);
 		will-change: transform;
 	}
 
