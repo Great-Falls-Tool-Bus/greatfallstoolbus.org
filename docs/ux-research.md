@@ -6,6 +6,12 @@ and public tool-library precedents. No invented data; anything not yet
 operator-confirmed on the live site is called out as such, matching the
 site's own `OPERATOR-CONFIRM` markers.
 
+Update 2026-07-05: PR #64 added `/find-the-bus` and corrected the location
+model. The bus is treated as based at a fixed Lewiston-Auburn location; the
+exact spot is shared privately after a request through `/contact`. This document
+keeps the original friction notes where useful, but recommendations about public
+routes, stops, or hours are no longer the near-term model.
+
 File paths below are routes in the `greatfallstoolbus.org` repo, not this
 scaffold repo.
 
@@ -18,8 +24,8 @@ scaffold repo.
   already, will I be judged for not knowing tool names, is the bus even
   running this week, what if I break something.
 - **Site tasks**: find out if the bus has the tool (`/tools`), find out what
-  borrowing costs and requires (`/access`, `/safety`), find out where and
-  when to actually meet the bus (no dedicated page exists today), reach a
+  borrowing costs and requires (`/access`, `/safety`), learn that the exact
+  bus location is shared privately after contact (`/find-the-bus`), reach a
   human (`/contact`).
 
 ### Tool donor
@@ -46,7 +52,7 @@ scaffold repo.
 
 ### Partner org (library, school, shop, alderman's office)
 - **Goals**: assess legitimacy and fit for a formal or informal partnership
-  (hosting a stop, co-promoting, donating storage/parking), fast.
+  (co-promoting, donating storage/parking, offering a host relationship), fast.
 - **Anxieties**: is this a real, safety-conscious operation or an informal
   experiment that could reflect badly on their org; who is legally
   accountable; is there a single point of contact.
@@ -65,15 +71,12 @@ Path: `/` -> `/tools` -> `/access` -> `/safety` -> `/contact`.
   note, then lists individual tools underneath. Good: frames tools by what
   they let you *do*, not just brand/model.
 - `src/routes/access/+page.svelte` gives a clean four-step flow (reach out,
-  safety orientation, schedule around the bus, use the tool) and is explicit
-  that the model is a recommended default, not operator-confirmed
-  (`OPERATOR-CONFIRM` comment at line 56).
-- **Friction**: nothing on the site says where the bus is or when it runs.
-  `/` (line 77) and `/cell-sheets` both say "keyholders vet requests and
-  share the bus location directly" — the actual schedule/stop information
-  lives entirely off-site, behind a human conversation. A neighbor cannot
-  self-serve "is the bus near me this week?" the way they could check a
-  bookmobile schedule.
+  safety orientation, get the privately shared location and a time, use the
+  tool).
+- **Closed by PR #64**: the site now has `/find-the-bus`, which states the
+  fixed-location model and sends visitors to `/contact` for the exact spot and
+  access procedure. That matches the current security posture: location is
+  private-by-request, not a public stop schedule.
 - **Friction**: the safety-orientation gate is per-capability (`/tools`
   line 58-61) but there is no page showing which orientations exist, how
   long they take, or how to schedule one — only that one happens "before
@@ -146,9 +149,9 @@ Path: `/contact`.
 
 ## 3. Usability checklist for the next design pass
 
-- [ ] Add a bus location/schedule surface (even a simple "this week's stops"
-  list or a note pointing to how schedule requests work) — currently zero
-  self-service path to "where and when."
+- [x] Add a request-first bus location surface — `/find-the-bus` now explains
+  that the bus is based at a fixed location and that keyholders share the exact
+  spot after a request through `/contact`.
 - [ ] Reconcile "keyholder" and the `/stewards` role ladder into one
   vocabulary, or explicitly map them, so a volunteer knows which role they
   are actually signing up for.
@@ -203,13 +206,11 @@ locations/tool-lending-library — both already cited in the site's own
 `/bibliography`.)
 
 **Hours/location for a mobile service** — public bookmobile programs
-(Mobile Public Libraries, Santa Clara County, Kansas City) publish a
-schedule of stops on their own page, note that stops are subject to change,
-and advise calling ahead to confirm — the honest pattern for a moving
-service rather than a fixed one. The tool bus currently has no equivalent
-surface at all; a "this week's stops" or "how the schedule works" page,
-even a simple one with a call-ahead caveat, would close the single biggest
-gap found in the borrow-a-tool walkthrough above. (Mobile Public Libraries,
+(Mobile Public Libraries, Santa Clara County, Kansas City) publish a schedule of
+stops, note that stops are subject to change, and advise calling ahead to
+confirm. That is a useful future pattern if the Tool Bus adopts a public route,
+but it is not the current model: `/find-the-bus` is intentionally request-first
+for a fixed location. (Mobile Public Libraries,
 https://www.mobilepubliclibrary.org/locations-hours/bookmobile-outreach.)
 
 **Multilingual note (Lewiston's Somali and French-speaking communities)** —
@@ -240,8 +241,8 @@ actually go through `/access` end to end):
   reply from a keyholder, where did you lose confidence or almost give up?
 - Did you understand what "safety orientation" would involve before you
   showed up for one? What did you expect versus what happened?
-- How did you find out where and when to actually meet the bus? Would a
-  self-service schedule page have changed how you approached this?
+- How did you find out the exact bus location and time? Did the request-first
+  handoff feel clear and safe, or did it feel like missing information?
 - If your first language is not English, what would have made the site
   easier to use, and at what point in the process (browsing, contacting,
   orientation) would translation have mattered most?
