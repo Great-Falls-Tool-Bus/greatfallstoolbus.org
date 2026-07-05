@@ -103,7 +103,7 @@
 						{@const Icon = item.icon}
 						<a
 							href={`${base}${item.href}`}
-							class="hover:text-primary-500 inline-flex items-center gap-1.5 transition-colors {active
+							class="nav-underline hover:text-primary-500 inline-flex items-center gap-1.5 transition-colors {active
 								? 'text-primary-600 font-semibold'
 								: ''}"
 							aria-current={active ? 'page' : undefined}
