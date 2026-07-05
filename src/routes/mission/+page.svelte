@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Card from '$lib/components/Card.svelte';
 	import Picture from '$lib/components/Picture.svelte';
 	import { creditFor } from '$lib/data/credits';
 	import { Compass } from '@lucide/svelte';
@@ -94,11 +93,14 @@
 
 	<section class="mt-12" aria-label="What we believe">
 		<h2 class="text-2xl font-semibold">What we believe</h2>
-		<div class="mt-6 space-y-4">
+		<dl class="mt-6 space-y-4">
 			{#each principles as p (p.title)}
-				<Card title={p.title} body={p.body} headingLevel="h3" />
+				<div>
+					<dt class="font-semibold">{p.title}</dt>
+					<dd class="text-surface-700 dark:text-surface-300 mt-1 leading-relaxed">{p.body}</dd>
+				</div>
 			{/each}
-		</div>
+		</dl>
 	</section>
 
 	<section class="border-surface-200-800 mt-12 border-t pt-8 prose max-w-none" aria-label="How access works">

@@ -74,7 +74,7 @@
 </script>
 
 <svelte:head>
-	<title>Agent AX map - greatfallstoolbus.org</title>
+	<title>AX map | Great Falls Tool Bus</title>
 	<meta
 		name="description"
 		content="Agent-readable entrypoints, project skills, Just recipes, and Flywheel cache-first constraints for greatfallstoolbus.org."
@@ -83,7 +83,7 @@
 
 <main class="mx-auto max-w-5xl px-6 py-16 md:py-20">
 	<header class="max-w-3xl space-y-4">
-		<p class="text-surface-500 text-xs tracking-widest uppercase">Agent AX</p>
+		<p class="text-surface-500 text-xs tracking-widest uppercase">AX</p>
 		<h1 class="text-4xl leading-tight font-bold md:text-5xl">greatfallstoolbus.org traversal map</h1>
 		<p class="text-surface-700-300 text-lg leading-relaxed">
 			The scaffold is itself a static spoke: public site, machine-readable index, reusable project skills, and a single

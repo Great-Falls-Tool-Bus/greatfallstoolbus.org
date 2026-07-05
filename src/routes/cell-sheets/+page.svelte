@@ -10,7 +10,7 @@
 </script>
 
 <svelte:head>
-	<title>Printable cell sheets — Great Falls Tool Bus</title>
+	<title>Printable cell sheets | Great Falls Tool Bus</title>
 	<meta
 		name="description"
 		content="One-page printable sheets per tool cell: what is in the kit, how it travels, and who its captain is. Print, pin to a board, hand to a friend."
@@ -42,16 +42,16 @@
 		{#each cells as cell (cell.slug)}
 			<article class="sheet border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-6 font-mono md:p-8">
 				<header>
-					<p class="sheet-kicker">GREAT FALLS TOOL BUS — CELL SHEET</p>
+					<p class="sheet-kicker">GREAT FALLS TOOL BUS: CELL SHEET</p>
 					<h2 class="sheet-title">{cell.name.toUpperCase()}</h2>
 					<p class="sheet-sub">
 						A shared tool library on wheels for Lewiston-Auburn, Maine.<br />
-						This is a bus — the shop comes later :)
+						This is a bus, the shop comes later :)
 					</p>
 				</header>
 
 				<section aria-label="In the kit">
-					<h3 class="sheet-h">IN THE KIT — check each box when the kit is packed</h3>
+					<h3 class="sheet-h">IN THE KIT: check each box when the kit is packed</h3>
 					<ul class="sheet-list">
 						{#each cell.tools as tool (tool.slug)}
 							<li>
@@ -73,12 +73,12 @@
 				</section>
 
 				<section aria-label="Cell captain">
-					<h3 class="sheet-h">CELL CAPTAIN — one person who knows the kit</h3>
+					<h3 class="sheet-h">CELL CAPTAIN: one person who knows the kit</h3>
 					{#if cell.captain}
 						<p>Captain: {cell.captain}</p>
 					{:else}
 						<p>Captain: <span class="blank" aria-label="write the captain's name here"></span></p>
-						<p class="sheet-note">This cell still needs one — it could be you. Ask a keyholder.</p>
+						<p class="sheet-note">This cell still needs one. It could be you. Ask a keyholder.</p>
 					{/if}
 					<p class="sheet-checkline">
 						Kit last checked: <span class="blank short" aria-label="date"></span> by

@@ -230,7 +230,7 @@
 </script>
 
 <svelte:head>
-	<title>Bibliography — Great Falls Tool Bus</title>
+	<title>Bibliography | Great Falls Tool Bus</title>
 	<meta
 		name="description"
 		content="The research the tool bus stands on: hackerspace design patterns, tool-lending library history and policy, makerspace scholarship, mobile precedents, and kitting practice."

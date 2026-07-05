@@ -42,11 +42,14 @@
 
 	<section class="mt-10" aria-label="The roles">
 		<h2 class="text-2xl font-semibold">The roles</h2>
-		<div class="mt-6 space-y-4">
+		<dl class="mt-6 space-y-4">
 			{#each roles as role (role.title)}
-				<Card title={role.title} body={role.body} headingLevel="h3" />
+				<div>
+					<dt class="font-semibold">{role.title}</dt>
+					<dd class="text-surface-700 dark:text-surface-300 mt-1 leading-relaxed">{role.body}</dd>
+				</div>
 			{/each}
-		</div>
+		</dl>
 	</section>
 
 	<section class="border-surface-200-800 mt-12 border-t pt-8" aria-label="Current roster">
