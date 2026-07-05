@@ -10,7 +10,6 @@ import {
 	ShieldCheck,
 	Gift,
 	ClipboardList,
-	Map,
 	BookOpen,
 	Megaphone,
 	MailCheck,
@@ -46,7 +45,7 @@ export interface NavItem {
  */
 // Ordered as a narrative: who we are (Mission) → what's on the bus (Tools,
 // Cells) → how to use it (Safety) → how to give (Donate, Wants) → where it's
-// going + credibility (Plans, Bibliography, Shout-outs) → reach us (Get access).
+// going + credibility (Bibliography, Shout-outs) → reach us (Get access).
 // `navItems` stays the single flat array (DRY); `primary` and `footerGroup`
 // mark where each item renders (see `primaryNavItems` and `footerNavGroups`
 // below). Primary bar: Mission, Tools, Cells, Donate, Get access: the browse →
@@ -55,7 +54,7 @@ export interface NavItem {
 // (reach out → get access → find the bus is one intent), so the primary
 // "Get access" item points at /contact; access-how-to and the request-first
 // location now live as anchored sections there (#access, #find-the-bus).
-// Safety, Wants, Keyholders, Plans, Bibliography, Shout-outs, and Operator docs
+// Safety, Wants, Keyholders, Bibliography, Shout-outs, and Operator docs
 // demote to footer groups; /stewards remains a footer-only link hard-coded in
 // +layout.svelte (predates this array). Safety demotes off the primary bar
 // because its docs need careful hand editing before they lead the site; it stays
@@ -68,7 +67,6 @@ export const navItems: NavItem[] = [
 	{ label: 'Donate', href: '/donate', match: ['/donate'], primary: true, icon: Gift },
 	{ label: 'Wants', href: '/wants', match: ['/wants'], footerGroup: 'Get involved', icon: ClipboardList },
 	{ label: 'Keyholders', href: '/keyholders', match: ['/keyholders'], footerGroup: 'Get involved', icon: MailCheck },
-	{ label: 'Plans', href: '/plans', match: ['/plans'], footerGroup: 'About', icon: Map },
 	{
 		label: 'Bibliography',
 		href: '/bibliography',

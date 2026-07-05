@@ -30,7 +30,7 @@ For a latoolb.us mailbox, use mail.latoolb.us: IMAP 993 (SSL/TLS), submission 58
 
 ## Archive
 
-HyperKitty web archive: https://lists.latoolb.us/hyperkitty/list/keyholders@latoolb.us/ (private or off, pending TIN-2380).
+HyperKitty web archive: https://lists.latoolb.us/hyperkitty/list/keyholders@latoolb.us/ (private or off).
 
 ## Agent steps
 
