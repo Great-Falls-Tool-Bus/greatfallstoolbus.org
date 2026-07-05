@@ -6,7 +6,15 @@
 	// numbers; if the tree changes, these change with it.
 	import { cells, wants } from '$lib/data/cells';
 	import Card from '$lib/components/Card.svelte';
+	import Picture from '$lib/components/Picture.svelte';
 	import { reveal } from '$lib/motion.svelte';
+
+	// Faint 1922 hand-tools plate reused as a warm hero texture (Wave-3 WOW
+	// polish). Same committed public-domain asset the /mission figure credits, so
+	// no new bytes and no new credits entry. Rendered decorative + very low
+	// opacity behind the copy, and print:hidden so the spec-sheet print stays
+	// ink-on-white. See $lib/data/credits for provenance.
+	const heroTexture = '/photos/hand-tools-plate-1922.jpg';
 
 	const brand = {
 		name: 'Great Falls Tool Bus',
@@ -72,7 +80,20 @@
 </svelte:head>
 
 <main class="mx-auto max-w-5xl px-6 py-16 md:py-24">
-	<header class="max-w-3xl space-y-4">
+	<header class="relative isolate max-w-3xl space-y-4">
+		<div
+			class="pointer-events-none absolute -inset-x-6 -inset-y-4 -z-10 overflow-hidden opacity-[0.05] select-none print:hidden dark:opacity-[0.07]"
+			style="mask-image: linear-gradient(to bottom, black, transparent 85%); -webkit-mask-image: linear-gradient(to bottom, black, transparent 85%);"
+			aria-hidden="true"
+		>
+			<Picture
+				src={heroTexture}
+				alt=""
+				loading="eager"
+				sizes="(min-width: 1024px) 1024px, 100vw"
+				class="h-full w-full object-cover object-right"
+			/>
+		</div>
 		<p class="text-surface-500 text-xs tracking-widest uppercase">{brand.name} · Lewiston-Auburn, Maine</p>
 		<h1 class="font-display text-4xl md:text-5xl">A shared tool library on wheels</h1>
 		<p class="text-primary-600 text-xl">{brand.tagline}</p>
