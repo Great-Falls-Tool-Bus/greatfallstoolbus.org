@@ -11,7 +11,6 @@ dist/
 # and the generated image manifest. Regenerate via `just optimize-images`.
 static/optimized/
 .bundle-stats/
-src/lib/image-manifest.json
 
 # Environment files
 .env
