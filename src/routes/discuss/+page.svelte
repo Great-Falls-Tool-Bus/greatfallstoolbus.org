@@ -3,14 +3,17 @@
 	import { MessagesSquare } from '@lucide/svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import ExternalLink from '$lib/components/ExternalLink.svelte';
-	import { publicArchiveLive } from '$lib/flags';
+	import { archiveVisible } from '$lib/flags';
 
 	// Public community board surface (TIN-2528). This page always exists and
 	// always explains what discuss@ is. What it gates on the fail-closed
-	// PUBLIC_ARCHIVE_LIVE flag is the single outbound link to the live HyperKitty
-	// archive: while the flag is false (the default), lists.latoolb.us is not open
-	// yet, so linking to it would 404. So the page shows a "coming" note instead,
-	// and the "Discuss" nav entry is withheld (see $lib/nav-items).
+	// `archiveVisible` predicate is the archive section and its single outbound
+	// link to the HyperKitty archive. archiveVisible is on when EITHER gate is
+	// set: gated PREVIEW testing inside the Access-gated deploy
+	// (PUBLIC_ARCHIVE_PREVIEW) or the reserved PUBLIC go-live (PUBLIC_ARCHIVE_LIVE).
+	// While both are false (the default), lists.latoolb.us is not reachable for
+	// this audience, so linking to it would 404: the page shows a "coming" note
+	// instead, and the "Discuss" nav entry is withheld (see $lib/nav-items).
 	//
 	// This surface only ever speaks about the PUBLIC discuss@ board. The private
 	// keyholder role list and its archive are a separate, closed path and are
@@ -50,9 +53,10 @@
 		</p>
 	</section>
 
-	{#if publicArchiveLive}
-		<!-- LIVE: the operator has flipped PUBLIC_ARCHIVE_LIVE. The archive host is
-		     open behind its Anubis gate, so the outbound link is safe to render. -->
+	{#if archiveVisible}
+		<!-- VISIBLE: gated preview (PUBLIC_ARCHIVE_PREVIEW) or public go-live
+		     (PUBLIC_ARCHIVE_LIVE) is set. The archive host is reachable behind its
+		     Anubis gate for this audience, so the outbound link is safe to render. -->
 		<aside
 			class="border-surface-200-800 bg-surface-100-900/70 mt-12 border-y px-6 py-8 backdrop-blur-sm"
 			aria-label="Read the archive"
@@ -76,10 +80,10 @@
 			</p>
 		</aside>
 	{:else}
-		<!-- DEFAULT / fail-closed: PUBLIC_ARCHIVE_LIVE is off. The archive host is
-		     not open yet, so we render NO outbound link (it would 404) and say so
-		     plainly. Flipping the flag is an operator step gated on a go-live
-		     checklist; nothing here needs editing when that happens. -->
+		<!-- DEFAULT / fail-closed: neither archive gate is set. The archive host is
+		     not reachable for this audience yet, so we render NO outbound link (it
+		     would 404) and say so plainly. Flipping a gate is an operator/deploy
+		     step; nothing here needs editing when that happens. -->
 		<aside
 			class="border-surface-200-800 bg-surface-100-900/70 mt-12 border-y px-6 py-8 backdrop-blur-sm"
 			aria-label="Board status"
