@@ -4,9 +4,6 @@ A shared tool library on wheels for Lewiston-Auburn, Maine.
 
 **This is a bus. The shop comes later :)**
 
-We collect serious tools (the big, heavy, many-little-bits kind), kit them for
-transport, and lend them to neighbors who ask.
-
 ## What we need right now
 
 - **A logo & graphics.** We have no logo, no wordmark, no bus art. If you

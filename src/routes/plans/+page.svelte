@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Card from '$lib/components/Card.svelte';
 	import { Accordion } from '@skeletonlabs/skeleton-svelte';
 	import { ChevronDown, Map } from '@lucide/svelte';
 
@@ -68,10 +67,15 @@
 						</Accordion.ItemIndicator>
 					</Accordion.ItemTrigger>
 				</h2>
-				<Accordion.ItemContent class="space-y-4 pb-6">
-					{#each now as item (item.title)}
-						<Card title={item.title} body={item.body} headingLevel="h3" />
-					{/each}
+				<Accordion.ItemContent class="pb-6">
+					<dl class="space-y-4">
+						{#each now as item (item.title)}
+							<div>
+								<dt class="font-semibold">{item.title}</dt>
+								<dd class="text-surface-700-300 mt-1 text-sm leading-relaxed">{item.body}</dd>
+							</div>
+						{/each}
+					</dl>
 				</Accordion.ItemContent>
 			</Accordion.Item>
 
@@ -88,10 +92,15 @@
 						</Accordion.ItemIndicator>
 					</Accordion.ItemTrigger>
 				</h2>
-				<Accordion.ItemContent class="space-y-4 pb-6">
-					{#each nearTerm as item (item.title)}
-						<Card title={item.title} body={item.body} headingLevel="h3" />
-					{/each}
+				<Accordion.ItemContent class="pb-6">
+					<dl class="space-y-4">
+						{#each nearTerm as item (item.title)}
+							<div>
+								<dt class="font-semibold">{item.title}</dt>
+								<dd class="text-surface-700-300 mt-1 text-sm leading-relaxed">{item.body}</dd>
+							</div>
+						{/each}
+					</dl>
 				</Accordion.ItemContent>
 			</Accordion.Item>
 		</Accordion>
@@ -114,7 +123,7 @@
 	<section class="border-surface-200-800 mt-12 border-t pt-8" aria-label="How to help">
 		<h2 class="text-2xl font-semibold">How to help right now</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
-			<a class="underline" href={`${base}/donate`}>Donate a tool</a>. That is the whole ask. Until an entity exists,
+			<a class="underline" href={`${base}/donate`}>Donate a tool</a>. That is the whole of it. Until an entity exists,
 			tool donations are the only kind the project accepts, and nothing on this site is a charitable solicitation.
 			Everything else that helps (time, know-how, a captain for a new cell) starts with reaching out to a keyholder.
 		</p>

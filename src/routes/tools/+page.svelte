@@ -32,13 +32,13 @@
 	<PageHeader
 		title="Tools on the bus"
 		icon={Hammer}
-		lead="A capability catalog. The bus is organized into cells, and each cell is a capability: a kitted set of tools that puts a specific kind of work in your hands. Every tool is kitted for transport, its bits marked as part of a set, and its documentation resolves to a real model number and manufacturer manual, or it is listed as not yet resolved."
+		lead="The bus is organized into cells, and each cell is a capability: a kitted set of tools that puts a specific kind of work in your hands. Every tool is kitted for transport, its bits marked as part of a set, and its documentation resolves to a real model number and manufacturer manual, or it is listed as not yet resolved."
 	/>
 
 	<section class="border-surface-200-800 mt-8 border-y py-6" aria-label="How the catalog works">
 		<p class="text-surface-700 dark:text-surface-300 leading-relaxed">
-			Each capability below lists what it enables, how the kit rides the bus, and its safety gate. There is no
-			membership fee; a short safety orientation and a keyholder's go-ahead open the capability you want to use. See
+			Each capability lists what it enables, how the kit rides the bus, and its safety gate. There is no membership fee;
+			a short safety orientation and a keyholder's go-ahead open the capability you want to use. See
 			<a class="underline" href={`${base}/safety`}>safety &amp; responsible use</a> and
 			<a class="underline" href={`${base}/contact#access`}>how access works</a>.
 			<!-- Access model (ratified): stewarded access; anyone may request; non-member requests reach all keyholders. -->

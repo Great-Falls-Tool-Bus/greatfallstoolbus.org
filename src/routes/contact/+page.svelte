@@ -191,8 +191,8 @@
 			/>
 		</div>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 max-w-3xl leading-relaxed">
-			Anyone can ask to borrow, and every ask gets a human answer. Four steps take you from a first message to a tool in
-			your hands: no membership fee, no paperwork wall, and a keyholder alongside you the whole way.
+			Anyone can ask to borrow, and every request gets a human answer. Four steps take you from a first message to a
+			tool in your hands: no membership fee, no paperwork wall, and a keyholder alongside you the whole way.
 		</p>
 
 		<ol class="mt-8 space-y-6">
@@ -207,7 +207,7 @@
 		<!-- Access model (ratified): curated, owner-approved keyholders; anyone may request; non-member requests reach all keyholders. -->
 
 		<p class="text-surface-700 dark:text-surface-300 mt-8 max-w-3xl leading-relaxed">
-			Reach a keyholder. That is step one, and it is the whole ask. Read the <a
+			Reach a keyholder. That is step one, and that is all it takes. Read the <a
 				class="text-primary-700 dark:text-primary-300 underline underline-offset-4"
 				href={`${base}/safety`}>safety &amp; responsible-use guide</a
 			>

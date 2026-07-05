@@ -48,7 +48,7 @@
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
 	<PageHeader
 		title="Safety &amp; responsible use"
-		lead="Shared power tools only work when everyone borrows them safely and treats the community with care. These are the ground rules: read them before you borrow. They are community defaults drawn from established makerspace and tool-library practice, pending steward review."
+		lead="Shared power tools only work when everyone borrows them safely and treats the community with care. Read the ground rules before you borrow. They are community defaults drawn from established makerspace and tool-library practice, pending steward review."
 		icon={ShieldCheck}
 	/>
 
