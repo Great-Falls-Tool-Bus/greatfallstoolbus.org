@@ -44,3 +44,48 @@ is a blocker to the gate opening at all.
    escalate to the operator instead.
 4. This file is the single source of truth for A5. Do not duplicate the
    tracker elsewhere.
+
+## Pre-flip audit addendum (TIN-2421, 2026-07-04)
+
+Appended by the apex-flip readiness pack
+(`docs/launch/apex-flip-readiness.md`). This section **records newly-found
+surfaces**; it does not restate or overrule the tracker rows above. No consent
+status is changed here — these are operator escalations.
+
+### A. New surfaces found for already-tracked names (Surface column is stale)
+
+- **Ripley** also appears on **`/cells`** ("Captain: Ripley." via
+  `src/lib/data/cells.ts:73`) and **`/cells/welding`** ("Ripley's cell",
+  `src/routes/cells/welding/+page.svelte:32`). The tracker row lists only
+  `/shout-outs`. Ripley is CONSENTED, so this is a documentation gap, not a
+  blocker — but the Surface column should be updated to include `/cells*`.
+- **Jess Sullivan** also appears on **`/cells`** ("Captain: Jess." via
+  `src/lib/data/cells.ts:66`) and **`/plans`** ("webmaster Jess"). SELF consent
+  covers these; noted for completeness.
+
+### B. LIVE CONSENT LEAK — blocks A5 (redaction required before flip)
+
+- **`static/readme.txt:29`** publishes **"Joe (Lewiston alderman -- the bus
+  lives on his property)"**. The operator ruling (2026-07-04) consented this
+  person **only to the initial-only credit "J."** (see the "J." row above and
+  `/shout-outs`). `static/readme.txt` is a public, indexable file served at
+  `/readme.txt`. Publishing the full first name exceeds the recorded consent.
+  **Action: redact "Joe" → "J." before the Access gate opens.** (PR #69 fixed
+  the Kate→Ripley leak in this same file but did not catch "Joe".)
+
+### C. PENDING org/reference rows still block A5 as written
+
+The five PENDING rows above (Portland makerspace community, Ithaca Generator,
+Artisan's Asylum, Cornell CALS Landscape Architecture makerspace, Plymouth State
+D&M Makerspace) are neither agreed-and-dated nor redacted. Per the policy
+("stakeholder / **reference**") and rule 3 above, they must be resolved or
+**escalated to the operator** before the flip — they cannot be left to block
+silently.
+
+### D. Open operator confirm (do not resolve here)
+
+The Ripley-vs-Kate-Pulham **D4 wording sign-off** remains open and is shared
+with **TIN-2516** (copy-audit P1); it gates gate-opening criteria **A2 and A5**.
+Verified separately: "Kate" / "Pulham" / "krosepulham" appear on **no** public
+route or static file — the on-site redaction to "Ripley" is complete, so the
+open item is the wording sign-off, not a live leak.
