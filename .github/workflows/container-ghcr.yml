@@ -19,8 +19,9 @@
 # the image build could never start. This workflow now mirrors the
 # great-falls-tool-bus-infra *-crs.yml pattern EXACTLY: it runs on `tinyland-nix`
 # through ./GloriousFlywheel/.github/actions/nix-job and builds the OCI image
-# DAEMONLESS via Nix (nix/oci-image.nix -> dockerTools.streamLayeredImage) +
-# skopeo push. No Docker daemon, no buildx. The GloriousFlywheel shared cache
+# DAEMONLESS via nix2container (flake `.#image` -> the n2c-patched skopeo
+# copyToRegistry; nix/oci-image.nix stays the nixpkgs-only fallback). No Docker
+# daemon, no buildx. The GloriousFlywheel shared cache
 # accelerates the SvelteKit build inputs; the image push itself is NOT
 # remote-execution eligible (`container-image-and-push` is blocked at the GF
 # manifest layer — see docs/CI-SCHEMA.md §5 and the flywheel skill's rule 8).

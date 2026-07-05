@@ -191,12 +191,14 @@ pkg_tar(
 )
 
 # Container / OCI build target (TIN-2543): the deterministic input set the
-# daemonless nix image build (nix/oci-image.nix + `just container-image-publish`)
-# consumes. It is CACHE-eligible (the shared GloriousFlywheel cache serves a
-# green result for an unchanged recipe) but explicitly NOT executor-eligible:
-# per skill rule 8 + docs/CI-SCHEMA.md §5, `container-image-and-push` is blocked
-# at the GloriousFlywheel manifest layer, so image assembly/push never runs on a
-# remote executor. The tag is deliberately NOT "flywheel-eligible", so the
+# daemonless nix2container image build (flake `.#image` + `just
+# container-image-publish`) consumes. flake.nix + flake.lock pin the PRIMARY
+# nix2container path; nix/oci-image.nix is the retained nixpkgs-only fallback.
+# It is CACHE-eligible (the shared GloriousFlywheel cache serves a green result
+# for an unchanged recipe) but explicitly NOT executor-eligible: per skill rule 8
+# + docs/CI-SCHEMA.md §5, `container-image-and-push` is blocked at the
+# GloriousFlywheel manifest layer, so image assembly/push never runs on a remote
+# executor. The tag is deliberately NOT "flywheel-eligible", so the
 # `--{build,test}_tag_filters=flywheel-eligible` executor filter excludes it
 # while cache-first mode (config=flywheel) still caches it. The SvelteKit build
 # INPUTS remain cache-accelerated via //:build and //:sveltekit_types.
@@ -204,6 +206,8 @@ pkg_tar(
     name = "container_image_context",
     srcs = [
         "ContainerFile",
+        "flake.lock",
+        "flake.nix",
         "nix/oci-image.nix",
         "package.json",
         "pnpm-lock.yaml",

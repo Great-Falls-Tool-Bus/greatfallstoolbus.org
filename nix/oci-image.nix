@@ -1,4 +1,13 @@
-# Daemonless OCI image for the on-cluster adapter-node serve path (TIN-2543).
+# FALLBACK daemonless OCI image for the on-cluster adapter-node serve path
+# (TIN-2543). This is the nixpkgs-only fallback, kept for a single-audited-
+# dependency policy (no extra flake input): it builds the same image with
+# pkgs.dockerTools.streamLayeredImage + nixpkgs skopeo and no third-party
+# builder. The PRIMARY, ecosystem-SOTA path is the flake `.#image` attribute
+# (nlewo/nix2container, GloriousFlywheel core's own image mechanism) invoked by
+# `just container-image-publish` -> `nix run --impure .#image.copyToRegistry`.
+# This file is intentionally retained, NOT deleted; it is not wired into the
+# default recipes, but a `-A image` / `-A skopeo` build still works if the n2c
+# input must be dropped.
 #
 # WHY NIX (not buildx): the Great-Falls-Tool-Bus ARC pool advertises only the
 # shared `tinyland-nix` GloriousFlywheel runner — there is NO `tinyland-dind` /
