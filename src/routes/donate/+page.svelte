@@ -11,7 +11,7 @@
 	const checklist = [
 		{
 			q: 'Can it travel?',
-			body: 'The bus moves. Tools that pack into a cart, case, or chest ride best. If your tool needs one, donating (or building) the kit alongside it is half the gift.',
+			body: 'The bus has limited space, and tools still need to travel safely when borrowed or relocated. Tools that pack into a cart, case, or chest work best. If your tool needs one, donating (or building) the kit alongside it is half the gift.',
 		},
 		{
 			q: 'Are the bits marked?',

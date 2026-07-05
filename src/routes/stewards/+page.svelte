@@ -12,7 +12,7 @@
 	const roles = [
 		{
 			title: 'Coordinator',
-			body: 'Holds the whole bus in view: routes and stops, keyholder communication, and the decisions that keep the project moving. The single point of "who do I ask about the bus itself?"',
+			body: 'Holds the whole bus in view: fixed-location logistics, keyholder communication, and the decisions that keep the project moving. The single point of "who do I ask about the bus itself?"',
 		},
 		{
 			title: 'Cell captains / shop leads',
