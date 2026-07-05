@@ -17,14 +17,19 @@
 	} from '$lib/contact-form';
 
 	// Progressive enhancement (TIN-2420 Path B): the keyholders list is the
-	// private access-gating role list. When PUBLIC_GFTB_FORM_ENDPOINT is set the
-	// form POSTs JSON to the Anubis-guarded form-handler, which injects the
-	// message to keyholders@ over LMTP. Until that endpoint ships, the same form
-	// composes a mail draft in the visitor's own app: the deliberate fallback,
-	// not a lesser path. The mailto compose also becomes the manual retry offered
-	// when a live POST fails.
+	// private access-gating role list. The form POSTs JSON to the Anubis-guarded
+	// form-handler at forms.latoolb.us, which injects the message to keyholders@
+	// over LMTP. The default below is the live public endpoint (a public URL, not
+	// a secret, hence a committed default; secret-hygiene hooks forbid a
+	// .env.production for it). PUBLIC_GFTB_FORM_ENDPOINT can override it (empty
+	// string forces the mailto-only fallback, e.g. for a spoke without the
+	// intake stack). When live, the mailto compose is the error/noscript
+	// fallback only; it is the deliberate manual path, not a lesser one.
+	const DEFAULT_FORM_ENDPOINT = 'https://forms.latoolb.us';
 	const formEndpoint =
-		typeof import.meta.env.PUBLIC_GFTB_FORM_ENDPOINT === 'string' ? import.meta.env.PUBLIC_GFTB_FORM_ENDPOINT : '';
+		typeof import.meta.env.PUBLIC_GFTB_FORM_ENDPOINT === 'string'
+			? import.meta.env.PUBLIC_GFTB_FORM_ENDPOINT
+			: DEFAULT_FORM_ENDPOINT;
 	const endpointLive = formEndpoint.length > 0;
 	const KEYHOLDERS = LIST.post;
 	const REQUEST_TIMEOUT_MS = 15_000;
