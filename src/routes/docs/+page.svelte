@@ -30,7 +30,9 @@
 		<p class="text-surface-700 dark:text-surface-300 leading-relaxed">
 			Nothing on this page is a secret. These pages describe how the site is deployed and how its mail and DNS are cut
 			over; the credentials and internal endpoints they refer to live outside the repository, named but never committed.
-			For the cluster network topology and the mail-stack port map, see the
+			The accepted hosting direction is on-cluster serving as the primary target (ADR 0008), with Cloudflare Pages kept
+			as the warm standby (ADR 0007); that cutover is operator-gated and not yet done, so Cloudflare Pages is still the
+			live host. For the serving topology and the mail-stack port map, see the
 			<a class="underline" href={`${base}/docs/diagrams`}>network and port diagrams</a>.
 		</p>
 	</section>
@@ -41,8 +43,8 @@
 				<Network class="text-primary-500 h-6 w-6" aria-hidden="true" />
 			{/snippet}
 			<p class="text-surface-700-300 mt-1 text-sm leading-relaxed">
-				The cluster node roles, the Cloudflare edge and tunnel path, and the end-to-end mail flow with its port map,
-				grounded in the documented infrastructure truth.
+				The serving topology (the accepted on-cluster target and the current Cloudflare Pages live host), the cluster
+				node roles, and the end-to-end mail flow with its port map, grounded in the documented infrastructure truth.
 			</p>
 		</Card>
 	</section>
