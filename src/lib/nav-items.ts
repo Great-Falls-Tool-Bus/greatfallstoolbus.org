@@ -15,9 +15,10 @@ import {
 	Megaphone,
 	MailCheck,
 	MessagesSquare,
+	FileText,
 	type Icon as LucideIcon,
 } from '@lucide/svelte';
-import { publicArchiveLive } from '$lib/flags';
+import { archiveVisible } from '$lib/flags';
 
 export interface NavItem {
 	label: string;
@@ -48,20 +49,22 @@ export interface NavItem {
 // going + credibility (Plans, Bibliography, Shout-outs) → reach us (Get access).
 // `navItems` stays the single flat array (DRY); `primary` and `footerGroup`
 // mark where each item renders (see `primaryNavItems` and `footerNavGroups`
-// below). Primary bar: Tools, Cells, Safety, Donate, Get access: the browse →
+// below). Primary bar: Mission, Tools, Cells, Donate, Get access: the browse →
 // use → give → reach arc a Lewiston neighbor actually needs. TIN-2536 folded
 // the former /access and /find-the-bus surfaces into the single /contact route
 // (reach out → get access → find the bus is one intent), so the primary
 // "Get access" item points at /contact; access-how-to and the request-first
 // location now live as anchored sections there (#access, #find-the-bus).
-// Mission, Wants, Keyholders, Plans, Bibliography, and Shout-outs demote to
-// footer groups; /stewards remains a footer-only link hard-coded in
-// +layout.svelte (predates this array).
+// Safety, Wants, Keyholders, Plans, Bibliography, Shout-outs, and Operator docs
+// demote to footer groups; /stewards remains a footer-only link hard-coded in
+// +layout.svelte (predates this array). Safety demotes off the primary bar
+// because its docs need careful hand editing before they lead the site; it stays
+// reachable via the footer and sitemap.
 export const navItems: NavItem[] = [
-	{ label: 'Mission', href: '/mission', match: ['/mission'], footerGroup: 'About', icon: Compass },
+	{ label: 'Mission', href: '/mission', match: ['/mission'], primary: true, icon: Compass },
 	{ label: 'Tools', href: '/tools', match: ['/tools'], primary: true, icon: Hammer },
 	{ label: 'Cells', href: '/cells', match: ['/cells', '/cell-sheets'], primary: true, icon: Boxes },
-	{ label: 'Safety', href: '/safety', match: ['/safety'], primary: true, icon: ShieldCheck },
+	{ label: 'Safety', href: '/safety', match: ['/safety'], footerGroup: 'About', icon: ShieldCheck },
 	{ label: 'Donate', href: '/donate', match: ['/donate'], primary: true, icon: Gift },
 	{ label: 'Wants', href: '/wants', match: ['/wants'], footerGroup: 'Get involved', icon: ClipboardList },
 	{ label: 'Keyholders', href: '/keyholders', match: ['/keyholders'], footerGroup: 'Get involved', icon: MailCheck },
@@ -74,15 +77,21 @@ export const navItems: NavItem[] = [
 		icon: BookOpen,
 	},
 	{ label: 'Shout-outs', href: '/shout-outs', match: ['/shout-outs'], footerGroup: 'About', icon: Megaphone },
+	// Operator docs: the on-site index of the operator-facing runbooks, deploy /
+	// launch readiness, CI + development contracts, and the network / port
+	// diagrams (all rendered from the real docs/** tree). Footer-demoted into
+	// "About"; the technical surface never belongs in the ≤6-item primary bar.
+	{ label: 'Operator docs', href: '/docs', match: ['/docs'], footerGroup: 'About', icon: FileText },
 	{ label: 'Get access', href: '/contact', match: ['/contact'], primary: true, icon: KeyRound },
 	// Discuss: the public `discuss@latoolb.us` community board archive (TIN-2528).
-	// GATED behind the fail-closed PUBLIC_ARCHIVE_LIVE flag: this nav entry only
-	// appears once an operator has flipped the archive live (after the Anubis edge
-	// + privacy pre-flight go-live checklist). Until then the /discuss route still
-	// exists and explains the board is coming, it is simply not advertised in nav
-	// and carries no outbound link. The conditional spread means a false flag is
-	// inlined at build and the item is dead-code-eliminated from the bundle.
-	...(publicArchiveLive
+	// GATED behind the fail-closed `archiveVisible` predicate: this nav entry only
+	// appears once the archive is visible, either via gated PREVIEW testing inside
+	// the Access-gated deploy (PUBLIC_ARCHIVE_PREVIEW) or the reserved PUBLIC
+	// go-live (PUBLIC_ARCHIVE_LIVE). Until then the /discuss route still exists and
+	// explains the board is coming, it is simply not advertised in nav and carries
+	// no outbound link. The conditional spread means a false predicate is inlined
+	// at build and the item is dead-code-eliminated from the bundle.
+	...(archiveVisible
 		? [
 				{
 					label: 'Discuss',

@@ -1,0 +1,366 @@
+<script lang="ts">
+	import { base } from '$app/paths';
+	import { Network } from '@lucide/svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+
+	// Network + port diagrams for the operator-docs surface.
+	//
+	// GROUNDED, NOT INVENTED. Every fact below is drawn from documented truth:
+	//   - node roles honey / bumble / sting and their placement posture:
+	//     docs/decisions/0008-oncluster-production-hosting.md (this repo);
+	//   - the Cloudflare Pages (static, production) vs cloudflared-tunnel
+	//     (declare-only) web paths: docs/deploy/cloudflare-pages.md,
+	//     docs/deploy/oncluster-container-readiness.md, ADR 0003;
+	//   - the mail flow, transport split, and port map: the org apply-plane
+	//     architecture record (great-falls-tool-bus-infra
+	//     docs/architecture/diagrams.md) and docs/runbooks/dns-mail-checklist.md.
+	//
+	// PUBLIC-REPO-SAFE by construction: this page names ROLES and STANDARD /
+	// APPLICATION ports only. It deliberately omits every private endpoint that
+	// lives in the infra sources: on-prem node IPs, cluster-internal service DNS
+	// names, and RBE grpc endpoints are NOT reproduced here. Those gaps are
+	// intentional and called out in the "What is deliberately omitted" note.
+
+	// Mail-stack port map (public-safe: standard mail ports + internal app ports;
+	// no host is an on-prem IP or a cluster-internal DNS name).
+	const portRows = [
+		{ port: '25', proto: 'SMTP', where: 'Inbound MX', note: 'External mail reaches the substrate postfix.' },
+		{ port: '587', proto: 'Submission', where: 'Outbound', note: 'STARTTLS + SASL, sent as lists-bounces@latoolb.us.' },
+		{ port: '465', proto: 'SMTPS', where: 'Substrate', note: 'Implicit-TLS submission, substrate postfix.' },
+		{ port: '993', proto: 'IMAPS', where: 'dovecot', note: 'tinyland.dev mailboxes (substrate).' },
+		{ port: '8024', proto: 'LMTP', where: 'mailman-core', note: 'List-family delivery from postfix.' },
+		{ port: '8001', proto: 'REST', where: 'mailman-core', note: 'Postorius / HyperKitty talk to the engine.' },
+		{ port: '8000', proto: 'HTTP', where: 'mailman-web', note: 'Postorius admin + HyperKitty archive.' },
+		{ port: '8080', proto: 'HTTP', where: 'mailman-web', note: 'Archive POST from the list engine.' },
+		{ port: '5432', proto: 'PostgreSQL', where: 'mailman-postgres', note: 'List + archive state.' },
+		{ port: '3000', proto: 'HTTP', where: 'web (adapter-node)', note: 'On-cluster web skeleton, /health probes.' },
+		{ port: '80', proto: 'HTTP', where: 'web Service', note: 'ClusterIP, internal only, fronts :3000.' },
+		{ port: '8081', proto: 'HTTP', where: 'anubis-archive', note: 'Bot-wall in front of the public archive.' },
+	];
+</script>
+
+<svelte:head>
+	<title>Network and port diagrams | Operator docs | Great Falls Tool Bus</title>
+	<meta
+		name="description"
+		content="Public-safe diagrams of the Great Falls Tool Bus cluster network topology (honey, bumble, sting, the Cloudflare edge, and the cloudflared tunnel) and the mail-stack flow and port map, grounded in documented infrastructure truth."
+	/>
+</svelte:head>
+
+<main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
+	<PageHeader
+		title="Network and port diagrams"
+		icon={Network}
+		lead="How the bus site reaches the world and how its mail moves, drawn from the documented infrastructure truth. These diagrams name roles and standard ports only; no private endpoints are reproduced here."
+	/>
+
+	<section class="border-surface-200-800 mt-8 border-y py-6" aria-label="Grounding">
+		<p class="text-surface-700 dark:text-surface-300 text-sm leading-relaxed">
+			Grounded in <a class="underline" href={`${base}/docs/dns-mail-checklist`}>the DNS and mail cutover checklist</a>,
+			<a class="underline" href={`${base}/docs/oncluster-container-readiness`}>on-cluster container readiness</a>, and
+			the org apply-plane architecture record. Live production serves from Cloudflare Pages; the in-cluster path is
+			declare-only optionality, drawn dashed below.
+		</p>
+	</section>
+
+	<!-- ===== Diagram 1: cluster network topology ===== -->
+	<section class="mt-12" aria-label="Cluster network topology">
+		<h2 class="text-2xl font-semibold">Cluster network topology</h2>
+		<p class="text-surface-700-300 mt-2 leading-relaxed">
+			A visitor always reaches the Cloudflare edge first, where TLS terminates and the apex sits behind Cloudflare
+			Access during the gated phase. Today the edge serves the static build from Cloudflare Pages. The dashed path is
+			the declare-only on-cluster option: a cloudflared tunnel on the honey ingress into the three-node cluster.
+		</p>
+
+		<figure class="border-surface-200-800 mt-6 border p-4">
+			<div class="overflow-x-auto">
+				<svg class="diagram" viewBox="0 0 720 560" width="720" role="img" aria-labelledby="topo-title topo-desc">
+					<title id="topo-title">Cluster network topology</title>
+					<desc id="topo-desc"
+						>Visitor reaches the Cloudflare edge. The edge serves Cloudflare Pages as the live static host, or, as a
+						declare-only option, a cloudflared tunnel on the honey ingress into the on-prem cluster of three nodes:
+						honey (mail substrate, list stack, web spillover), bumble (worker, preferred serving), and sting (worker,
+						preferred serving, CI runners).</desc
+					>
+					<defs>
+						<marker
+							id="arrow"
+							viewBox="0 0 10 10"
+							refX="9"
+							refY="5"
+							markerWidth="7"
+							markerHeight="7"
+							orient="auto-start-reverse"
+						>
+							<path d="M0,0 L10,5 L0,10 z" fill="currentColor" />
+						</marker>
+					</defs>
+
+					<!-- Visitor -->
+					<rect class="node" x="280" y="12" width="160" height="44" />
+					<text class="lbl strong" x="360" y="32">Visitor / browser</text>
+					<text class="lbl muted" x="360" y="47">or external client</text>
+					<line class="flow" x1="360" y1="56" x2="360" y2="86" marker-end="url(#arrow)" />
+
+					<!-- Cloudflare edge -->
+					<rect class="node accent" x="160" y="86" width="400" height="70" />
+					<text class="lbl strong" x="360" y="112">Cloudflare edge</text>
+					<text class="lbl muted" x="360" y="130">TLS terminates here</text>
+					<text class="lbl muted" x="360" y="146">apex gated by Cloudflare Access</text>
+
+					<!-- Branch labels -->
+					<line class="flow" x1="270" y1="156" x2="270" y2="196" marker-end="url(#arrow)" />
+					<line class="flow dashed" x1="470" y1="156" x2="470" y2="196" marker-end="url(#arrow)" />
+
+					<!-- Pages (live) -->
+					<rect class="node accent" x="120" y="196" width="240" height="66" />
+					<text class="lbl strong" x="240" y="220">Cloudflare Pages</text>
+					<text class="lbl muted" x="240" y="238">static build</text>
+					<text class="lbl muted" x="240" y="253">production today</text>
+
+					<!-- Tunnel (declare-only) -->
+					<rect class="node sub" x="400" y="196" width="280" height="66" />
+					<text class="lbl strong" x="540" y="220">cloudflared tunnel</text>
+					<text class="lbl muted" x="540" y="238">honey ingress, declare-only</text>
+					<text class="lbl muted" x="540" y="253">route managed at the edge, not in git</text>
+
+					<!-- Tunnel down into cluster -->
+					<line class="flow dashed" x1="540" y1="262" x2="540" y2="300" marker-end="url(#arrow)" />
+
+					<!-- honey cluster container -->
+					<rect class="node" x="80" y="300" width="560" height="244" />
+					<text class="lbl strong" x="360" y="324">honey cluster (on-prem, zero public IP)</text>
+
+					<!-- honey node -->
+					<rect class="node" x="100" y="344" width="170" height="180" />
+					<text class="lbl strong" x="185" y="368">honey</text>
+					<text class="lbl muted" x="185" y="392">mail substrate</text>
+					<text class="lbl muted" x="185" y="410">list stack (Mailman)</text>
+					<text class="lbl muted" x="185" y="428">form + archive guard</text>
+					<text class="lbl muted" x="185" y="446">web spillover</text>
+					<text class="lbl muted" x="185" y="470">tightest headroom</text>
+
+					<!-- bumble node -->
+					<rect class="node" x="285" y="344" width="150" height="180" />
+					<text class="lbl strong" x="360" y="368">bumble</text>
+					<text class="lbl muted" x="360" y="392">worker node</text>
+					<text class="lbl muted" x="360" y="410">preferred for</text>
+					<text class="lbl muted" x="360" y="428">serving pods</text>
+
+					<!-- sting node -->
+					<rect class="node" x="450" y="344" width="170" height="180" />
+					<text class="lbl strong" x="535" y="368">sting</text>
+					<text class="lbl muted" x="535" y="392">worker node</text>
+					<text class="lbl muted" x="535" y="410">preferred serving</text>
+					<text class="lbl muted" x="535" y="428">CI runners (nix)</text>
+					<text class="lbl muted" x="535" y="452">roomiest headroom</text>
+				</svg>
+			</div>
+			<figcaption class="text-surface-500 mt-3 text-xs">
+				Solid path is live (Cloudflare Pages static host). Dashed path and the in-cluster serving pods are declare-only
+				optionality per ADR 0003 and on-cluster container readiness. The apply plane is the org overlay
+				great-falls-tool-bus-infra; this public repo holds intent only.
+			</figcaption>
+		</figure>
+	</section>
+
+	<!-- ===== Diagram 2: mail flow ===== -->
+	<section class="mt-14" aria-label="Mail flow">
+		<h2 class="text-2xl font-semibold">Mail flow, end to end</h2>
+		<p class="text-surface-700-300 mt-2 leading-relaxed">
+			Inbound mail for <span class="font-mono">latoolb.us</span> enters through the house MX
+			<span class="font-mono">relay.tinyland.dev</span>, reaches the substrate postfix on honey, and is split by
+			recipient: <span class="font-mono">tinyland.dev</span> mailboxes land in dovecot, while the
+			<span class="font-mono">keyholders@</span> and <span class="font-mono">discuss@</span> list families are delivered by
+			LMTP to the Mailman engine. Mailman moderates and fans out, submits outbound over 587, and the substrate rspamd milter
+			adds the DKIM signature before the message leaves.
+		</p>
+
+		<figure class="border-surface-200-800 mt-6 border p-4">
+			<div class="overflow-x-auto">
+				<svg class="diagram" viewBox="0 0 620 720" width="620" role="img" aria-labelledby="mail-title mail-desc">
+					<title id="mail-title">Mail flow, end to end</title>
+					<desc id="mail-desc"
+						>External sender resolves DNS (MX relay.tinyland.dev, SPF, DKIM selector mail, DMARC p=none), delivers to MX
+						relay.tinyland.dev, then substrate postfix on honey. The transport map splits by recipient: tinyland.dev
+						mailboxes to dovecot on IMAPS 993; latoolb.us list families over LMTP 8024 to mailman-core, which moderates
+						and fans out, submits outbound on 587 with STARTTLS and SASL, and the rspamd DKIM milter signs before the
+						mail reaches the world.</desc
+					>
+					<defs>
+						<marker
+							id="arrow2"
+							viewBox="0 0 10 10"
+							refX="9"
+							refY="5"
+							markerWidth="7"
+							markerHeight="7"
+							orient="auto-start-reverse"
+						>
+							<path d="M0,0 L10,5 L0,10 z" fill="currentColor" />
+						</marker>
+					</defs>
+
+					<rect class="node" x="200" y="10" width="220" height="42" />
+					<text class="lbl strong" x="310" y="35">External sender</text>
+					<line class="flow" x1="310" y1="52" x2="310" y2="78" marker-end="url(#arrow2)" />
+
+					<rect class="node accent" x="120" y="78" width="380" height="70" />
+					<text class="lbl strong" x="310" y="102">DNS edge for latoolb.us</text>
+					<text class="lbl muted" x="310" y="120">MX 10 relay.tinyland.dev, SPF authorizes relay + honey egress</text>
+					<text class="lbl muted" x="310" y="138">DKIM selector mail, DMARC p=none</text>
+					<line class="flow" x1="310" y1="148" x2="310" y2="174" marker-end="url(#arrow2)" />
+
+					<rect class="node" x="200" y="174" width="220" height="42" />
+					<text class="lbl strong" x="310" y="199">MX relay.tinyland.dev</text>
+					<line class="flow" x1="310" y1="216" x2="310" y2="242" marker-end="url(#arrow2)" />
+
+					<rect class="node sub" x="160" y="242" width="300" height="66" />
+					<text class="lbl strong" x="310" y="266">postfix on honey (substrate)</text>
+					<text class="lbl muted" x="310" y="284">host-networked, ports 25 / 587 / 465</text>
+					<text class="lbl muted" x="310" y="300">owned by the swappable blahaj substrate</text>
+					<line class="flow" x1="310" y1="308" x2="310" y2="334" marker-end="url(#arrow2)" />
+
+					<rect class="node" x="220" y="334" width="180" height="46" />
+					<text class="lbl strong" x="310" y="356">transport split</text>
+					<text class="lbl muted" x="310" y="372">by recipient</text>
+
+					<!-- left branch: dovecot -->
+					<line class="flow" x1="245" y1="380" x2="150" y2="418" marker-end="url(#arrow2)" />
+					<rect class="node sub" x="20" y="418" width="240" height="62" />
+					<text class="lbl strong" x="140" y="442">dovecot (substrate)</text>
+					<text class="lbl muted" x="140" y="460">tinyland.dev mailboxes</text>
+					<text class="lbl muted" x="140" y="475">IMAPS 993</text>
+
+					<!-- right branch: LMTP to mailman -->
+					<line class="flow" x1="375" y1="380" x2="470" y2="418" marker-end="url(#arrow2)" />
+					<rect class="node accent" x="360" y="418" width="240" height="62" />
+					<text class="lbl strong" x="480" y="442">mailman-core</text>
+					<text class="lbl muted" x="480" y="460">LMTP 8024, keyholders@ / discuss@</text>
+					<text class="lbl muted" x="480" y="475">moderation + fan-out</text>
+					<line class="flow" x1="480" y1="480" x2="480" y2="512" marker-end="url(#arrow2)" />
+
+					<rect class="node" x="330" y="512" width="300" height="60" />
+					<text class="lbl strong" x="480" y="536">outbound submission 587</text>
+					<text class="lbl muted" x="480" y="554">STARTTLS + SASL as lists-bounces@latoolb.us</text>
+					<line class="flow" x1="480" y1="572" x2="480" y2="604" marker-end="url(#arrow2)" />
+
+					<rect class="node sub" x="330" y="604" width="300" height="58" />
+					<text class="lbl strong" x="480" y="628">rspamd DKIM milter (substrate)</text>
+					<text class="lbl muted" x="480" y="646">signs d=latoolb.us, selector mail</text>
+					<line class="flow" x1="480" y1="662" x2="480" y2="690" marker-end="url(#arrow2)" />
+
+					<rect class="node" x="410" y="690" width="140" height="26" />
+					<text class="lbl strong" x="480" y="708">World</text>
+				</svg>
+			</div>
+			<figcaption class="text-surface-500 mt-3 text-xs">
+				postfix, dovecot, and rspamd (with the DKIM key material) are owned by the swappable blahaj substrate and shown
+				dashed. The list engine, its web front end, and its database are the org apply-plane workloads.
+			</figcaption>
+		</figure>
+	</section>
+
+	<!-- ===== Port map table ===== -->
+	<section class="mt-14" aria-label="Mail and web port map">
+		<h2 class="text-2xl font-semibold">Port map</h2>
+		<p class="text-surface-700-300 mt-2 leading-relaxed">
+			The standard mail ports and the internal application ports the list and web stacks use. Every host here is a role,
+			not an address; the cluster-internal DNS names and node IPs are intentionally not reproduced.
+		</p>
+		<div class="mt-6 overflow-x-auto">
+			<table class="w-full border-collapse text-sm">
+				<thead>
+					<tr class="border-surface-300-700 border-b text-left">
+						<th class="py-2 pr-4 font-semibold">Port</th>
+						<th class="py-2 pr-4 font-semibold">Protocol</th>
+						<th class="py-2 pr-4 font-semibold">Role</th>
+						<th class="py-2 font-semibold">What rides it</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each portRows as row (row.port + row.where)}
+						<tr class="border-surface-200-800 border-b align-top">
+							<td class="py-2 pr-4 font-mono font-semibold">{row.port}</td>
+							<td class="py-2 pr-4">{row.proto}</td>
+							<td class="text-surface-700-300 py-2 pr-4 font-mono">{row.where}</td>
+							<td class="text-surface-700-300 py-2">{row.note}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+	</section>
+
+	<!-- ===== Omissions / gaps ===== -->
+	<section class="mt-14" aria-label="What is deliberately omitted">
+		<h2 class="text-2xl font-semibold">What is deliberately omitted</h2>
+		<div class="border-surface-200-800 bg-surface-50-950/75 mt-6 border p-5">
+			<ul class="text-surface-700-300 space-y-2 text-sm leading-relaxed">
+				<li>
+					<span class="font-semibold">Node IPs and the on-prem subnet.</span> honey, bumble, and sting sit on a private on-prem
+					network; those addresses live in the org overlay, never in this public repo.
+				</li>
+				<li>
+					<span class="font-semibold">Cluster-internal service DNS names.</span> The in-cluster service hostnames and the
+					RBE executor endpoint are private substrate facts and are shown here only by role.
+				</li>
+				<li>
+					<span class="font-semibold">The live tunnel route.</span> The cloudflared public-hostname route is managed at the
+					Cloudflare edge and is not committed to git; the in-cluster serving path stays declare-only until a superseding
+					hosting decision.
+				</li>
+			</ul>
+		</div>
+	</section>
+
+	<footer class="text-surface-500 pt-12 text-sm">
+		Back to <a class="underline" href={`${base}/docs`}>operator docs</a>.
+	</footer>
+</main>
+
+<style>
+	/* SVG diagram theming. All TEXT is currentColor so contrast is anchored to the
+	   page foreground in both light and dark (AA by construction) and prints black
+	   on white. Node fills are a faint theme wash (glass, featured, not opaque);
+	   strokes are currentColor so boxes survive print. Zero corner radius, house
+	   canon. No animation, so nothing to gate on reduced motion. */
+	.diagram {
+		max-width: 100%;
+		height: auto;
+		color: var(--color-surface-900-100);
+	}
+	.diagram .node {
+		fill: color-mix(in oklch, var(--color-surface-500) 8%, transparent);
+		stroke: currentColor;
+		stroke-width: 1.4;
+	}
+	.diagram .accent {
+		stroke: var(--color-primary-500);
+		stroke-width: 1.8;
+	}
+	.diagram .sub {
+		stroke-dasharray: 6 4;
+	}
+	.diagram .flow {
+		stroke: currentColor;
+		stroke-width: 1.4;
+		fill: none;
+	}
+	.diagram .flow.dashed {
+		stroke-dasharray: 6 4;
+	}
+	.diagram .lbl {
+		fill: currentColor;
+		font-family: var(--font-sans);
+		font-size: 13px;
+		text-anchor: middle;
+	}
+	.diagram .lbl.strong {
+		font-weight: 600;
+	}
+	.diagram .lbl.muted {
+		fill: var(--color-surface-600-400);
+		font-size: 11.5px;
+	}
+</style>
