@@ -30,8 +30,14 @@
 # nixpkgs resolves from the ambient GloriousFlywheel `#ci` devshell (`<nixpkgs>`
 # on NIX_PATH); no endpoint, token, or cache authority is embedded here.
 {
-  appBuild,
-  appPackageJson,
+  # `throw` defaults (not bare required args) so that `-A skopeo` — which resolves
+  # skopeo from this file's pinned pkgs and does NOT reference the app layers —
+  # can be evaluated WITHOUT `--arg appBuild/appPackageJson`. Nix is lazy: these
+  # throws only fire if the `image` attr is forced (via appRoot) without the args
+  # being supplied, giving a clear message instead of the opaque "argument without
+  # a value" error. `-A image` passes both via `--arg`, overriding these defaults.
+  appBuild ? throw "nix/oci-image.nix: building the 'image' attr requires --arg appBuild \"$PWD/build\" (the ADAPTER=node output); it is not needed for -A skopeo.",
+  appPackageJson ? throw "nix/oci-image.nix: building the 'image' attr requires --arg appPackageJson \"$PWD/package.json\"; it is not needed for -A skopeo.",
   commitSha ? "unknown",
   commitRef ? "unknown",
   created ? "1970-01-01T00:00:00Z",
