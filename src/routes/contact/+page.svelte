@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { base } from '$app/paths';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { fade } from 'svelte/transition';
 	import { KeyRound, LoaderCircle, Mail, MailCheck, MapPin, RotateCcw, Send, TriangleAlert } from '@lucide/svelte';
@@ -206,7 +205,6 @@
 			{/each}
 		</ol>
 		<!-- Access model (ratified): curated, owner-approved keyholders; anyone may request; non-member requests reach all keyholders. -->
-
 	</section>
 
 	<!-- Find the bus: folded in from the former /find-the-bus route (TIN-2536).
