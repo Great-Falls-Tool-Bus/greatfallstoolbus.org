@@ -7,12 +7,20 @@
 # the default (no ADAPTER) still produces the static build and never touches
 # this file.
 #
-# adapter-node is intentionally NOT a committed devDependency (that is a
-# follow-up contract bump: pnpm lockfile + Bazel graph). The builder stage adds
-# it at image-build time only, so the repo's frozen-lockfile static build stays
-# green. See docs/deploy/oncluster-container-readiness.md.
+# adapter-node is a committed devDependency (TIN-2543, MassageIthaca parity
+# @sveltejs/adapter-node ^5.5.7): the frozen-lockfile install below installs it
+# directly. The DEFAULT build stays adapter-static and never imports it — only
+# ADAPTER=node (set in this builder) selects adapter-node. See
+# docs/deploy/oncluster-container-readiness.md.
 #
-# Usage (local, declare-only — CI does NOT build this by default):
+# CI does NOT use this file (TIN-2543): GFTB's ARC pool has no `tinyland-dind`
+# /buildx runner, so .github/workflows/container-ghcr.yml builds the on-cluster
+# image DAEMONLESS via Nix (nix/oci-image.nix -> dockerTools.streamLayeredImage,
+# `just container-image-publish`) on the shared `tinyland-nix` runner. This
+# ContainerFile is retained as the LOCAL podman/docker convenience (and mirror
+# of the same adapter-node -> `node build/index.js` shape).
+#
+# Usage (local, on a machine that HAS a Docker/podman daemon):
 #   podman build -f ContainerFile -t greatfallstoolbus.org:local .
 #   podman run --rm -p 3000:3000 greatfallstoolbus.org:local
 #
@@ -21,9 +29,6 @@
 
 ARG NODE_IMAGE=docker.io/node:22-alpine
 ARG PNPM_VERSION=10.13.1
-# Pinned to match the sanctioned dynamic-spoke reference (ADR
-# dynamic-spoke-adapter-mode.md: adapter-node ^5.5.3, MassageIthaca parity).
-ARG ADAPTER_NODE_VERSION=^5.5.3
 
 # --- pnpm base -------------------------------------------------------------
 FROM ${NODE_IMAGE} AS pnpm-base
@@ -38,7 +43,6 @@ RUN corepack enable && \
 
 # --- builder ---------------------------------------------------------------
 FROM pnpm-base AS builder
-ARG ADAPTER_NODE_VERSION
 ARG BUILD_COMMIT_SHA=unknown
 ARG BUILD_COMMIT_REF=unknown
 ARG BUILD_DATE
@@ -48,12 +52,10 @@ RUN apk add --no-cache git python3 make g++ jq bash
 WORKDIR /app
 
 # Install the committed, frozen dependency set first (cache-friendly layer).
+# adapter-node is a committed devDependency (TIN-2543), so the frozen-lockfile
+# install brings it in — no out-of-band mutation of the lockfile.
 COPY package.json pnpm-lock.yaml .npmrc ./
 RUN pnpm install --frozen-lockfile
-
-# Add adapter-node OUT-OF-BAND at build time only. This mutates the in-container
-# lockfile (never the committed one), so the repo default build is untouched.
-RUN pnpm add -D "@sveltejs/adapter-node@${ADAPTER_NODE_VERSION}"
 
 # Copy config + sources.
 COPY svelte.config.js vite.config.ts tsconfig.json eslint.config.ts ./
