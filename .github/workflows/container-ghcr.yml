@@ -1,0 +1,86 @@
+# Build + push the on-cluster container image to GHCR (TIN-2541).
+#
+# DECLARE-ONLY / DORMANT BY DESIGN. The production host is Cloudflare Pages
+# (ADR 0003, adapter-static); this workflow only exists so the on-cluster serve
+# path is READY, not adopted. It therefore:
+#   * has NO push / pull_request trigger — it can only be started by hand
+#     (workflow_dispatch), and
+#   * is additionally gated on an explicit `confirm=true` input that defaults to
+#     false, so a bare dispatch is a no-op (fail-closed).
+#
+# It uses the ambient GITHUB_TOKEN only (packages: write) — NO new secret. The
+# image is consumed by great-falls-tool-bus-infra (blahaj), which owns DNS,
+# Access, Tunnel, and any actual deploy. This repo never holds edge/apply creds.
+
+name: Build Container (GHCR) [dormant]
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type true to actually build + push the image (declare-only guard).'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+concurrency:
+  group: container-ghcr-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-push:
+    # Fail-closed: a dispatch without confirm=true does nothing.
+    if: ${{ github.event.inputs.confirm == 'true' }}
+    # Container publication needs Buildx/DinD; the shared Tinyland DinD pool
+    # provides it (the GFTB org pool advertises only tinyland-nix). This is
+    # declare-only, so the runner-class binding is verified when the lane is
+    # first actually opened, not here.
+    runs-on: tinyland-dind
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Login to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        with:
+          # metadata-action lowercases the image ref, so the Great-Falls-Tool-Bus
+          # owner resolves to ghcr.io/great-falls-tool-bus/greatfallstoolbus.org.
+          images: ghcr.io/${{ github.repository_owner }}/greatfallstoolbus.org
+          tags: |
+            type=sha,prefix=sha-
+
+      - name: Build and push
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: ContainerFile
+          target: production
+          push: true
+          build-args: |
+            BUILD_COMMIT_SHA=${{ github.sha }}
+            BUILD_COMMIT_REF=${{ github.ref_name }}
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

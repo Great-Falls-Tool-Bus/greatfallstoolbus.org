@@ -1,0 +1,20 @@
+# Keep the image build context minimal and reproducible.
+.git
+.github
+.direnv
+.svelte-kit
+build
+node_modules
+bazel-*
+e2e
+playwright-report
+test-results
+coverage
+docs
+tofu
+*.md
+!package.json
+static/optimized
+static/photos
+.env
+.env.*
