@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Card from '$lib/components/Card.svelte';
 	import { Accordion } from '@skeletonlabs/skeleton-svelte';
 	import { ChevronDown, Map } from '@lucide/svelte';
 
@@ -68,10 +67,15 @@
 						</Accordion.ItemIndicator>
 					</Accordion.ItemTrigger>
 				</h2>
-				<Accordion.ItemContent class="space-y-4 pb-6">
-					{#each now as item (item.title)}
-						<Card title={item.title} body={item.body} headingLevel="h3" />
-					{/each}
+				<Accordion.ItemContent class="pb-6">
+					<dl class="space-y-4">
+						{#each now as item (item.title)}
+							<div>
+								<dt class="font-semibold">{item.title}</dt>
+								<dd class="text-surface-700-300 mt-1 text-sm leading-relaxed">{item.body}</dd>
+							</div>
+						{/each}
+					</dl>
 				</Accordion.ItemContent>
 			</Accordion.Item>
 
@@ -88,10 +92,15 @@
 						</Accordion.ItemIndicator>
 					</Accordion.ItemTrigger>
 				</h2>
-				<Accordion.ItemContent class="space-y-4 pb-6">
-					{#each nearTerm as item (item.title)}
-						<Card title={item.title} body={item.body} headingLevel="h3" />
-					{/each}
+				<Accordion.ItemContent class="pb-6">
+					<dl class="space-y-4">
+						{#each nearTerm as item (item.title)}
+							<div>
+								<dt class="font-semibold">{item.title}</dt>
+								<dd class="text-surface-700-300 mt-1 text-sm leading-relaxed">{item.body}</dd>
+							</div>
+						{/each}
+					</dl>
 				</Accordion.ItemContent>
 			</Accordion.Item>
 		</Accordion>
