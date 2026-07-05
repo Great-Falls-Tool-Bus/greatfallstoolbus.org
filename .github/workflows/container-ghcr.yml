@@ -1,30 +1,27 @@
-# Build + push the on-cluster container image to GHCR (TIN-2541).
+# Build + push the on-cluster container image to GHCR (TIN-2543).
 #
-# DECLARE-ONLY / DORMANT BY DESIGN. The production host is Cloudflare Pages
-# (ADR 0003, adapter-static); this workflow only exists so the on-cluster serve
-# path is READY, not adopted. It therefore:
-#   * has NO push / pull_request trigger — it can only be started by hand
-#     (workflow_dispatch), and
-#   * is additionally gated on an explicit `confirm=true` input that defaults to
-#     false, so a bare dispatch is a no-op (fail-closed).
+# ACTIVE / BUILD-ONLY. This produces a real adapter-node image on every push to
+# main (and on demand via workflow_dispatch) so the on-cluster serve path has a
+# concrete artifact to consume. It is deliberately scoped to BUILD + PUSH only:
 #
-# It uses the ambient GITHUB_TOKEN only (packages: write) — NO new secret. The
-# image is consumed by great-falls-tool-bus-infra (blahaj), which owns DNS,
-# Access, Tunnel, and any actual deploy. This repo never holds edge/apply creds.
+#   * The PRODUCTION host is unchanged — adapter-static -> Cloudflare Pages
+#     (ADR 0003, DB-less, no edge auth). This workflow never touches production
+#     serving; publishing an image does not deploy it.
+#   * The default `just build` / CF Pages pipeline still emits adapter-static.
+#     Only ADAPTER=node (set here and in ContainerFile) selects adapter-node.
+#   * The image is consumed by great-falls-tool-bus-infra (blahaj), which owns
+#     DNS, Access, Tunnel, and any actual deploy/cutover. This repo never holds
+#     edge/apply creds and never flips the live host.
+#
+# It uses the ambient GITHUB_TOKEN only (packages: write) — NO new secret.
 
-name: Build Container (GHCR) [dormant]
+name: Build Container (GHCR)
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
-    inputs:
-      confirm:
-        description: 'Type true to actually build + push the image (declare-only guard).'
-        required: true
-        default: 'false'
-        type: choice
-        options:
-          - 'false'
-          - 'true'
 
 concurrency:
   group: container-ghcr-${{ github.ref }}
@@ -36,12 +33,8 @@ permissions:
 
 jobs:
   build-push:
-    # Fail-closed: a dispatch without confirm=true does nothing.
-    if: ${{ github.event.inputs.confirm == 'true' }}
     # Container publication needs Buildx/DinD; the shared Tinyland DinD pool
-    # provides it (the GFTB org pool advertises only tinyland-nix). This is
-    # declare-only, so the runner-class binding is verified when the lane is
-    # first actually opened, not here.
+    # provides it (the GFTB org pool advertises only tinyland-nix).
     runs-on: tinyland-dind
 
     steps:
