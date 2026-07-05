@@ -6,6 +6,28 @@
 - Amends: 0001 (adds the hosting row that packet never contained; row g REV/REV-2 recorded in Amendment 2), 0002 (no boundary changes)
 - Evidence: adversarial recheck wf_13f12359 (2026-07-03)
 
+> **Annotation — 2026-07-05 (TIN-2541, ADR 0008).** This ADR is retained
+> verbatim as the **static-production-era** hosting record. ADR 0008
+> (`0008-oncluster-production-hosting.md`, Proposed) scopes it to the
+> static-production surface only and, on a 2026-07-05 read-only live cluster
+> probe (0008 §7.1), **retires the three premises of Decision 1's "Rejected:
+> cluster-served static" clause** (below):
+> 1. **"honey at 103-104/110 pods, ~6 free" — OBSOLETE.** honey is now a
+>    150-pod cap; the cluster carries ~176 free pod slots. A `replicas=2` web
+>    Deployment fits with margin.
+> 2. **"no house precedent" — FALSE.** MassageIthaca serves its public
+>    production fully on-cluster (adapter-node → image → K8s → cloudflared);
+>    Vercel / Neon / CF Pages were retired for it.
+> 3. **"TIN-991 route authority unfinished / sting SPOF" — REFRAMED.** Routes
+>    are dashboard / token-managed (a process constraint MI operates inside
+>    daily, not a feasibility bar); the sting SPOF is CI-runner concentration
+>    (deploy-velocity), NOT a serving risk.
+>
+> **No text below is changed.** Decision 1 (Cloudflare Pages for static
+> production) still STANDS until the operator rules ADR 0008 Decision 2. This
+> annotation records that the *rejection rationale* is superseded by fresh
+> evidence; the *ruling* is unchanged pending that operator decision.
+
 ## Decision 1: Serving host — Cloudflare Pages, GH Pages retained as rollback publisher
 
 GitHub Pages was never ADR-bound as this site's host: prompt 50 (lines 240-242)

@@ -87,6 +87,14 @@ if (analyzeRequested) {
 // transform can opt in by adding `enhancedImages()` to the plugins below,
 // but it is not the default and is not a dependency of this scaffold.
 export default defineConfig({
+	// Expose `PUBLIC_`-prefixed env vars to client source via `import.meta.env`
+	// (alongside Vite's built-in `VITE_`). This is what makes the operator-owned
+	// build flags real: PUBLIC_ARCHIVE_LIVE (TIN-2528, the discuss@ archive gate,
+	// default false / fail-closed) and the pre-existing PUBLIC_GFTB_FORM_ENDPOINT
+	// are read via `import.meta.env.PUBLIC_*`, and Vite only inlines a prefix it
+	// is told about. `PUBLIC_` matches SvelteKit's own public-env convention, so
+	// nothing secret is widened by this — only already-public toggles.
+	envPrefix: ['VITE_', 'PUBLIC_'],
 	plugins: [
 		skeletonTailwindV4Compat(),
 		skeletonColorUtilities(),

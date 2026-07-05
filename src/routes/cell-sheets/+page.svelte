@@ -31,7 +31,7 @@
 		</p>
 		<button
 			type="button"
-			class="bg-primary-500 hover:bg-primary-600 rounded-sm px-4 py-2 text-sm font-semibold text-white transition-colors"
+			class="bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-colors"
 			onclick={() => window.print()}
 		>
 			Print {cells.length === 1 ? 'this sheet' : 'these sheets'}
@@ -40,7 +40,7 @@
 
 	<div class="mt-10 space-y-10">
 		{#each cells as cell (cell.slug)}
-			<article class="sheet border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-6 font-mono md:p-8">
+			<article class="sheet border-surface-200-800 bg-surface-50-950/75 border p-6 font-mono md:p-8">
 				<header>
 					<p class="sheet-kicker">GREAT FALLS TOOL BUS: CELL SHEET</p>
 					<h2 class="sheet-title">{cell.name.toUpperCase()}</h2>

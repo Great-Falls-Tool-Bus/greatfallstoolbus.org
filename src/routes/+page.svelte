@@ -5,7 +5,6 @@
 	// at build time from the src/content/tools/**/*.svx tree. No invented
 	// numbers; if the tree changes, these change with it.
 	import { cells, wants } from '$lib/data/cells';
-	import Card from '$lib/components/Card.svelte';
 	import Picture from '$lib/components/Picture.svelte';
 	import { reveal, parallax } from '$lib/motion.svelte';
 
@@ -142,22 +141,24 @@
 		</div>
 	</section>
 
-	<section class="mt-12" aria-label="Shared-tool criteria">
+	<!-- Uncontained editorial criteria: each is a hairline-divided term/description
+	     row (dl), not a boxed card. Reads as one continuous page. -->
+	<section class="mt-16" aria-label="Shared-tool criteria">
 		<h2 class="text-2xl font-semibold">What makes a good bus tool</h2>
-		<div class="mt-6 grid gap-3 md:grid-cols-3">
+		<dl class="mt-8">
 			{#each criteria as item, i (item.title)}
 				<div
-					class="border-surface-200-800 bg-surface-50-950/75 reveal-armed rounded-lg border p-5"
+					class="border-surface-200-800 reveal-armed grid gap-x-8 gap-y-2 border-t py-6 md:grid-cols-[14rem_1fr]"
 					use:reveal={{ delay: i * 70 }}
 				>
-					<h3 class="text-lg font-semibold">{item.title}</h3>
-					<p class="text-surface-700-300 mt-3 text-sm leading-relaxed">{item.body}</p>
+					<dt class="text-lg font-semibold">{item.title}</dt>
+					<dd class="text-surface-700-300 leading-relaxed">{item.body}</dd>
 				</div>
 			{/each}
-		</div>
+		</dl>
 	</section>
 
-	<section class="border-surface-200-800 reveal-armed mt-12 border-y py-8" use:reveal aria-label="How access works">
+	<section class="border-surface-200-800 reveal-armed mt-16 border-y py-8" use:reveal aria-label="How access works">
 		<h2 class="text-2xl font-semibold">Getting on the bus</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 max-w-3xl leading-relaxed">
 			Anyone can ask to borrow: no membership fee, no paperwork wall. Reach out and a keyholder answers. Keyholders
@@ -167,13 +168,29 @@
 		</p>
 	</section>
 
-	<section class="reveal-armed mt-12" use:reveal aria-label="Where to start">
+	<!-- Uncontained editorial index: hairline-divided link rows with a sentence-case
+	     kicker (not another tiny-uppercase eyebrow, so cadence varies here), a lead
+	     title, and a nudging arrow. No card grid. -->
+	<section class="reveal-armed mt-16" use:reveal aria-label="Where to start">
 		<h2 class="text-2xl font-semibold">Where to start</h2>
-		<div class="mt-6 grid gap-4 md:grid-cols-3">
+		<ul class="mt-8">
 			{#each primaryPages as p (p.title)}
-				<Card href={p.href} eyebrow={p.eyebrow} title={p.title} body={p.body} headingLevel="h3" />
+				<li>
+					<a href={p.href} class="group border-surface-200-800 flex items-baseline justify-between gap-6 border-t py-6">
+						<span class="min-w-0">
+							<span class="text-surface-600-400 text-sm">{p.eyebrow}</span>
+							<span class="group-hover:text-primary-600 mt-1 block text-xl font-semibold transition-colors"
+								>{p.title}</span
+							>
+							<span class="text-surface-700-300 mt-1 block leading-relaxed">{p.body}</span>
+						</span>
+						<span class="text-primary-600 shrink-0 transition-transform group-hover:translate-x-1" aria-hidden="true"
+							>&rarr;</span
+						>
+					</a>
+				</li>
 			{/each}
-		</div>
+		</ul>
 	</section>
 </main>
 

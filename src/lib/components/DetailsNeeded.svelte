@@ -51,7 +51,7 @@
 		margin-top: 0.5rem;
 		padding: 0.4rem 0.6rem;
 		border-left: 2px solid var(--color-warning-500, currentColor);
-		border-radius: var(--radius-container, 0.25rem);
+		border-radius: 0;
 		background: color-mix(in oklab, currentColor 4%, transparent);
 		font-size: 0.8rem;
 		line-height: 1.4;
