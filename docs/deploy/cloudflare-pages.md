@@ -1,8 +1,13 @@
 # Deploy lane: Cloudflare Pages
 
-GFTB serves from Cloudflare Pages per ADR 0003. This repo does not carry the
-Wrangler implementation locally anymore; `.github/workflows/deploy-pages.yml` is
-a thin wrapper around the reusable Tinyland lane:
+GFTB currently serves from Cloudflare Pages per ADR 0003. ADR 0008 (Accepted
+2026-07-05) supersedes 0003 for the production-hosting direction and accepts an
+on-cluster serve path (`adapter-node` -> OCI image -> K8s -> `cloudflared`) as
+the target, but that cutover is operator-gated and not yet done, so Cloudflare
+Pages remains the live host and this lane stays authoritative for production
+today. This repo does not carry the Wrangler implementation locally anymore;
+`.github/workflows/deploy-pages.yml` is a thin wrapper around the reusable
+Tinyland lane:
 
 ```yaml
 jobs:

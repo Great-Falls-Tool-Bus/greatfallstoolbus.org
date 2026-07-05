@@ -11,12 +11,21 @@ directly).
 
 ## Deploying
 
-Serving host is **Cloudflare Pages** (project `greatfallstoolbus-org`), per
-`docs/decisions/0003-hosting-and-remote-posture.md`. `.github/workflows/deploy-pages.yml`
-delegates to the shared `ci-templates` Cloudflare Pages lane, which builds
-`adapter-static` `build/` and deploys it with Wrangler. The apex sits
-behind Cloudflare Access (gated to the operator during prose refinement); DNS,
-Access, and the zone live in the `great-falls-tool-bus-infra` edge tofu stack.
+The current serving host is **Cloudflare Pages** (project `greatfallstoolbus-org`,
+`adapter-static`), per `docs/decisions/0003-hosting-and-remote-posture.md`.
+`.github/workflows/deploy-pages.yml` delegates to the shared `ci-templates`
+Cloudflare Pages lane, which builds `adapter-static` `build/` and deploys it with
+Wrangler. The apex sits behind Cloudflare Access (gated to the operator during
+prose refinement); DNS, Access, and the zone live in the
+`great-falls-tool-bus-infra` edge tofu stack.
+
+Hosting direction: ADR 0008 (Accepted 2026-07-05) supersedes 0003 for production
+hosting and accepts on-cluster (`adapter-node` -> OCI image -> K8s ->
+`cloudflared`) as the target for the static-production surface. The cutover is
+operator-gated and NOT yet done, so Cloudflare Pages is still the live host. The
+container image build is already active (`.github/workflows/container-ghcr.yml`
+builds and pushes to GHCR on push to `main`); see
+`docs/deploy/oncluster-container-readiness.md`.
 
 - Secrets (repo-level, org-provisioned, never in source): `CLOUDFLARE_API_TOKEN`
   (account-scoped, `Pages:Edit` only) + `CLOUDFLARE_ACCOUNT_ID`. The deploy step
