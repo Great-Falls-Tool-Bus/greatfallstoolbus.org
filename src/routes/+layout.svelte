@@ -204,10 +204,12 @@
 	     predate + extend the shared array). -->
 	<footer class="site-footer border-surface-200-800 bg-surface-100-900/80 mt-16 border-t backdrop-blur-sm">
 		<div class="container mx-auto grid gap-8 px-6 py-10 text-sm md:grid-cols-[2fr_1fr_1fr_1fr]">
-			<p class="text-surface-700-300 max-w-sm">
-				The Great Falls Tool Bus is an unincorporated community project in Lewiston-Auburn, Maine.
-			</p>
-			<p class="text-surface-500 mt-3 max-w-sm text-xs">Infrastructure built &amp; hosted in Lewiston, ME.</p>
+			<div class="max-w-sm">
+				<p class="text-surface-700-300">
+					The Great Falls Tool Bus is an unincorporated community project in Lewiston-Auburn, Maine.
+				</p>
+				<p class="text-surface-500 mt-2 text-xs italic">Infrastructure built &amp; hosted in Lewiston, ME.</p>
+			</div>
 			{#each footerNavGroups as group (group.heading)}
 				<nav aria-label={group.heading}>
 					<p class="text-surface-500 text-xs tracking-widest uppercase">{group.heading}</p>
