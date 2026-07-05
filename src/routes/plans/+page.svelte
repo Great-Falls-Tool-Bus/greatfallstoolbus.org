@@ -123,7 +123,7 @@
 	<section class="border-surface-200-800 mt-12 border-t pt-8" aria-label="How to help">
 		<h2 class="text-2xl font-semibold">How to help right now</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
-			<a class="underline" href={`${base}/donate`}>Donate a tool</a>. That is the whole ask. Until an entity exists,
+			<a class="underline" href={`${base}/donate`}>Donate a tool</a>. That is the whole of it. Until an entity exists,
 			tool donations are the only kind the project accepts, and nothing on this site is a charitable solicitation.
 			Everything else that helps (time, know-how, a captain for a new cell) starts with reaching out to a keyholder.
 		</p>

@@ -35,7 +35,7 @@
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
 	<PageHeader
 		title="Donate a tool"
-		lead="Tools are the headline ask. We especially welcome the ones that are hard to own alone: complex, large, heavy, or blessed with many little bits and bobs."
+		lead="Tools are what we need most. We especially welcome the ones that are hard to own alone: complex, large, heavy, or blessed with many little bits and bobs."
 		icon={Gift}
 	/>
 

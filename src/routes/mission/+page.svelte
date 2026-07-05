@@ -118,7 +118,5 @@
 		</p>
 	</section>
 
-	<footer class="text-surface-500 pt-12 text-sm">
-		Ready to borrow or donate a tool? A keyholder is the first ask.
-	</footer>
+	<footer class="text-surface-500 pt-12 text-sm">Ready to borrow or donate a tool? Start with a keyholder.</footer>
 </main>

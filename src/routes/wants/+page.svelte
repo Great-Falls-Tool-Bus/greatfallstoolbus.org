@@ -21,7 +21,7 @@
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
 	<PageHeader title="Wants" icon={ClipboardList}>
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
-			The current list of what the bus still needs. If you have one of these gathering dust, the <a
+			What the bus still needs right now. If you have one of these gathering dust, the <a
 				class="underline"
 				href={`${base}/donate`}>donation criteria</a
 			> tell you how to send it off well.
