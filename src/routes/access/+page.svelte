@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Card from '$lib/components/Card.svelte';
 	import InfoTip from '$lib/components/InfoTip.svelte';
 	import { KeyRound } from '@lucide/svelte';
 
@@ -50,10 +49,12 @@
 	/>
 
 	<section class="mt-10" aria-label="The steps">
-		<ol class="space-y-4">
+		<ol class="space-y-6">
 			{#each steps as step (step.n)}
 				<li>
-					<Card eyebrow={`Step ${step.n}`} title={step.title} body={step.body} headingLevel="h2" />
+					<span class="text-surface-500 block text-xs tracking-widest uppercase">Step {step.n}</span>
+					<h2 class="mt-1 text-lg font-semibold">{step.title}</h2>
+					<p class="text-surface-700-300 mt-2 text-sm leading-relaxed">{step.body}</p>
 				</li>
 			{/each}
 		</ol>
@@ -91,7 +92,7 @@
 	</div>
 
 	<footer class="text-surface-500 pt-12 text-sm">
-		No membership fee, no means test, no paperwork wall. A safety orientation, a keyholder's go-ahead, and a little
-		coordination, and the bus is yours to borrow.
+		No means test. A safety orientation, a keyholder's go-ahead, and a little coordination, and the bus is yours to
+		borrow.
 	</footer>
 </main>
