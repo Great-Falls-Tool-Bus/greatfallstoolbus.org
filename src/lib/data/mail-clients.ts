@@ -247,9 +247,7 @@ export const KEYHOLDER_MAIL_GUIDE: KeyholderGuideSection[] = [
 			},
 			{
 				title: 'No public archive',
-				body: `Access requests can contain personal details, so the HyperKitty archive is ${ARCHIVE.status}.`,
-				href: ARCHIVE.url,
-				ctaLabel: 'Open archive',
+				body: `Access requests can contain personal details, so the HyperKitty archive is ${ARCHIVE.status}. The archive URL is not published here; ask list owners if you need it.`,
 			},
 		],
 	},

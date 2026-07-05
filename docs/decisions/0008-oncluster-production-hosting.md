@@ -1,8 +1,6 @@
 # 0008 — On-cluster production hosting for GFTB web (supersedes 0003, scoped)
 
-- Status: **Proposed** — **decision-READY as of 2026-07-05** (the one open
-  dependency OQ-5 is RESOLVED by a live cluster probe, §7.1); operator ruling
-  still required to adopt — nothing applied
+- Status: **Accepted** (operator ruled 2026-07-05: on-cluster is the way to go); supersedes ADR 0003 for production hosting
 - Date: 2026-07-05
 - Ticket: TIN-2541 (this decision)
 - Evidence base: TIN-2537 research/corrections brief
@@ -241,6 +239,8 @@ healthy.** OQ-5 is CLOSED.
 operator still rules the adoption (§8, P4). Every number below is a live
 observation; the node private IPs are the same ones already published in the
 infra diagrams (no new endpoint, secret, or IP is disclosed).
+
+**Update 2026-07-05: ruled Accepted, see status line.**
 
 ### Pod headroom (scheduled / capacity → free)
 

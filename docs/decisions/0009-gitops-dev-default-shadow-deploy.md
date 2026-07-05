@@ -1,4 +1,4 @@
-# 0007 — GitOps: dev-default branch with shadow-deploy; main is the CF production branch
+# 0009 — GitOps: dev-default branch with shadow-deploy; main is the CF production branch
 
 - Status: **PROPOSED** (Option 3) — trigger delta applied; the operator-gated
   steps below are NOT taken in this PR
