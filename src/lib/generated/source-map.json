@@ -15,6 +15,7 @@
 		"/contact": "src/routes/contact/+page.svelte",
 		"/donate": "src/routes/donate/+page.svelte",
 		"/find-the-bus": "src/routes/find-the-bus/+page.svelte",
+		"/keyholders": "src/routes/keyholders/+page.svelte",
 		"/mission": "src/routes/mission/+page.svelte",
 		"/plans": "src/routes/plans/+page.svelte",
 		"/safety": "src/routes/safety/+page.svelte",

@@ -15,6 +15,7 @@ import {
 	BookOpen,
 	Megaphone,
 	Mail,
+	MailCheck,
 	type Icon as LucideIcon,
 } from '@lucide/svelte';
 
@@ -54,8 +55,8 @@ export interface NavItem {
 // walkthrough (docs/ux-research.md line 149), and the answer is request-first
 // (the bus sits at a fixed, deliberately-unpublished location shared by a
 // keyholder), so the surface earns a top-tier slot rather than a footer
-// demotion. Mission, Wants, Plans, Bibliography, and Shout-outs demote to
-// footer groups; /stewards remains a footer-only link hard-coded in
+// demotion. Mission, Wants, Keyholders, Plans, Bibliography, and Shout-outs
+// demote to footer groups; /stewards remains a footer-only link hard-coded in
 // +layout.svelte (predates this array).
 export const navItems: NavItem[] = [
 	{ label: 'Mission', href: '/mission', match: ['/mission'], footerGroup: 'About', icon: Compass },
@@ -66,6 +67,7 @@ export const navItems: NavItem[] = [
 	{ label: 'Safety', href: '/safety', match: ['/safety'], primary: true, icon: ShieldCheck },
 	{ label: 'Donate', href: '/donate', match: ['/donate'], primary: true, icon: Gift },
 	{ label: 'Wants', href: '/wants', match: ['/wants'], footerGroup: 'Get involved', icon: ClipboardList },
+	{ label: 'Keyholders', href: '/keyholders', match: ['/keyholders'], footerGroup: 'Get involved', icon: MailCheck },
 	{ label: 'Plans', href: '/plans', match: ['/plans'], footerGroup: 'About', icon: Map },
 	{
 		label: 'Bibliography',
