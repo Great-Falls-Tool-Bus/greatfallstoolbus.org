@@ -82,7 +82,9 @@
 		<h2 class="text-2xl font-semibold">Friends of the bus</h2>
 		<div class="mt-6 space-y-3">
 			{#each friends as f (f.name)}
-				<Card title={f.name} body={f.note} headingLevel="h3" compact />
+				<Card title={f.name} body={f.note} headingLevel="h3" compact>
+					{#snippet lead()}<Avatar name={f.name} />{/snippet}
+				</Card>
 			{/each}
 		</div>
 	</section>
