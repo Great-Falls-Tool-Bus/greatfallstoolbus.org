@@ -105,11 +105,6 @@
 			shop working: kits, captains, keyholders, clear signage. We borrow shamelessly from both traditions.
 		</p>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
-			Lewiston-Auburn grew up around the Great Falls of the Androscoggin: mills, millwrights, and people who fixed their
-			own machines. A shared tool library on wheels feels like a fitting next chapter for a place built on making
-			things, and the bus is how that chapter starts small.
-		</p>
-		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
 			Someday we would love a permanent shop: a real lab with benches, dust collection, and room to teach. That is the
 			dream, not a plan. No dates, no building, no entity yet. In the very long run, that lab ambition connects to our
 			webmaster Jess&rsquo;s tinyland.dev explorations, an aspiration she tinkers toward, not an existing business.
