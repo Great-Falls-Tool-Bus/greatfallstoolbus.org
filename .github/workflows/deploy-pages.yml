@@ -25,16 +25,18 @@ jobs:
       contents: read
       deployments: write
     uses: tinyland-inc/ci-templates/.github/workflows/spoke-deploy-cloudflare-pages.yml@v2.10.0
-    # Enable the discuss@ archive PREVIEW on the gated `dev` shadow deploy ONLY
-    # (dev.*.pages.dev is Access-gated), so /discuss and its nav entry are
-    # testable behind Access without flipping the public go-live switch
-    # (PUBLIC_ARCHIVE_LIVE stays off; main-prod builds stay fail-closed). The
-    # lane runs `nix develop --command <build_command>`, so we wrap the env in
-    # `sh -c`. See src/lib/flags.ts (archiveVisible = live OR preview). A proper
-    # `build_env` input on the shared deploy lane is the product-clean fix
+    # Archive surfacing per branch. The `dev` shadow deploy builds with
+    # PUBLIC_ARCHIVE_PREVIEW (gated Access testing on dev.*.pages.dev); `main`
+    # (prod) builds with PUBLIC_ARCHIVE_LIVE — the public go-live switch — now
+    # that the discuss@latoolb.us archive is live at lists.latoolb.us (TIN-2528,
+    # verified: public discuss@ reachable, private keyholders@ denied). Both flip
+    # `archiveVisible` on, surfacing /discuss + its nav entry (see
+    # src/lib/flags.ts: archiveVisible = live OR preview). The lane runs
+    # `nix develop --command <build_command>`, so we wrap the env in `sh -c`. A
+    # proper `build_env` input on the shared deploy lane is the product-clean fix
     # (tracked as a TIN-2547 sub-case); this is the interim consumer-side wiring.
     with:
-      build_command: ${{ github.ref_name == 'dev' && 'sh -c "PUBLIC_ARCHIVE_PREVIEW=true just build"' || 'just build' }}
+      build_command: ${{ github.ref_name == 'dev' && 'sh -c "PUBLIC_ARCHIVE_PREVIEW=true just build"' || github.ref_name == 'main' && 'sh -c "PUBLIC_ARCHIVE_LIVE=true just build"' || 'just build' }}
     # Pass the CF credentials EXPLICITLY, not via `secrets: inherit`. The
     # reusable workflow lives in a different org (tinyland-inc) than this repo
     # (Great-Falls-Tool-Bus); `inherit` did not deliver these repo secrets

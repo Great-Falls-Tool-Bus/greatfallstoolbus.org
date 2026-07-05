@@ -18,7 +18,10 @@
 	// This surface only ever speaks about the PUBLIC discuss@ board. The private
 	// keyholder role list and its archive are a separate, closed path and are
 	// never linked or named here.
-	const ARCHIVE_URL = 'https://lists.latoolb.us/archives/list/discuss@latoolb.us/';
+	// This HyperKitty instance serves list archives under /hyperkitty/, not the
+	// conventional /archives/ prefix (verified live: /archives/list/... 404s,
+	// /hyperkitty/list/... 200s for the public discuss@ board).
+	const ARCHIVE_URL = 'https://lists.latoolb.us/hyperkitty/list/discuss@latoolb.us/';
 	const LIST_ADDRESS = 'discuss@latoolb.us';
 </script>
 
