@@ -7,6 +7,24 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ### Added
 
+- Find-the-bus surface (TIN-2419): a new short, prerendered `/find-the-bus`
+  route closes the "where is it?" gap flagged in `docs/ux-research.md` (line
+  149) — nothing on the site answered where the bus is. The answer is
+  request-first by design: the bus is based at a fixed location in
+  Lewiston-Auburn, Maine (concrete, known), but the exact spot is
+  deliberately not published; a visitor reaches out through the live
+  `/contact` form and a keyholder shares the location and walks them through
+  access. The page names this as a deliberate, keyholder-stewarded posture
+  for safety and access control while the Tool Bus is an unincorporated
+  neighborhood initiative. It invents nothing: the bus does not roam, so there
+  are no stops, routes, hours, or schedule, and the page carries no
+  placeholder `detailsNeeded` scaffolding. The route uses `PageHeader`, so it
+  gains the view/edit-source affordance for free and is registered in the
+  generated `source-map.json`. Added to the primary nav (with a `MapPin` icon)
+  in the "use" cluster and linked from the homepage's "Getting on the bus"
+  section and more-pages row so a visitor looking for "where" finds it. The
+  `/access` step-three copy is corrected to match: the bus sits at a fixed
+  location a keyholder shares, rather than one that moves.
 - In-page contact form submission UX (TIN-2420 Path B, site side): the
   `/contact` form graduates from a plain mailto compose to a modern in-page
   flow with an idle to submitting to success or error state machine. On
