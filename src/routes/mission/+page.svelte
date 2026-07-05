@@ -28,7 +28,7 @@
 		},
 		{
 			title: 'Equity-forward',
-			body: 'The bus is meant to lower the barrier to making things, not raise it. There is no membership fee, and nobody is turned away for inability to pay. A short safety orientation and a keyholder who says yes are the whole gate.',
+			body: 'The bus is meant to lower the barrier to making things. There is no membership fee, and nobody is turned away for inability to pay.',
 		},
 	];
 </script>
@@ -59,8 +59,7 @@
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
 			The Great Falls Tool Bus is an <strong>unincorporated community project</strong>: there is no nonprofit entity and
 			no fiscal sponsor behind it yet. Because of that, nothing on this site is a charitable solicitation and no
-			donation is tax-deductible. We accept tool donations, and any money conversation happens person-to-person until a
-			real entity exists.
+			donation is tax-deductible.
 			<!-- OPERATOR-CONFIRM: tax status = unincorporated / no 501(c)(3) / no fiscal sponsor; no tax-deductible claims. Recommended default, not operator-confirmed. -->
 		</p>
 	</section>
