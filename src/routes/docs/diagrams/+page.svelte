@@ -33,8 +33,18 @@
 		{ port: '8000', proto: 'HTTP', where: 'mailman-web', note: 'Postorius admin + HyperKitty archive.' },
 		{ port: '8080', proto: 'HTTP', where: 'mailman-web', note: 'Archive POST from the list engine.' },
 		{ port: '5432', proto: 'PostgreSQL', where: 'mailman-postgres', note: 'List + archive state.' },
-		{ port: '3000', proto: 'HTTP', where: 'web (adapter-node)', note: 'On-cluster web skeleton, /health probes.' },
-		{ port: '80', proto: 'HTTP', where: 'web Service', note: 'ClusterIP, internal only, fronts :3000.' },
+		{
+			port: '3000',
+			proto: 'HTTP',
+			where: 'web (adapter-node)',
+			note: 'Target on-cluster web server (node build/index.js); /health probes.',
+		},
+		{
+			port: '80',
+			proto: 'HTTP',
+			where: 'web Service',
+			note: 'ClusterIP, internal only; fronts :3000 on the target serving path.',
+		},
 		{ port: '8081', proto: 'HTTP', where: 'anubis-archive', note: 'Bot-wall in front of the public archive.' },
 	];
 </script>
@@ -43,7 +53,7 @@
 	<title>Network and port diagrams | Operator docs | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="Public-safe diagrams of the Great Falls Tool Bus cluster network topology (honey, bumble, sting, the Cloudflare edge, and the cloudflared tunnel) and the mail-stack flow and port map, grounded in documented infrastructure truth."
+		content="Public-safe diagrams of the Great Falls Tool Bus serving topology (the accepted on-cluster target and the current Cloudflare Pages live host), the cluster node roles (honey, bumble, sting), and the mail-stack flow and port map, grounded in documented infrastructure truth."
 	/>
 </svelte:head>
 
@@ -58,29 +68,41 @@
 		<p class="text-surface-700 dark:text-surface-300 text-sm leading-relaxed">
 			Grounded in <a class="underline" href={`${base}/docs/dns-mail-checklist`}>the DNS and mail cutover checklist</a>,
 			<a class="underline" href={`${base}/docs/oncluster-container-readiness`}>on-cluster container readiness</a>, and
-			the org apply-plane architecture record. Live production serves from Cloudflare Pages; the in-cluster path is
-			declare-only optionality, drawn dashed below.
+			the org apply-plane architecture record. On-cluster serving (adapter-node image into a K8s Deployment behind a
+			ClusterIP Service and the in-cluster cloudflared tunnel) is the accepted primary target per ADR 0008; the cutover
+			is operator-gated and not yet done, so Cloudflare Pages is still the live host and becomes the warm standby (ADR
+			0007) once serving moves on-cluster. The diagram below marks the target path in the accent colour and the current
+			live host solid.
 		</p>
 	</section>
 
-	<!-- ===== Diagram 1: cluster network topology ===== -->
-	<section class="mt-12" aria-label="Cluster network topology">
-		<h2 class="text-2xl font-semibold">Cluster network topology</h2>
+	<!-- ===== Diagram 1: serving topology (target vs current) ===== -->
+	<section class="mt-12" aria-label="Serving topology">
+		<h2 class="text-2xl font-semibold">Serving topology</h2>
 		<p class="text-surface-700-300 mt-2 leading-relaxed">
-			A visitor always reaches the Cloudflare edge first, where TLS terminates and the apex sits behind Cloudflare
-			Access during the gated phase. Today the edge serves the static build from Cloudflare Pages. The dashed path is
-			the declare-only on-cluster option: a cloudflared tunnel on the honey ingress into the three-node cluster.
+			A visitor always reaches the Cloudflare edge first, where TLS terminates and the apex and www sit behind
+			Cloudflare Access during the gated phase. From the edge the diagram shows two origins. The accent path is the
+			accepted primary target (ADR 0008): an adapter-node image in a K8s Deployment, behind a ClusterIP Service and the
+			in-cluster cloudflared tunnel on the honey ingress. The solid box is Cloudflare Pages, the current live host,
+			which becomes the warm standby (ADR 0007) after cutover. The on-cluster origin is drawn dashed because the cutover
+			is operator-gated and not yet done, so nobody should read this as already migrated.
 		</p>
 
 		<figure class="border-surface-200-800 mt-6 border p-4">
 			<div class="overflow-x-auto">
-				<svg class="diagram" viewBox="0 0 720 560" width="720" role="img" aria-labelledby="topo-title topo-desc">
-					<title id="topo-title">Cluster network topology</title>
+				<svg class="diagram" viewBox="0 0 760 752" width="760" role="img" aria-labelledby="topo-title topo-desc">
+					<title id="topo-title">Serving topology: accepted on-cluster target and current Cloudflare Pages host</title>
 					<desc id="topo-desc"
-						>Visitor reaches the Cloudflare edge. The edge serves Cloudflare Pages as the live static host, or, as a
-						declare-only option, a cloudflared tunnel on the honey ingress into the on-prem cluster of three nodes:
-						honey (mail substrate, list stack, web spillover), bumble (worker, preferred serving), and sting (worker,
-						preferred serving, CI runners).</desc
+						>A visitor reaches the Cloudflare edge, where TLS terminates and the apex and www are gated by Cloudflare
+						Access. The edge fans to two origins. The accepted primary target (ADR 0008), drawn in accent and dashed
+						because its cutover is operator-gated and not yet live, is on-cluster serving: an adapter-node web
+						Deployment on port 3000 with two replicas, behind an internal ClusterIP web Service on port 80 and the
+						in-cluster cloudflared tunnel on the honey ingress. The current live host, drawn solid, is Cloudflare Pages
+						serving the static build, which becomes the warm standby (ADR 0007) after cutover. The on-prem cluster has
+						three nodes with zero public IP: honey (mail substrate, Mailman list stack, form and archive guard, tightest
+						headroom), bumble (worker, web replica target), and sting (worker, web replica target, CI runners). The two
+						web replicas are scheduled onto bumble and sting under anti-affinity, leaving honey for its mail and form
+						load.</desc
 					>
 					<defs>
 						<marker
@@ -97,68 +119,99 @@
 					</defs>
 
 					<!-- Visitor -->
-					<rect class="node" x="280" y="12" width="160" height="44" />
-					<text class="lbl strong" x="360" y="32">Visitor / browser</text>
-					<text class="lbl muted" x="360" y="47">or external client</text>
-					<line class="flow" x1="360" y1="56" x2="360" y2="86" marker-end="url(#arrow)" />
+					<rect class="node" x="300" y="12" width="160" height="44" />
+					<text class="lbl strong" x="380" y="32">Visitor / browser</text>
+					<text class="lbl muted" x="380" y="47">or external client</text>
+					<line class="flow" x1="380" y1="56" x2="380" y2="82" marker-end="url(#arrow)" />
 
 					<!-- Cloudflare edge -->
-					<rect class="node accent" x="160" y="86" width="400" height="70" />
-					<text class="lbl strong" x="360" y="112">Cloudflare edge</text>
-					<text class="lbl muted" x="360" y="130">TLS terminates here</text>
-					<text class="lbl muted" x="360" y="146">apex gated by Cloudflare Access</text>
+					<rect class="node accent" x="110" y="84" width="540" height="78" />
+					<text class="lbl strong" x="380" y="110">Cloudflare edge</text>
+					<text class="lbl muted" x="380" y="128">TLS terminates here</text>
+					<text class="lbl muted" x="380" y="146">apex + www gated by Cloudflare Access</text>
 
-					<!-- Branch labels -->
-					<line class="flow" x1="270" y1="156" x2="270" y2="196" marker-end="url(#arrow)" />
-					<line class="flow dashed" x1="470" y1="156" x2="470" y2="196" marker-end="url(#arrow)" />
+					<!-- Branch to on-cluster target (accent) and to Pages (live) -->
+					<line class="flow" x1="204" y1="162" x2="204" y2="194" marker-end="url(#arrow)" />
+					<line class="flow" x1="573" y1="162" x2="573" y2="194" marker-end="url(#arrow)" />
 
-					<!-- Pages (live) -->
-					<rect class="node accent" x="120" y="196" width="240" height="66" />
-					<text class="lbl strong" x="240" y="220">Cloudflare Pages</text>
-					<text class="lbl muted" x="240" y="238">static build</text>
-					<text class="lbl muted" x="240" y="253">production today</text>
+					<!-- On-cluster origin (accepted target, not yet live: accent + dashed) -->
+					<rect class="node accent sub" x="44" y="196" width="320" height="96" />
+					<text class="lbl strong" x="204" y="220">On-cluster serving</text>
+					<text class="lbl muted" x="204" y="238">accepted PRIMARY target, ADR 0008</text>
+					<text class="lbl muted" x="204" y="256">adapter-node to image to K8s to tunnel</text>
+					<text class="lbl muted" x="204" y="278">cutover operator-gated, NOT yet live</text>
 
-					<!-- Tunnel (declare-only) -->
-					<rect class="node sub" x="400" y="196" width="280" height="66" />
-					<text class="lbl strong" x="540" y="220">cloudflared tunnel</text>
-					<text class="lbl muted" x="540" y="238">honey ingress, declare-only</text>
-					<text class="lbl muted" x="540" y="253">route managed at the edge, not in git</text>
+					<!-- Cloudflare Pages (current live host, solid) -->
+					<rect class="node" x="430" y="196" width="286" height="96" />
+					<text class="lbl strong" x="573" y="220">Cloudflare Pages</text>
+					<text class="lbl muted" x="573" y="238">static build (adapter-static)</text>
+					<text class="lbl muted" x="573" y="256">LIVE host today</text>
+					<text class="lbl muted" x="573" y="278">warm standby after cutover, ADR 0007</text>
 
-					<!-- Tunnel down into cluster -->
-					<line class="flow dashed" x1="540" y1="262" x2="540" y2="300" marker-end="url(#arrow)" />
+					<!-- On-cluster origin down into the cluster -->
+					<line class="flow dashed" x1="200" y1="292" x2="168" y2="362" marker-end="url(#arrow)" />
 
 					<!-- honey cluster container -->
-					<rect class="node" x="80" y="300" width="560" height="244" />
-					<text class="lbl strong" x="360" y="324">honey cluster (on-prem, zero public IP)</text>
+					<rect class="node" x="44" y="324" width="672" height="404" />
+					<text class="lbl strong" x="380" y="348">honey cluster (on-prem, zero public IP)</text>
+
+					<!-- Serving chain: tunnel to Service to Deployment (accent = target path) -->
+					<rect class="node accent" x="64" y="366" width="196" height="62" />
+					<text class="lbl strong" x="162" y="390">in-cluster cloudflared</text>
+					<text class="lbl muted" x="162" y="408">tunnel, honey ingress</text>
+					<line class="flow" x1="260" y1="397" x2="288" y2="397" marker-end="url(#arrow)" />
+
+					<rect class="node accent" x="290" y="366" width="176" height="62" />
+					<text class="lbl strong" x="378" y="388">web Service</text>
+					<text class="lbl muted" x="378" y="405">ClusterIP, port 80</text>
+					<text class="lbl muted" x="378" y="421">internal only, to :3000</text>
+					<line class="flow" x1="466" y1="397" x2="494" y2="397" marker-end="url(#arrow)" />
+
+					<rect class="node accent" x="496" y="366" width="200" height="62" />
+					<text class="lbl strong" x="596" y="388">web Deployment</text>
+					<text class="lbl muted" x="596" y="405">adapter-node, :3000</text>
+					<text class="lbl muted" x="596" y="421">replicas 2</text>
+
+					<!-- scheduled onto bumble + sting (dashed, anti-affinity; see desc + caption) -->
+					<text class="lbl muted" x="230" y="452">scheduled onto (anti-affinity)</text>
+					<line class="flow dashed" x1="596" y1="430" x2="596" y2="464" marker-end="url(#arrow)" />
+					<line class="flow dashed" x1="540" y1="430" x2="392" y2="464" marker-end="url(#arrow)" />
 
 					<!-- honey node -->
-					<rect class="node" x="100" y="344" width="170" height="180" />
-					<text class="lbl strong" x="185" y="368">honey</text>
-					<text class="lbl muted" x="185" y="392">mail substrate</text>
-					<text class="lbl muted" x="185" y="410">list stack (Mailman)</text>
-					<text class="lbl muted" x="185" y="428">form + archive guard</text>
-					<text class="lbl muted" x="185" y="446">web spillover</text>
-					<text class="lbl muted" x="185" y="470">tightest headroom</text>
+					<rect class="node" x="64" y="468" width="196" height="234" />
+					<text class="lbl strong" x="162" y="494">honey</text>
+					<text class="lbl muted" x="162" y="518">mail substrate</text>
+					<text class="lbl muted" x="162" y="538">list stack (Mailman)</text>
+					<text class="lbl muted" x="162" y="558">form + archive guard</text>
+					<text class="lbl muted" x="162" y="582">tightest headroom</text>
 
 					<!-- bumble node -->
-					<rect class="node" x="285" y="344" width="150" height="180" />
-					<text class="lbl strong" x="360" y="368">bumble</text>
-					<text class="lbl muted" x="360" y="392">worker node</text>
-					<text class="lbl muted" x="360" y="410">preferred for</text>
-					<text class="lbl muted" x="360" y="428">serving pods</text>
+					<rect class="node" x="290" y="468" width="176" height="234" />
+					<text class="lbl strong" x="378" y="494">bumble</text>
+					<text class="lbl muted" x="378" y="518">worker node</text>
+					<text class="lbl muted" x="378" y="538">web replica target</text>
+					<text class="lbl muted" x="378" y="558">roomy headroom</text>
 
 					<!-- sting node -->
-					<rect class="node" x="450" y="344" width="170" height="180" />
-					<text class="lbl strong" x="535" y="368">sting</text>
-					<text class="lbl muted" x="535" y="392">worker node</text>
-					<text class="lbl muted" x="535" y="410">preferred serving</text>
-					<text class="lbl muted" x="535" y="428">CI runners (nix)</text>
-					<text class="lbl muted" x="535" y="452">roomiest headroom</text>
+					<rect class="node" x="496" y="468" width="200" height="234" />
+					<text class="lbl strong" x="596" y="494">sting</text>
+					<text class="lbl muted" x="596" y="518">worker node</text>
+					<text class="lbl muted" x="596" y="538">web replica target</text>
+					<text class="lbl muted" x="596" y="558">CI runners (nix)</text>
+					<text class="lbl muted" x="596" y="582">roomiest headroom</text>
 				</svg>
 			</div>
+			<ul class="text-surface-500 mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs">
+				<li><span class="text-primary-500 font-semibold">Accent</span> = accepted on-cluster target (ADR 0008)</li>
+				<li><span class="font-semibold">Dashed origin</span> = cutover pending, not yet live</li>
+				<li><span class="font-semibold">Solid</span> = Cloudflare Pages, current live host</li>
+			</ul>
 			<figcaption class="text-surface-500 mt-3 text-xs">
-				Solid path is live (Cloudflare Pages static host). Dashed path and the in-cluster serving pods are declare-only
-				optionality per ADR 0003 and on-cluster container readiness. The apply plane is the org overlay
+				The accent path (in-cluster cloudflared tunnel to a ClusterIP web Service to an adapter-node web Deployment) is
+				the accepted primary target per ADR 0008, which supersedes ADR 0003 for production hosting. Its cutover is
+				operator-gated and not yet done, so Cloudflare Pages (solid) is still the live host and becomes the warm standby
+				(ADR 0007) afterward. Gated-dynamic web I/O (the contact form) already serves on-cluster through the same tunnel
+				today; the static web serving path is the target this diagram adds. The apply plane is the org overlay
 				great-falls-tool-bus-infra; this public repo holds intent only.
 			</figcaption>
 		</figure>
@@ -307,8 +360,9 @@
 				</li>
 				<li>
 					<span class="font-semibold">The live tunnel route.</span> The cloudflared public-hostname route is managed at the
-					Cloudflare edge and is not committed to git; the in-cluster serving path stays declare-only until a superseding
-					hosting decision.
+					Cloudflare edge and is not committed to git. On-cluster serving is the accepted primary target (ADR 0008), but the
+					route flip and image pin are an operator-gated overlay apply, so the static web serving path is prepared, not yet
+					live.
 				</li>
 			</ul>
 		</div>
