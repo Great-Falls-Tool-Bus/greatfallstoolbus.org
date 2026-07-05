@@ -111,7 +111,7 @@
 			are welcome but never required.
 			<!-- Access model (ratified): keyholders are a curated, owner-approved group; anyone may request access; non-member requests reach all keyholders. -->
 			The full path is on
-			<a class="underline" href={`${base}/access`}>how access works</a>, and the ground rules live on
+			<a class="underline" href={`${base}/contact#access`}>how access works</a>, and the ground rules live on
 			<a class="underline" href={`${base}/safety`}>safety &amp; responsible use</a>. The people behind the project are
 			on
 			<a class="underline" href={`${base}/stewards`}>stewards</a>.

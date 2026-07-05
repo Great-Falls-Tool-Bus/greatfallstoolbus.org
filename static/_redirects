@@ -1,0 +1,7 @@
+# Cloudflare Pages redirects. TIN-2536: /access and /find-the-bus were folded
+# into the single /contact route (reach out -> get access -> find the bus).
+# Deep links land on the matching anchor section; bare and nested paths 301 to it.
+/access            /contact#access         301
+/access/*          /contact#access         301
+/find-the-bus      /contact#find-the-bus   301
+/find-the-bus/*    /contact#find-the-bus   301

@@ -70,6 +70,6 @@
 
 	<footer class="text-surface-500 pt-12 text-sm">
 		Want to steward a cell? A captain is one person who knows the kit. See
-		<a class="underline" href={`${base}/access`}>how access works</a> and reach out.
+		<a class="underline" href={`${base}/contact#access`}>how access works</a> and reach out.
 	</footer>
 </main>

@@ -2,7 +2,7 @@
 	import { base } from '$app/paths';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { fade } from 'svelte/transition';
-	import { LoaderCircle, Mail, MailCheck, RotateCcw, Send, TriangleAlert } from '@lucide/svelte';
+	import { KeyRound, LoaderCircle, Mail, MailCheck, MapPin, RotateCcw, Send, TriangleAlert } from '@lucide/svelte';
 	import CopyAddressButton from '$lib/components/CopyAddressButton.svelte';
 	import InfoTip from '$lib/components/InfoTip.svelte';
 	import { LIST, LIST_ADDRESSES, MAIL_CLIENTS } from '$lib/data/mail-clients';
@@ -127,6 +127,35 @@
 	// Single source of truth: the same client data drives the derived per-client
 	// agent skills (see scripts/build-agent-skills.mjs) and the cards below.
 	const clientSetups = MAIL_CLIENTS;
+
+	// "How access works": the path from first inquiry to a tool in your hands,
+	// folded in from the former /access route (TIN-2536 route consolidation) so
+	// reach out -> get access -> find the bus reads as one page. Copy is verbatim.
+	// Access model (ratified): keyholders are a curated, owner-approved group;
+	// anyone may request access; non-member requests reach all keyholders.
+	// No membership fee, no paperwork wall; access is stewarded.
+	const steps = [
+		{
+			n: '1',
+			title: 'Reach out',
+			body: 'Tell us what you want to make or fix. The contact page is where that starts. Requests from non-members reach every keyholder, and one of them picks yours up: keyholders are a small, owner-approved group, so a real person reads every ask.',
+		},
+		{
+			n: '2',
+			title: 'Safety orientation',
+			body: 'Before your first borrow of a capability, a keyholder walks you through a short safety orientation for it: the real hazards, the protective gear, and how the kit packs and travels. It is quick, and it is required.',
+		},
+		{
+			n: '3',
+			title: 'Get the location and a time',
+			body: 'The bus sits at a fixed location in Lewiston-Auburn, shared privately on request. A keyholder gives you the exact spot and settles on a time that works, once the capability you need is ready for you.',
+		},
+		{
+			n: '4',
+			title: 'Use the tool',
+			body: 'Borrow the kit, do the work, and return it checked against its cell sheet. Borrowing is free; donations are welcome but never required.',
+		},
+	];
 </script>
 
 <svelte:head>
@@ -147,7 +176,91 @@
 		</p>
 	</header>
 
-	<section class="border-surface-200-800 mt-10 rounded-lg border p-5" aria-labelledby="form-heading">
+	<!-- How access works: folded in from the former /access route (TIN-2536).
+	     Stable id="access" so /access#... deep links and the /access -> /contact
+	     redirect land on this section. -->
+	<section id="access" class="mt-12 scroll-mt-24" aria-labelledby="access-heading">
+		<div class="flex items-center gap-2">
+			<h2 id="access-heading" class="flex items-center gap-2 text-2xl font-semibold">
+				<KeyRound class="text-primary-500 h-6 w-6 shrink-0" aria-hidden="true" />
+				How access works
+			</h2>
+			<InfoTip
+				label="What is a keyholder?"
+				text="Keyholders are a small, owner-approved group who steward access to the bus. Anyone may ask to borrow; every request from a non-member reaches all keyholders, and one of them picks it up."
+			/>
+		</div>
+		<p class="text-surface-700 dark:text-surface-300 mt-4 max-w-3xl leading-relaxed">
+			Anyone can ask to borrow, and every ask gets a human answer. Four steps take you from a first message to a tool in
+			your hands: no membership fee, no paperwork wall, and a keyholder alongside you the whole way.
+		</p>
+
+		<ol class="mt-8 space-y-6">
+			{#each steps as step (step.n)}
+				<li>
+					<span class="text-surface-500 block text-xs tracking-widest uppercase">Step {step.n}</span>
+					<h3 class="mt-1 text-lg font-semibold">{step.title}</h3>
+					<p class="text-surface-700-300 mt-2 text-sm leading-relaxed">{step.body}</p>
+				</li>
+			{/each}
+		</ol>
+		<!-- Access model (ratified): curated, owner-approved keyholders; anyone may request; non-member requests reach all keyholders. -->
+
+		<p class="text-surface-700 dark:text-surface-300 mt-8 max-w-3xl leading-relaxed">
+			Reach a keyholder. That is step one, and it is the whole ask. Read the <a
+				class="text-primary-700 dark:text-primary-300 underline underline-offset-4"
+				href={`${base}/safety`}>safety &amp; responsible-use guide</a
+			>
+			before your orientation, browse the
+			<a class="text-primary-700 dark:text-primary-300 underline underline-offset-4" href={`${base}/tools`}
+				>capability catalog</a
+			>
+			to see what is on the bus, and meet the
+			<a class="text-primary-700 dark:text-primary-300 underline underline-offset-4" href={`${base}/stewards`}
+				>stewards</a
+			> who keep it running.
+		</p>
+		<p class="text-surface-500 mt-6 max-w-3xl text-sm leading-relaxed">
+			No means test. A safety orientation, a keyholder's go-ahead, and a little coordination, and the bus is yours to
+			borrow.
+		</p>
+	</section>
+
+	<!-- Find the bus: folded in from the former /find-the-bus route (TIN-2536).
+	     Stable id="find-the-bus" so the redirect and deep links survive. The
+	     request-first posture is deliberate: the location is shared privately. -->
+	<section id="find-the-bus" class="mt-12 scroll-mt-24" aria-labelledby="find-the-bus-heading">
+		<div class="flex items-center gap-2">
+			<h2 id="find-the-bus-heading" class="flex items-center gap-2 text-2xl font-semibold">
+				<MapPin class="text-primary-500 h-6 w-6 shrink-0" aria-hidden="true" />
+				Find the bus
+			</h2>
+		</div>
+		<p class="text-surface-700 dark:text-surface-300 mt-4 max-w-3xl leading-relaxed">
+			The bus is based at a fixed location in Lewiston-Auburn, Maine. The exact spot is shared with you when you reach
+			out, not posted here.
+		</p>
+		<div class="text-surface-700 dark:text-surface-300 mt-4 max-w-3xl space-y-4 leading-relaxed">
+			<p>
+				To visit or borrow, <a
+					class="text-primary-700 dark:text-primary-300 font-semibold underline underline-offset-4"
+					href="#form">send a request through the contact form below</a
+				>. A keyholder replies with the exact location and walks you through the access procedure for the bus and its
+				tools.
+			</p>
+			<p>
+				Keeping the location private and sharing it on request is deliberate, for safety and access control. Access here
+				is a living contract, stewarded by the keyholders and open to change, because the Tool Bus is an unincorporated
+				initiative for now.
+			</p>
+		</div>
+	</section>
+
+	<section
+		id="form"
+		class="border-surface-200-800 mt-12 scroll-mt-24 rounded-lg border p-5"
+		aria-labelledby="form-heading"
+	>
 		<div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
 			<div>
 				<h2 id="form-heading" class="text-2xl font-semibold">Contact form</h2>

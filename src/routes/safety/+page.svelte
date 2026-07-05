@@ -82,8 +82,8 @@
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
 			Report a safety incident, damage, or a conduct concern to a keyholder or a cell captain as soon as you can. See
 			<a class="underline" href={`${base}/stewards`}>stewards</a> for who holds which role, and
-			<a class="underline" href={`${base}/access`}>how access works</a> for where to reach out. Early reports keep the next
-			borrower safe.
+			<a class="underline" href={`${base}/contact#access`}>how access works</a> for where to reach out. Early reports keep
+			the next borrower safe.
 		</p>
 	</section>
 
