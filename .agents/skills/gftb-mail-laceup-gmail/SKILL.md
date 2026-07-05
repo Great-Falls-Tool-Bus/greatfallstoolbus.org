@@ -30,7 +30,7 @@ If you hold a latoolb.us mailbox, add it as a full account (not send-as) with ma
 
 ## Archive
 
-HyperKitty web archive: https://lists.latoolb.us/hyperkitty/list/keyholders@latoolb.us/ (private or off, pending TIN-2380).
+HyperKitty web archive: https://lists.latoolb.us/hyperkitty/list/keyholders@latoolb.us/ (private or off).
 
 ## Agent steps
 

@@ -1,12 +1,15 @@
-// Mail lace-up truth for the keyholders list. ONE source of truth for four
+// Mail lace-up truth for the keyholders list. ONE source of truth for its
 // consumers, so they can never drift:
-//   1. /contact renders the mail-client cards from MAIL_CLIENTS.
-//   2. /keyholders renders the ordered onboarding guide from KEYHOLDER_MAIL_GUIDE.
+//   1. /keyholders renders the human onboarding guide from KEYHOLDER_MAIL_GUIDE
+//      (what the list is, the addresses, and how to join after approval).
+//   2. /contact renders the list addresses from LIST / LIST_ADDRESSES.
 //   3. scripts/build-agent-skills.mjs derives one provider-neutral SKILL.md per
 //      client under .agents/skills/gftb-mail-laceup-<id>/ (mirrored to
 //      .claude/skills/) so a keyholder's own agent can lace up their client.
 //   4. The same generator rewrites the mail section of static/llms.txt so any
 //      agent pointed at greatfallstoolbus.org/llms.txt discovers each skill.
+// The per-client MAIL_CLIENTS lace-up detail is an agent surface only (3 + 4);
+// human routes point people at the agent index for client setup.
 // Regenerate + drift-check with `just skills-build` / `just skills-check`.
 // Keep prose brief and free of em-dashes (operator directive).
 
@@ -36,7 +39,7 @@ export const MAILBOX = {
  *  off because access requests may contain personal details. */
 export const ARCHIVE = {
 	url: 'https://lists.latoolb.us/hyperkitty/list/keyholders@latoolb.us/',
-	status: 'private or off, pending TIN-2380',
+	status: 'private or off',
 } as const;
 
 export interface MailClient {
@@ -218,18 +221,6 @@ export const LIST_ADDRESSES: ListAddress[] = [
 	},
 ];
 
-const clientGuideItems: KeyholderGuideItem[] = MAIL_CLIENTS.map((client) => ({
-	title: client.name,
-	meta: client.platforms,
-	body: client.summary,
-	details: [
-		{ label: 'Subscribe', value: client.subscribe },
-		{ label: 'File list mail', value: client.filing },
-		{ label: 'Reply', value: client.replyToList },
-		{ label: 'Mailbox', value: client.mailbox },
-	],
-}));
-
 export const KEYHOLDER_MAIL_GUIDE: KeyholderGuideSection[] = [
 	{
 		id: 'list-role',
@@ -280,55 +271,6 @@ export const KEYHOLDER_MAIL_GUIDE: KeyholderGuideSection[] = [
 				title: 'Use the posting address after approval',
 				body: `Once subscribed, post list traffic to ${LIST.post}. Use the owner address only for moderation or membership trouble.`,
 				address: LIST.post,
-			},
-		],
-	},
-	{
-		id: 'clients',
-		title: 'Pick a mail client setup',
-		summary: `File list mail by Mailman's List-Id header (${LIST.listId}) when your client supports it. Otherwise, file by the posting address.`,
-		items: clientGuideItems,
-	},
-	{
-		id: 'reply-privacy',
-		title: 'Reply with list context',
-		summary:
-			'Reply behavior varies by client, but the rule is simple: put the list on the reply and trim people who do not need the thread.',
-		items: [
-			{
-				title: 'Prefer reply-to-list when available',
-				body: `Thunderbird and KMail read Mailman's List-Post header and can target ${LIST.post} directly.`,
-			},
-			{
-				title: 'Use Reply All carefully elsewhere',
-				body: `Gmail, Apple Mail, Geary, and Outlook need Reply All for list threads. Keep ${LIST.post} and remove extra recipients when the reply should stay list-only.`,
-			},
-			{
-				title: 'Respect request privacy',
-				body: 'Do not forward access-request details outside the role list unless the requester has clearly asked for that path.',
-			},
-		],
-	},
-	{
-		id: 'agent-help',
-		title: 'Let your agent lace up the client',
-		summary:
-			'The public agent index exposes one generated skill per mail client, all derived from this same data module.',
-		items: [
-			{
-				title: 'Open the agent index',
-				body: 'Point your own coding or desktop agent at llms.txt and choose the skill for your mail client.',
-				href: '/llms.txt',
-				ctaLabel: 'Open llms.txt',
-			},
-			{
-				title: 'Keep credentials user-authorized',
-				body: 'The skills describe configuration steps only. They do not contain passwords, tokens, or private mailbox state.',
-			},
-			{
-				title: 'Ask owners when mail acts strange',
-				body: 'For subscription loops, moderation holds, or list delivery trouble, contact the list owners rather than guessing at Mailman state.',
-				address: LIST.owner,
 			},
 		],
 	},

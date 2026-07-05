@@ -20,7 +20,7 @@
 	<title>Keyholder mail guide | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="Onboarding guide for approved Great Falls Tool Bus keyholders using the keyholders Mailman list."
+		content="Onboarding guide for approved Great Falls Tool Bus keyholders using the keyholders mailing list."
 	/>
 </svelte:head>
 
@@ -28,7 +28,7 @@
 	<PageHeader
 		eyebrow="Keyholders"
 		title="Keyholder mail guide"
-		lead={`How to join, file, and reply on ${LIST.post}. This is the private role list for approved keyholders who coordinate access requests and bus operations.`}
+		lead={`How to join and post on ${LIST.post}. This is the private role list for approved keyholders who coordinate access requests and bus operations.`}
 		icon={MailCheck}
 	/>
 
@@ -88,4 +88,12 @@
 			{/each}
 		</ol>
 	</section>
+
+	<p class="text-surface-700-300 mt-10 text-sm leading-relaxed">
+		Setting up filing and list replies in a specific mail client? The
+		<a class="text-primary-700 dark:text-primary-300 font-semibold underline underline-offset-4" href={`${base}/agent`}
+			>agent index</a
+		>
+		publishes a lace-up skill for each client, ready for your own coding or desktop agent.
+	</p>
 </main>

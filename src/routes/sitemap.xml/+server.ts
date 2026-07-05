@@ -18,7 +18,6 @@ const PAGES: string[] = [
 	'/discuss',
 	'/donate',
 	'/keyholders',
-	'/plans',
 	'/shout-outs',
 	'/tools',
 	'/wants',

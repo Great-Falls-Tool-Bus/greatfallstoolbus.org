@@ -21,7 +21,6 @@
 		"/donate": "src/routes/donate/+page.svelte",
 		"/keyholders": "src/routes/keyholders/+page.svelte",
 		"/mission": "src/routes/mission/+page.svelte",
-		"/plans": "src/routes/plans/+page.svelte",
 		"/safety": "src/routes/safety/+page.svelte",
 		"/shout-outs": "src/routes/shout-outs/+page.svelte",
 		"/stewards": "src/routes/stewards/+page.svelte",
