@@ -60,6 +60,15 @@ export const CREDITS: Record<string, ImageCredit> = {
 		licenseUrl: 'https://www.flickr.com/commons/usage/',
 		note: 'Published 1922, public domain in the US. Verified via the Wikimedia Commons imageinfo API (extmetadata LicenseShortName: "No restrictions") on 2026-07-04. A labeled engraving of the hand tools the bus lends; no identifiable people.',
 	},
+	'photos/great-falls-lewiston-1930s': {
+		src: '/photos/great-falls-lewiston-1930s.jpg',
+		title: 'The Falls and Old Man, Auburn and Lewiston, Maine',
+		author: 'Tichnor Brothers, Inc. (publisher); Boston Public Library, Tichnor Brothers Collection no. 69902',
+		source: 'https://www.digitalcommonwealth.org/search/commonwealth:5t34tc98g',
+		assetUrl: 'https://www.bpl.org/downloads/commonwealth:5t34tc98g?filestream_id=image_access_full',
+		license: 'Public domain (no known copyright restrictions)',
+		note: 'Linen-texture color postcard, ca. 1930s (the Boston Public Library dates the Tichnor Brothers series ca. 1930 to 1945). Boston Public Library, Arts Department, Tichnor Brothers Collection, item no. 69902 (persistent ARK ark:/50959/5t34tc98g). Rights statement on the Digital Commonwealth record: "No known copyright restrictions. No known restrictions on use." Verified on 2026-07-05. The white card margins (top caption and bottom-right catalog number) were cropped to the image area before optimizing. Depicts the Androscoggin gorge, the "Old Man" rock, and the namesake red-brick mill with smokestack; no identifiable people.',
+	},
 };
 
 /**

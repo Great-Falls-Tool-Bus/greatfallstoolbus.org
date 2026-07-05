@@ -7,14 +7,16 @@
 	import { cells, wants } from '$lib/data/cells';
 	import Card from '$lib/components/Card.svelte';
 	import Picture from '$lib/components/Picture.svelte';
-	import { reveal } from '$lib/motion.svelte';
+	import { reveal, parallax } from '$lib/motion.svelte';
 
-	// Faint 1922 hand-tools plate reused as a warm hero texture (Wave-3 WOW
-	// polish). Same committed public-domain asset the /mission figure credits, so
-	// no new bytes and no new credits entry. Rendered decorative + very low
-	// opacity behind the copy, and print:hidden so the spec-sheet print stays
-	// ink-on-white. See $lib/data/credits for provenance.
-	const heroTexture = '/photos/hand-tools-plate-1922.jpg';
+	// Full-bleed blurred + parallax hero backdrop: the Tichnor Bros. c.1930s linen
+	// postcard of the Great Falls gorge and the namesake Lewiston mill + smokestack
+	// (Boston Public Library, Tichnor Brothers Collection no. 69902, public
+	// domain). Cropped to the image area, run through the house image pipeline, and
+	// rendered edge-to-edge behind a translucent "featured glass" panel. The
+	// parallax is reduced-motion-safe (see $lib/motion). Provenance in
+	// $lib/data/credits.
+	const heroImage = '/photos/great-falls-lewiston-1930s.jpg';
 
 	const brand = {
 		name: 'Great Falls Tool Bus',
@@ -79,58 +81,66 @@
 	<meta name="description" content={brand.blurb} />
 </svelte:head>
 
-<main class="mx-auto max-w-5xl px-6 py-16 md:py-24">
-	<header class="relative isolate max-w-3xl space-y-4">
-		<div
-			class="pointer-events-none absolute -inset-x-6 -inset-y-4 -z-10 overflow-hidden opacity-[0.05] select-none print:hidden dark:opacity-[0.07]"
-			style="mask-image: linear-gradient(to bottom, black, transparent 85%); -webkit-mask-image: linear-gradient(to bottom, black, transparent 85%);"
-			aria-hidden="true"
-		>
-			<Picture
-				src={heroTexture}
-				alt=""
-				loading="eager"
-				sizes="(min-width: 1024px) 1024px, 100vw"
-				class="h-full w-full object-cover object-right"
-			/>
-		</div>
-		<p class="text-surface-500 text-xs tracking-widest uppercase">{brand.name} · Lewiston-Auburn, Maine</p>
-		<h1 class="font-display text-4xl md:text-5xl">A shared tool library on wheels</h1>
-		<p class="text-primary-600 text-xl">{brand.tagline}</p>
-		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
-			{brand.blurb}
-		</p>
-
-		<div class="flex flex-wrap items-center gap-3 pt-2">
-			<a
-				href={`${base}/donate`}
-				class="bg-primary-500 rounded-container hover:bg-primary-600 inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white transition-colors"
-				>Donate a tool</a
-			>
-			<a
-				href={`${base}/contact#access`}
-				class="border-primary-500 text-primary-600 rounded-container hover:bg-primary-500/10 inline-flex items-center justify-center border px-6 py-3 text-sm font-semibold transition-colors"
-				>How access works</a
-			>
-			<a
-				href={`${base}/tools`}
-				class="text-surface-700 dark:text-surface-300 hover:text-primary-600 inline-flex items-center px-1 py-3 text-sm font-semibold underline-offset-4 hover:underline"
-				>Browse the kit &rarr;</a
-			>
+<main class="mx-auto max-w-5xl px-6 pb-16 md:pb-24">
+	<!-- Full-bleed parallax falls hero (TIN-2419). The band escapes the content
+	     column to 100vw and sits flush under the AppBar; the blurred, gently
+	     parallaxed Tichnor postcard fills it edge-to-edge behind a translucent
+	     "featured glass" panel. One intentional full-bleed treatment: zero radius,
+	     no card. Parallax is reduced-motion-safe (static under prefers-reduced-
+	     motion), and the glass fill keeps every text token >= 4.5:1 in both modes. -->
+	<section class="hero-band">
+		<div class="hero-band__media" aria-hidden="true">
+			<div class="hero-band__parallax" use:parallax={{ speed: 0.18 }}>
+				<Picture
+					src={heroImage}
+					alt=""
+					loading="eager"
+					decoding="sync"
+					sizes="100vw"
+					class="h-full w-full object-cover object-center"
+				/>
+			</div>
+			<div class="hero-band__scrim"></div>
 		</div>
 
-		<div
-			class="border-surface-200-800 mt-6 flex flex-wrap gap-x-8 gap-y-2 border-t pt-6"
-			aria-label="What's on the bus right now"
-		>
-			{#each stats as stat (stat.label)}
-				<p class="text-sm">
-					<span class="font-display text-primary-600 text-2xl">{stat.value}</span>
-					<span class="text-surface-700-300 ml-1">{stat.label}</span>
+		<div class="hero-band__inner mx-auto max-w-5xl px-6 py-16 md:py-24 lg:py-28">
+			<header class="hero-glass max-w-3xl space-y-4 p-6 md:p-8">
+				<p class="hero-eyebrow text-xs tracking-widest uppercase">
+					{brand.name} · Lewiston-Auburn, Maine
 				</p>
-			{/each}
+				<h1 class="font-display text-4xl md:text-5xl">A shared tool library on wheels</h1>
+				<p class="hero-tagline text-xl">{brand.tagline}</p>
+				<p class="hero-blurb text-lg leading-relaxed">{brand.blurb}</p>
+
+				<div class="flex flex-wrap items-center gap-3 pt-2">
+					<a
+						href={`${base}/donate`}
+						class="bg-primary-500 hover:bg-primary-600 inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white transition-colors"
+						>Donate a tool</a
+					>
+					<a
+						href={`${base}/contact#access`}
+						class="border-primary-600 text-primary-800 hover:bg-primary-500/10 dark:border-primary-400 dark:text-primary-200 inline-flex items-center justify-center border px-6 py-3 text-sm font-semibold transition-colors"
+						>How access works</a
+					>
+					<a
+						href={`${base}/tools`}
+						class="hero-blurb hover:text-primary-800 dark:hover:text-primary-200 inline-flex items-center px-1 py-3 text-sm font-semibold underline-offset-4 hover:underline"
+						>Browse the kit &rarr;</a
+					>
+				</div>
+
+				<div class="hero-divider mt-6 flex flex-wrap gap-x-8 gap-y-2 pt-6" aria-label="What's on the bus right now">
+					{#each stats as stat (stat.label)}
+						<p class="text-sm">
+							<span class="hero-stat font-display text-2xl">{stat.value}</span>
+							<span class="hero-stat-label ml-1">{stat.label}</span>
+						</p>
+					{/each}
+				</div>
+			</header>
 		</div>
-	</header>
+	</section>
 
 	<section class="mt-12" aria-label="Shared-tool criteria">
 		<h2 class="text-2xl font-semibold">What makes a good bus tool</h2>
@@ -166,3 +176,145 @@
 		</div>
 	</section>
 </main>
+
+<style>
+	/* ===== Full-bleed parallax falls hero (TIN-2419) =====
+	   One intentional edge-to-edge treatment behind the home hero: the blurred
+	   Tichnor postcard with a subtle, reduced-motion-safe parallax, a translucent
+	   "featured glass" panel over it, and zero border-radius (house canon). */
+	.hero-band {
+		position: relative;
+		isolation: isolate;
+		width: 100vw;
+		/* Break out of the centered content column to the full viewport. `html`
+		   carries `overflow-x: clip`, so a 100vw child never adds a horizontal
+		   scrollbar (the overflow e2e guard stays green). */
+		margin-left: calc(50% - 50vw);
+		overflow: hidden;
+		/* Body-background tint per mode; drives every scrim mix below so the
+		   light/dark switch is declared once (native light-dark(), keyed off the
+		   color-scheme that data-mode sets). */
+		--hero-tint: light-dark(var(--color-surface-50), var(--color-surface-950));
+	}
+
+	.hero-band__media {
+		position: absolute;
+		inset: 0;
+		z-index: 0;
+		overflow: hidden;
+	}
+
+	/* Blurred backdrop layer. Over-scans the band (20% block for parallax slack,
+	   8% inline to bury the blur fringe) so the clipped band edges never reveal the
+	   soft transparent edge of the blur. `use:parallax` translates this on scroll
+	   and is a no-op under prefers-reduced-motion, leaving a static image. */
+	.hero-band__parallax {
+		position: absolute;
+		inset: -20% -8%;
+		filter: blur(16px);
+		will-change: transform;
+	}
+
+	/* Atmosphere + blend scrim. The vertical layer tucks the band under the glass
+	   AppBar and fades it into the body below; the horizontal layer weights the
+	   tint toward the text side (left) and lets the mill + smokestack breathe on
+	   the right. Contrast itself is guaranteed by the glass fill, not this scrim. */
+	.hero-band__scrim {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+		background:
+			linear-gradient(
+				180deg,
+				color-mix(in oklch, var(--hero-tint) 32%, transparent) 0%,
+				transparent 20%,
+				transparent 68%,
+				color-mix(in oklch, var(--hero-tint) 55%, transparent) 100%
+			),
+			linear-gradient(
+				100deg,
+				color-mix(in oklch, var(--hero-tint) 46%, transparent) 0%,
+				color-mix(in oklch, var(--hero-tint) 28%, transparent) 55%,
+				color-mix(in oklch, var(--hero-tint) 10%, transparent) 100%
+			);
+	}
+
+	.hero-band__inner {
+		position: relative;
+		z-index: 2;
+	}
+
+	/* Featured glass: translucent, frosted, never opaque, zero radius. The 68%
+	   (light) / 74% (dark) surface fill keeps every hero text token >= 4.5:1
+	   against BOTH the darkest and the brightest blurred pixel behind it, in both
+	   modes (verified: light worst 5.23:1, dark worst 4.98:1), while a quarter of
+	   the falls still reads through the frost. */
+	.hero-glass {
+		background: light-dark(
+			color-mix(in oklch, var(--color-surface-50) 68%, transparent),
+			color-mix(in oklch, var(--color-surface-950) 74%, transparent)
+		);
+		border: 1px solid
+			light-dark(
+				color-mix(in oklch, var(--color-surface-950) 12%, transparent),
+				color-mix(in oklch, var(--color-surface-50) 14%, transparent)
+			);
+		box-shadow: 0 1px 30px light-dark(rgba(40, 26, 14, 0.1), rgba(0, 0, 0, 0.38));
+	}
+
+	@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+		.hero-glass {
+			backdrop-filter: blur(10px) saturate(118%);
+			-webkit-backdrop-filter: blur(10px) saturate(118%);
+		}
+	}
+
+	/* Hero text tokens. Colors are pinned to the AA-verified stops above and
+	   switch by mode via light-dark(); the theme ink already handles h1. */
+	.hero-eyebrow {
+		color: light-dark(var(--color-surface-700), var(--color-surface-300));
+	}
+	.hero-tagline {
+		color: light-dark(var(--color-primary-800), var(--color-primary-300));
+	}
+	.hero-blurb {
+		color: light-dark(var(--color-surface-800), var(--color-surface-200));
+	}
+	.hero-stat {
+		color: light-dark(var(--color-primary-800), var(--color-primary-300));
+	}
+	.hero-stat-label {
+		color: light-dark(var(--color-surface-700), var(--color-surface-300));
+	}
+	.hero-divider {
+		border-top: 1px solid
+			light-dark(
+				color-mix(in oklch, var(--color-surface-950) 16%, transparent),
+				color-mix(in oklch, var(--color-surface-50) 18%, transparent)
+			);
+	}
+
+	/* Print: the spec-sheet stays ink-on-white — drop the whole photographic band
+	   so no dark scrim or postcard bleeds into a printed page. */
+	@media print {
+		.hero-band__media {
+			display: none !important;
+		}
+		.hero-glass {
+			background: none !important;
+			border: 0 !important;
+			box-shadow: none !important;
+			backdrop-filter: none !important;
+			-webkit-backdrop-filter: none !important;
+			padding: 0 !important;
+		}
+	}
+
+	/* Reduced motion: belt-and-braces. The parallax action already no-ops, but
+	   also drop the will-change hint so nothing is promoted needlessly. */
+	@media (prefers-reduced-motion: reduce) {
+		.hero-band__parallax {
+			will-change: auto;
+		}
+	}
+</style>

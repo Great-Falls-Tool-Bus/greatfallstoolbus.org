@@ -47,3 +47,62 @@ export function reveal(node: HTMLElement, opts: RevealOptions = {}) {
 		},
 	};
 }
+
+interface ParallaxOptions {
+	/** Fraction of scroll distance the layer drifts by (0 = static, ~0.2 = subtle). */
+	speed?: number;
+}
+
+// ── HOUSE CANON IDIOM ──────────────────────────────────────────────────────
+// Transform-based parallax for a full-bleed hero band's background layer.
+//
+// REDUCED-MOTION-SAFE by construction: the action reads the reduced-motion
+// media query up front and, when motion is not allowed (or there is no window,
+// i.e. SSR), returns without attaching any listener — the layer stays put and
+// simply covers the band as a static image. No prefers-reduced-motion branch is
+// needed in CSS; the effect just never starts.
+//
+// The layer (`node`) must be positioned inside a clipping parent (the band) and
+// OVER-SCAN it on the block axis (e.g. `inset-block: -14%`) so there is vertical
+// slack to translate into. The transform is clamped to that slack, so no gap can
+// ever open at the band's top or bottom edge, at any scroll position or viewport
+// size. rAF-throttled + passive listeners keep the scroll thread cheap.
+export function parallax(node: HTMLElement, opts: ParallaxOptions = {}) {
+	const speed = opts.speed ?? 0.18;
+	const band = node.parentElement;
+	const reduce =
+		typeof window === 'undefined' ||
+		!window.matchMedia ||
+		window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	// Static under reduced motion / SSR: leave the layer centered over the band.
+	if (reduce || !band) return;
+
+	let raf = 0;
+	const update = () => {
+		raf = 0;
+		const rect = band.getBoundingClientRect();
+		// Half the over-scan is the slack available on each edge.
+		const slack = Math.max(0, (node.offsetHeight - band.offsetHeight) / 2);
+		// As the band scrolls up past the viewport top, drift the layer DOWN at a
+		// fraction of that distance so it appears to recede. Clamp to the slack.
+		const drift = -rect.top * speed;
+		const clamped = Math.max(-slack, Math.min(slack, drift));
+		node.style.transform = `translate3d(0, ${clamped.toFixed(2)}px, 0)`;
+	};
+	const onScroll = () => {
+		if (!raf) raf = requestAnimationFrame(update);
+	};
+
+	update();
+	window.addEventListener('scroll', onScroll, { passive: true });
+	window.addEventListener('resize', onScroll, { passive: true });
+
+	return {
+		destroy() {
+			window.removeEventListener('scroll', onScroll);
+			window.removeEventListener('resize', onScroll);
+			if (raf) cancelAnimationFrame(raf);
+		},
+	};
+}
