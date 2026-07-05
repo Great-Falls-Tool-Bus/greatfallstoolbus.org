@@ -555,7 +555,7 @@ html.motion-safe-ready .reveal-armed.reveal-in {
    breaks. */
 @media print {
 	.saturn-nav,
-	footer,
+	.site-footer,
 	[data-testid='brand-vectors-bg'] {
 		display: none !important;
 	}

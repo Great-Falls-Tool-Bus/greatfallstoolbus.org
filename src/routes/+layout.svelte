@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { onMount } from 'svelte';
 	import { base } from '$app/paths';
 	import { page } from '$app/state';
 	import { Menu, X } from '@lucide/svelte';
@@ -17,6 +18,13 @@
 	let { children } = $props();
 
 	let mobileOpen = $state(false);
+
+	// Cancel the reveal fail-open timer (see src/app.html): hydration succeeded,
+	// so `use:reveal` will run and no forced un-hide is needed.
+	onMount(() => {
+		const w = window as unknown as { __gftbRevealFailsafe?: ReturnType<typeof setTimeout> };
+		if (w.__gftbRevealFailsafe) clearTimeout(w.__gftbRevealFailsafe);
+	});
 
 	// Single source of truth for nav (see $lib/nav-items). Base-stripped
 	// pathname so active-state works at root (CF Pages) and under the
@@ -186,7 +194,7 @@
 	     grouped, instead of vanishing. "Get involved" and the meta group are
 	     hand-authored (Wants/Stewards and Stewards/Agent AX/GitHub/Security
 	     predate + extend the shared array). -->
-	<footer class="border-surface-200-800 bg-surface-100-900/80 mt-16 border-t backdrop-blur-sm">
+	<footer class="site-footer border-surface-200-800 bg-surface-100-900/80 mt-16 border-t backdrop-blur-sm">
 		<div class="container mx-auto grid gap-8 px-6 py-10 text-sm md:grid-cols-[2fr_1fr_1fr_1fr]">
 			<p class="text-surface-700-300 max-w-sm">
 				The Great Falls Tool Bus is an unincorporated community project in Lewiston-Auburn, Maine.
@@ -211,7 +219,7 @@
 			<nav aria-label="Meta">
 				<p class="text-surface-500 text-xs tracking-widest uppercase">Meta</p>
 				<ul class="mt-3 space-y-2">
-					<li><a href={`${base}/agent`} class="hover:text-primary-500 transition-colors">Agent AX</a></li>
+					<li><a href={`${base}/agent`} class="hover:text-primary-500 transition-colors">AX</a></li>
 					<li>
 						<ExternalLink href={REPO_URL} class="hover:text-primary-500 transition-colors">GitHub</ExternalLink>
 					</li>

@@ -1,37 +1,32 @@
 // ── HOUSE CANON IDIOM ──────────────────────────────────────────────────────
-// Shared motion helpers (Wave-3 "Quiet Devtool" WOW pass, TIN-2419).
+// Scroll-reveal helper (Wave-3 "Quiet Devtool" WOW pass, TIN-2419).
 //
-// Two exports:
-//   • prefersReducedMotion — one house signal, promoted from the per-surface
-//     MediaQuery that /contact hand-rolled (TIN-2420). JS transitions read
-//     `prefersReducedMotion.current` instead of each re-instantiating the query.
-//   • reveal — a `use:`-action scroll-reveal. See src/app.css for the paired
-//     CSS. It is deliberately flash-free AND no-JS/SSR/reduced-motion safe:
-//     the hidden start state (`.reveal-armed`) only bites under
-//     `html.motion-safe-ready`, a class the app.html sync script adds before
-//     first paint and ONLY when motion is allowed. So the action just flips
-//     `.reveal-in` when the element enters the viewport; if JS is absent, motion
-//     is reduced, or IntersectionObserver is missing, content renders at rest.
-
-import { MediaQuery } from 'svelte/reactivity';
-
-/** House reduced-motion signal. SSR-safe (`.current` is false on the server). */
-export const prefersReducedMotion = new MediaQuery('(prefers-reduced-motion: reduce)');
+// `reveal` is a `use:`-action; its paired CSS lives in src/app.css. The hidden
+// start state (`.reveal-armed`) only applies under `html.motion-safe-ready`,
+// which the app.html sync script adds before first paint and ONLY when motion
+// is allowed — so reduced-motion and no-JS users always render content at rest.
+//
+// FAIL-OPEN: app.html also arms a short failsafe timer that removes
+// `motion-safe-ready` if the app never hydrates (e.g. a failed bundle load), so
+// a broken enhancement layer can never strand content invisible; +layout.svelte
+// cancels that timer on mount. This action flips `.reveal-in` when the element
+// scrolls into view, and reveals immediately where IntersectionObserver is
+// unavailable.
 
 interface RevealOptions {
 	/** Stagger, in ms, applied as the CSS transition-delay for this element. */
 	delay?: number;
 }
 
-/**
- * `use:reveal` — settle an element in when it scrolls into view. The hidden
- * start state lives in CSS (`html.motion-safe-ready .reveal-armed`); mark the
- * element with `class="reveal-armed"` so SSR carries the state and there is no
- * paint flash. This action only observes intersection and adds `.reveal-in`.
- */
 export function reveal(node: HTMLElement, opts: RevealOptions = {}) {
-	if (typeof IntersectionObserver === 'undefined') return;
 	if (opts.delay) node.style.setProperty('--reveal-delay', `${opts.delay}ms`);
+
+	// No IntersectionObserver (very old browsers): reveal immediately rather than
+	// leave the element armed-and-hidden forever.
+	if (typeof IntersectionObserver === 'undefined') {
+		node.classList.add('reveal-in');
+		return;
+	}
 
 	const io = new IntersectionObserver(
 		(entries) => {

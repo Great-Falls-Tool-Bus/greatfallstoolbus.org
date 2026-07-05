@@ -64,18 +64,6 @@
 			href: `${base}/access`,
 		},
 	];
-
-	// Everything else: demoted and condensed to a single link row instead of
-	// duplicating the primary nav bar as another 8-card grid.
-	const morePages = [
-		{ title: 'Find the bus', href: `${base}/find-the-bus` },
-		{ title: 'Tool cells', href: `${base}/cells` },
-		{ title: 'Wants', href: `${base}/wants` },
-		{ title: 'Plans', href: `${base}/plans` },
-		{ title: 'Bibliography', href: `${base}/bibliography` },
-		{ title: 'Shout-outs', href: `${base}/shout-outs` },
-		{ title: 'Contact', href: `${base}/contact` },
-	];
 </script>
 
 <svelte:head>
@@ -156,25 +144,4 @@
 			{/each}
 		</div>
 	</section>
-
-	<section
-		class="border-surface-200-800 reveal-armed mt-10 border-t pt-8"
-		use:reveal
-		aria-label="More about the project"
-	>
-		<h2 class="text-surface-500 text-xs tracking-widest uppercase">More about the project</h2>
-		<nav class="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm" aria-label="More pages">
-			{#each morePages as p (p.title)}
-				<a
-					class="text-surface-700-300 hover:text-primary-600 underline-offset-4 hover:underline"
-					href={p.href}
-					aria-label={`Open ${p.title}`}>{p.title}</a
-				>
-			{/each}
-		</nav>
-	</section>
-
-	<footer class="text-surface-500 pt-12 text-sm">
-		A community project. The dream is a full shop someday; today it is a bus, and that is the point.
-	</footer>
 </main>

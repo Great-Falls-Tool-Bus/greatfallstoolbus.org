@@ -26,6 +26,11 @@
 					var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 					if (!reduceMotion) {
 						document.documentElement.classList.add('motion-safe-ready');
+						// Fail-open: if the app never hydrates (bundle load fails), un-hide
+						// reveal content so a broken enhancement layer cannot strand it.
+						window.__gftbRevealFailsafe = setTimeout(function () {
+							document.documentElement.classList.remove('motion-safe-ready');
+						}, 3000);
 					}
 				} catch (e) {
 					// localStorage unavailable (privacy mode, SSR, etc.) — keep defaults.
