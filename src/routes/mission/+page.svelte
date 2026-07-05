@@ -2,7 +2,16 @@
 	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import Picture from '$lib/components/Picture.svelte';
+	import { creditFor } from '$lib/data/credits';
 	import { Compass } from '@lucide/svelte';
+
+	// Reference use of the Wave-2.5 media pipeline (Picture + manifest + credits):
+	// a public-domain plate of the very hand tools the bus lends, framing "the
+	// serious, hard-to-own-alone tools" the mission is about. Source + license
+	// are recorded in $lib/data/credits.ts and surfaced in the caption below.
+	const toolsPlate = '/photos/hand-tools-plate-1922.jpg';
+	const toolsPlateCredit = creditFor(toolsPlate);
 
 	// Mission framing:
 	//   • tax status = unincorporated community project. NO 501(c)(3), NO fiscal
@@ -59,6 +68,29 @@
 			<!-- OPERATOR-CONFIRM: tax status = unincorporated / no 501(c)(3) / no fiscal sponsor; no tax-deductible claims. Recommended default, not operator-confirmed. -->
 		</p>
 	</section>
+
+	<figure class="border-surface-200-800 mt-10 border-y py-6">
+		<Picture
+			src={toolsPlate}
+			alt="A labeled 1922 plate of hand tools: square, mallet, brace, files, saw, chisel, brush, and related shop tools."
+			sizes="(min-width: 768px) 768px, 100vw"
+			class="bg-surface-100-900 aspect-[3280/2372] w-full rounded-sm object-cover"
+		/>
+		<figcaption class="text-surface-600-400 mt-3 text-sm leading-relaxed">
+			{toolsPlateCredit?.title ?? 'Public-domain hand tools plate'}
+			{#if toolsPlateCredit}
+				<span>
+					, {toolsPlateCredit.author}. {toolsPlateCredit.license}.
+					<a
+						class="underline underline-offset-4"
+						href={toolsPlateCredit.source}
+						target="_blank"
+						rel="noopener noreferrer">Source</a
+					>.
+				</span>
+			{/if}
+		</figcaption>
+	</figure>
 
 	<section class="mt-12" aria-label="What we believe">
 		<h2 class="text-2xl font-semibold">What we believe</h2>
