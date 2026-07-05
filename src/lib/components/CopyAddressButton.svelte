@@ -35,7 +35,7 @@
 
 <button
 	type="button"
-	class="border-surface-300-700 hover:bg-surface-200-800 inline-flex h-8 w-8 items-center justify-center rounded-sm border transition-colors"
+	class="border-surface-300-700 hover:bg-surface-200-800 inline-flex h-8 w-8 items-center justify-center border transition-colors"
 	aria-label={`${label}: ${value}`}
 	onclick={copyAddress}
 >

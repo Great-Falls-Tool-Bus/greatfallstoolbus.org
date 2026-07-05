@@ -13,15 +13,22 @@
 	import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
 	import ExternalLink from '$lib/components/ExternalLink.svelte';
 	import { toaster } from '$lib/toaster';
+	import { theme } from '$lib/theme.svelte';
 	import { primaryNavItems, footerNavGroups, isActivePath } from '$lib/nav-items';
 
 	let { children } = $props();
 
 	let mobileOpen = $state(false);
 
-	// Cancel the reveal fail-open timer (see src/app.html): hydration succeeded,
-	// so `use:reveal` will run and no forced un-hide is needed.
 	onMount(() => {
+		// Hydrate the theme store from localStorage so the color-mode slider
+		// reflects the persisted choice on reload (the app.html FOUC script sets
+		// the DOM attributes pre-paint, but the reactive store still needs to
+		// catch up, otherwise the switch reads its default state after a refresh).
+		theme.init();
+
+		// Cancel the reveal fail-open timer (see src/app.html): hydration
+		// succeeded, so `use:reveal` will run and no forced un-hide is needed.
 		const w = window as unknown as { __gftbRevealFailsafe?: ReturnType<typeof setTimeout> };
 		if (w.__gftbRevealFailsafe) clearTimeout(w.__gftbRevealFailsafe);
 	});
@@ -88,7 +95,7 @@
 	{/if}
 	<a
 		href="#content"
-		class="focus:bg-primary-500 sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-sm focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+		class="focus:bg-primary-500 sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
 		>Skip to content</a
 	>
 
@@ -137,7 +144,7 @@
 					closeOnEscape
 					preventScroll
 				>
-					<Dialog.Trigger class="hover:bg-surface-200-800 rounded-sm p-2 lg:hidden" aria-label="Open navigation">
+					<Dialog.Trigger class="hover:bg-surface-200-800 p-2 lg:hidden" aria-label="Open navigation">
 						<Menu class="h-5 w-5" />
 					</Dialog.Trigger>
 					<Dialog.Backdrop class="fixed inset-0 z-40 bg-black/40" />
@@ -148,7 +155,7 @@
 									<BusMark decorative class="text-primary-500 h-[1.15em] w-[1.15em]" />
 									<Wordmark text={SITE_NAME} />
 								</span>
-								<Dialog.CloseTrigger class="hover:bg-surface-200-800 rounded-sm p-2" aria-label="Close navigation">
+								<Dialog.CloseTrigger class="hover:bg-surface-200-800 p-2" aria-label="Close navigation">
 									<X class="h-5 w-5" />
 								</Dialog.CloseTrigger>
 							</div>
@@ -233,10 +240,7 @@
 
 	<Toast.Group {toaster} class="fixed right-4 bottom-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-3">
 		{#snippet children(toast)}
-			<Toast
-				{toast}
-				class="border-surface-300-700 bg-surface-50-950 text-surface-900-50 rounded-lg border p-4 shadow-lg"
-			>
+			<Toast {toast} class="border-surface-300-700 bg-surface-50-950 text-surface-900-50 border p-4 shadow-lg">
 				<div class="flex items-start justify-between gap-3">
 					<div class="space-y-1">
 						{#if toast.title}
@@ -248,10 +252,7 @@
 							</Toast.Description>
 						{/if}
 					</div>
-					<Toast.CloseTrigger
-						class="hover:bg-surface-200-800 rounded-sm px-2 py-1 text-sm"
-						aria-label="Dismiss notification"
-					>
+					<Toast.CloseTrigger class="hover:bg-surface-200-800 px-2 py-1 text-sm" aria-label="Dismiss notification">
 						×
 					</Toast.CloseTrigger>
 				</div>

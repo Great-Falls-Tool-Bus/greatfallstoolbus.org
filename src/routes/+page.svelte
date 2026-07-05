@@ -5,15 +5,16 @@
 	// at build time from the src/content/tools/**/*.svx tree. No invented
 	// numbers; if the tree changes, these change with it.
 	import { cells, wants } from '$lib/data/cells';
-	import Card from '$lib/components/Card.svelte';
 	import Picture from '$lib/components/Picture.svelte';
 	import { reveal } from '$lib/motion.svelte';
 
 	// Faint 1922 hand-tools plate reused as a warm hero texture (Wave-3 WOW
 	// polish). Same committed public-domain asset the /mission figure credits, so
-	// no new bytes and no new credits entry. Rendered decorative + very low
-	// opacity behind the copy, and print:hidden so the spec-sheet print stays
-	// ink-on-white. See $lib/data/credits for provenance.
+	// no new bytes and no new credits entry. Rendered as a TRUE full-bleed band:
+	// it escapes the content column edge-to-edge and fades out before the first
+	// section, so it reads as one intentional textured hero rather than a boxed
+	// fill stacked over the TinyVectors background. print:hidden keeps the
+	// spec-sheet print ink-on-white. See $lib/data/credits for provenance.
 	const heroTexture = '/photos/hand-tools-plate-1922.jpg';
 
 	const brand = {
@@ -79,21 +80,19 @@
 	<meta name="description" content={brand.blurb} />
 </svelte:head>
 
-<main class="mx-auto max-w-5xl px-6 py-16 md:py-24">
-	<header class="relative isolate max-w-3xl space-y-4">
-		<div
-			class="pointer-events-none absolute -inset-x-6 -inset-y-4 -z-10 overflow-hidden opacity-[0.05] select-none print:hidden dark:opacity-[0.07]"
-			style="mask-image: linear-gradient(to bottom, black, transparent 85%); -webkit-mask-image: linear-gradient(to bottom, black, transparent 85%);"
-			aria-hidden="true"
-		>
-			<Picture
-				src={heroTexture}
-				alt=""
-				loading="eager"
-				sizes="(min-width: 1024px) 1024px, 100vw"
-				class="h-full w-full object-cover object-right"
-			/>
-		</div>
+<main class="relative isolate mx-auto max-w-5xl px-6 py-16 md:py-24">
+	<!-- TRUE full-bleed hero texture: w-screen + centered so it spans the whole
+	     viewport (escaping the max-w content column), masked to fade out before
+	     the first section. One intentional textured band, not a contained fill. -->
+	<div
+		class="pointer-events-none absolute top-0 left-1/2 -z-10 h-[34rem] w-screen -translate-x-1/2 overflow-hidden opacity-[0.05] select-none print:hidden dark:opacity-[0.07]"
+		style="mask-image: linear-gradient(to bottom, black 0%, transparent 82%); -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 82%);"
+		aria-hidden="true"
+	>
+		<Picture src={heroTexture} alt="" loading="eager" sizes="100vw" class="h-full w-full object-cover object-center" />
+	</div>
+
+	<header class="max-w-3xl space-y-4">
 		<p class="text-surface-500 text-xs tracking-widest uppercase">{brand.name} · Lewiston-Auburn, Maine</p>
 		<h1 class="font-display text-4xl md:text-5xl">A shared tool library on wheels</h1>
 		<p class="text-primary-600 text-xl">{brand.tagline}</p>
@@ -104,12 +103,12 @@
 		<div class="flex flex-wrap items-center gap-3 pt-2">
 			<a
 				href={`${base}/donate`}
-				class="bg-primary-500 rounded-container hover:bg-primary-600 inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white transition-colors"
+				class="bg-primary-500 hover:bg-primary-600 inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white transition-colors"
 				>Donate a tool</a
 			>
 			<a
 				href={`${base}/contact#access`}
-				class="border-primary-500 text-primary-600 rounded-container hover:bg-primary-500/10 inline-flex items-center justify-center border px-6 py-3 text-sm font-semibold transition-colors"
+				class="border-primary-500 text-primary-600 hover:bg-primary-500/10 inline-flex items-center justify-center border px-6 py-3 text-sm font-semibold transition-colors"
 				>How access works</a
 			>
 			<a
@@ -132,22 +131,24 @@
 		</div>
 	</header>
 
-	<section class="mt-12" aria-label="Shared-tool criteria">
+	<!-- Uncontained editorial criteria: each is a hairline-divided term/description
+	     row (dl), not a boxed card. Reads as one continuous page. -->
+	<section class="mt-16" aria-label="Shared-tool criteria">
 		<h2 class="text-2xl font-semibold">What makes a good bus tool</h2>
-		<div class="mt-6 grid gap-3 md:grid-cols-3">
+		<dl class="mt-8">
 			{#each criteria as item, i (item.title)}
 				<div
-					class="border-surface-200-800 bg-surface-50-950/75 reveal-armed rounded-lg border p-5"
+					class="border-surface-200-800 reveal-armed grid gap-x-8 gap-y-2 border-t py-6 md:grid-cols-[14rem_1fr]"
 					use:reveal={{ delay: i * 70 }}
 				>
-					<h3 class="text-lg font-semibold">{item.title}</h3>
-					<p class="text-surface-700-300 mt-3 text-sm leading-relaxed">{item.body}</p>
+					<dt class="text-lg font-semibold">{item.title}</dt>
+					<dd class="text-surface-700-300 leading-relaxed">{item.body}</dd>
 				</div>
 			{/each}
-		</div>
+		</dl>
 	</section>
 
-	<section class="border-surface-200-800 reveal-armed mt-12 border-y py-8" use:reveal aria-label="How access works">
+	<section class="border-surface-200-800 reveal-armed mt-16 border-y py-8" use:reveal aria-label="How access works">
 		<h2 class="text-2xl font-semibold">Getting on the bus</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 max-w-3xl leading-relaxed">
 			Anyone can ask to borrow: no membership fee, no paperwork wall. Reach out and a keyholder answers. Keyholders
@@ -157,12 +158,28 @@
 		</p>
 	</section>
 
-	<section class="reveal-armed mt-12" use:reveal aria-label="Where to start">
+	<!-- Uncontained editorial index: hairline-divided link rows with a sentence-case
+	     kicker (not another tiny-uppercase eyebrow, so cadence varies here), a lead
+	     title, and a nudging arrow. No card grid. -->
+	<section class="reveal-armed mt-16" use:reveal aria-label="Where to start">
 		<h2 class="text-2xl font-semibold">Where to start</h2>
-		<div class="mt-6 grid gap-4 md:grid-cols-3">
+		<ul class="mt-8">
 			{#each primaryPages as p (p.title)}
-				<Card href={p.href} eyebrow={p.eyebrow} title={p.title} body={p.body} headingLevel="h3" />
+				<li>
+					<a href={p.href} class="group border-surface-200-800 flex items-baseline justify-between gap-6 border-t py-6">
+						<span class="min-w-0">
+							<span class="text-surface-600-400 text-sm">{p.eyebrow}</span>
+							<span class="group-hover:text-primary-600 mt-1 block text-xl font-semibold transition-colors"
+								>{p.title}</span
+							>
+							<span class="text-surface-700-300 mt-1 block leading-relaxed">{p.body}</span>
+						</span>
+						<span class="text-primary-600 shrink-0 transition-transform group-hover:translate-x-1" aria-hidden="true"
+							>&rarr;</span
+						>
+					</a>
+				</li>
 			{/each}
-		</div>
+		</ul>
 	</section>
 </main>
