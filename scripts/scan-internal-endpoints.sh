@@ -23,15 +23,22 @@ patterns=(
   'cluster\.tinyland\.dev'
   'ingress\.cluster'
   'grpcs?://[a-z0-9][a-z0-9.-]+'
-  '(10|192\.168|172\.(1[6-9]|2[0-9]|3[01]))\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}'
+  # RFC1918 private IPv4 as FULL 4-octet dotted addresses. Each branch is
+  # self-contained: the old shared 3-octet suffix assumed a 1-octet prefix,
+  # so the 2-octet 192.168 / 172.16-31 branches demanded a phantom 5th octet
+  # and let 192.168.70.11 / 172.20.5.5 slip past. Leading \b stops a public
+  # address that merely embeds a private substring (e.g. 210.1.2.3) from
+  # tripping the 10.x branch.
+  '\b(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]{1,3}\.[0-9]{1,3})'
 )
 # Safe even if matched: loopback, documented placeholders, and this spoke's
 # public surfaces (greatfallstoolbus.org, latoolb.us, the Pages origin,
 # github.com). relay.tinyland.dev is public MX truth and allowed in docs.
 allow='localhost|127\.0\.0\.1|0\.0\.0\.0|ingress\.invalid|\.invalid|example\.(com|org|net|invalid|internal)|ORG/REPO|HOST:PORT|<[a-zA-Z._-]+>|greatfallstoolbus\.org|latoolb\.us|great-falls-tool-bus\.github\.io|github\.com|relay\.tinyland\.dev'
 
-# This scanner and the gitleaks config legitimately contain the literals above.
-self_exclude='^(scripts/scan-internal-endpoints\.sh|\.gitleaks\.toml)$'
+# This scanner, its own unit test, and the gitleaks config legitimately contain
+# the literals above (the test documents example private IPs it must flag).
+self_exclude='^(scripts/scan-internal-endpoints\.(sh|test\.mts)|\.gitleaks\.toml)$'
 
 files=()
 while IFS= read -r f; do files+=("$f"); done < <(

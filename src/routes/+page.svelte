@@ -110,7 +110,7 @@
 				<p class="hero-eyebrow text-xs tracking-widest uppercase">
 					{brand.name} · Lewiston-Auburn, Maine
 				</p>
-				<h1 class="font-display text-4xl md:text-5xl">A shared tool library on wheels</h1>
+				<h1 class="font-display text-4xl md:text-5xl">A shared tool library & whatnot</h1>
 				<p class="hero-tagline text-xl">{brand.tagline}</p>
 				<p class="hero-blurb text-lg leading-relaxed">{brand.blurb}</p>
 

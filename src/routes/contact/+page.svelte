@@ -138,18 +138,23 @@
 		},
 		{
 			n: '2',
-			title: 'Safety orientation',
-			body: 'Before your first borrow of a capability, a keyholder walks you through a short safety orientation for it: the real hazards, the protective gear, and how the kit packs and travels. It is quick, and it is required.',
-		},
-		{
-			n: '3',
 			title: 'Get the location and a time',
 			body: 'The bus sits at a fixed location in Lewiston-Auburn, shared privately on request. A keyholder gives you the exact spot and settles on a time that works, once the capability you need is ready for you.',
 		},
 		{
-			n: '4',
+			n: '3',
 			title: 'Use the tool',
-			body: 'Borrow the kit, do the work, and return it checked against its cell sheet. Borrowing is free; donations are welcome but never required.',
+			body: 'Borrow the kit, do the work, and return it checked against its cell sheet. Borrowing is free.',
+		},
+		{
+			n: '4',
+			title: 'Return the tool',
+			body: 'Read about how to use it.  Phone a friend if you need help.  Please bring the tools back ^w^',
+		},
+		{
+			n: '5',
+			title: 'Fix the tool',
+			body: 'Did you break it?  Fear not, we can fix it; I hear there is a tool bus in town with just thing...',
 		},
 	];
 </script>
