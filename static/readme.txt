@@ -26,7 +26,7 @@ form are being built -- until they open, watch:
 
 WHO
 ---
-Alex (founder) * Kate Pulham (founding supporter) * Joe (Lewiston
+Alex (founder) * Ripley (founding supporter) * Joe (Lewiston
 alderman -- the bus lives on his property) * Jess Sullivan
 (webmaster & mail admin) * and the initial tool donors.
 
