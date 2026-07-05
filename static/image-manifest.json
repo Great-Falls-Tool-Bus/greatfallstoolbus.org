@@ -1,1 +1,62 @@
-{}
+{
+  "og-image": {
+    "type": "raster",
+    "original": "/og-image.png",
+    "width": 1200,
+    "height": 630,
+    "optimized": {
+      "webp": {
+        "thumbnail": "/optimized/og-image-thumbnail.webp",
+        "small": "/optimized/og-image-small.webp",
+        "medium": "/optimized/og-image-medium.webp",
+        "large": "/optimized/og-image-large.webp"
+      },
+      "avif": {
+        "thumbnail": "/optimized/og-image-thumbnail.avif",
+        "small": "/optimized/og-image-small.avif",
+        "medium": "/optimized/og-image-medium.avif",
+        "large": "/optimized/og-image-large.avif"
+      }
+    }
+  },
+  "photos/hand-tools-plate-1922": {
+    "type": "raster",
+    "original": "/photos/hand-tools-plate-1922.jpg",
+    "width": 3280,
+    "height": 2372,
+    "optimized": {
+      "webp": {
+        "thumbnail": "/optimized/photos/hand-tools-plate-1922-thumbnail.webp",
+        "small": "/optimized/photos/hand-tools-plate-1922-small.webp",
+        "medium": "/optimized/photos/hand-tools-plate-1922-medium.webp",
+        "large": "/optimized/photos/hand-tools-plate-1922-large.webp",
+        "xlarge": "/optimized/photos/hand-tools-plate-1922-xlarge.webp"
+      },
+      "avif": {
+        "thumbnail": "/optimized/photos/hand-tools-plate-1922-thumbnail.avif",
+        "small": "/optimized/photos/hand-tools-plate-1922-small.avif",
+        "medium": "/optimized/photos/hand-tools-plate-1922-medium.avif",
+        "large": "/optimized/photos/hand-tools-plate-1922-large.avif",
+        "xlarge": "/optimized/photos/hand-tools-plate-1922-xlarge.avif"
+      }
+    }
+  },
+  "favicon": {
+    "type": "vector",
+    "original": "/favicon.svg",
+    "width": 210,
+    "height": 235,
+    "optimized": {
+      "svg": "/optimized/favicon.svg"
+    }
+  },
+  "logo/bus-silhouette": {
+    "type": "vector",
+    "original": "/logo/bus-silhouette.svg",
+    "width": 595,
+    "height": 666,
+    "optimized": {
+      "svg": "/optimized/logo/bus-silhouette.svg"
+    }
+  }
+}
