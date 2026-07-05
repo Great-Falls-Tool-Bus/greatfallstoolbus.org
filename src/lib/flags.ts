@@ -17,13 +17,36 @@ export function parseFlag(raw: unknown): boolean {
 }
 
 /**
- * PUBLIC_ARCHIVE_LIVE gates the public `discuss@latoolb.us` HyperKitty archive
- * surface (TIN-2528). DEFAULT FALSE / fail-closed.
+ * PUBLIC_ARCHIVE_LIVE is the reserved PUBLIC go-live switch for the
+ * `discuss@latoolb.us` HyperKitty archive surface (TIN-2528). DEFAULT FALSE /
+ * fail-closed.
  *
- * The archive host `lists.latoolb.us` is operator-gated: it sits behind an
- * Anubis proof-of-work edge and a hard privacy pre-flight, and it is NOT live
- * until an operator has walked the go-live checklist and flipped this flag. While
- * it is false, the /discuss page explains the board is coming and renders NO
- * outbound link (which would 404), and the "Discuss" nav entry is withheld.
+ * LIVE means the archive is open to the whole internet. The archive host
+ * `lists.latoolb.us` is operator-gated: it sits behind an Anubis proof-of-work
+ * edge and a hard privacy pre-flight, and it is NOT public until an operator has
+ * walked the go-live checklist and flipped this flag. This flag alone must never
+ * be implied by preview testing (see `publicArchivePreview`).
  */
 export const publicArchiveLive: boolean = parseFlag(import.meta.env.PUBLIC_ARCHIVE_LIVE);
+
+/**
+ * PUBLIC_ARCHIVE_PREVIEW surfaces the same archive feature for GATED / PREVIEW
+ * testing, WITHOUT flipping the public go-live switch. DEFAULT FALSE /
+ * fail-closed.
+ *
+ * PREVIEW is safe to enable in a deploy that is itself Access-gated: the whole
+ * current Cloudflare deploy (apex / www / pages.dev) sits behind Cloudflare
+ * Access, so only the authenticated operator audience can see it. Enabling this
+ * lets that audience exercise the full archive flow (nav entry, archive section,
+ * outbound `lists.latoolb.us` link) before the public go-live. It does NOT imply
+ * the public archive is open; that remains `publicArchiveLive` only.
+ */
+export const publicArchivePreview: boolean = parseFlag(import.meta.env.PUBLIC_ARCHIVE_PREVIEW);
+
+/**
+ * The archive feature is visible when EITHER gate is on: the public go-live
+ * (`publicArchiveLive`) or gated preview testing (`publicArchivePreview`). This
+ * is the single predicate the /discuss page and the "Discuss" nav entry read.
+ * Fail-closed: both default false, so the feature is hidden until one is set.
+ */
+export const archiveVisible: boolean = publicArchiveLive || publicArchivePreview;
