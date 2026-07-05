@@ -1,7 +1,7 @@
 <script lang="ts">
 	// ── HOUSE CANON IDIOM ──────────────────────────────────────────────────────
 	// DRY page header: the eyebrow → h1 → lead block that every route hand-inlined
-	// (see the pre-uplift +page.svelte headers on /donate, /wants, /plans, …).
+	// (see the pre-uplift +page.svelte headers on /donate, /wants, …).
 	// Extracted so the visual hierarchy is defined once and the theme flows
 	// through the surface/primary tokens — sharp radius, serif display, and
 	// warm palette are all lane-A theme concerns that reach this component via
