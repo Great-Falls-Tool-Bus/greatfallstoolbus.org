@@ -256,11 +256,7 @@
 		</div>
 	</section>
 
-	<section
-		id="form"
-		class="border-surface-200-800 mt-12 scroll-mt-24 rounded-lg border p-5"
-		aria-labelledby="form-heading"
-	>
+	<section id="form" class="border-surface-200-800 mt-12 scroll-mt-24 border p-5" aria-labelledby="form-heading">
 		<div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
 			<div>
 				<h2 id="form-heading" class="text-2xl font-semibold">Contact form</h2>
@@ -274,14 +270,14 @@
 					{/if}
 				</p>
 			</div>
-			<span class="bg-success-100 text-success-800 rounded-sm px-2 py-1 text-xs font-semibold whitespace-nowrap">
+			<span class="bg-success-100 text-success-800 px-2 py-1 text-xs font-semibold whitespace-nowrap">
 				{endpointLive ? 'Direct submit' : 'Mail draft fallback'}
 			</span>
 		</div>
 
 		{#if status === 'success'}
 			<div
-				class="border-success-300-700 bg-success-50-950/60 mt-6 rounded-md border p-5"
+				class="border-success-300-700 bg-success-50-950/60 mt-6 border p-5"
 				role="status"
 				aria-live="polite"
 				in:fade={{ duration: swapDuration }}
@@ -308,7 +304,7 @@
 				in:fade={{ duration: swapDuration }}
 			>
 				{#if status === 'error'}
-					<div class="border-error-300-700 bg-error-50-950/60 rounded-md border p-4" role="alert" aria-live="assertive">
+					<div class="border-error-300-700 bg-error-50-950/60 border p-4" role="alert" aria-live="assertive">
 						<div class="flex items-start gap-3">
 							<TriangleAlert class="text-error-600 dark:text-error-400 mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
 							<div class="space-y-3">
@@ -317,7 +313,7 @@
 									<button
 										type="button"
 										onclick={retry}
-										class="border-error-400-600 text-error-700 dark:text-error-300 inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 text-sm font-semibold"
+										class="border-error-400-600 text-error-700 dark:text-error-300 inline-flex items-center gap-1.5 border px-3 py-1.5 text-sm font-semibold"
 									>
 										<RotateCcw class="h-4 w-4" aria-hidden="true" />
 										Try again
@@ -339,7 +335,7 @@
 					<label class="text-sm font-medium" for="contact-name">Name</label>
 					<input
 						id="contact-name"
-						class="border-surface-300-700 bg-surface-50-950 rounded-sm border px-3 py-2"
+						class="border-surface-300-700 bg-surface-50-950 border px-3 py-2"
 						name="name"
 						autocomplete="name"
 						bind:value={values.name}
@@ -356,7 +352,7 @@
 					<label class="text-sm font-medium" for="contact-email">Email</label>
 					<input
 						id="contact-email"
-						class="border-surface-300-700 bg-surface-50-950 rounded-sm border px-3 py-2"
+						class="border-surface-300-700 bg-surface-50-950 border px-3 py-2"
 						name="email"
 						type="email"
 						autocomplete="email"
@@ -374,7 +370,7 @@
 					<label class="text-sm font-medium" for="contact-message">What are you reaching out about?</label>
 					<textarea
 						id="contact-message"
-						class="border-surface-300-700 bg-surface-50-950 min-h-32 rounded-sm border px-3 py-2"
+						class="border-surface-300-700 bg-surface-50-950 min-h-32 border px-3 py-2"
 						name="message"
 						bind:value={values.message}
 						aria-invalid={fieldErrors.message ? 'true' : undefined}
@@ -402,7 +398,7 @@
 				<button
 					type="submit"
 					disabled={status === 'submitting'}
-					class="bg-primary-600 text-surface-50 inline-flex w-fit items-center gap-2 rounded-sm px-4 py-2 text-sm font-semibold disabled:opacity-70"
+					class="bg-primary-600 text-surface-50 inline-flex w-fit items-center gap-2 px-4 py-2 text-sm font-semibold disabled:opacity-70"
 				>
 					{#if status === 'submitting'}
 						<LoaderCircle class="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />
@@ -437,7 +433,7 @@
 		</p>
 		<div class="mt-6 grid gap-3 md:grid-cols-3">
 			{#each listAddresses as item (item.address)}
-				<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-5">
+				<div class="border-surface-200-800 bg-surface-50-950/75 border p-5">
 					<h3 class="text-lg font-semibold">{item.label}</h3>
 					<div class="mt-2 flex items-center gap-2">
 						<p class="text-primary-700 dark:text-primary-300 min-w-0 break-all font-mono text-sm">{item.address}</p>
@@ -457,7 +453,7 @@
 		</p>
 		<div class="mt-6 grid gap-3 md:grid-cols-2">
 			{#each clientSetups as item (item.id)}
-				<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-5">
+				<div class="border-surface-200-800 bg-surface-50-950/75 border p-5">
 					<div class="flex items-baseline justify-between gap-3">
 						<h3 class="text-lg font-semibold">{item.name}</h3>
 						<span class="text-surface-500 text-xs">{item.platforms}</span>

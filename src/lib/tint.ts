@@ -20,10 +20,12 @@ export type TintStop = (typeof TINT_STOPS)[number];
 
 /**
  * Deterministically map a name to one brand accent stop via a small djb2 string
- * hash. Stable across runs and platforms; empty/whitespace names fall to the
- * first stop. djb2 (seed 5381, multiplier 33) is used over a plain *31 sum
- * because it spreads the short real roster names more evenly across the five
- * stops instead of clustering most of them on one.
+ * hash. Stable across runs and platforms. Empty and whitespace input are NOT
+ * special-cased: an empty string keeps the untouched seed hash (5381), which
+ * lands on 5381 % 5 = 1, i.e. the second stop, not the first. djb2 (seed 5381,
+ * multiplier 33) is used over a plain *31 sum because it spreads the short real
+ * roster names more evenly across the five stops instead of clustering most of
+ * them on one.
  */
 export function tintFor(name: string): TintStop {
 	let hash = 5381;

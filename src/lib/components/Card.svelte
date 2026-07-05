@@ -1,12 +1,12 @@
 <script lang="ts">
 	// ── HOUSE CANON IDIOM ──────────────────────────────────────────────────────
 	// DRY surface card: the `border-surface-200-800 bg-surface-50-950/75 border`
-	// panel that every route hand-inlined for criteria, page links, checklist
-	// items, bibliography entries, and cell tiles. Extracted so the panel chrome
-	// is defined once; radius reads the theme's `--radius-container`
-	// (`rounded-container`) so lane A's sharp-radius theme flows through instead
-	// of a hard-coded `rounded-lg`. Color pairs (surface/primary) already flow
-	// through the omux palette.
+	// panel that every route hand-inlined for page links, checklist items,
+	// bibliography entries, and cell tiles. Extracted so the panel chrome is
+	// defined once. Corners are sharp (no radius utility) to match the
+	// homogeneous zero-radius house treatment; the translucent glass fill
+	// (bg-surface-50-950/75) is an intentional, featured effect and stays. Color
+	// pairs (surface/primary) already flow through the omux palette.
 	//
 	// Two shapes in one component:
 	//   • static panel   → renders a <div>
@@ -61,7 +61,7 @@
 
 	const cardClass = $derived.by(() => {
 		const parts = [
-			'border-surface-200-800 rounded-container border',
+			'border-surface-200-800 border',
 			compact ? 'p-4' : 'p-5',
 			dashed ? 'bg-surface-50-950/40 border-dashed' : 'bg-surface-50-950/75',
 		];

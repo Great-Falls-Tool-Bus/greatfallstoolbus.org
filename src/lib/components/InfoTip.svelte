@@ -14,14 +14,14 @@
 
 <Tooltip openDelay={200} closeDelay={150} positioning={{ placement: 'top' }}>
 	<Tooltip.Trigger
-		class="text-surface-500 hover:text-primary-600 focus-visible:text-primary-600 inline-flex translate-y-[0.1em] items-center rounded-full align-baseline transition-colors"
+		class="text-surface-500 hover:text-primary-600 focus-visible:text-primary-600 inline-flex translate-y-[0.1em] items-center align-baseline transition-colors"
 		aria-label={label}
 	>
 		<Info class="h-[1em] w-[1em]" aria-hidden="true" />
 	</Tooltip.Trigger>
 	<Tooltip.Positioner class="z-50">
 		<Tooltip.Content
-			class="border-surface-300-700 bg-surface-50-950 text-surface-800-200 max-w-xs rounded-sm border px-3 py-2 text-sm leading-relaxed shadow-lg"
+			class="border-surface-300-700 bg-surface-50-950 text-surface-800-200 max-w-xs border px-3 py-2 text-sm leading-relaxed shadow-lg"
 		>
 			{#if children}
 				{@render children()}

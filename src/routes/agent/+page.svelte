@@ -102,7 +102,7 @@
 		<div class="grid gap-3 md:grid-cols-2">
 			{#each entrypoints as item (item.label)}
 				<a
-					class="border-surface-200-800 bg-surface-50-950/75 hover:border-primary-500 block rounded-lg border p-4 transition-colors"
+					class="border-surface-200-800 bg-surface-50-950/75 hover:border-primary-500 block border p-4 transition-colors"
 					href={item.href}
 					aria-label={item.label}
 				>
@@ -130,7 +130,7 @@
 		<div class="grid gap-3 lg:grid-cols-2">
 			{#each skills as skill (skill.name)}
 				<a
-					class="border-surface-200-800 bg-surface-50-950/75 hover:border-primary-500 block rounded-lg border p-4 transition-colors"
+					class="border-surface-200-800 bg-surface-50-950/75 hover:border-primary-500 block border p-4 transition-colors"
 					href={skill.href}
 					aria-label={skill.name}
 				>
@@ -161,7 +161,7 @@
 		<div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
 			{#each mailSkills as skill (skill.name)}
 				<a
-					class="border-surface-200-800 bg-surface-50-950/75 hover:border-primary-500 block rounded-lg border p-4 transition-colors"
+					class="border-surface-200-800 bg-surface-50-950/75 hover:border-primary-500 block border p-4 transition-colors"
 					href={skill.href}
 					aria-label={skill.name}
 				>
@@ -175,7 +175,7 @@
 	<section class="mt-12 grid gap-8 lg:grid-cols-[1fr_1.1fr]" aria-label="Recipes and Flywheel">
 		<div>
 			<h2 class="mb-5 text-2xl font-bold">Recipes</h2>
-			<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-4">
+			<div class="border-surface-200-800 bg-surface-50-950/75 border p-4">
 				<ul class="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-1">
 					{#each recipes as recipe (recipe)}
 						<li><code>{recipe}</code></li>
@@ -185,7 +185,7 @@
 		</div>
 		<div>
 			<h2 class="mb-5 text-2xl font-bold">Flywheel Defaults</h2>
-			<div class="border-surface-200-800 bg-surface-50-950/75 overflow-hidden rounded-lg border">
+			<div class="border-surface-200-800 bg-surface-50-950/75 overflow-hidden border">
 				{#each flywheel as [env, meaning] (env)}
 					<div
 						class="border-surface-200-800 grid gap-x-4 gap-y-1 border-b p-4 last:border-b-0 md:grid-cols-[minmax(0,1fr)_1.3fr]"
