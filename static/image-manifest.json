@@ -19,6 +19,28 @@
       }
     }
   },
+  "photos/great-falls-lewiston-1930s": {
+    "type": "raster",
+    "original": "/photos/great-falls-lewiston-1930s.jpg",
+    "width": 3070,
+    "height": 1851,
+    "optimized": {
+      "webp": {
+        "thumbnail": "/optimized/photos/great-falls-lewiston-1930s-thumbnail.webp",
+        "small": "/optimized/photos/great-falls-lewiston-1930s-small.webp",
+        "medium": "/optimized/photos/great-falls-lewiston-1930s-medium.webp",
+        "large": "/optimized/photos/great-falls-lewiston-1930s-large.webp",
+        "xlarge": "/optimized/photos/great-falls-lewiston-1930s-xlarge.webp"
+      },
+      "avif": {
+        "thumbnail": "/optimized/photos/great-falls-lewiston-1930s-thumbnail.avif",
+        "small": "/optimized/photos/great-falls-lewiston-1930s-small.avif",
+        "medium": "/optimized/photos/great-falls-lewiston-1930s-medium.avif",
+        "large": "/optimized/photos/great-falls-lewiston-1930s-large.avif",
+        "xlarge": "/optimized/photos/great-falls-lewiston-1930s-xlarge.avif"
+      }
+    }
+  },
   "photos/hand-tools-plate-1922": {
     "type": "raster",
     "original": "/photos/hand-tools-plate-1922.jpg",
