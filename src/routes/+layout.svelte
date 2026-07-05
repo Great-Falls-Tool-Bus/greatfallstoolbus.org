@@ -12,6 +12,7 @@
 	import '../app.css';
 	import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
 	import ExternalLink from '$lib/components/ExternalLink.svelte';
+	import ContributeMenu from '$lib/components/ContributeMenu.svelte';
 	import { toaster } from '$lib/toaster';
 	import { theme } from '$lib/theme.svelte';
 	import { primaryNavItems, footerNavGroups, isActivePath } from '$lib/nav-items';
@@ -206,6 +207,7 @@
 			<p class="text-surface-700-300 max-w-sm">
 				The Great Falls Tool Bus is an unincorporated community project in Lewiston-Auburn, Maine.
 			</p>
+			<p class="text-surface-500 mt-3 max-w-sm text-xs">Infrastructure built &amp; hosted in Lewiston, ME.</p>
 			{#each footerNavGroups as group (group.heading)}
 				<nav aria-label={group.heading}>
 					<p class="text-surface-500 text-xs tracking-widest uppercase">{group.heading}</p>
@@ -237,6 +239,11 @@
 			</nav>
 		</div>
 	</footer>
+
+	<!-- Floating contribution affordance (owned here): one persistent control that
+	     gathers the three contribution paths. Mounted ONCE, at the dropdown z-tier
+	     below the AppBar and Toasts, anchored bottom-left to clear the toast stack. -->
+	<ContributeMenu />
 
 	<Toast.Group {toaster} class="fixed right-4 bottom-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-3">
 		{#snippet children(toast)}
