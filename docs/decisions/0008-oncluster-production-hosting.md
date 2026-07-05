@@ -237,8 +237,9 @@ healthy.** OQ-5 is CLOSED.
 `kubectl` probe of the honey rke2 cluster (2026-07-05).** This makes Decision 2
 **decision-READY**; it does **NOT** adopt it — Status stays **Proposed** and the
 operator still rules the adoption (§8, P4). Every number below is a live
-observation; the node private IPs are the same ones already published in the
-infra diagrams (no new endpoint, secret, or IP is disclosed).
+observation; the node private IPs have been redacted from this public doc for
+public-repo safety (the public tree carries no cluster IPs, enforced by
+`scripts/scan-internal-endpoints.sh`).
 
 **Update 2026-07-05: ruled Accepted, see status line.**
 
@@ -246,9 +247,9 @@ infra diagrams (no new endpoint, secret, or IP is disclosed).
 
 | Node | Private IP | Scheduled / Capacity | Free |
 |--------|--------------|----------------------|------|
-| honey  | 192.168.70.10 | 138 / 150 | 12 |
-| bumble | 192.168.70.11 | 50 / 110  | 60 |
-| sting  | 192.168.70.12 | 96 / 200  | 104 |
+| honey  | redacted | 138 / 150 | 12 |
+| bumble | redacted | 50 / 110  | 60 |
+| sting  | redacted | 96 / 200  | 104 |
 | **Cluster** | — | 284 / 460 | **~176** |
 
 **honey was EXPANDED to a 150-pod cap.** 0003's blocker premise (~103-104/110,
