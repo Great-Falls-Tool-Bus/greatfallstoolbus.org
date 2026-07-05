@@ -14,6 +14,7 @@ const PAGES: string[] = [
 	'/cells/welding',
 	'/contact',
 	'/donate',
+	'/keyholders',
 	'/plans',
 	'/shout-outs',
 	'/tools',

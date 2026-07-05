@@ -5,7 +5,7 @@
 	import { LoaderCircle, Mail, MailCheck, RotateCcw, Send, TriangleAlert } from '@lucide/svelte';
 	import CopyAddressButton from '$lib/components/CopyAddressButton.svelte';
 	import InfoTip from '$lib/components/InfoTip.svelte';
-	import { LIST, MAIL_CLIENTS } from '$lib/data/mail-clients';
+	import { LIST, LIST_ADDRESSES, MAIL_CLIENTS } from '$lib/data/mail-clients';
 	import {
 		buildMailtoHref,
 		contactApiUrl,
@@ -122,23 +122,7 @@
 		status = 'idle';
 	}
 
-	const listAddresses = [
-		{
-			label: 'Approved keyholder subscribe',
-			address: LIST.join,
-			note: 'For people already approved as keyholders; owners approve membership.',
-		},
-		{
-			label: 'Post to the list',
-			address: LIST.post,
-			note: 'Public access requests may post here; keyholders receive and coordinate them.',
-		},
-		{
-			label: 'Reach list owners',
-			address: LIST.owner,
-			note: 'Owner/moderator contact for the private keyholders role list.',
-		},
-	];
+	const listAddresses = LIST_ADDRESSES;
 
 	// Single source of truth: the same client data drives the derived per-client
 	// agent skills (see scripts/build-agent-skills.mjs) and the cards below.
