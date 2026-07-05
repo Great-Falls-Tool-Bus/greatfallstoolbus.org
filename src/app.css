@@ -504,6 +504,11 @@ pre.shiki span {
    Skeleton's rounded Avatar — square + mono reads as agent-legible, matching
    the view-source voice. */
 .avatar-tile {
+	/* Per-name brand tint (set inline by Avatar.svelte from $lib/tint); defaults
+	   to the theme primary so an untinted tile still reads on-palette. It only
+	   drives the faint wash + border below, never the ink, so contrast stays
+	   anchored to primary-700/300 regardless of which stop lands here. */
+	--tile-accent: var(--color-primary-500);
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -516,10 +521,10 @@ pre.shiki span {
 	letter-spacing: 0.02em;
 	color: light-dark(var(--color-primary-700), var(--color-primary-300));
 	background: light-dark(
-		color-mix(in oklch, var(--color-primary-500) 14%, white),
-		color-mix(in oklch, var(--color-primary-500) 22%, #1a1512)
+		color-mix(in oklch, var(--tile-accent) 14%, white),
+		color-mix(in oklch, var(--tile-accent) 22%, #1a1512)
 	);
-	border: 1px solid color-mix(in oklch, var(--color-primary-500) 35%, transparent);
+	border: 1px solid color-mix(in oklch, var(--tile-accent) 35%, transparent);
 }
 .avatar-tile img {
 	width: 100%;
