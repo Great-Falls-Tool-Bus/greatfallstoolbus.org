@@ -7,6 +7,24 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ### Added
 
+- In-page contact form submission UX (TIN-2420 Path B, site side): the
+  `/contact` form graduates from a plain mailto compose to a modern in-page
+  flow with an idle to submitting to success or error state machine. On
+  submit it POSTs JSON `{name,email,message,website}` to
+  `${PUBLIC_GFTB_FORM_ENDPOINT}/api/contact` (the Anubis-guarded form-handler
+  that injects to the keyholders list over LMTP), with a 15s `AbortController`
+  timeout, a disabled `aria-busy` button with a spinner, an inline success
+  panel that replaces the form ("Your request is on its way to the
+  keyholders"), and an inline error alert that preserves the typed values and
+  offers both a retry and the mail draft as a manual fallback. Adds a
+  screen-reader-hidden, untabbable honeypot field, client-side field
+  validation with inline per-field errors before any network call, and
+  respects `prefers-reduced-motion` on the panel-swap transition. Progressive
+  enhancement is preserved: with `PUBLIC_GFTB_FORM_ENDPOINT` unset (today) the
+  form still composes a keyholders mail draft in the visitor's own app,
+  reframed as the deliberate fallback, plus a `<noscript>` block with the
+  direct mailto instructions. The honeypot and validation logic is extracted
+  to the pure, unit-tested `$lib/contact-form.ts` (new Vitest suite).
 - Wave-2.5 icon vocabulary: expand `@lucide/svelte` usage from the theme and
   drawer utility icons to a curated set of decorative icons across the
   primary nav, mobile drawer, and page headers. `NavItem` in `nav-items.ts`
