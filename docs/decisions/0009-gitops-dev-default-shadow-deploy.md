@@ -9,6 +9,18 @@
 - Related: 0004 (gate-opening criteria — the beta host stays Access-gated until
   the same five criteria open the apex)
 
+> **Annotation - 2026-07-05 (ADR 0010, operator ruling).** The operator ruled
+> on-prem is the production host and Cloudflare Pages spins down
+> (`0010-on-prem-is-the-production-host.md`, **Accepted**). The
+> Cloudflare-Pages-branch model below (main = CF production branch, `dev` =
+> CF beta branch) is **retired at cutover** with the Pages project. Its intent
+> (a dev-default flow with a private pre-production preview, promotion by a
+> deliberate `dev` -> `main` merge) carries forward, but the preview substrate
+> moves to the **on-cluster reaper pattern** (0010 §4), which needs an infra-side
+> companion decision (TIN-2535 reopened in spirit). This ADR stays **PROPOSED**
+> and is superseded in its serving substrate by 0010; nothing here is applied
+> until 0010 §5 completes and the preview lane is re-decided infra-side.
+
 ## Problem
 
 0003 bound serving to Cloudflare Pages and rebuilt `deploy-pages.yml` to trigger

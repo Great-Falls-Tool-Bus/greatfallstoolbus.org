@@ -21,6 +21,24 @@
   operator. No manifest, toggle, DNS record, or route in this ADR is enabled;
   each new toggle it names ships fail-closed / default-off.
 
+> **Annotation - 2026-07-05 (ADR 0010, operator ruling).** The operator has now
+> ruled **Decision 2** (this ADR's P4): on-prem is the production host
+> (`0010-on-prem-is-the-production-host.md`, **Accepted**). Two corrections to
+> the framing below, under no-silent-rewrite (text retained, 0010 is the ruling):
+> 1. **The "declare-only / not a hosting change / optionality not adoption / P0-
+>    only" framing is superseded.** On-prem is the adopted host and the cutover
+>    (0010 §5) is the executing plan, not a parked option. The technical
+>    readiness this ADR waited on is in hand (image builds/publishes, MI
+>    precedent, §7.1 headroom); the halt was non-technical.
+> 2. **For GFTB's static-production surface, the primary path is adapter-static**
+>    (a simple in-cluster static file server), narrowing §3's `adapter-node`-for-
+>    every-surface shape. The MI `adapter-node` pattern below **stays the house
+>    standard for genuinely dynamic surfaces** and remains the reserved,
+>    already-built path for a future GFTB server need; the static surface, having
+>    no runtime need, does not take it. The preview (§4) and rollback (§5)
+>    reconciliations below are adopted by 0010 as written. Nothing is applied
+>    until 0010 §5 completes.
+
 ## 1. Context — what changed under 0003
 
 0003 (Accepted 2026-07-03, operator-approved in-session same day) bound serving

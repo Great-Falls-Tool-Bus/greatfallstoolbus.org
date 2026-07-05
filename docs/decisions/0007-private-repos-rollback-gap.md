@@ -9,6 +9,19 @@
   `owns_gitops_apply=false` (`tinyland.repo.json`) — it decides posture here,
   it does not apply edge/cluster changes.
 
+> **Annotation - 2026-07-05 (ADR 0010, operator ruling).** The operator ruled
+> on-prem is the production host (`0010-on-prem-is-the-production-host.md`,
+> **Accepted**). This **narrows** the retained Cloudflare Pages publisher below:
+> instead of an open-ended warm standby / single-publisher rollback origin, the
+> Pages publisher is kept warm **only during the cutover window** and is then
+> decommissioned (project deleted, `Pages:Edit` token retired). Post-cutover the
+> rollback primitive is the on-cluster re-pin-previous-`sha-<commit>` (0008 §5),
+> not a second live Cloudflare Pages publisher; the site-level-SPOF tradeoff
+> (single on-prem location, 0008 §7.1) is the accepted availability posture. The
+> options and recommendation below stand as the record of the rollback-gap
+> analysis; 0010 supersedes the "keep CF Pages as a standing standby" outcome.
+> Nothing here is applied until 0010 §5 completes.
+
 ## Context
 
 0003 (Accepted 2026-07-03, operator-approved in-session same day) bound serving

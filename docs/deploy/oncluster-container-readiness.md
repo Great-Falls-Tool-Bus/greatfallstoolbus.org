@@ -1,75 +1,95 @@
-# On-cluster container readiness (image build active; cutover operator-gated)
+# On-cluster serving readiness (on-prem is the accepted host; cutover operator-gated)
 
-- Status: Image build ACTIVE (TIN-2543); production cutover NOT yet done and
-  operator-gated. This repo builds the on-cluster serve artifact; it does not
-  flip the live host.
-- ADR 0008 (Accepted 2026-07-05) supersedes ADR 0003 for production hosting: it
-  accepts on-cluster (`adapter-node` -> OCI image -> K8s -> `cloudflared`) as the
-  target for the static-production surface, on the MassageIthaca precedent.
-- Current serving host is still Cloudflare Pages (project
-  `greatfallstoolbus-org`, `adapter-static`, behind Cloudflare Access) and stays
-  so until the operator applies the overlay stack and bumps the image pin.
+- Status: On-prem is the **accepted production host** (ADR 0010, operator ruled
+  2026-07-05). The **primary serving path is adapter-static** (the static
+  `build/` output served by a simple in-cluster static file server behind the
+  `cloudflared` tunnel), the static-spoke fit. The adapter-node OCI image this
+  repo builds (TIN-2543) is **retained as the reserved path for a future genuine
+  server need**, not the primary serving path.
+- Cutover is the **executing operator-gated plan** (ADR 0010 §5), not declare-only
+  optionality. This repo builds the reserved on-cluster serve artifact; it does
+  not flip the live host.
+- ADR 0010 supersedes ADR 0003 (Pages-bound serving) and rules ADR 0008 Decision
+  2. Cloudflare Pages **spins down**: kept warm only during the cutover window,
+  then the project is deleted and the repo's `Pages:Edit` token retired.
+- **Not yet applied.** Cloudflare Pages (project `greatfallstoolbus-org`,
+  `adapter-static`, behind Cloudflare Access) stays the *live* host until the
+  operator completes the cutover (mint web-apply SA/RBAC, create namespace,
+  replicas 0->2, tunnel route, apex/www DNS flip Pages->tunnel, re-point Access
+  origin, delete the Pages project). On-prem is the **accepted** host; it is not
+  **live** until those steps complete.
 
 ## What this is
 
-On-cluster is the accepted direction (ADR 0008), but the live host has not
-changed yet. This repo carries the on-cluster serve path as a concrete,
-build-active artifact while Cloudflare Pages keeps serving production. The same
-source CF Pages serves statically can also be served in-cluster as a Node server
-(`node build/index.js`); the image is built and published, but nothing here
-deploys it or moves the live host:
+On-prem serving is the accepted production host (ADR 0010). The primary path is
+the static-spoke shape: the same immutable `build/` artifact Cloudflare Pages
+serves today, served instead from an in-cluster static file server fronted by the
+`cloudflared` tunnel. No Node runtime, no server state, no new backend authority
+is required for the static surface, so the static-spoke boundary
+(`owns_runtime_backend=false`) is preserved by the primary path.
 
-| Surface | Today (Cloudflare Pages is live) | On-cluster serve path |
-| --- | --- | --- |
-| `svelte.config.js` | adapter-static (CF Pages) | adapter-node **iff** `ADAPTER=node` |
-| `ContainerFile` | not built by the CF Pages deploy lane | multi-stage `ADAPTER=node` build -> `node build/index.js` on `:3000`, non-root |
-| `.github/workflows/container-ghcr.yml` | builds + pushes an `adapter-node` OCI image to GHCR on every push to `main` (and on `workflow_dispatch`); publishing the image does **not** deploy it | supplies the `sha-<commit>` image the overlay pins at the operator-gated cutover |
+This repo also carries a **reserved** on-cluster serve path as a concrete,
+build-active artifact: the adapter-node OCI image. It is the sanctioned path
+**if and when** GFTB acquires a real runtime need (a secret-holding proxy, thin
+API routes, upstream normalization). It builds and publishes today, but it is not
+the primary serving path and nothing here deploys it or moves the live host:
 
-The default static build (`just build`) still emits adapter-static and never
-imports adapter-node or touches the ContainerFile, so all default gates (`just
-format lint typecheck test-unit skills-check source-map-check build`) stay green
-with the frozen lockfile. The container workflow builds the image on its own
+| Surface | Today (Cloudflare Pages is live) | Primary on-cluster path (adapter-static) | Reserved path (adapter-node) |
+| --- | --- | --- | --- |
+| `svelte.config.js` | adapter-static (CF Pages) | adapter-static `build/` served by a static file server | adapter-node **iff** `ADAPTER=node` |
+| `ContainerFile` | not built by the CF Pages deploy lane | not required (static file server serves `build/`) | multi-stage `ADAPTER=node` build -> `node build/index.js` on `:3000`, non-root |
+| `.github/workflows/container-ghcr.yml` | builds + pushes an `adapter-node` OCI image to GHCR on every push to `main` (and on `workflow_dispatch`); publishing the image does **not** deploy it | the primary path serves the same static `build/` gates already produce | supplies the `sha-<commit>` image the overlay pins if the reserved server path is ever taken |
+
+The default static build (`just build`) emits adapter-static and never imports
+adapter-node or touches the ContainerFile, so all default gates (`just format
+lint typecheck test-unit skills-check source-map-check build`) stay green with
+the frozen lockfile. The container workflow builds the reserved image on its own
 lane; it never mutates production serving.
 
-## Accepted direction, cutover not yet done
+## Accepted host, cutover not yet applied
 
 ADR 0003 originally bound the serving host to Cloudflare Pages and rejected
-cluster-served static behind the blahaj tunnel (no house precedent; honey
-pod-cap pressure; route authority unfinished). ADR 0008 (Accepted 2026-07-05)
-revisited that on new evidence: the MassageIthaca on-cluster precedent and a
-live pod-headroom probe that retired the pod-cap blocker. It supersedes 0003 for
-the static-production serving host and names the `adapter-node -> image -> K8s ->
-cloudflared` pattern as the house standard.
+cluster-served static behind the tunnel (no house precedent; honey pod-cap
+pressure; route authority unfinished). ADR 0008 (Accepted 2026-07-05) retired all
+three premises on new evidence: the MassageIthaca on-cluster precedent and a live
+pod-headroom probe. **ADR 0010 (operator ruled 2026-07-05) then made on-prem the
+production host** and spun down Cloudflare Pages, with **adapter-static as the
+primary path** for the static surface.
 
-Accepting the direction is not flipping the host. The cutover is phased and
-operator-gated (0008 §7, phases P2 through P5); only the image-build phase (P2)
-is active in this repo. Cloudflare Pages remains the live host until the operator
-applies the overlay stack, flips the tunnel ingress, and bumps the image pin.
-That cutover re-checks the static-spoke `boundaries` in `tinyland.repo.json`
-(0008 §6 flags adding `owns_container_image_production` while `owns_gitops_apply`
-and `owns_cloudflare_mutation` stay false, so the overlay still owns the pin and
-apply) and moves the deploy lane to the blahaj GitOps receiver (see
+The accepted host is not yet the live host. The cutover is operator-gated (ADR
+0010 §5) and executed by `great-falls-tool-bus-infra` + the operator; this repo
+cannot apply any of it. Cloudflare Pages remains the live host, kept warm as a
+cutover-window standby, until the operator applies the overlay stack, adds the
+tunnel route, flips apex/www DNS, re-points the Access origin, and deletes the
+Pages project. Because the primary path is adapter-static (not adapter-node), the
+static-spoke `boundaries` in `tinyland.repo.json` are undisturbed: no
+`owns_container_image_production` flip is required for the static surface (ADR
+0008 §6 flagged that flip only for the adapter-node shape). The GitOps deploy
+lane for any on-cluster surface rides the blahaj receiver (see
 `docs/decisions/dynamic-canary-blue-green.md`).
 
 ## Boundary posture (public repo holds nothing operational)
 
-- Zero secrets, endpoints, or ciphertext. The workflow uses only the ambient
-  `GITHUB_TOKEN` (`packages: write`); no new secret is introduced.
+- Zero secrets, endpoints, or ciphertext. The container workflow uses only the
+  ambient `GITHUB_TOKEN` (`packages: write`); no new secret is introduced.
 - DNS, Cloudflare Access, Tunnel ingress, and any actual deploy are owned by
   `great-falls-tool-bus-infra` / blahaj. Route intent lives there
   (blahaj `tofu/intent/<workload>/public-edge-routes.json`), never here.
+- The Access gate gates the tunnel hostnames on the Cloudflare edge, not
+  Cloudflare Pages, so it survives the origin move unchanged (ADR 0010 §6).
 - Image name (names-only contract):
   `ghcr.io/great-falls-tool-bus/greatfallstoolbus.org:sha-<commit>`.
 
-## adapter-node is a committed devDependency
+## adapter-node is a committed devDependency (for the reserved path)
 
-`@sveltejs/adapter-node` is now committed to `devDependencies` (pinned `^5.5.7`)
-and resolves through the frozen `pnpm-lock.yaml`; the earlier "deliberately
-deferred" posture has landed. It is imported lazily in `svelte.config.js` and
-only selected when `ADAPTER=node`, so the default static build never loads it and
-the frozen-lockfile gates stay green. The container image build consumes it at
-build time through the Nix image recipe (`nix/oci-image.nix`); the `ContainerFile`
-is the portable equivalent.
+`@sveltejs/adapter-node` is committed to `devDependencies` (pinned `^5.5.7`) and
+resolves through the frozen `pnpm-lock.yaml`. It is imported lazily in
+`svelte.config.js` and only selected when `ADAPTER=node`, so the default static
+build never loads it and the frozen-lockfile gates stay green. The container
+image build consumes it at build time through the Nix image recipe
+(`nix/oci-image.nix`); the `ContainerFile` is the portable equivalent. Keeping it
+committed keeps the reserved server path build-ready without touching the primary
+static path.
 
 Because the dependency is committed rather than installed only at image-build
 time, keep the Bazel side (`MODULE.bazel.lock` / `npm_translate_lock`) and

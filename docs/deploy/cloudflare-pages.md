@@ -1,11 +1,18 @@
-# Deploy lane: Cloudflare Pages
+# Deploy lane: Cloudflare Pages (spinning down)
 
-GFTB currently serves from Cloudflare Pages per ADR 0003. ADR 0008 (Accepted
-2026-07-05) supersedes 0003 for the production-hosting direction and accepts an
-on-cluster serve path (`adapter-node` -> OCI image -> K8s -> `cloudflared`) as
-the target, but that cutover is operator-gated and not yet done, so Cloudflare
-Pages remains the live host and this lane stays authoritative for production
-today. This repo does not carry the Wrangler implementation locally anymore;
+GFTB currently serves from Cloudflare Pages per ADR 0003. **ADR 0010 (operator
+ruled 2026-07-05) made on-prem the production host and spins Cloudflare Pages
+down**: on-prem serving behind the in-cluster `cloudflared` tunnel is the
+accepted host, with **adapter-static served by a simple in-cluster static file
+server as the primary path** (the adapter-node OCI image is retained only as the
+reserved path for a future server need). Cloudflare Pages is kept **warm only
+during the cutover window** and is then decommissioned (the project deleted and
+the `Pages:Edit` token retired); it is **not** a permanent standby.
+
+The cutover is operator-gated and not yet applied (ADR 0010 §5), so Cloudflare
+Pages remains the *live* host and this lane stays authoritative for production
+**until the cutover completes**. This repo does not carry the Wrangler
+implementation locally anymore;
 `.github/workflows/deploy-pages.yml` is a thin wrapper around the reusable
 Tinyland lane:
 

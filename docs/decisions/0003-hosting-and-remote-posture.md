@@ -28,6 +28,19 @@
 > annotation records that the *rejection rationale* is superseded by fresh
 > evidence; the *ruling* is unchanged pending that operator decision.
 
+> **Annotation - 2026-07-05 (ADR 0010, operator ruling).** The operator has now
+> ruled ADR 0008 Decision 2 (`0010-on-prem-is-the-production-host.md`,
+> **Accepted**). **Decision 1 below is SUPERSEDED for the static-production
+> surface**: on-prem serving behind the in-cluster `cloudflared` tunnel is the
+> production host (adapter-static served by a simple in-cluster static file
+> server is the primary path); Cloudflare Pages spins down (retained only as a
+> warm standby during the cutover window, then the project is deleted and the
+> `Pages:Edit` token retired). The "cluster-served static" that Decision 1
+> **Rejected** is now the accepted host, its three rejection premises having been
+> retired above. **No text below is changed** (no-silent-rewrite); 0010 is the
+> ruling. The cutover is operator-gated and NOT yet applied, so Cloudflare Pages
+> stays the *live* host until 0010 §5 completes.
+
 ## Decision 1: Serving host — Cloudflare Pages, GH Pages retained as rollback publisher
 
 GitHub Pages was never ADR-bound as this site's host: prompt 50 (lines 240-242)
