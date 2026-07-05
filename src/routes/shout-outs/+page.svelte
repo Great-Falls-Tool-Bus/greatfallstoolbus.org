@@ -13,7 +13,7 @@
 		{
 			name: 'J.',
 			role: 'Alderman, Lewiston',
-			note: 'Provides the bus a home on his property, the first stop on every route.',
+			note: 'Hosts the bus on his property — the home base a keyholder shares with you on request.',
 		},
 		{
 			name: 'Alex',
