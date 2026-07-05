@@ -73,7 +73,7 @@
 			src={toolsPlate}
 			alt="A labeled 1922 plate of hand tools: square, mallet, brace, files, saw, chisel, brush, and related shop tools."
 			sizes="(min-width: 768px) 768px, 100vw"
-			class="bg-surface-100-900 aspect-[3280/2372] w-full rounded-sm object-cover"
+			class="bg-surface-100-900 aspect-[3280/2372] w-full object-cover"
 		/>
 		<figcaption class="text-surface-600-400 mt-3 text-sm leading-relaxed">
 			{toolsPlateCredit?.title ?? 'Public-domain hand tools plate'}

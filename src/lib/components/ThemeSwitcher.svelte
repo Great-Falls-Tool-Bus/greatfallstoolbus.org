@@ -75,7 +75,7 @@
 		background: none;
 		cursor: pointer;
 		line-height: 0;
-		border-radius: 999px;
+		border-radius: 0;
 	}
 
 	.theme-slider__track {
@@ -83,7 +83,7 @@
 		display: block;
 		width: 52px;
 		height: 28px;
-		border-radius: 999px;
+		border-radius: 0;
 		padding: 3px;
 		box-sizing: border-box;
 		background: light-dark(var(--color-surface-300), var(--color-surface-700));
@@ -108,7 +108,7 @@
 		left: 3px;
 		width: 22px;
 		height: 22px;
-		border-radius: 999px;
+		border-radius: 0;
 		display: grid;
 		place-items: center;
 		background: var(--color-primary-500);
@@ -160,10 +160,12 @@
 		gap: 0.3rem;
 		padding: 0.15rem 0.4rem;
 		border: 1px solid transparent;
-		border-radius: 999px;
+		border-radius: 0;
 		background: none;
 		cursor: pointer;
-		color: var(--color-surface-500);
+		/* surface-600/400 (paired) clears WCAG AA at this 11px small-caps size,
+		   where a flat surface-500 sat just under the contrast floor. */
+		color: light-dark(var(--color-surface-600), var(--color-surface-400));
 		font-size: 0.6875rem;
 		line-height: 1;
 		letter-spacing: 0.02em;
@@ -188,7 +190,7 @@
 	.theme-slider__auto-dot {
 		width: 7px;
 		height: 7px;
-		border-radius: 999px;
+		border-radius: 0;
 		background: currentColor;
 		opacity: 0.55;
 		transition: opacity 200ms ease;

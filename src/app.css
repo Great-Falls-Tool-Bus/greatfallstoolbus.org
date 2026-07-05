@@ -65,9 +65,9 @@
    mirroring the jesssullivan.github.io blog structure. The bare [data-theme]
    selector has the SAME specificity as omux.css's [data-theme='omux']; it is
    placed AFTER that @import so source order wins. The omux WARM palette +
-   TinyVectors colors are deliberately left untouched. Functional focus-ring /
-   scrollbar radii further down keep their 2px values; only structural
-   container radius goes sharp. */
+   TinyVectors colors are deliberately left untouched. Every radius in this
+   sheet (container, focus-ring, scrollbar, and code surfaces) is sharp (0)
+   for homogeneous corners; there is no rounded/sharp mismatch anywhere. */
 [data-theme] {
 	--typo-base--font-family: var(--font-serif);
 	--typo-heading--font-family: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
@@ -184,7 +184,7 @@ samp,
    and other unbreakable tokens use overflow-wrap: anywhere. */
 pre.shiki {
 	padding: 0.875rem 1rem;
-	border-radius: 0.5rem;
+	border-radius: 0;
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
 	word-break: normal;
@@ -223,7 +223,7 @@ pre.shiki span {
 :not(pre) > code {
 	font-size: 0.875em;
 	padding: 0.1em 0.3em;
-	border-radius: 0.25rem;
+	border-radius: 0;
 	background: color-mix(in oklch, var(--color-surface-200) 40%, transparent);
 }
 [data-mode='dark'] :not(pre) > code {
@@ -430,7 +430,7 @@ pre.shiki span {
 	right: 0;
 	bottom: -0.35rem;
 	height: 2px;
-	border-radius: 1px;
+	border-radius: 0;
 	background: var(--color-primary-500);
 	transform: scaleX(0);
 	transform-origin: left center;
@@ -447,7 +447,7 @@ pre.shiki span {
 :focus-visible {
 	outline: 2px solid var(--color-primary-500);
 	outline-offset: 2px;
-	border-radius: 2px;
+	border-radius: 0;
 }
 
 /* ===== Scrollbar polish (sidebar + drawer)
@@ -463,7 +463,7 @@ pre.shiki span {
 
 .sidebar-scroll::-webkit-scrollbar-thumb {
 	background: var(--color-surface-400);
-	border-radius: 2px;
+	border-radius: 0;
 }
 
 .sidebar-scroll::-webkit-scrollbar-thumb:hover {
