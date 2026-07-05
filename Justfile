@@ -69,18 +69,20 @@ clean-all: clean
     rm -rf {{ root }}/node_modules
 
 # ─────────────────────────────────────────────
-# On-cluster container image (TIN-2543)
+# On-cluster container image (nix2container, TIN-2543)
 # ─────────────────────────────────────────────
 # GFTB's ARC pool advertises only the shared `tinyland-nix` GloriousFlywheel
 # runner — there is NO `tinyland-dind`/buildx runner in this org. So the
-# adapter-node OCI image is built DAEMONLESS via Nix (nix/oci-image.nix ->
-# dockerTools.streamLayeredImage) and pushed with skopeo. No Docker daemon, no
-# buildx. The GF shared cache accelerates the SvelteKit build inputs; the image
-# PUSH is never remote-execution eligible (`container-image-and-push` is blocked
-# at the GF manifest layer — skill rule 8, docs/CI-SCHEMA.md §5). The default
-# adapter-static build is untouched; only ADAPTER=node here selects adapter-node.
+# adapter-node OCI image is built DAEMONLESS via nix2container (nlewo/nix2container,
+# GloriousFlywheel core's own image mechanism; primary path is flake `.#image`,
+# see flake.nix) and pushed through the n2c-patched skopeo. No Docker daemon, no
+# buildx. nix/oci-image.nix stays as the nixpkgs-only fallback. The GF shared
+# cache accelerates the SvelteKit build inputs; the image PUSH is never
+# remote-execution eligible (`container-image-and-push` is blocked at the GF
+# manifest layer — skill rule 8, docs/CI-SCHEMA.md §5). The default adapter-static
+# build is untouched; only ADAPTER=node here selects adapter-node.
 
-# Build the adapter-node OCI image and push it to GHCR (used by
+# Build the adapter-node OCI image with nix2container and push it to GHCR (used by
 # .github/workflows/container-ghcr.yml on tinyland-nix via the nix-job action).
 # Required env (supplied by CI, never committed): GHCR_USER, GHCR_TOKEN.
 # Optional env: IMAGE_REF (default ghcr.io/great-falls-tool-bus/greatfallstoolbus.org),
@@ -92,42 +94,42 @@ container-image-publish:
     : "${GHCR_USER:?GHCR_USER is required (ambient github.actor in CI)}"
     : "${GHCR_TOKEN:?GHCR_TOKEN is required (ambient GITHUB_TOKEN in CI)}"
     # GHCR requires a lowercase image ref; the org owner is Great-Falls-Tool-Bus.
-    image_ref="$(printf '%s' "${IMAGE_REF:-ghcr.io/great-falls-tool-bus/greatfallstoolbus.org}" | tr '[:upper:]' '[:lower:]')"
-    sha="${BUILD_COMMIT_SHA:-$(git rev-parse HEAD)}"
-    tag="sha-${sha}"
+    # The flake reads IMAGE_REF (getEnv, --impure) and derives the image name from
+    # it, so copyToRegistry pushes to docker://${IMAGE_REF}:sha-${sha}.
+    export IMAGE_REF="$(printf '%s' "${IMAGE_REF:-ghcr.io/great-falls-tool-bus/greatfallstoolbus.org}" | tr '[:upper:]' '[:lower:]')"
+    export BUILD_COMMIT_SHA="${BUILD_COMMIT_SHA:-$(git rev-parse HEAD)}"
+    export BUILD_COMMIT_REF="${BUILD_COMMIT_REF:-unknown}"
+    export BUILD_DATE="${BUILD_DATE:-1970-01-01T00:00:00Z}"
+    tag="sha-${BUILD_COMMIT_SHA}"
     # 1. adapter-node bundle (ADAPTER=node -> @sveltejs/adapter-node). The
-    #    default adapter-static build path is never touched.
+    #    default adapter-static build path is never touched. build/ stays the
+    #    GloriousFlywheel cache-accelerated input, imported into the image via
+    #    APP_BUILD under `--impure`.
     ADAPTER=node pnpm install --frozen-lockfile
     ADAPTER=node pnpm run build
-    # 2. Stream a layered OCI image from build/ (+ Node runtime) — no daemon.
-    streamer="$(nix-build nix/oci-image.nix -A image --no-out-link \
-      --arg appBuild "$PWD/build" \
-      --arg appPackageJson "$PWD/package.json" \
-      --argstr commitSha "${sha}" \
-      --argstr commitRef "${BUILD_COMMIT_REF:-unknown}" \
-      --argstr created "${BUILD_DATE:-1970-01-01T00:00:00Z}")"
-    skopeo="$(nix-build nix/oci-image.nix -A skopeo --no-out-link)/bin/skopeo"
-    # 3. Push to GHCR (image-push is NOT executor-eligible; skill rule 8).
-    "${streamer}" | "${skopeo}" --insecure-policy copy \
-      --dest-creds "${GHCR_USER}:${GHCR_TOKEN}" \
-      docker-archive:/dev/stdin \
-      "docker://${image_ref}:${tag}"
-    echo "pushed ${image_ref}:${tag}"
+    export APP_BUILD="$PWD/build"
+    # 2. Build the nix2container image and push it to GHCR through the n2c-patched
+    #    skopeo. copyToRegistry derives docker://${IMAGE_REF}:${tag} from the image
+    #    name/tag; --dest-creds carries the ambient GITHUB_TOKEN (no new secret).
+    #    Image assembly/push is NOT executor-eligible (skill rule 8).
+    nix run --impure .#image.copyToRegistry -- --dest-creds "${GHCR_USER}:${GHCR_TOKEN}"
+    echo "pushed ${IMAGE_REF}:${tag}"
 
 # Local daemonless image build (no push): writes a docker-archive tarball you
-# can load with `skopeo copy docker-archive:greatfallstoolbus-oci.tar docker-daemon:...`.
+# can load with `skopeo copy docker-archive:greatfallstoolbus-oci.tar docker-daemon:...`
+# (or `docker load < greatfallstoolbus-oci.tar`). macOS builds a host-arch image
+# only; the Linux OCI is validated on the tinyland-nix runner.
 container-image-build:
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{ root }}
+    export IMAGE_REF="$(printf '%s' "${IMAGE_REF:-ghcr.io/great-falls-tool-bus/greatfallstoolbus.org}" | tr '[:upper:]' '[:lower:]')"
+    export BUILD_COMMIT_SHA="${BUILD_COMMIT_SHA:-$(git rev-parse HEAD)}"
+    export BUILD_COMMIT_REF="${BUILD_COMMIT_REF:-$(git rev-parse --abbrev-ref HEAD)}"
+    export BUILD_DATE="${BUILD_DATE:-1970-01-01T00:00:00Z}"
     ADAPTER=node pnpm run build
-    streamer="$(nix-build nix/oci-image.nix -A image --no-out-link \
-      --arg appBuild "$PWD/build" \
-      --arg appPackageJson "$PWD/package.json" \
-      --argstr commitSha "$(git rev-parse HEAD)" \
-      --argstr commitRef "$(git rev-parse --abbrev-ref HEAD)" \
-      --argstr created "1970-01-01T00:00:00Z")"
-    "${streamer}" > greatfallstoolbus-oci.tar
+    export APP_BUILD="$PWD/build"
+    nix run --impure .#image.copyTo -- docker-archive:greatfallstoolbus-oci.tar
     echo "wrote greatfallstoolbus-oci.tar"
 
 # ─────────────────────────────────────────────
