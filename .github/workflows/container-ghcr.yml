@@ -1,30 +1,43 @@
-# Build + push the on-cluster container image to GHCR (TIN-2541).
+# Build + push the on-cluster container image to GHCR (TIN-2543).
 #
-# DECLARE-ONLY / DORMANT BY DESIGN. The production host is Cloudflare Pages
-# (ADR 0003, adapter-static); this workflow only exists so the on-cluster serve
-# path is READY, not adopted. It therefore:
-#   * has NO push / pull_request trigger — it can only be started by hand
-#     (workflow_dispatch), and
-#   * is additionally gated on an explicit `confirm=true` input that defaults to
-#     false, so a bare dispatch is a no-op (fail-closed).
+# ACTIVE / BUILD-ONLY. Produces a real adapter-node OCI image on every push to
+# main (and on demand via workflow_dispatch) so the on-cluster serve path has a
+# concrete artifact to consume. Deliberately scoped to BUILD + PUSH only:
 #
-# It uses the ambient GITHUB_TOKEN only (packages: write) — NO new secret. The
-# image is consumed by great-falls-tool-bus-infra (blahaj), which owns DNS,
-# Access, Tunnel, and any actual deploy. This repo never holds edge/apply creds.
+#   * The PRODUCTION host is unchanged — adapter-static -> Cloudflare Pages
+#     (ADR 0003, DB-less, no edge auth). This workflow never touches production
+#     serving; publishing an image does not deploy it.
+#   * The default `just build` / CF Pages pipeline still emits adapter-static.
+#     Only ADAPTER=node (set by the image recipe) selects adapter-node.
+#   * The image is consumed by great-falls-tool-bus-infra (blahaj), which owns
+#     DNS, Access, Tunnel, and any actual deploy/cutover. This repo never holds
+#     edge/apply creds and never flips the live host.
+#
+# RUNNER CLASS (TIN-2543 fix): GFTB's ARC pool advertises only the shared
+# `tinyland-nix` GloriousFlywheel runner — there is NO `tinyland-dind`/buildx
+# runner in this org, so the previous `runs-on: tinyland-dind` had no runner and
+# the image build could never start. This workflow now mirrors the
+# great-falls-tool-bus-infra *-crs.yml pattern EXACTLY: it runs on `tinyland-nix`
+# through ./GloriousFlywheel/.github/actions/nix-job and builds the OCI image
+# DAEMONLESS via Nix (nix/oci-image.nix -> dockerTools.streamLayeredImage) +
+# skopeo push. No Docker daemon, no buildx. The GloriousFlywheel shared cache
+# accelerates the SvelteKit build inputs; the image push itself is NOT
+# remote-execution eligible (`container-image-and-push` is blocked at the GF
+# manifest layer — see docs/CI-SCHEMA.md §5 and the flywheel skill's rule 8).
+#
+# CREDENTIALS (public-repo-safe, switchable): no cache/executor endpoint, token,
+# or UUID is committed. GF-core is checked out with GF_CORE_DEPLOY_KEY if that
+# org secret is present, else GF_CORE_READ_TOKEN, else the job fails fast with a
+# clear message (never a silent no-op). The image push uses only the ambient
+# GITHUB_TOKEN (packages: write) — NO new secret.
 
-name: Build Container (GHCR) [dormant]
+name: Build Container (GHCR)
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
-    inputs:
-      confirm:
-        description: 'Type true to actually build + push the image (declare-only guard).'
-        required: true
-        default: 'false'
-        type: choice
-        options:
-          - 'false'
-          - 'true'
 
 concurrency:
   group: container-ghcr-${{ github.ref }}
@@ -34,53 +47,60 @@ permissions:
   contents: read
   packages: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  GF_CORE_REF: 2281b576bce0e8dd776a047b84e7464f5b508a62
+  HAS_GF_CORE_DEPLOY_KEY: ${{ secrets.GF_CORE_DEPLOY_KEY != '' }}
+  HAS_GF_CORE_READ_TOKEN: ${{ secrets.GF_CORE_READ_TOKEN != '' }}
+
 jobs:
   build-push:
-    # Fail-closed: a dispatch without confirm=true does nothing.
-    if: ${{ github.event.inputs.confirm == 'true' }}
-    # Container publication needs Buildx/DinD; the shared Tinyland DinD pool
-    # provides it (the GFTB org pool advertises only tinyland-nix). This is
-    # declare-only, so the runner-class binding is verified when the lane is
-    # first actually opened, not here.
-    runs-on: tinyland-dind
-
+    name: Build + push adapter-node image (daemonless nix)
+    runs-on: tinyland-nix
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-
-      - name: Login to GHCR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+      - name: Require GloriousFlywheel core read credential
+        run: |
+          if [[ "${HAS_GF_CORE_DEPLOY_KEY}" != "true" && "${HAS_GF_CORE_READ_TOKEN}" != "true" ]]; then
+            echo "::error::GF_CORE_DEPLOY_KEY or GF_CORE_READ_TOKEN is required."
+            exit 1
+          fi
+      - name: Checkout overlay
+        uses: actions/checkout@v6
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+          path: overlay
+      - name: Checkout GloriousFlywheel core with deploy key
+        if: env.HAS_GF_CORE_DEPLOY_KEY == 'true'
+        uses: actions/checkout@v6
         with:
-          # metadata-action lowercases the image ref, so the Great-Falls-Tool-Bus
-          # owner resolves to ghcr.io/great-falls-tool-bus/greatfallstoolbus.org.
-          images: ghcr.io/${{ github.repository_owner }}/greatfallstoolbus.org
-          tags: |
-            type=sha,prefix=sha-
-
-      - name: Build and push
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+          repository: tinyland-inc/GloriousFlywheel
+          ref: ${{ env.GF_CORE_REF }}
+          path: GloriousFlywheel
+          ssh-key: ${{ secrets.GF_CORE_DEPLOY_KEY }}
+      - name: Checkout GloriousFlywheel core with read token
+        if: env.HAS_GF_CORE_DEPLOY_KEY != 'true' && env.HAS_GF_CORE_READ_TOKEN == 'true'
+        uses: actions/checkout@v6
         with:
-          context: .
-          file: ContainerFile
-          target: production
-          push: true
-          build-args: |
-            BUILD_COMMIT_SHA=${{ github.sha }}
-            BUILD_COMMIT_REF=${{ github.ref_name }}
-            BUILD_DATE=${{ github.event.repository.updated_at }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          repository: tinyland-inc/GloriousFlywheel
+          ref: ${{ env.GF_CORE_REF }}
+          path: GloriousFlywheel
+          token: ${{ secrets.GF_CORE_READ_TOKEN }}
+      - name: Build + push adapter-node image
+        uses: ./GloriousFlywheel/.github/actions/nix-job
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_REF: ghcr.io/${{ github.repository_owner }}/greatfallstoolbus.org
+          BUILD_COMMIT_SHA: ${{ github.sha }}
+          BUILD_COMMIT_REF: ${{ github.ref_name }}
+          BUILD_DATE: ${{ github.event.repository.updated_at }}
+        with:
+          # PR-branch / non-trusted lane: read the shared cache to accelerate the
+          # SvelteKit build inputs, but never WRITE it (GF_BAZEL_REMOTE_UPLOAD
+          # stays false). Cache-write is a trusted default-branch concern.
+          push-cache: 'false'
+          command: |
+            set -euo pipefail
+            cd overlay
+            export GF_CORE_PATH=../GloriousFlywheel
+            export GF_CORE_CI_PATH=../GloriousFlywheel#ci
+            nix develop ../GloriousFlywheel#ci -c just container-image-publish

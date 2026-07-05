@@ -10,6 +10,7 @@ load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@npm//:eslint/package_json.bzl", eslint_bin = "bin")
 load("@npm//:prettier/package_json.bzl", prettier_bin = "bin")
 load("@npm//:vitest/package_json.bzl", vitest = "bin")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -172,6 +173,49 @@ test_suite(
         ":svelte_check_test",
         ":unit_tests",
     ],
+)
+
+# Proved static-spoke class: deployment-bundle-packaging (TIN-2543). Packages the
+# adapter-static production build (//:build) into a deterministic deployment
+# tarball. This is a hermetic rules_pkg action, so it is BOTH cache-eligible and
+# executor-eligible (it is a proved static-spoke class) — tagged flywheel-eligible.
+pkg_tar(
+    name = "deployment_bundle",
+    srcs = [":build"],
+    extension = "tar.gz",
+    tags = [
+        "deployment-bundle-packaging",
+        "flywheel-eligible",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Container / OCI build target (TIN-2543): the deterministic input set the
+# daemonless nix image build (nix/oci-image.nix + `just container-image-publish`)
+# consumes. It is CACHE-eligible (the shared GloriousFlywheel cache serves a
+# green result for an unchanged recipe) but explicitly NOT executor-eligible:
+# per skill rule 8 + docs/CI-SCHEMA.md §5, `container-image-and-push` is blocked
+# at the GloriousFlywheel manifest layer, so image assembly/push never runs on a
+# remote executor. The tag is deliberately NOT "flywheel-eligible", so the
+# `--{build,test}_tag_filters=flywheel-eligible` executor filter excludes it
+# while cache-first mode (config=flywheel) still caches it. The SvelteKit build
+# INPUTS remain cache-accelerated via //:build and //:sveltekit_types.
+pkg_tar(
+    name = "container_image_context",
+    srcs = [
+        "ContainerFile",
+        "nix/oci-image.nix",
+        "package.json",
+        "pnpm-lock.yaml",
+        "svelte.config.js",
+    ],
+    extension = "tar",
+    tags = [
+        "container-image-and-push",
+        "gloriousflywheel-cache-only",
+        "no-remote-exec",
+    ],
+    visibility = ["//visibility:public"],
 )
 
 exports_files(

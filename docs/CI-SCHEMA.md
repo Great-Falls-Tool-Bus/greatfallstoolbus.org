@@ -61,8 +61,15 @@
   publication authority** without TIN-1147 closure — hard invariant.
 - **Making OpenTofu RBE-eligible** — hard invariant.
 - **Image publication policy** — `container-image-and-push` is blocked at
-  the GloriousFlywheel manifest layer; spokes push via standard GHCR
-  flows from cluster `tinyland-dind` runners.
+  the GloriousFlywheel manifest layer (image assembly + push is never
+  remote-execution eligible). A spoke whose ARC pool provides a Docker-daemon
+  runner pushes via standard GHCR/buildx flows from `tinyland-dind`. A spoke
+  whose pool advertises only `tinyland-nix` (e.g., Great-Falls-Tool-Bus)
+  instead builds the image DAEMONLESS via Nix
+  (`nix/oci-image.nix` -> `dockerTools.streamLayeredImage`) + skopeo on
+  `tinyland-nix` through `./GloriousFlywheel/.github/actions/nix-job` — no
+  Docker daemon, no buildx (TIN-2543). Either way the shared cache only
+  accelerates the SvelteKit build inputs; it never remotely executes the push.
 - **The contents of `tinyland-inc/blahaj` itself** — this doc fixes the
   *wire* Blahaj receives, not its implementation.
 - **Cloudflare credentials in spokes** — public DNS, Access, and Tunnel
@@ -435,7 +442,8 @@ schema validation.
 | `build-and-test` (`just check`, `just build`) | `tinyland-nix` | Canonical Nix devshell. | yes (proved classes only) |
 | `bazel-graph` (`bazelisk mod graph`, wrapper build for `//:node_modules`) | `tinyland-nix-heavy` | Graph queries are memory-hungry. | yes (proved classes only) |
 | `bazel-rbe-proof` (optional) | `tinyland-nix-heavy` | Dispatches/awaits GloriousFlywheel proof. | n/a (dispatcher only) |
-| `publish-image` | `tinyland-dind` | Container build + push to GHCR. | no (`container-image-and-push` blocked) |
+| `publish-image` (dind pools) | `tinyland-dind` | Container build + push to GHCR (buildx). | no (`container-image-and-push` blocked) |
+| `publish-image` (nix-only pools, e.g. GFTB) | `tinyland-nix` | Daemonless Nix image build (`dockerTools.streamLayeredImage`) + skopeo push via the nix-job action; the pool has no `tinyland-dind` (TIN-2543). | no (`container-image-and-push` blocked) |
 | `lane-qa` (waits for envs, runs E2E) | `tinyland-nix-kvm` | Needs tailnet join + Playwright. | candidate (`web-playwright-chromium-static-smoke`), gated |
 | `dispatch-apply` / `dispatch-reap` | `ubuntu-latest` | Pure `gh api` calls; no cluster reachability needed. | n/a |
 | `pulse-ingest` (snapshot refresh PRs) | `tinyland-nix` | Nix devshell. | no |
