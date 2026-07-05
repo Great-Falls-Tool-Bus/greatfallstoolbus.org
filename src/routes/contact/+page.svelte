@@ -3,6 +3,8 @@
 	import { MediaQuery } from 'svelte/reactivity';
 	import { fade } from 'svelte/transition';
 	import { LoaderCircle, Mail, MailCheck, RotateCcw, Send, TriangleAlert } from '@lucide/svelte';
+	import CopyAddressButton from '$lib/components/CopyAddressButton.svelte';
+	import InfoTip from '$lib/components/InfoTip.svelte';
 	import { LIST, MAIL_CLIENTS } from '$lib/data/mail-clients';
 	import {
 		buildMailtoHref,
@@ -328,7 +330,10 @@
 	</section>
 
 	<section class="mt-12" aria-labelledby="list-heading">
-		<h2 id="list-heading" class="text-2xl font-semibold">Keyholders list</h2>
+		<div class="flex items-center gap-2">
+			<h2 id="list-heading" class="text-2xl font-semibold">Keyholders list</h2>
+			<InfoTip text="Private role list for keyholders. Public requests can reach it, but the archive is not public." />
+		</div>
 		<p class="text-surface-700 dark:text-surface-300 mt-3 leading-relaxed">
 			The keyholders address is a private access-gating role list: keyholder membership is curated, public access
 			requests can still reach the group, and the archive is not public.
@@ -337,7 +342,10 @@
 			{#each listAddresses as item (item.address)}
 				<div class="border-surface-200-800 bg-surface-50-950/75 rounded-lg border p-5">
 					<h3 class="text-lg font-semibold">{item.label}</h3>
-					<p class="text-primary-700 dark:text-primary-300 mt-2 font-mono text-sm">{item.address}</p>
+					<div class="mt-2 flex items-center gap-2">
+						<p class="text-primary-700 dark:text-primary-300 min-w-0 break-all font-mono text-sm">{item.address}</p>
+						<CopyAddressButton value={item.address} label={`Copy ${item.label.toLowerCase()}`} />
+					</div>
 					<p class="text-surface-700-300 mt-3 text-sm leading-relaxed">{item.note}</p>
 				</div>
 			{/each}
