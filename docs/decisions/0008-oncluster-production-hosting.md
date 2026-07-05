@@ -1,6 +1,8 @@
 # 0008 — On-cluster production hosting for GFTB web (supersedes 0003, scoped)
 
-- Status: **Proposed** (operator ruling required — nothing applied)
+- Status: **Proposed** — **decision-READY as of 2026-07-05** (the one open
+  dependency OQ-5 is RESOLVED by a live cluster probe, §7.1); operator ruling
+  still required to adopt — nothing applied
 - Date: 2026-07-05
 - Ticket: TIN-2541 (this decision)
 - Evidence base: TIN-2537 research/corrections brief
@@ -187,7 +189,8 @@ apply). This ADR flags the change; it does not make it.
 
 ## 7. Single open dependency, and the phased operator-gated path
 
-**The only unresolved fact is capacity headroom.** Of 0003's three blockers,
+**The only unresolved fact was capacity headroom — RESOLVED 2026-07-05 by the
+live probe recorded in §7.1.** Of 0003's three blockers,
 "no precedent" is **dissolved** (§1) and "TIN-991 route authority" is **reframed
 to a standing governance constraint GFTB already operates inside** (the live form
 route rides the same operator-gated, dashboard/token-managed tunnel; no CI
@@ -199,10 +202,11 @@ web workload is clearly *shaped* to fit — but exact **live** headroom is not
 determinable from any repo.
 
 **Single open dependency (OQ-5): a live `kubectl` pod-headroom probe** on
-honey / bumble / sting against the 110/node cap and `quota_pods=200`. This is
-the one fact no document can supply and the one gate this ADR cannot close from
-the repo. The operator (or an operator-authorized cluster read) must supply it
-before Decision 2 is ruled.
+honey / bumble / sting against the per-node cap and `quota_pods`. This was the
+one fact no document could supply and the one gate this ADR could not close from
+the repo. **RESOLVED 2026-07-05 — the operator-authorized read-only probe in
+§7.1 supplies it; the headroom bar is met with wide margin and the reaper is
+healthy.** OQ-5 is CLOSED.
 
 **Phased path (nothing applied; each phase operator-gated):**
 
@@ -210,8 +214,8 @@ before Decision 2 is ruled.
   pattern (Decision 2, *proposed*); record the preview + rollback
   reconciliations. Keep CF Pages for static production. Operator ruling
   requested. *(This is the only phase authorized by this document.)*
-- **P1 — probe.** Operator supplies the live pod-headroom count (OQ-5). The one
-  hard dependency.
+- **P1 — probe. DONE 2026-07-05 (§7.1).** The live pod-headroom count (OQ-5) is
+  in hand; the one hard dependency is satisfied.
 - **P2 — app-repo container readiness (public repo, no apply).** Add the
   `adapter-node` build behind a flag, the `ContainerFile`, and a same-org GHCR
   publish workflow (ambient `GITHUB_TOKEN`). Verify the image serves its health
@@ -229,11 +233,113 @@ before Decision 2 is ruled.
   `sha-<commit>` (§5). Retire the public repo's `Pages:Edit` CF token last.
   Re-open TIN-2535 previews under the new premise (§4).
 
+## 7.1 — 2026-07-05 Live probe — dependency OQ-5 RESOLVED
+
+**The one open dependency (§7, OQ-5) is now closed by a live, read-only
+`kubectl` probe of the honey rke2 cluster (2026-07-05).** This makes Decision 2
+**decision-READY**; it does **NOT** adopt it — Status stays **Proposed** and the
+operator still rules the adoption (§8, P4). Every number below is a live
+observation; the node private IPs are the same ones already published in the
+infra diagrams (no new endpoint, secret, or IP is disclosed).
+
+### Pod headroom (scheduled / capacity → free)
+
+| Node | Private IP | Scheduled / Capacity | Free |
+|--------|--------------|----------------------|------|
+| honey  | 192.168.70.10 | 138 / 150 | 12 |
+| bumble | 192.168.70.11 | 50 / 110  | 60 |
+| sting  | 192.168.70.12 | 96 / 200  | 104 |
+| **Cluster** | — | 284 / 460 | **~176** |
+
+**honey was EXPANDED to a 150-pod cap.** 0003's blocker premise (~103-104/110,
+~6 free) is therefore OBSOLETE / faulty and is retired below. Cluster-wide
+**~176 free pod slots** remain. A `replicas=2` web Deployment (server pod +
+sidecars) fits easily and is NOT a headroom risk under any reading of the live
+numbers.
+
+### Reaper health (the adjacent dynamic-lane safety concern)
+
+The kube-system CronJob `massageithaca-pr-lane-backstop-reaper` is **Active**
+(`*/10`, last ran ~5 min before the probe, not suspended). Live pr-ephemeral
+namespaces carry correct **future-dated `expires-epoch` TTLs**
+(`tinyland-dev-pr-611 / 645 / 646` healthy). One lane
+(`tinyland-dev-pr-620-apex`) sat ~80 min past its TTL but was still Active — this
+is **WITHIN NORMAL operation, not a leak**: the full GH reaper runs a 4h cycle
+and the backstop adds a 6h hard-delete grace, so bounded post-TTL latency is
+expected. **Finding: the reaper is healthy.** The on-cluster ephemeral-preview
+machinery §4 would re-open is proven-sound in production, lowering the risk of
+the preview reconciliation.
+
+### SPOF analysis
+
+- **Serving SPOF = NONE.** Three-node cluster; the overlay already specs
+  pod / node anti-affinity and `cloudflared` runs `replicas:2`, so a node loss
+  reschedules. A `replicas=2` GFTB web Deployment placed with anti-affinity
+  survives any single-node loss.
+- **CI-runner-on-sting = a DEPLOY-VELOCITY concern, not a serving risk.** ALL
+  ARC / nix runners (`great-falls-tool-bus-nix` + every listener) are
+  concentrated on **sting**. A wedged runner stalls *deploys*, not *serving* —
+  it is known / accepted / already-mitigated and is the same risk the live MI,
+  mail, and form stacks already bear. This is explicitly NOT the "sting SPOF" a
+  serving decision must weigh.
+- **The genuine SPOF is SITE-LEVEL.** The whole cluster is one physical on-prem
+  location (all three nodes on one /24). This is the honest availability tradeoff
+  vs CF Pages' global CDN and is stated plainly, not waved away. MI already
+  accepts this tradeoff for PRODUCTION today; Cloudflare's proxy fronts and
+  caches the origin; and the named mitigation is a **warm CF-Pages standby**,
+  which ties directly to **0007** (§5): the CF Pages publisher 0007 keeps for the
+  static surface doubles as the standby origin, so the site-level SPOF is
+  mitigated by keeping 0007's fast-path *warm* rather than cold. No new
+  machinery.
+
+### Deploy path (house patterns, nothing net-new)
+
+Two operator-selectable paths, both already proven:
+
+- **GitOps (preferred):** OpenTofu CI/CD gitops via the GFTB overlay
+  (`great-falls-tool-bus-infra`) using `tinyland-inc/ci-templates` reusable
+  workflows + the MassageIthaca `repository_dispatch` → blahaj `tofu-apply` →
+  reaper flow. GFTB on-cluster inherits MI's proven apply / promotion / reaper
+  path verbatim.
+- **Direct:** operator `kubectl` / `tofu` apply out-of-band.
+
+Either way there is **no new deploy machinery** to build — the pin-bump promotion
+(§3) and re-pin rollback (§5) ride the existing MI path.
+
+### Node-placement note
+
+Place the web Deployment on **bumble / sting** (60 / 104 free). **honey is
+tightest at 12 free** — the anti-affinity + toleration in §3 should steer the two
+replicas onto bumble and sting and keep honey for its existing form / mail /
+substrate load.
+
+### 0003's three blockers — explicit disposition
+
+The live probe closes the last open fact and, with §1's precedent finding,
+resolves all three of 0003's original rejection premises. Each is now retired
+(0003 is **annotated, not rewritten** — see 0003's dated annotation block):
+
+1. **"honey pod-cap ~103-104/110, ~6 free" → DISSOLVED.** honey is now
+   150-cap; cluster-wide ~176 free. The headroom bar is met with wide margin.
+2. **"no house precedent" → DISSOLVED.** MI serves its public production fully
+   on-cluster (adapter-node → image → K8s → cloudflared); Vercel + Neon + CF
+   Pages were retired for it (§1).
+3. **"TIN-991 route authority / sting SPOF" → RETIRED as a feasibility bar,
+   reframed as a standing process constraint.** Routes are dashboard / token-
+   managed (a *process* MI proves works daily; the live GFTB form already rides
+   it), and the "sting SPOF" is the CI-runner concentration (deploy-velocity),
+   NOT a serving risk. Neither blocks Decision 2.
+
+**Consequence for §7:** OQ-5 is CLOSED and P1 is satisfied. The only gate now
+standing between P0 and cutover is the operator's **P4 ruling on Decision 2** — a
+decision, not a missing fact.
+
 ## 8. Consequences
 
-- **P0-only.** No infrastructure, toggle, DNS record, or route is applied.
-  Proceeding past P0 requires an operator ruling on Decision 2, gated on the P1
-  probe.
+- **P0-only, now decision-READY.** No infrastructure, toggle, DNS record, or
+  route is applied. The P1 probe is DONE (§7.1, OQ-5 resolved 2026-07-05), so
+  proceeding past P0 requires **only** an operator ruling on Decision 2 — no
+  further fact-finding is outstanding.
 - **0003 is scoped, not deleted.** Its Cloudflare Pages static-production
   decision stands until Decision 2 is ruled; its "no precedent" premise is
   annotated as superseded by MI (§1); its text is retained (no-silent-rewrite).
