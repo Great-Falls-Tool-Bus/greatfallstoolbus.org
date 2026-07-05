@@ -4,7 +4,7 @@
 	// keyholder shares it privately when someone reaches out through the live
 	// /contact form. That request-first posture is deliberate: access here is a
 	// living, keyholder-stewarded contract that can change, because the Tool Bus
-	// is an unincorporated neighborhood initiative for now. Closes the
+	// is an unincorporated initiative for now. Closes the
 	// where-is-it gap flagged in docs/ux-research.md (line 149). No stops,
 	// routes, or times: there are none. View/edit-source comes free via
 	// PageHeader.
@@ -43,7 +43,7 @@
 		<p>
 			Keeping the location private and sharing it on request is deliberate, for safety and access control. Access here
 			is a living contract, stewarded by the keyholders and open to change, because the Tool Bus is an unincorporated
-			neighborhood initiative for now.
+			initiative for now.
 		</p>
 	</section>
 </main>
