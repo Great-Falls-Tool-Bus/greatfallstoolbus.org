@@ -58,11 +58,20 @@ jobs:
     name: Build + push adapter-node image (daemonless nix)
     runs-on: tinyland-nix
     steps:
-      - name: Require GloriousFlywheel core read credential
+      - name: Check GloriousFlywheel core credential
+        id: gfcore
         run: |
-          if [[ "${HAS_GF_CORE_DEPLOY_KEY}" != "true" && "${HAS_GF_CORE_READ_TOKEN}" != "true" ]]; then
-            echo "::error::GF_CORE_DEPLOY_KEY or GF_CORE_READ_TOKEN is required."
-            exit 1
+          # Credential-gated activation: the adapter-node image build needs a
+          # read credential to check out the private GloriousFlywheel core. When
+          # neither secret is present the build is not yet activated for this
+          # repo, so SKIP it with a notice (keeps main green) rather than failing.
+          # Provision GF_CORE_DEPLOY_KEY (or GF_CORE_READ_TOKEN) and the build
+          # auto-activates on the next push, no workflow edit required.
+          if [[ "${HAS_GF_CORE_DEPLOY_KEY}" == "true" || "${HAS_GF_CORE_READ_TOKEN}" == "true" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::GF_CORE_DEPLOY_KEY / GF_CORE_READ_TOKEN not provisioned; skipping the adapter-node image build. Add the secret to activate it."
           fi
       - name: Checkout overlay
         uses: actions/checkout@v6
@@ -85,6 +94,7 @@ jobs:
           path: GloriousFlywheel
           token: ${{ secrets.GF_CORE_READ_TOKEN }}
       - name: Build + push adapter-node image
+        if: steps.gfcore.outputs.available == 'true'
         uses: ./GloriousFlywheel/.github/actions/nix-job
         env:
           GHCR_USER: ${{ github.actor }}
