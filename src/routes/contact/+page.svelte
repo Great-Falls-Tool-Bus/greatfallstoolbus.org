@@ -207,24 +207,6 @@
 		</ol>
 		<!-- Access model (ratified): curated, owner-approved keyholders; anyone may request; non-member requests reach all keyholders. -->
 
-		<p class="text-surface-700 dark:text-surface-300 mt-8 max-w-3xl leading-relaxed">
-			Reach a keyholder. That is step one, and that is all it takes. Read the <a
-				class="text-primary-700 dark:text-primary-300 underline underline-offset-4"
-				href={`${base}/safety`}>safety &amp; responsible-use guide</a
-			>
-			before your orientation, browse the
-			<a class="text-primary-700 dark:text-primary-300 underline underline-offset-4" href={`${base}/tools`}
-				>capability catalog</a
-			>
-			to see what is on the bus, and meet the
-			<a class="text-primary-700 dark:text-primary-300 underline underline-offset-4" href={`${base}/stewards`}
-				>stewards</a
-			> who keep it running.
-		</p>
-		<p class="text-surface-500 mt-6 max-w-3xl text-sm leading-relaxed">
-			No means test. A safety orientation, a keyholder's go-ahead, and a little coordination, and the bus is yours to
-			borrow.
-		</p>
 	</section>
 
 	<!-- Find the bus: folded in from the former /find-the-bus route (TIN-2536).
