@@ -2,7 +2,8 @@
 	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
-	import { Map } from '@lucide/svelte';
+	import { Accordion } from '@skeletonlabs/skeleton-svelte';
+	import { ChevronDown, Map } from '@lucide/svelte';
 
 	const now = [
 		{
@@ -50,22 +51,50 @@
 		icon={Map}
 	/>
 
-	<section class="mt-10" aria-label="Where we are now">
-		<h2 class="text-2xl font-semibold">Where we are now</h2>
-		<div class="mt-6 space-y-4">
-			{#each now as item (item.title)}
-				<Card title={item.title} body={item.body} headingLevel="h3" />
-			{/each}
-		</div>
-	</section>
+	<!-- Group current and near-term status without adding a new dependency:
+	     Skeleton 4.15.2 already wraps the Zag accordion machine. -->
+	<section class="mt-10" aria-label="Status">
+		<Accordion multiple collapsible defaultValue={['now']}>
+			<Accordion.Item value="now" class="border-surface-200-800 border-b">
+				<h2>
+					<Accordion.ItemTrigger
+						class="hover:text-primary-600 flex w-full items-center justify-between gap-3 py-4 text-left text-2xl font-semibold transition-colors"
+					>
+						Where we are now
+						<Accordion.ItemIndicator
+							class="text-surface-500 shrink-0 transition-transform duration-200 data-[state=open]:rotate-180"
+						>
+							<ChevronDown class="h-5 w-5" aria-hidden="true" />
+						</Accordion.ItemIndicator>
+					</Accordion.ItemTrigger>
+				</h2>
+				<Accordion.ItemContent class="space-y-4 pb-6">
+					{#each now as item (item.title)}
+						<Card title={item.title} body={item.body} headingLevel="h3" />
+					{/each}
+				</Accordion.ItemContent>
+			</Accordion.Item>
 
-	<section class="mt-12" aria-label="Near term">
-		<h2 class="text-2xl font-semibold">Near term: this season</h2>
-		<div class="mt-6 space-y-4">
-			{#each nearTerm as item (item.title)}
-				<Card title={item.title} body={item.body} headingLevel="h3" />
-			{/each}
-		</div>
+			<Accordion.Item value="next" class="border-surface-200-800 border-b">
+				<h2>
+					<Accordion.ItemTrigger
+						class="hover:text-primary-600 flex w-full items-center justify-between gap-3 py-4 text-left text-2xl font-semibold transition-colors"
+					>
+						Near term: this season
+						<Accordion.ItemIndicator
+							class="text-surface-500 shrink-0 transition-transform duration-200 data-[state=open]:rotate-180"
+						>
+							<ChevronDown class="h-5 w-5" aria-hidden="true" />
+						</Accordion.ItemIndicator>
+					</Accordion.ItemTrigger>
+				</h2>
+				<Accordion.ItemContent class="space-y-4 pb-6">
+					{#each nearTerm as item (item.title)}
+						<Card title={item.title} body={item.body} headingLevel="h3" />
+					{/each}
+				</Accordion.ItemContent>
+			</Accordion.Item>
+		</Accordion>
 	</section>
 
 	<section class="border-surface-200-800 mt-12 border-t pt-8" aria-label="The dream">

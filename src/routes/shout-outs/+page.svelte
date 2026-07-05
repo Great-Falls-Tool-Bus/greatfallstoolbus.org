@@ -1,6 +1,7 @@
 <script lang="ts">
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import InfoTip from '$lib/components/InfoTip.svelte';
 	import { Megaphone } from '@lucide/svelte';
 
 	const people = [
@@ -49,6 +50,13 @@
 	/>
 
 	<section class="mt-10 space-y-4" aria-label="People">
+		<div class="flex items-center gap-2">
+			<p class="text-surface-500 text-xs tracking-widest uppercase">Roles on the bus</p>
+			<InfoTip
+				label="What do these roles mean?"
+				text="Roles are how a shared shop stays safe and running: a captain runs a cell, keyholders steward who can borrow, and the webmaster keeps the site and mail going. Titles like alderman or founder name what someone brought to the bus."
+			/>
+		</div>
 		{#each people as p (p.name)}
 			<Card eyebrow={p.role} title={p.name} body={p.note} headingLevel="h2" />
 		{/each}

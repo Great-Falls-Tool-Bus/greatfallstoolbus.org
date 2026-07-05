@@ -2,6 +2,7 @@
 	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import InfoTip from '$lib/components/InfoTip.svelte';
 	import { KeyRound } from '@lucide/svelte';
 
 	// "How access works": the path from first inquiry to a tool in your hands.
@@ -60,7 +61,13 @@
 	</section>
 
 	<section class="border-surface-200-800 mt-12 border-t pt-8 prose max-w-none" aria-label="Where to start">
-		<h2 class="text-2xl font-semibold">Where to start</h2>
+		<div class="flex items-center gap-2">
+			<h2 class="text-2xl font-semibold">Where to start</h2>
+			<InfoTip
+				label="What is a keyholder?"
+				text="Keyholders are a small, owner-approved group who steward access to the bus. Anyone may ask to borrow; every request from a non-member reaches all keyholders, and one of them picks it up."
+			/>
+		</div>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
 			Reach a keyholder. That is step one, and it is the whole ask. Read the <a
 				class="underline"

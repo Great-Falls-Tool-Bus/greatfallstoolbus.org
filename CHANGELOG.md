@@ -7,6 +7,21 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ### Added
 
+- Wave-2.5 interaction polish (Skeleton-bundled Zag, zero new deps): calm,
+  keyboard-accessible interaction upgrades built entirely on components
+  `@skeletonlabs/skeleton-svelte@4.15.2` already re-exports (Zag 1.39.1), so no
+  direct `@zag-js`/`bits-ui`/`melt` import is added and the house-stack-contract
+  test stays green. A nav active-underline (`.nav-underline` in `app.css`) grows
+  from the left on hover/focus and stays lit for the current page via
+  `aria-current="page"`; the `/plans` now/near-term status collapses into a
+  Skeleton `Accordion` (each trigger wrapped in an `<h2>` per the WAI-ARIA
+  accordion pattern, "now" open by default) to cut scroll; keyboard/focus
+  glossary tooltips (`InfoTip`, backed by Skeleton `Tooltip`) explain the
+  keyholder role on `/access` and the steward roles on `/shout-outs`; and the
+  `/contact` keyholder addresses gain copy-to-clipboard feedback through a
+  Skeleton `Toast` (`createToaster`, region mounted once in `+layout.svelte`).
+  Every affordance rides the existing global `prefers-reduced-motion` guard, so
+  motion snaps off for users who ask for it while the state stays legible.
 - Find-the-bus surface (TIN-2419): a new short, prerendered `/find-the-bus`
   route closes the "where is it?" gap flagged in `docs/ux-research.md` (line
   149) — nothing on the site answered where the bus is. The answer is

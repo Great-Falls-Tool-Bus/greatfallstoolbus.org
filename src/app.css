@@ -419,6 +419,29 @@ pre.shiki span {
 	}
 }
 
+/* ===== Nav active underline ===== */
+.nav-underline {
+	position: relative;
+}
+.nav-underline::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: -0.35rem;
+	height: 2px;
+	border-radius: 1px;
+	background: var(--color-primary-500);
+	transform: scaleX(0);
+	transform-origin: left center;
+	transition: transform 200ms ease;
+}
+.nav-underline:hover::after,
+.nav-underline:focus-visible::after,
+.nav-underline[aria-current='page']::after {
+	transform: scaleX(1);
+}
+
 /* ===== Focus visibility =====
    Required for WCAG AA per the founding-prompt accessibility line. */
 :focus-visible {
