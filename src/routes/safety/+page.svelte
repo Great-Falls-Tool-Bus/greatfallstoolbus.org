@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import SourceLink from '$lib/components/SourceLink.svelte';
 	import { ShieldCheck } from '@lucide/svelte';
 
 	// Safety + responsible-use is MANDATORY for a public power-tool organization
@@ -88,6 +89,7 @@
 	</section>
 
 	<footer class="text-surface-500 pt-12 text-sm">
-		This page is guidance, not legal advice, and never replaces the manufacturer's manual for a specific tool.
+		<p>This page is guidance, not legal advice, and never replaces the manufacturer's manual for a specific tool.</p>
+		<SourceLink routeId="/safety" />
 	</footer>
 </main>

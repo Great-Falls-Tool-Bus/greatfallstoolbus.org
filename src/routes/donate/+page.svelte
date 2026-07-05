@@ -78,15 +78,4 @@
 			Contact a keyholder
 		</a>
 	</section>
-
-	<section class="border-surface-200-800 mt-12 border-t pt-8" aria-label="About supporting the project">
-		<h2 class="text-2xl font-semibold">About supporting the project</h2>
-		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
-			The Great Falls Tool Bus is an unincorporated community project, and we keep the money side simple: <strong
-				>tool donations are the headline ask</strong
-			>. If you want to help with money instead, that help is framed toward tools too. It goes toward buying the tools
-			the bus still needs, not general operations. <a class="underline" href={`${base}/contact`}>Reach out</a> and we'll talk
-			person-to-person; nothing here is a tax-deductible charitable solicitation.
-		</p>
-	</section>
 </main>
