@@ -1,0 +1,25 @@
+Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+
+Copyright (c) 2026 Jess Sullivan / Great Falls Tool Bus
+
+The written CONTENT of this project — page copy, documentation under
+docs/, the manifesto, cell sheets, and other prose authored for the
+Great Falls Tool Bus — is licensed under the Creative Commons
+Attribution-ShareAlike 4.0 International License.
+
+You are free to share and adapt this material for any purpose, provided
+you give appropriate credit and distribute your contributions under the
+same license.
+
+  Human-readable summary: https://creativecommons.org/licenses/by-sa/4.0/
+  Full legal code:        https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+SCOPE / EXCLUSIONS:
+  - This content license does NOT cover the software (source code), which
+    is licensed under the zlib License — see LICENSE.
+  - It does NOT cover third-party assets bundled or referenced by the
+    site — in particular the historical photographs, which are used under
+    their own terms with provenance recorded in src/lib/data/credits.ts
+    and summarized in NOTICE. The GFTB-authored cropping, treatment, and
+    surrounding presentation are ours; the underlying source images are
+    not, and CC BY-SA 4.0 is asserted only over the former.

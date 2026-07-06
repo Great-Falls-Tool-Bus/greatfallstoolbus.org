@@ -28,3 +28,11 @@ public launch is imminent.
 - **Photos** of tools as they get kitted.
 
 The Great Falls Tool Bus is an unincorporated community project.
+
+## License
+
+This project is dual-licensed to fit a repo that is part software, part civic content:
+
+- **Software** (source code, scripts, config) — [zlib License](LICENSE), a simple permissive license (use, modify, redistribute, including commercially; keep the notice, don't misrepresent origin).
+- **Content** (page copy, docs, the manifesto, cell sheets) — [CC BY-SA 4.0](LICENSE-content) (share and adapt with attribution; derivatives stay under the same license).
+- **Third-party assets** (the historical photographs) — used under their own terms, with provenance recorded in `src/lib/data/credits.ts` and summarized in [NOTICE](NOTICE). CC BY-SA covers our cropping/treatment, not the underlying source images.
