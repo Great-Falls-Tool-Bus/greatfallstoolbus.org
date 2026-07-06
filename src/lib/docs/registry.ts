@@ -14,14 +14,26 @@
 // site. Every doc listed here was scanned clean of private endpoints.
 import sourceMap from '$lib/generated/source-map.json';
 
-// Raw markdown for exactly the surfaced docs. Single-file glob patterns keep the
-// bundle to only these files (no adjacent docs are pulled in).
+// Raw markdown for exactly the surfaced docs.
+// SECURITY INVARIANT (cross-model audit catch, 2026-07-06): this list MUST
+// enumerate exactly the ENTRIES files below. Folder wildcards here bundled the
+// RAW CONTENT of every adjacent doc into public client JS even when the doc
+// was not listed in ENTRIES — removing a doc from ENTRIES alone only hid it
+// from the index while still shipping its text. Explicit literals make the
+// public bundle surface equal to the curated registry, nothing more.
 const rawModules = {
-	...import.meta.glob('/docs/runbooks/*.md', { query: '?raw', import: 'default', eager: true }),
-	...import.meta.glob('/docs/deploy/*.md', { query: '?raw', import: 'default', eager: true }),
-	...import.meta.glob('/docs/launch/*.md', { query: '?raw', import: 'default', eager: true }),
-	...import.meta.glob('/docs/CI-SCHEMA.md', { query: '?raw', import: 'default', eager: true }),
-	...import.meta.glob('/docs/DEVELOPMENT.md', { query: '?raw', import: 'default', eager: true }),
+	...import.meta.glob(
+		[
+			'/docs/runbooks/dns-mail-checklist.md',
+			'/docs/runbooks/dns-apply.md',
+			'/docs/runbooks/cf-pages-rollback.md',
+			'/docs/deploy/cloudflare-pages.md',
+			'/docs/deploy/oncluster-container-readiness.md',
+			'/docs/CI-SCHEMA.md',
+			'/docs/DEVELOPMENT.md',
+		],
+		{ query: '?raw', import: 'default', eager: true },
+	),
 } as Record<string, string>;
 
 export interface OperatorDoc {
@@ -89,7 +101,7 @@ const ENTRIES: RegistryEntry[] = [
 		slug: 'oncluster-container-readiness',
 		title: 'On-cluster container readiness',
 		summary:
-			'The accepted on-cluster serving target (ADR 0008): the same source served in-cluster as an adapter-node server. Image build is active; the production cutover is operator-gated and not yet done, so Cloudflare Pages is still the live host.',
+			'The on-cluster serving path (ADR 0010 + Amendment 1): the same source served in-cluster as an adapter-node server. The production cutover executed 2026-07-06; this doc records how the container readiness was built and proven.',
 		group: 'Deploy and launch',
 		order: 2,
 	},
