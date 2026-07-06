@@ -15,8 +15,11 @@
 		cellDocPath,
 		emptyCellDocValues,
 		resolveSlug,
+		slugify,
 		validateCellDoc,
+		type CellDocErrors,
 		type CellDocValues,
+		type CellSlug,
 		type ToolStatus,
 	} from '$lib/cell-doc';
 	import PageHeader from '$lib/components/PageHeader.svelte';
@@ -40,6 +43,23 @@
 	let values = $state<CellDocValues>(emptyCellDocValues());
 	let detailsWantedRaw = $state('');
 
+	// Cell selector state. The <select> can pick an existing cell OR this sentinel,
+	// which reveals inline fields to DEFINE a brand-new cell. A new cell's slug
+	// flows straight into the generated .svx frontmatter (`cell:`) and path — the
+	// form's normal output — so "start a cell no one has kitted yet" is a peer of
+	// "add a tool to a cell that exists". Registering the cell on the bus itself
+	// (its CELL_META row + captain) stays a keyholder step, the same promote path
+	// as the blank sheet at /cell-sheets/new; the form does not persist to cells.ts.
+	const NEW_CELL = '__new__';
+	let cellChoice = $state<string>(values.cell);
+	let newCellName = $state('');
+	let newCellSlugRaw = $state('');
+
+	const cellIsNew = $derived(cellChoice === NEW_CELL);
+	// Folder slug for a new cell: an explicit override wins, else derive it from
+	// the name (e.g. "Woodworking cell" → "woodworking-cell").
+	const newCellSlug = $derived(newCellSlugRaw.trim() ? slugify(newCellSlugRaw) : slugify(newCellName));
+
 	function parseWanted(raw: string): string[] {
 		return raw
 			.split(/[\n,]/)
@@ -47,15 +67,29 @@
 			.filter((entry) => entry.length > 0);
 	}
 
-	// The single derived source of truth for the output, path, and validation.
+	// The single derived source of truth for the output, path, and validation. The
+	// resolved `cell` is the new cell's slug when defining one, else the selection;
+	// buildCellDocSvx / cellDocPath treat `cell` as a plain slug string, so a
+	// not-yet-registered cell flows through the same output cleanly.
 	const effective = $derived<CellDocValues>({
 		...values,
+		cell: (cellIsNew ? newCellSlug : cellChoice) as CellSlug,
 		detailsWanted: values.detailsNeeded ? parseWanted(detailsWantedRaw) : [],
 	});
 	const svx = $derived(buildCellDocSvx(effective));
 	const path = $derived(cellDocPath(effective));
 	const filename = $derived(cellDocFilename(effective));
-	const errors = $derived(validateCellDoc(effective));
+	// validateCellDoc rejects any cell not already on the bus; when the author is
+	// deliberately defining one, swap that expected error for new-cell-name checks.
+	const errors = $derived.by<CellDocErrors>(() => {
+		const baseErrors = validateCellDoc(effective);
+		if (!cellIsNew) return baseErrors;
+		const merged: CellDocErrors = { ...baseErrors };
+		delete merged.cell;
+		if (!newCellName.trim()) merged.cell = 'Name the new cell, or pick an existing one.';
+		else if (!newCellSlug) merged.cell = 'The new cell name needs letters or numbers for a folder slug.';
+		return merged;
+	});
 	const derivedSlug = $derived(resolveSlug(effective));
 
 	const githubNewUrl = $derived(`${REPO_URL}/new/main?filename=${encodeURIComponent(path)}`);
@@ -157,10 +191,11 @@ Care: what it needs, and who to ask when it needs it.`;
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div class="grid gap-1">
 						<label class="text-sm font-medium" for="doc-cell">Cell</label>
-						<select id="doc-cell" class={inputClass} bind:value={values.cell}>
+						<select id="doc-cell" class={inputClass} bind:value={cellChoice}>
 							{#each cellOptions as option (option.slug)}
 								<option value={option.slug}>{option.name}</option>
 							{/each}
+							<option value={NEW_CELL}>+ New cell…</option>
 						</select>
 					</div>
 					<div class="grid gap-1">
@@ -172,6 +207,51 @@ Care: what it needs, and who to ask when it needs it.`;
 						</select>
 					</div>
 				</div>
+
+				{#if cellIsNew}
+					<!-- Inline "define a new cell" reveal. The name (and optional folder
+					     slug) become the tool's `cell:` frontmatter + content path, so the
+					     new cell is captured in the file this form produces. -->
+					<div class="border-surface-200-800 bg-surface-100-900/40 grid gap-4 border p-4 sm:grid-cols-2">
+						<div class="grid gap-1">
+							<label class="text-sm font-medium" for="doc-newcell"
+								>New cell name <span aria-hidden="true">*</span></label
+							>
+							<input
+								id="doc-newcell"
+								class={inputClass}
+								bind:value={newCellName}
+								placeholder="Woodworking cell"
+								aria-invalid={errors.cell ? 'true' : undefined}
+								aria-describedby="doc-newcell-help {errors.cell ? 'doc-newcell-error' : ''}"
+							/>
+							<p id="doc-newcell-help" class="text-surface-500 text-xs leading-relaxed">
+								A capability the bus does not kit yet. This tool's file will belong to it.
+							</p>
+							{#if errors.cell}
+								<p id="doc-newcell-error" class="text-error-700 dark:text-error-400 text-sm">{errors.cell}</p>
+							{/if}
+						</div>
+						<div class="grid gap-1">
+							<label class="text-sm font-medium" for="doc-newcell-slug">Folder slug</label>
+							<input
+								id="doc-newcell-slug"
+								class={inputClass}
+								bind:value={newCellSlugRaw}
+								placeholder={newCellSlug || 'from the name'}
+								aria-describedby="doc-newcell-slug-help"
+							/>
+							<p id="doc-newcell-slug-help" class="text-surface-500 text-xs leading-relaxed">
+								The folder under <code class="font-mono text-xs">src/content/tools/</code>. Leave blank to derive it.
+							</p>
+						</div>
+						<p class="text-surface-500 text-xs leading-relaxed sm:col-span-2">
+							A new cell earns its spot on the bus when a keyholder gives it a captain and a row in the inventory — the
+							same promote path as a <a class="underline" href={`${base}/cell-sheets/new`}>blank cell sheet</a>. Your
+							file just names the cell it belongs to.
+						</p>
+					</div>
+				{/if}
 
 				<div class="grid gap-1">
 					<label class="text-sm font-medium" for="doc-blurb">One-sentence blurb <span aria-hidden="true">*</span></label

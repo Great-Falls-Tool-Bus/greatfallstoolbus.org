@@ -51,18 +51,27 @@
 			</Card>
 		{/each}
 
-		<Card dashed eyebrow="Your cell here" title="Start the next cell" headingLevel="h2">
+		<!-- The "start a cell" affordance is a first-class peer of the real cell
+		     tiles: it reuses the same Card component, so its hover / focus / keyboard
+		     behavior is identical. The `dashed` variant reads as the empty slot to
+		     fill, and `href` makes the whole tile a link that opens the new-cell form
+		     the same way a real tile opens its sheet (/cells/<slug> → /cells/new).
+		     The former nested links moved to the caption below so the tile stays a
+		     single link (no <a> inside <a>). -->
+		<Card dashed href={`${base}/cells/new`} eyebrow="Your cell here" title="Start the next cell" headingLevel="h2">
 			<p class="text-surface-700-300 mt-2 text-sm leading-relaxed">
 				Got a serious tool that is hard to own alone, and the patience to be the person who knows it? Bring the kit, be
-				the captain. The <a class="underline" href={`${base}/donate`}>donation criteria</a> tell you what makes a good
-				bus tool, and the <a class="underline" href={`${base}/wants`}>wants list</a> shows the gaps.
+				the captain, and write it down.
 			</p>
-			<p class="text-surface-700-300 mt-3 text-sm leading-relaxed">
-				Ready to write it down? The <a class="underline" href={`${base}/cells/new`}>cell-doc form</a> builds the file
-				for you, or print a <a class="underline" href={`${base}/cell-sheets/new`}>blank cell sheet</a> to fill by hand.
-			</p>
+			<p class="text-primary-600 mt-3 text-sm font-semibold">Write the cell doc →</p>
 		</Card>
 	</section>
+
+	<p class="text-surface-500 mt-4 text-sm leading-relaxed">
+		Not sure it fits? The <a class="underline" href={`${base}/donate`}>donation criteria</a> tell you what makes a good
+		bus tool, and the <a class="underline" href={`${base}/wants`}>wants list</a> shows the gaps. Prefer paper? Print a
+		<a class="underline" href={`${base}/cell-sheets/new`}>blank cell sheet</a> to fill by hand.
+	</p>
 
 	<footer class="text-surface-500 pt-12 text-sm">
 		One person per cell who knows the kit: that is the whole job description. Ask a keyholder to get started.
