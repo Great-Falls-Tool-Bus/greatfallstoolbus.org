@@ -1,15 +1,33 @@
-# Runbook: greatfallstoolbus.org Cloudflare Pages rollback
+# Runbook: greatfallstoolbus.org Cloudflare Pages rollback (HISTORICAL — rollback-window reference)
+
+> **STATUS (2026-07-06): Cloudflare Pages is RETIRED as the serving host.**
+> ADR 0010 (`docs/decisions/0010-on-prem-is-the-production-host.md`) executed
+> the cutover: apex + `www` now resolve to the on-cluster `cloudflared` tunnel
+> origin (infra PR #63), not the Pages host this runbook describes below. Per
+> ADR 0010 §3/§5, the Cloudflare Pages project is kept only as a **short warm
+> standby for the cutover window** (until ~2026-07-08) — its deletion, and
+> retirement of the repo's `Pages:Edit` token, is a separate operator/dashboard
+> step *after* that window closes. `.github/workflows/deploy-pages.yml` has
+> been removed (`chore/retire-pages-lane`); Amendment 1 on ADR 0010 already
+> called it "the deprecated, spinning-down interim Cloudflare Pages lane."
+>
+> **Rollback during the window** is the one-line revert this runbook's "Full
+> path" used to describe in reverse: flip `var.pages_host` in the infra `edge`
+> stack back to `greatfallstoolbus-org.pages.dev` (ADR 0010 §5 "rollback during
+> the window"). Everything below this notice is retained as historical
+> procedure + reference for that window, not the live posture.
 
 Two-level rollback for the apex/`www` production surface of greatfallstoolbus.org
 (TIN-2401). This is the explicit rollback path the CD audit flagged as missing.
 
-> Hosting direction (ADR 0008, Accepted 2026-07-05): on-cluster (`adapter-node`
-> -> image -> K8s -> `cloudflared`) is the accepted target for production
-> hosting, superseding ADR 0003, but the cutover is operator-gated and not yet
-> done. This runbook governs the **current** Cloudflare Pages production surface
-> and stays authoritative while CF Pages is the live host. After a migrated
-> surface moves on-cluster, rollback becomes an overlay image-pin revert (0008
-> §5), not this CF Pages / GitHub Pages model.
+> Hosting direction (ADR 0008, Accepted 2026-07-05; **executed by ADR 0010**,
+> 2026-07-06): on-cluster (`adapter-node` -> image -> K8s -> `cloudflared`) is
+> now the live production host, superseding ADR 0003. This runbook governed the
+> Cloudflare Pages production surface **while it was live** (through
+> 2026-07-06) and stays as the rollback-window reference until the Pages
+> project is deleted (ADR 0010 §5 step 7). After that, rollback is the
+> on-cluster re-pin primitive (0008 §5 / 0010 §5), not this CF Pages / GitHub
+> Pages model.
 
 It deliberately mirrors the **two-level** model in
 transscendsurvival.org's `docs/runbooks/dns-cutover-and-rollback.md`
@@ -23,15 +41,19 @@ separate heavier authority/serving-substrate revert). The two levels here are:
   GitHub Pages). Larger blast radius; use only when Cloudflare Pages itself is the
   problem.
 
-## Current verified posture (2026-07-03)
+## Posture as verified 2026-07-03 (SUPERSEDED 2026-07-06 by the ADR 0010 cutover — kept as the rollback-window reference)
 
 - **Registrar / DNS authority:** Cloudflare. The `.org` parent delegates the zone
   to `austin.ns.cloudflare.com` + `oaklyn.ns.cloudflare.com` (asserted by
   `.github/workflows/cloudflare-dns-drift.yml`).
-- **Serving:** Cloudflare Pages project `greatfallstoolbus-org`
-  (`greatfallstoolbus-org.pages.dev`). apex + `www` are **proxied CNAMEs** to that
-  Pages host, declared in `great-falls-tool-bus-infra` `tofu/stacks/edge`
+- **Serving (as of 2026-07-03; NOT current):** Cloudflare Pages project
+  `greatfallstoolbus-org` (`greatfallstoolbus-org.pages.dev`). apex + `www` were
+  **proxied CNAMEs** to that Pages host, declared in
+  `great-falls-tool-bus-infra` `tofu/stacks/edge`
   (`cloudflare_dns_record.web_apex` / `web_www`, `content = var.pages_host`).
+  As of 2026-07-06 that same `var.pages_host` CNAME target is the on-cluster
+  tunnel instead (infra PR #63); the Pages project is the rollback-window
+  fallback described below, not the live origin.
 - **Access gate:** apex, `www`, and the `*.pages.dev` origin are ALL served behind
   Cloudflare Access (`cloudflare_zero_trust_access_application.web_apex` /
   `web_www` / `pages_dev`). An unauthenticated request returns

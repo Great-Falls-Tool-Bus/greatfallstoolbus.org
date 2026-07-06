@@ -11,28 +11,35 @@ directly).
 
 ## Deploying
 
-The current serving host is **Cloudflare Pages** (project `greatfallstoolbus-org`,
-`adapter-static`), per `docs/decisions/0003-hosting-and-remote-posture.md`.
-`.github/workflows/deploy-pages.yml` delegates to the shared `ci-templates`
-Cloudflare Pages lane, which builds `adapter-static` `build/` and deploys it with
-Wrangler. The apex sits behind Cloudflare Access (gated to the operator during
-prose refinement); DNS, Access, and the zone live in the
-`great-falls-tool-bus-infra` edge tofu stack.
+The current serving host is **on-cluster, behind the `cloudflared` tunnel**
+(`adapter-node` -> OCI image -> K8s), per
+`docs/decisions/0010-on-prem-is-the-production-host.md` (ADR 0010, executed
+2026-07-06 — supersedes ADR 0008's operator-gated framing and ADR 0003's
+Cloudflare-Pages-bound serving). The container image build is
+`.github/workflows/container-ghcr.yml` (builds and pushes to GHCR on push to
+`main`); the infra web Deployment consumes that image (digest-pinned) behind
+the shared honey-ingress Cloudflare Tunnel. See
+`docs/deploy/oncluster-container-readiness.md`. The apex sits behind Cloudflare
+Access (gated to the operator during prose refinement); DNS, Access, and the
+zone live in the `great-falls-tool-bus-infra` edge tofu stack.
 
-Hosting direction: ADR 0008 (Accepted 2026-07-05) supersedes 0003 for production
-hosting and accepts on-cluster (`adapter-node` -> OCI image -> K8s ->
-`cloudflared`) as the target for the static-production surface. The cutover is
-operator-gated and NOT yet done, so Cloudflare Pages is still the live host. The
-container image build is already active (`.github/workflows/container-ghcr.yml`
-builds and pushes to GHCR on push to `main`); see
-`docs/deploy/oncluster-container-readiness.md`.
+Cloudflare Pages (project `greatfallstoolbus-org`, `adapter-static`) is
+**retired** as of the same cutover: `.github/workflows/deploy-pages.yml` has
+been removed. Per ADR 0010 §3 the Pages project is kept only as a short warm
+standby through the cutover-rollback window (until ~2026-07-08), then deleted
+along with the repo's `Pages:Edit` token — see
+`docs/deploy/cloudflare-pages.md` (historical) and
+`docs/runbooks/cf-pages-rollback.md` (rollback-window procedure).
 
-- Secrets (repo-level, org-provisioned, never in source): `CLOUDFLARE_API_TOKEN`
-  (account-scoped, `Pages:Edit` only) + `CLOUDFLARE_ACCOUNT_ID`. The deploy step
-  skips with a notice when they are absent; PR builds never deploy.
-- Rollback: the former GitHub-Pages workflow is retrievable from git history;
-  re-point `var.pages_host` in the edge stack and restore that workflow (see the
-  transscendsurvival.org two-level rollback runbook).
+- Secrets (repo-level, org-provisioned, never in source): none for the
+  on-cluster lane (the overlay owns the image pin and apply, not this repo).
+  The now-retired Pages lane's `CLOUDFLARE_API_TOKEN` (`Pages:Edit`) +
+  `CLOUDFLARE_ACCOUNT_ID` are retired with it, per ADR 0010 §3/§7.
+- Rollback (only while the ADR 0010 cutover-rollback window holds): re-point
+  `var.pages_host` in the edge stack back to the Cloudflare Pages host — see
+  `docs/runbooks/cf-pages-rollback.md`. After the window (Pages project
+  deleted), rollback is the on-cluster re-pin-previous-digest primitive (ADR
+  0008 §5 / 0010 §5).
 
 ## Stack
 

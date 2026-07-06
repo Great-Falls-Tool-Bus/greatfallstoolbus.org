@@ -11,7 +11,7 @@ name: Cloudflare DNS Drift
 #      here means the registrar delegation moved — a real, observable outage
 #      class. This is the strict, fail-on-drift assertion.
 #   2. The apex and www still RESOLVE (non-empty A answer). Both records are
-#      proxied (orange-cloud) CNAMEs to greatfallstoolbus-org.pages.dev, so
+#      proxied (orange-cloud) CNAMEs to the honey-ingress tunnel target, so
 #      Cloudflare FLATTENS them at the edge: public dig returns Cloudflare
 #      anycast A records, never the pages.dev origin target. The origin CNAME
 #      target is therefore NOT publicly observable and cannot be asserted here —
@@ -86,7 +86,7 @@ jobs:
 
           # --- 2. apex + www resolve (proxied posture) ---------------------
           # Proxied records flatten to Cloudflare anycast A records; we assert a
-          # non-empty answer, NOT a specific target (the pages.dev origin is
+          # non-empty answer, NOT a specific target (the tunnel origin is
           # masked by the proxy — see the header comment).
           apex_a="$(dig +short A "${APEX}" | grep -E '^[0-9]+\.' | paste -sd' ' -)"
           www_a="$(dig +short A "${WWW}" | grep -E '^[0-9]+\.' | paste -sd' ' -)"
@@ -116,7 +116,7 @@ jobs:
             echo "| apex resolves | non-empty A | \`${apex_a:-<empty>}\` | \`${apex_result}\` |"
             echo "| www resolves | non-empty A | \`${www_a:-<empty>}\` | \`${www_result}\` |"
             echo ""
-            echo "> apex/www are proxied CNAMEs to \`greatfallstoolbus-org.pages.dev\`;"
+            echo "> apex/www are proxied CNAMEs to the honey-ingress tunnel target;"
             echo "> Cloudflare flattens them, so the origin target is not publicly"
             echo "> observable. It is owned by the great-falls-tool-bus-infra edge"
             echo "> overlay and asserted live by \`production-health.yml\`."
