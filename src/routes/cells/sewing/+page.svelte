@@ -111,13 +111,8 @@
 				<li>
 					<span class="box" aria-hidden="true"></span>
 					<span
-						><strong>Oil only, never grease</strong>, especially the 1800s treadle Singer. Singer sewing machine oil is
-						in the kit; grease gums the old works and ruins the restoration.</span
+						><strong>Oil only, never grease.</strong> Singer sewing machine oil is in the kit; grease gums up the works.</span
 					>
-				</li>
-				<li>
-					<span class="box" aria-hidden="true"></span>
-					<span>The treadle Singer is a restoration in progress, not yet a working machine. Do not sew on it.</span>
 				</li>
 				<li>
 					<span class="box" aria-hidden="true"></span>

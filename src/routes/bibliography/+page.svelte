@@ -15,13 +15,13 @@
 				{
 					title: 'Hackerspace Design Patterns',
 					meta: 'C4 Cologne · CCCamp 2007 / 24C3',
-					note: 'The founding operational playbook of the hackerspace movement — the Plenum, Physics, and financial-reserve patterns map directly onto tool-bus governance.',
+					note: 'The founding operational playbook of the hackerspace movement: the Plenum, Physics, and financial-reserve patterns map directly onto tool-bus governance.',
 					href: 'https://wiki.hackerspaces.org/Design_Patterns',
 				},
 				{
 					title: 'Hackerspace Design Patterns 2.0',
 					meta: 'Mitch Altman · CCCamp 2015',
-					note: 'Adds the Mentor and Caretaker patterns — a named zone caretaker with public contact info per shop area translates directly to a bus with distinct tool cells.',
+					note: 'Adds the Mentor and Caretaker patterns: a named zone caretaker with public contact info per shop area translates directly to a bus with distinct tool cells.',
 					href: 'https://www.noisebridge.net/wiki/Hackerspace_Design_Patterns_2.0',
 				},
 				{
@@ -39,7 +39,7 @@
 				{
 					title: 'Nation of Makers Resource Library',
 					meta: 'Nation of Makers · ongoing',
-					note: 'Crowdsourced best-practice repository across 2,000+ US maker organizations — bylaws, waivers, budgets, peers.',
+					note: 'Crowdsourced best-practice repository across 2,000+ US maker organizations: bylaws, waivers, budgets, peers.',
 					href: 'https://www.nationofmakers.us/resource-library',
 				},
 				{
@@ -62,17 +62,17 @@
 				{
 					title: 'Tool Lending Library: a Brief History',
 					meta: 'Berkeley Public Library · current',
-					note: 'Founded 1979 with $30k of federal CDBG money in a portable trailer with ~500 tools — the reference policy set for public tool lending (3/7-day loans, no gas or powder-actuated tools).',
+					note: 'Founded 1979 with $30k of federal CDBG money in a portable trailer with ~500 tools: the reference policy set for public tool lending (3/7-day loans, no gas or powder-actuated tools).',
 					href: 'https://www.berkeleypubliclibrary.org/locations/tool-lending-library/tool-lending-library-brief-history',
 				},
 				{
 					title: 'What’s Mine Is Yours: The History of U.S. Tool-Lending Libraries',
 					meta: 'Samantha Hamilton · SJSU iSchool Student Research Journal 11(1), 2021',
-					note: 'Peer-reviewed history dating the first US tool library to 1940s Grosse Pointe, MI — the scholarly anchor for any origin-story claims.',
+					note: 'Peer-reviewed history dating the first US tool library to 1940s Grosse Pointe, MI: the scholarly anchor for any origin-story claims.',
 					href: 'https://scholarworks.sjsu.edu/ischoolsrj/vol11/iss1/4/',
 				},
 				{
-					title: 'Station North Tool Library — membership model',
+					title: 'Station North Tool Library: membership model',
 					meta: 'SNTL Baltimore · current',
 					note: 'Sliding-scale $1 per $1,000 of annual income, never turn away for inability to pay, mandatory shop-safety orientation: the strongest equity-first vetting and pricing template we found.',
 					href: 'https://toollibrary.org/membership',
@@ -92,7 +92,7 @@
 				{
 					title: 'Phinney Neighborhood Association Tool Lending Library',
 					meta: 'PNA Seattle · claims 1977 founding',
-					note: 'Sliding-scale membership on the myTurn platform. (Its “oldest in the country” claim conflicts with Hamilton 2021 — see above.)',
+					note: 'Sliding-scale membership on the myTurn platform. (Its “oldest in the country” claim conflicts with Hamilton 2021, see above.)',
 					href: 'https://www.phinneycenter.org/diy-hub/tool-library/',
 				},
 				{
@@ -121,17 +121,17 @@
 				{
 					title: 'Learning in the Making: A Comparative Case Study of Three Makerspaces',
 					meta: 'Sheridan et al. · Harvard Educational Review 84(4), 2014',
-					note: 'The most-cited empirical comparison of makerspace organizational models — grounds our choice of participation structure.',
+					note: 'The most-cited empirical comparison of makerspace organizational models: grounds our choice of participation structure.',
 					href: 'https://doi.org/10.17763/haer.84.4.brr34733723j648u',
 				},
 				{
 					title: 'Hackerspace Tropes, Identities, and Community Values',
 					meta: 'Austin L. Toombs · ACM DIS 2017',
-					note: 'Ethnography of how member identities and care work sustain — or fracture — hackerspace communities.',
+					note: 'Ethnography of how member identities and care work sustain (or fracture) hackerspace communities.',
 					href: 'https://doi.org/10.1145/3064663.3064760',
 				},
 				{
-					title: 'Emerging Hackerspaces — Peer-Production Generation',
+					title: 'Emerging Hackerspaces: Peer-Production Generation',
 					meta: 'Jarkko Moilanen · IFIP AICT, 2012',
 					note: 'Longitudinal survey data on hackerspace membership, motivations, and organizational forms.',
 					href: 'https://doi.org/10.1007/978-3-642-33442-9_7',
@@ -169,7 +169,7 @@
 				{
 					title: 'How Do You Measure Community In A Makerspace?',
 					meta: 'Osserman, Avecilla & Thomas · IJAMM, 2025',
-					note: 'A recent metrics framework for makerspace community health — a candidate KPI set.',
+					note: 'A recent metrics framework for makerspace community health: a candidate KPI set.',
 					href: 'https://doi.org/10.21428/70cb44c5.0b5897f8',
 				},
 				{
@@ -186,19 +186,19 @@
 				{
 					title: 'SparkTruck',
 					meta: 'Stanford d.school · 2012 (adopted by SMU 2017)',
-					note: 'The flagship educational build-mobile: 15,323 miles, 33 states, 65 schools in two summers — the closest precedent for a tool bus. (The original sparktruck.org domain is now squatted; cite the d.school.)',
+					note: 'The flagship educational build-mobile: 15,323 miles, 33 states, 65 schools in two summers, the closest precedent for a tool bus. (The original sparktruck.org domain is now squatted; cite the d.school.)',
 					href: 'https://dschool.stanford.edu/news-events/dschool-sparktruck-story',
 				},
 				{
 					title: 'MIT Mobile Fab Lab',
 					meta: 'Center for Bits and Atoms · 2007',
-					note: 'A 32-ft trailer with a full digital-fab suite and a published operating envelope (~60×16 ft site, 240 V 40 A service) — the hardest engineering numbers available for bus fit-out planning.',
+					note: 'A 32-ft trailer with a full digital-fab suite and a published operating envelope (~60×16 ft site, 240 V 40 A service): the hardest engineering numbers available for bus fit-out planning.',
 					href: 'https://en.wikipedia.org/wiki/Mobile_fab_lab',
 				},
 				{
 					title: 'ALA Bookmobile guides',
 					meta: 'American Library Association · ongoing (US bookmobiles since 1905)',
-					note: 'A century of mobile-service-model literature — routes, stops, deposit collections, partner agencies — that tool-bus circulation should be derived from.',
+					note: 'A century of mobile-service-model literature (routes, stops, deposit collections, partner agencies) that tool-bus circulation should be derived from.',
 					href: 'https://libguides.ala.org/bookmobiles',
 				},
 			],
@@ -209,7 +209,7 @@
 				{
 					title: 'Mastering Tool Control & FOD Prevention',
 					meta: 'Shadow Foam · aviation practice',
-					note: 'Aviation tool-control doctrine — “slot empty = missing tool” — plus cheap kaizen-foam drawer inserts: the proven bits-and-bobs kitting pattern for kits on a moving vehicle.',
+					note: 'Aviation tool-control doctrine (“slot empty = missing tool”) plus cheap kaizen-foam drawer inserts: the proven bits-and-bobs kitting pattern for kits on a moving vehicle.',
 					href: 'https://shadowfoam.com/blogs/article/mastering-tool-control-fod-prevention-in-the-aerospace-aviation-industries',
 				},
 				{
@@ -221,7 +221,7 @@
 				{
 					title: 'Asset-tracking loss statistics',
 					meta: 'MapTrack · 2026',
-					note: 'Trades lose 5–10% of portable tool inventory annually — no community-tool-library loss study exists yet, so this is our honest shrinkage-planning proxy.',
+					note: 'Trades lose 5–10% of portable tool inventory annually. No community-tool-library loss study exists yet, so this is our honest shrinkage-planning proxy.',
 					href: 'https://www.maptrack.com/statistics',
 				},
 			],
@@ -240,7 +240,7 @@
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
 	<PageHeader
 		title="Bibliography"
-		lead="The tool bus is not a guess — it stands on forty years of tool-library practice, the hackerspace design-pattern tradition, and a growing body of scholarship on shared workshops. Every link below was verified on 2026-07-02."
+		lead="The tool bus is not a guess: it stands on forty years of tool-library practice, the hackerspace design-pattern tradition, and a growing body of scholarship on shared workshops. Every link below was verified on 2026-07-02."
 		icon={BookOpen}
 	/>
 
@@ -256,7 +256,7 @@
 	{/each}
 
 	<footer class="text-surface-500 pt-12 text-sm">
-		A note we enjoy: the hackerspaces.org wiki is itself guarded by Techaro Anubis — the same bot-guard this project
+		A note we enjoy: the hackerspaces.org wiki is itself guarded by Techaro Anubis, the same bot-guard this project
 		deploys on its contact form.
 	</footer>
 </main>

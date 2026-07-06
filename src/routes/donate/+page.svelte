@@ -29,14 +29,14 @@
 	<title>Donate a tool | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="Give a tool to the bus, or lend it and stay the owner — you can take it back. Complex, large, or heavy tools especially. Transportable, marked, repairable."
+		content="Give a tool to the bus, or lend it and stay the owner. You can take it back. Complex, large, or heavy tools especially. Transportable, marked, repairable."
 	/>
 </svelte:head>
 
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
 	<PageHeader
 		title="Donate a tool"
-		lead="Tools are what we need most — the ones that are hard to own alone: complex, large, heavy, or blessed with many little bits and bobs. Give one outright, or lend it and stay its owner. Either way it goes to work."
+		lead="Tools are what we need most, the ones that are hard to own alone: complex, large, heavy, or blessed with many little bits and bobs. Give one outright, or lend it and stay its owner. Either way it goes to work."
 		icon={Gift}
 	/>
 
@@ -55,7 +55,7 @@
 	{/if}
 
 	<section class="mt-12" aria-label="Give it, or lend it">
-		<h2 class="text-2xl font-semibold">Give it, or lend it — your call</h2>
+		<h2 class="text-2xl font-semibold">Give it, or lend it: your call</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
 			Donating outright is the simplest path, and for a tool you are done with, the best one. But you do not have to
 			give up ownership to put a tool to work. You can make a tool available to the bus and stay its owner: lend it, let
@@ -82,8 +82,8 @@
 	<section class="border-surface-200-800 mt-12 border-t pt-8" aria-label="Arrange the hand-off">
 		<h2 class="text-2xl font-semibold">Arrange the hand-off</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
-			Ready to hand off a tool — for good or on loan — or want to talk through whether yours is a fit? Reach a
-			keyholder. That is the whole process.
+			Ready to hand off a tool (for good or on loan) or want to talk through whether yours is a fit? Reach a keyholder.
+			That is the whole process.
 		</p>
 		<a
 			class="bg-primary-500 hover:bg-primary-600 mt-4 inline-block px-5 py-2.5 text-sm font-semibold text-white transition-colors"

@@ -21,13 +21,13 @@
 	<header class="no-print space-y-4">
 		<h1 class="text-4xl leading-tight font-bold">Cell sheets</h1>
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
-			One page per tool cell: what is in the kit, how it travels, and who its captain is. These are made for paper —
+			One page per tool cell: what is in the kit, how it travels, and who its captain is. These are made for paper:
 			print one, tuck it in the kit, pin one to a board. The checkboxes are real: check the kit against its sheet every
 			time it goes out and comes back.
 		</p>
 		<p class="text-surface-700 dark:text-surface-300 leading-relaxed">
 			Looking for the general flyer instead? That is
-			<a class="underline" href={`${base}/readme.txt`}>readme.txt</a> — same spirit, whole project.
+			<a class="underline" href={`${base}/readme.txt`}>readme.txt</a>, same spirit, whole project.
 		</p>
 		<p class="text-surface-700 dark:text-surface-300 leading-relaxed">
 			Starting a cell that is not here yet? Print a
@@ -63,7 +63,7 @@
 							<li>
 								<span class="box" aria-hidden="true"></span>
 								<span
-									><strong>{tool.name}</strong> — {tool.blurb}
+									><strong>{tool.name}</strong>: {tool.blurb}
 									{#if tool.detailsNeeded}
 										<DetailsNeeded wanted={tool.detailsWanted} sourcePath={tool.sourcePath} name={tool.name} />
 									{/if}

@@ -1,7 +1,0 @@
----
-name: 'Treadle Singer sewing machine (1800s)'
-status: 'restoration'
-cell: 'sewing'
-order: 2
-blurb: 'Restoration in progress — honestly framed: not yet a working machine.'
----

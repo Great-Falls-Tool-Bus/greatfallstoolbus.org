@@ -124,7 +124,7 @@
 		</div>
 		<p class="text-surface-700-300 mb-5 max-w-3xl text-sm leading-relaxed">
 			Six skills bundled as the <code>scaffold-core</code> plugin. Rendered from
-			<code>.agents/skills/*/SKILL.md</code> at build time — single source of truth. Install with
+			<code>.agents/skills/*/SKILL.md</code> at build time: single source of truth. Install with
 			<code>/plugin marketplace add github:tinyland-inc/site.scaffold</code>.
 		</p>
 		<div class="grid gap-3 lg:grid-cols-2">

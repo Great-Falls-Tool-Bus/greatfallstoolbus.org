@@ -39,14 +39,14 @@
 	<title>Wants | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="What the tool bus still needs — tools, plus the hands and skills to run it. Current tool priority: pressing gear and a serger for the sewing cell."
+		content="What the tool bus still needs: tools, plus the hands and skills to run it. Current tool priority: pressing gear and a serger for the sewing cell."
 	/>
 </svelte:head>
 
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
 	<PageHeader title="Wants" icon={ClipboardList}>
 		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
-			What the bus still needs right now — tools, and the hands to run it. If you have a tool gathering dust, the <a
+			What the bus still needs right now: tools, and the hands to run it. If you have a tool gathering dust, the <a
 				class="underline"
 				href={`${base}/donate`}>donation criteria</a
 			> tell you how to send it off well; the rest of this list is people.
@@ -84,6 +84,6 @@
 	</section>
 
 	<footer class="text-surface-500 pt-12 text-sm">
-		This list only grows shorter — with a donated tool, or a spare hand.
+		This list only grows shorter, with a donated tool or a spare hand.
 	</footer>
 </main>

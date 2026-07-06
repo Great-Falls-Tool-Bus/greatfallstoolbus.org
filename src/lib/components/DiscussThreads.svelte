@@ -37,7 +37,7 @@
 	{#if threads.length === 0}
 		<!-- Calm empty state: no threads yet is a normal, healthy state, not an error. -->
 		<p class="text-surface-600-400 border-surface-200-800 mt-4 border-t py-10 leading-relaxed">
-			No conversations archived yet — start one at <span class="font-semibold">{snapshot.list}</span>.
+			No conversations archived yet. Start one at <span class="font-semibold">{snapshot.list}</span>.
 		</p>
 	{:else}
 		<ul class="mt-4">
