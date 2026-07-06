@@ -1,0 +1,22 @@
+Great Falls Tool Bus — third-party assets and attributions
+
+SOFTWARE DEPENDENCIES
+  This project depends on third-party open-source software resolved via
+  the package manifests (package.json / pnpm-lock.yaml) and the Bazel /
+  nix module graph. Each carries its own license; see the respective
+  upstream projects.
+
+IMAGES (used with recorded provenance — see src/lib/data/credits.ts for
+the authoritative, auditable record of author + source + license per
+asset):
+  - "Plate of woodworking hand tools" (c.1922) — historical illustration.
+  - "The Falls and Old Man, Auburn and Lewiston, Maine" — historical
+    Tichnor Bros. linen postcard of the Great Falls gorge; used cropped as
+    the site hero.
+  These are used under their own (public-domain / attribution-free or
+  standard-license) terms as recorded in credits.ts and never hotlinked.
+  The GFTB cropping and presentation are covered by LICENSE-content; the
+  underlying source images are not.
+
+The application source code is under the zlib License (LICENSE). The
+site's written content is under CC BY-SA 4.0 (LICENSE-content).
