@@ -15,6 +15,7 @@
 		"/cells/welding": "src/routes/cells/welding/+page.svelte",
 		"/contact": "src/routes/contact/+page.svelte",
 		"/discuss": "src/routes/discuss/+page.svelte",
+		"/discuss/[thread]": "src/routes/discuss/[thread]/+page.svelte",
 		"/docs": "src/routes/docs/+page.svelte",
 		"/docs/[slug]": "src/routes/docs/[slug]/+page.svelte",
 		"/docs/diagrams": "src/routes/docs/diagrams/+page.svelte",
