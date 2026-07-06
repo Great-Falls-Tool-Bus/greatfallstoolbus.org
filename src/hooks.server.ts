@@ -32,7 +32,26 @@ import type { Handle } from '@sveltejs/kit';
 // the static/prerendered paths needs either Cloudflare edge Cache Rules (the
 // planned post-Access-cutover CDN layer) or adapter-node's documented
 // "custom server" wrapper — both out of scope for this hook.
+// Legacy route redirects (TIN-2536: /access and /find-the-bus folded into
+// /contact anchors). These 301s previously lived ONLY in static/_redirects — a
+// Cloudflare Pages convention that adapter-node never reads — so on the
+// on-cluster production origin the old public URLs 404'd (cross-model audit
+// catch, 2026-07-06). Unmatched paths fall through both sirv layers to this
+// hook, so redirecting here works under adapter-node; under the default
+// adapter-static build these paths have no route and the (now-vestigial)
+// _redirects file documents the same mapping.
+const LEGACY_REDIRECTS: ReadonlyArray<readonly [RegExp, string]> = [
+	[/^\/access(\/.*)?$/, '/contact#access'],
+	[/^\/find-the-bus(\/.*)?$/, '/contact#find-the-bus'],
+];
+
 export const handle: Handle = async ({ event, resolve }) => {
+	for (const [pattern, target] of LEGACY_REDIRECTS) {
+		if (pattern.test(event.url.pathname)) {
+			return new Response(null, { status: 301, headers: { location: target } });
+		}
+	}
+
 	const response = await resolve(event);
 
 	// Respect any cache-control a route already set for itself (e.g. a future
