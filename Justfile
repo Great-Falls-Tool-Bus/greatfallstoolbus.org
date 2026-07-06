@@ -105,8 +105,18 @@ container-image-publish:
     #    default adapter-static build path is never touched. build/ stays the
     #    GloriousFlywheel cache-accelerated input, imported into the image via
     #    APP_BUILD under `--impure`.
+    #
+    #    Build-time PUBLIC_* env: PUBLIC_ARCHIVE_LIVE=true bakes the /discuss
+    #    archive go-live switch into THIS prod on-cluster image (TIN-2528 verified
+    #    live). PUBLIC_* vars are inlined by Vite at build time
+    #    (import.meta.env.PUBLIC_ARCHIVE_LIVE, src/lib/flags.ts), so the flag must
+    #    be set on the build invocation — it cannot be flipped at container
+    #    runtime. The deprecated CF Pages lane sets it in deploy-pages.yml; ADR
+    #    0010 makes on-cluster the production host, so this image must carry it too
+    #    to surface /discuss. Default `just build` (adapter-static) is left WITHOUT
+    #    it on purpose.
     ADAPTER=node pnpm install --frozen-lockfile
-    ADAPTER=node pnpm run build
+    ADAPTER=node PUBLIC_ARCHIVE_LIVE=true pnpm run build
     export APP_BUILD="$PWD/build"
     # 2. Build the nix2container image and push it to GHCR through the n2c-patched
     #    skopeo. copyToRegistry derives docker://${IMAGE_REF}:${tag} from the image
@@ -127,7 +137,9 @@ container-image-build:
     export BUILD_COMMIT_SHA="${BUILD_COMMIT_SHA:-$(git rev-parse HEAD)}"
     export BUILD_COMMIT_REF="${BUILD_COMMIT_REF:-$(git rev-parse --abbrev-ref HEAD)}"
     export BUILD_DATE="${BUILD_DATE:-1970-01-01T00:00:00Z}"
-    ADAPTER=node pnpm run build
+    # PUBLIC_ARCHIVE_LIVE=true so the local tarball matches the prod on-cluster
+    # image (see container-image-publish); PUBLIC_* is build-time-inlined by Vite.
+    ADAPTER=node PUBLIC_ARCHIVE_LIVE=true pnpm run build
     export APP_BUILD="$PWD/build"
     nix run --impure .#image.copyTo -- docker-archive:greatfallstoolbus-oci.tar
     echo "wrote greatfallstoolbus-oci.tar"
