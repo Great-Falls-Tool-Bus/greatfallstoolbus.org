@@ -116,6 +116,20 @@ container-image-publish:
     #    to surface /discuss. Default `just build` (adapter-static) is left WITHOUT
     #    it on purpose.
     ADAPTER=node pnpm install --frozen-lockfile
+    # BUG (TIN-2224 fallout): this recipe calls `pnpm run build` directly,
+    # bypassing the default `build` recipe's dependency on
+    # _optimize-images-if-photos. static/optimized/ is gitignored and only
+    # ever populated by scripts/optimize-images.js, so the prod on-cluster
+    # image shipped with zero optimized AVIF/WebP variants — 404ing the
+    # homepage hero (great-falls-lewiston-1930s-xlarge.avif) and every other
+    # photo's responsive renditions once adapter-node became the production
+    # server. Mirror _optimize-images-if-photos's own guard here so container
+    # images carry the same renditions the static build gets for free.
+    if [ -d static/photos ] && [ -n "$(ls -A static/photos 2>/dev/null)" ]; then \
+        node scripts/optimize-images.js; \
+    else \
+        echo "No static/photos assets; keeping committed image-manifest fallback."; \
+    fi
     ADAPTER=node PUBLIC_ARCHIVE_LIVE=true pnpm run build
     export APP_BUILD="$PWD/build"
     # 2. Build the nix2container image and push it to GHCR through the n2c-patched
@@ -137,6 +151,21 @@ container-image-build:
     export BUILD_COMMIT_SHA="${BUILD_COMMIT_SHA:-$(git rev-parse HEAD)}"
     export BUILD_COMMIT_REF="${BUILD_COMMIT_REF:-$(git rev-parse --abbrev-ref HEAD)}"
     export BUILD_DATE="${BUILD_DATE:-1970-01-01T00:00:00Z}"
+    # BUG (TIN-2224 fallout): this recipe calls `pnpm run build` directly,
+    # bypassing the default `build` recipe's dependency on
+    # _optimize-images-if-photos. static/optimized/ is gitignored and only
+    # ever populated by scripts/optimize-images.js, so this local tarball
+    # (and the prod on-cluster image it mirrors) shipped with zero optimized
+    # AVIF/WebP variants — 404ing the homepage hero
+    # (great-falls-lewiston-1930s-xlarge.avif) and every other photo's
+    # responsive renditions once adapter-node became the production server.
+    # Mirror _optimize-images-if-photos's own guard here so container images
+    # carry the same renditions the static build gets for free.
+    if [ -d static/photos ] && [ -n "$(ls -A static/photos 2>/dev/null)" ]; then \
+        node scripts/optimize-images.js; \
+    else \
+        echo "No static/photos assets; keeping committed image-manifest fallback."; \
+    fi
     # PUBLIC_ARCHIVE_LIVE=true so the local tarball matches the prod on-cluster
     # image (see container-image-publish); PUBLIC_* is build-time-inlined by Vite.
     ADAPTER=node PUBLIC_ARCHIVE_LIVE=true pnpm run build
