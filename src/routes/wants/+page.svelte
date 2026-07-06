@@ -78,8 +78,8 @@
 				class="underline"
 				href={`${base}/donate`}>donation criteria</a
 			>
-			(transportable, marked, repairable) and a cell captain checks it in. A hands-or-skills want comes off the moment
-			you <a class="underline" href={`${base}/contact`}>reach out</a> and start.
+			(transportable, marked, repairable) and a cell captain checks it in. A hands-or-skills want comes off the moment you
+			<a class="underline" href={`${base}/contact`}>reach out</a> and start.
 		</p>
 	</section>
 
