@@ -7,6 +7,7 @@
 	import { cells, wants } from '$lib/data/cells';
 	import { creditFor } from '$lib/data/credits';
 	import Picture from '$lib/components/Picture.svelte';
+	import { intrinsicSize } from '$lib/responsive-image';
 	import SourceLink from '$lib/components/SourceLink.svelte';
 	import { reveal, parallax } from '$lib/motion.svelte';
 
@@ -19,6 +20,17 @@
 	// $lib/data/credits.
 	const heroImage = '/photos/great-falls-lewiston-1930s.jpg';
 	const heroCredit = creditFor(heroImage);
+
+	// "We won the bus" (2026): the Tool Bus now has its actual vehicle. The
+	// bus-interior photo rides the same Wave-2.5 pipeline as the hero — drop the
+	// file at static/photos/bus-interior.jpg and `optimize-images` records it in
+	// static/image-manifest.json. Until then intrinsicSize() is undefined, so the
+	// figure in the announcement is omitted and the text stands on its own. No
+	// credits entry is required for the org's own photo (creditFor degrades to
+	// undefined and the caption stays dormant); add one to surface provenance.
+	const busImage = '/photos/bus-interior.jpg';
+	const busPhotoReady = Boolean(intrinsicSize(busImage));
+	const busImageCredit = creditFor(busImage);
 
 	const brand = {
 		name: 'Great Falls Tool Bus',
@@ -161,6 +173,45 @@
 			</span>
 		{/if}
 	</p>
+
+	<!-- "We won the bus" announcement (2026). First section under the hero: the
+	     Tool Bus is no longer a plan on wheels — the vehicle is ours. Rendered in
+	     the home hairline-row idiom (a bordered section, not a card, not a banner)
+	     so it sits in the page's existing rhythm; the win is featured through the
+	     type scale, not a background fill. The bus-interior photo rides the same
+	     Picture + manifest + credits pipeline as the hero and is omitted until it
+	     lands (busPhotoReady), so the text stands alone in the meantime. -->
+	<section class="border-surface-200-800 reveal-armed mt-16 border-y py-8" use:reveal aria-label="We won the bus">
+		<p class="hero-eyebrow text-xs tracking-widest uppercase">News</p>
+		<h2 class="font-display mt-2 text-2xl md:text-3xl">We won the bus.</h2>
+		<p class="text-surface-700 dark:text-surface-300 mt-4 max-w-3xl text-lg leading-relaxed">
+			It's official: the Great Falls Tool Bus has its bus. The vehicle is ours, and the work now is fitting it out and
+			getting it rolling. <a class="underline" href={`${base}/wants`}>Help us get it rolling</a> with a tool off the
+			wants list, or <a class="underline" href={`${base}/contact`}>get involved</a> and lend a hand.
+		</p>
+
+		{#if busPhotoReady}
+			<figure class="mt-8">
+				<Picture
+					src={busImage}
+					alt="Inside the Great Falls Tool Bus."
+					sizes="(min-width: 1024px) 976px, 100vw"
+					class="bg-surface-100-900 w-full object-cover"
+				/>
+				{#if busImageCredit}
+					<figcaption class="text-surface-600-400 mt-3 text-sm leading-relaxed">
+						{busImageCredit.title}, {busImageCredit.author}. {busImageCredit.license}.
+						<a
+							class="underline underline-offset-4"
+							href={busImageCredit.source}
+							target="_blank"
+							rel="noopener noreferrer">Source</a
+						>.
+					</figcaption>
+				{/if}
+			</figure>
+		{/if}
+	</section>
 
 	<!-- Uncontained editorial criteria: each is a hairline-divided term/description
 	     row (dl), not a boxed card. Reads as one continuous page. -->
