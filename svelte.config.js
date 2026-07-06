@@ -36,7 +36,15 @@ const useNodeAdapter = process.env.ADAPTER === 'node';
 let adapter;
 if (useNodeAdapter) {
 	const { default: adapterNode } = await import('@sveltejs/adapter-node');
-	adapter = adapterNode();
+	adapter = adapterNode({
+		// Explicit for parity with the adapter-static branch below and as a
+		// defensive pin: @sveltejs/adapter-node@5.5.7 already defaults
+		// `precompress: true` (gzip + brotli, built at compile time, over both
+		// `build/client` and `build/prerendered`), so this is a no-op today —
+		// but writing it out keeps the origin's compression posture from
+		// silently drifting if that upstream default ever changes.
+		precompress: true,
+	});
 } else {
 	adapter = adapterStatic({
 		pages: 'build',
