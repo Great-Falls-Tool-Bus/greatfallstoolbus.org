@@ -8,90 +8,106 @@
 	// Inventory doctrine + the transfemme-tailoring citation-table pointer
 	// live in the cells.ts header. Validate the tree with `just tools-validate`.
 	//
-	// This page is the capability CATALOG: each tool cell is presented as a
-	// capability (what it puts in your hands + how it rides the bus + the
-	// safety gate before use), then the kitted tools underneath. The catalog is
-	// driven entirely by the shared cells data source; no per-tool data was
-	// invented for the capability framing; the safety gate is the project-wide
-	// orientation model (see /safety, /contact#access).
+	// This page LEADS with borrowing: a first-time neighbor sees the flat list
+	// of every tool they can borrow and the one-line borrow path, without having
+	// to parse the cell / captain / kit vocabulary first. Cells are an optional
+	// lens, never a gate (agreed product principle): each row keeps a quiet cell
+	// tag that links to that kit's printable cell sheet, so the by-kit / captain
+	// view is one click away, and the sheets stay reachable from the footer. The
+	// list is driven entirely by the shared cells data source; no per-tool data
+	// was invented. The safety orientation + keyholder go-ahead is the
+	// project-wide access model (see /safety, /contact#access).
 	import { cells } from '$lib/data/cells';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import SourceLink from '$lib/components/SourceLink.svelte';
-	import Card from '$lib/components/Card.svelte';
 	import DetailsNeeded from '$lib/components/DetailsNeeded.svelte';
+
+	// Flatten the per-cell tree into ONE scannable inventory, sorted by name so
+	// the list reads as a flat catalog and not a cell-clustered outline. Each
+	// tool keeps its cell name + slug as a secondary tag (the cell lens), which
+	// links to that cell's printable sheet.
+	const tools = cells
+		.flatMap((cell) => cell.tools.map((tool) => ({ ...tool, cellName: cell.name, cellSlug: cell.slug })))
+		.sort((a, b) => a.name.localeCompare(b.name));
+
+	const statusLabel: Record<'in-kit' | 'restoration', string> = {
+		'in-kit': 'In the kit',
+		restoration: 'Under restoration',
+	};
 </script>
 
 <svelte:head>
 	<title>Tools on the bus | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="The tool bus capability catalog: each cell is a kitted capability. What it puts in your hands, how it rides the bus, and the safety gate before use."
+		content="Everything on the tool bus you can borrow: a flat list of every tool, its blurb, and its status. Borrow one with a short safety orientation and a keyholder's go-ahead. Cells are an optional lens."
 	/>
 </svelte:head>
 
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
-	<PageHeader
-		title="Tools on the bus"
-		icon={Hammer}
-		lead="The bus is organized into cells, and each cell is a capability: a kitted set of tools that puts a specific kind of work in your hands. Every tool is kitted for transport, its bits marked as part of a set, and its documentation resolves to a real model number and manufacturer manual, or it is listed as not yet resolved."
-	/>
+	<PageHeader title="Tools on the bus" icon={Hammer}>
+		<p class="text-surface-700 dark:text-surface-300 text-lg leading-relaxed">
+			Everything here is a tool you can borrow. No membership fee and no paperwork wall: a short safety orientation,
+			then a keyholder's go-ahead, and the tool is yours to take.
+		</p>
+	</PageHeader>
 
-	<section class="border-surface-200-800 mt-8 border-y py-6" aria-label="How the catalog works">
-		<p class="text-surface-700 dark:text-surface-300 leading-relaxed">
-			Each capability lists what it enables, how the kit rides the bus, and its safety gate. There is no membership fee;
-			a short safety orientation and a keyholder's go-ahead open the capability you want to use. See
-			<a class="underline" href={`${base}/safety`}>safety &amp; responsible use</a> and
-			<a class="underline" href={`${base}/contact#access`}>how access works</a>.
+	<section class="border-surface-200-800 mt-8 border-y py-6" aria-label="How to borrow a tool">
+		<p class="text-surface-700-300 leading-relaxed">
+			To borrow one: read the short
+			<a class="underline" href={`${base}/safety`}>safety &amp; responsible-use guide</a>, then
+			<a class="underline" href={`${base}/contact#access`}>ask a keyholder for access</a>. Anyone may ask; a keyholder
+			reviews each request and shares where to find the bus.
 			<!-- Access model (ratified): stewarded access; anyone may request; non-member requests reach all keyholders. -->
 		</p>
 	</section>
 
-	{#each cells as cell (cell.slug)}
-		<section class="mt-12" aria-label={cell.name}>
-			<header class="space-y-3">
-				<p class="text-surface-500 text-xs tracking-widest uppercase">Capability</p>
-				<h2 class="text-2xl font-semibold">{cell.name}</h2>
-				<p class="text-surface-700-300 leading-relaxed">
-					<span class="font-semibold">Enables:</span>
-					{cell.tools.length}
-					{cell.tools.length === 1 ? 'tool' : 'tools'} kitted and documented for this kind of work.
-					<span class="font-semibold">Rides:</span>
-					{cell.travels}
-				</p>
-				<p class="text-surface-700-300 text-sm leading-relaxed">
-					<span class="font-semibold">Safety gate:</span> a short safety orientation for this capability before first
-					use, then it is yours to borrow.
-					<a class="underline" href={`${base}/safety`}>Read the safety &amp; responsible-use guide</a>.
-				</p>
-			</header>
+	<section class="mt-12" aria-label="Tools you can borrow">
+		<div class="flex items-baseline justify-between gap-4">
+			<h2 class="text-2xl font-semibold">Every tool on the bus</h2>
+			<p class="text-surface-600-400 shrink-0 text-sm">{tools.length} tools</p>
+		</div>
 
-			<div class="mt-6 space-y-3">
-				{#each cell.tools as tool (tool.slug)}
-					<Card title={tool.name} headingLevel="h3" compact>
-						<p class="text-surface-700-300 mt-1 text-sm leading-relaxed">
-							{tool.blurb}
-							{#if tool.docUrl}
-								<a
-									class="underline"
-									href={tool.docUrl}
-									rel="external noopener"
-									aria-label={`Open ${tool.name} documentation: ${tool.docLabel}`}>{tool.docLabel}</a
-								>
-							{/if}
-						</p>
-						{#if tool.detailsNeeded}
-							<DetailsNeeded wanted={tool.detailsWanted} sourcePath={tool.sourcePath} name={tool.name} />
+		<ul class="mt-6">
+			{#each tools as tool (tool.slug)}
+				<li class="border-surface-200-800 border-t py-6">
+					<div class="flex items-baseline justify-between gap-x-4">
+						<a
+							class="text-surface-600-400 hover:text-primary-600 text-sm underline-offset-2 hover:underline"
+							href={`${base}/cells/${tool.cellSlug}`}
+							aria-label={`${tool.cellName}: open the printable cell sheet`}>{tool.cellName}</a
+						>
+						<span
+							class="shrink-0 text-sm {tool.status === 'restoration'
+								? 'text-warning-700 dark:text-warning-400 font-medium'
+								: 'text-surface-600-400'}">{statusLabel[tool.status]}</span
+						>
+					</div>
+					<h3 class="mt-1 text-xl font-semibold">{tool.name}</h3>
+					<p class="text-surface-700-300 mt-2 leading-relaxed">
+						{tool.blurb}
+						{#if tool.docUrl}
+							<a
+								class="underline"
+								href={tool.docUrl}
+								rel="external noopener"
+								aria-label={`Open ${tool.name} documentation: ${tool.docLabel}`}>{tool.docLabel}</a
+							>
 						{/if}
-					</Card>
-				{/each}
-			</div>
-		</section>
-	{/each}
+					</p>
+					{#if tool.detailsNeeded}
+						<DetailsNeeded wanted={tool.detailsWanted} sourcePath={tool.sourcePath} name={tool.name} />
+					{/if}
+				</li>
+			{/each}
+		</ul>
+	</section>
 
 	<footer class="text-surface-500 pt-12 text-sm">
 		<p>
-			Missing a capability? See the <a class="underline" href={`${base}/wants`}>wants list</a> or
-			<a class="underline" href={`${base}/donate`}>donate a tool</a>. Want this on paper? Every cell has a
+			Missing a tool? See the <a class="underline" href={`${base}/wants`}>wants list</a> or
+			<a class="underline" href={`${base}/donate`}>donate a tool</a>. Prefer to browse by kit and captain? See the
+			<a class="underline" href={`${base}/cells`}>tool cells</a>, each with a
 			<a class="underline" href={`${base}/cell-sheets`}>printable cell sheet</a>.
 		</p>
 		<SourceLink routeId="/tools" />

@@ -43,33 +43,45 @@ export interface NavItem {
  * there is no "Home" item. hrefs are base-relative; the layout prepends
  * `base`.
  */
-// Ordered as a narrative: who we are (Mission) → what's on the bus (Tools,
-// Cells) → how to use it (Safety) → how to give (Donate, Wants) → where it's
-// going + credibility (Bibliography, Shout-outs) → reach us (Get access).
+// Ordered as a narrative: who we are (Mission), what's on the bus (Tools),
+// how to use it (Safety), how to give (Donate, Wants), where it's going plus
+// credibility (Bibliography, Shout-outs), reach us (Get access).
 // `navItems` stays the single flat array (DRY); `primary` and `footerGroup`
 // mark where each item renders (see `primaryNavItems` and `footerNavGroups`
-// below). Primary bar: Mission, Tools, Cells, Donate, Get access, and — once the
-// archive is visible — Discuss: the browse → use → give → reach → talk arc a
-// Lewiston neighbor actually needs. That is the ≤6-item cap exactly: 5 primary
-// items always, plus Discuss as the gated 6th (TIN-2528 promoted it from the
-// "Get involved" footer group now that /discuss carries a real on-site thread
-// index, not just an outbound link). The archiveVisible gate is inlined at
-// build, so the bar is 5 items while the archive is hidden and 6 once it is
-// live — never over cap (the AppBar primary <nav> is `lg:flex`, desktop-only;
-// the mobile drawer lists the same items vertically, so there is no 375px fit
-// concern). TIN-2536 folded the former /access and /find-the-bus surfaces into
-// the single /contact route (reach out → get access → find the bus is one
-// intent), so the primary "Get access" item points at /contact; access-how-to
-// and the request-first location now live as anchored sections there (#access,
-// #find-the-bus). Safety, Wants, Keyholders, Bibliography, Shout-outs, and
-// Operator docs demote to footer groups; /stewards remains a footer-only link
-// hard-coded in +layout.svelte (predates this array). Safety demotes off the
-// primary bar because its docs need careful hand editing before they lead the
-// site; it stays reachable via the footer and sitemap.
+// below). Primary bar: Mission, Tools, Donate, Get access, and, once the
+// archive is visible, Discuss: the browse, use, give, reach, talk arc a
+// Lewiston neighbor actually needs. That is 4 primary items always, plus
+// Discuss as the gated 5th (TIN-2528 promoted it from the "Get involved"
+// footer group now that /discuss carries a real on-site thread index, not just
+// an outbound link). The archiveVisible gate is inlined at build, so the bar is
+// 4 items while the archive is hidden and 5 once it is live: comfortable
+// headroom under the ≤6-item cap (the AppBar primary <nav> is `lg:flex`,
+// desktop-only; the mobile drawer lists the same items vertically, so there is
+// no 375px fit concern).
+//
+// Cells is NOT primary. Tools and Cells were two parallel doors to the same
+// inventory, which confused first-time borrowers; the base flow is "get tools,
+// share them", and cells are an optional lens, never a gate (agreed product
+// principle). /tools now leads with the flat borrowable list and carries a
+// per-row cell tag, so Cells demotes to the "Get involved" footer group as the
+// steward, kit-logistics, and captaincy plus authoring view. Its natural peers
+// there are Wants and Keyholders (participatory get-involved surfaces), not the
+// read-only "About" references (Safety, Bibliography, Shout-outs, Operator
+// docs). The /cells routes are unaffected; only the nav placement moves.
+//
+// TIN-2536 folded the former /access and /find-the-bus surfaces into the single
+// /contact route (reach out, get access, find the bus is one intent), so the
+// primary "Get access" item points at /contact; access-how-to and the
+// request-first location now live as anchored sections there (#access,
+// #find-the-bus). Safety, Cells, Wants, Keyholders, Bibliography, Shout-outs,
+// and Operator docs demote to footer groups; /stewards remains a footer-only
+// link hard-coded in +layout.svelte (predates this array). Safety demotes off
+// the primary bar because its docs need careful hand editing before they lead
+// the site; it stays reachable via the footer and sitemap.
 export const navItems: NavItem[] = [
 	{ label: 'Mission', href: '/mission', match: ['/mission'], primary: true, icon: Compass },
 	{ label: 'Tools', href: '/tools', match: ['/tools'], primary: true, icon: Hammer },
-	{ label: 'Cells', href: '/cells', match: ['/cells', '/cell-sheets'], primary: true, icon: Boxes },
+	{ label: 'Cells', href: '/cells', match: ['/cells', '/cell-sheets'], footerGroup: 'Get involved', icon: Boxes },
 	{ label: 'Safety', href: '/safety', match: ['/safety'], footerGroup: 'About', icon: ShieldCheck },
 	{ label: 'Donate', href: '/donate', match: ['/donate'], primary: true, icon: Gift },
 	{ label: 'Wants', href: '/wants', match: ['/wants'], footerGroup: 'Get involved', icon: ClipboardList },
