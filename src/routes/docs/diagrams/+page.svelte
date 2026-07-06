@@ -8,8 +8,9 @@
 	// GROUNDED, NOT INVENTED. Every fact below is drawn from documented truth:
 	//   - node roles honey / bumble / sting and their placement posture:
 	//     docs/decisions/0008-oncluster-production-hosting.md (this repo);
-	//   - the Cloudflare Pages (static, production) vs cloudflared-tunnel
-	//     (declare-only) web paths: docs/deploy/cloudflare-pages.md,
+	//   - the on-cluster adapter-node web path behind the in-cluster cloudflared
+	//     tunnel, production since the ADR 0010 cutover (Cloudflare Pages
+	//     retired): docs/deploy/cloudflare-pages.md,
 	//     docs/deploy/oncluster-container-readiness.md, ADR 0003;
 	//   - the mail flow, transport split, and port map: the org apply-plane
 	//     architecture record (great-falls-tool-bus-infra
@@ -53,7 +54,7 @@
 	<title>Network and port diagrams | Operator docs | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="Public-safe diagrams of the Great Falls Tool Bus serving topology (the accepted on-cluster target and the current Cloudflare Pages live host), the cluster node roles (honey, bumble, sting), and the mail-stack flow and port map, grounded in documented infrastructure truth."
+		content="Public-safe diagrams of the Great Falls Tool Bus serving topology (the on-cluster adapter-node deployment behind the Cloudflare tunnel, production since the ADR 0010 cutover; Cloudflare Pages retired), the cluster node roles (honey, bumble, sting), and the mail-stack flow and port map, grounded in documented infrastructure truth."
 	/>
 </svelte:head>
 
@@ -69,10 +70,9 @@
 			Grounded in <a class="underline" href={`${base}/docs/dns-mail-checklist`}>the DNS and mail cutover checklist</a>,
 			<a class="underline" href={`${base}/docs/oncluster-container-readiness`}>on-cluster container readiness</a>, and
 			the org apply-plane architecture record. On-cluster serving (adapter-node image into a K8s Deployment behind a
-			ClusterIP Service and the in-cluster cloudflared tunnel) is the accepted primary target per ADR 0008; the cutover
-			is operator-gated and not yet done, so Cloudflare Pages is still the live host and becomes the warm standby (ADR
-			0007) once serving moves on-cluster. The diagram below marks the target path in the accent colour and the current
-			live host solid.
+			ClusterIP Service and the in-cluster cloudflared tunnel) is production per ADR 0008; the ADR 0010 cutover is
+			complete and Cloudflare Pages has been retired (project deleted). The diagram below marks the live production
+			path in the accent colour and solid.
 		</p>
 	</section>
 
@@ -81,28 +81,27 @@
 		<h2 class="text-2xl font-semibold">Serving topology</h2>
 		<p class="text-surface-700-300 mt-2 leading-relaxed">
 			A visitor always reaches the Cloudflare edge first, where TLS terminates and the apex and www sit behind
-			Cloudflare Access during the gated phase. From the edge the diagram shows two origins. The accent path is the
-			accepted primary target (ADR 0008): an adapter-node image in a K8s Deployment, behind a ClusterIP Service and the
-			in-cluster cloudflared tunnel on the honey ingress. The solid box is Cloudflare Pages, the current live host,
-			which becomes the warm standby (ADR 0007) after cutover. The on-cluster origin is drawn dashed because the cutover
-			is operator-gated and not yet done, so nobody should read this as already migrated.
+			Cloudflare Access during the gated phase. From the edge the diagram shows the production origin. The accent,
+			solid path is production per ADR 0008: an adapter-node image in a K8s Deployment, behind a ClusterIP Service and
+			the in-cluster cloudflared tunnel on the honey ingress. Cloudflare Pages is drawn muted and marked retired: the
+			ADR 0010 cutover is complete and the Pages project has been deleted, so nobody should read it as still serving
+			traffic.
 		</p>
 
 		<figure class="border-surface-200-800 mt-6 border p-4">
 			<div class="overflow-x-auto">
 				<svg class="diagram" viewBox="0 0 760 752" width="760" role="img" aria-labelledby="topo-title topo-desc">
-					<title id="topo-title">Serving topology: accepted on-cluster target and current Cloudflare Pages host</title>
+					<title id="topo-title">Serving topology: on-cluster production, Cloudflare Pages retired</title>
 					<desc id="topo-desc"
 						>A visitor reaches the Cloudflare edge, where TLS terminates and the apex and www are gated by Cloudflare
-						Access. The edge fans to two origins. The accepted primary target (ADR 0008), drawn in accent and dashed
-						because its cutover is operator-gated and not yet live, is on-cluster serving: an adapter-node web
-						Deployment on port 3000 with two replicas, behind an internal ClusterIP web Service on port 80 and the
-						in-cluster cloudflared tunnel on the honey ingress. The current live host, drawn solid, is Cloudflare Pages
-						serving the static build, which becomes the warm standby (ADR 0007) after cutover. The on-prem cluster has
-						three nodes with zero public IP: honey (mail substrate, Mailman list stack, form and archive guard, tightest
-						headroom), bumble (worker, web replica target), and sting (worker, web replica target, CI runners). The two
-						web replicas are scheduled onto bumble and sting under anti-affinity, leaving honey for its mail and form
-						load.</desc
+						Access. The edge routes to the production origin. Production per ADR 0008, drawn in accent and solid, is
+						on-cluster serving: an adapter-node web Deployment on port 3000 with two replicas, behind an internal
+						ClusterIP web Service on port 80 and the in-cluster cloudflared tunnel on the honey ingress. Cloudflare
+						Pages, drawn muted, is retired since the ADR 0010 cutover; the project has been deleted. The on-prem cluster
+						has three nodes with zero public IP: honey (mail substrate, Mailman list stack, form and archive guard,
+						tightest headroom), bumble (worker, web replica target), and sting (worker, web replica target, CI runners).
+						The two web replicas are scheduled onto bumble and sting under anti-affinity, leaving honey for its mail and
+						form load.</desc
 					>
 					<defs>
 						<marker
@@ -130,26 +129,26 @@
 					<text class="lbl muted" x="380" y="128">TLS terminates here</text>
 					<text class="lbl muted" x="380" y="146">apex + www gated by Cloudflare Access</text>
 
-					<!-- Branch to on-cluster target (accent) and to Pages (live) -->
+					<!-- Branch to on-cluster origin (accent, production) and to retired Pages -->
 					<line class="flow" x1="204" y1="162" x2="204" y2="194" marker-end="url(#arrow)" />
 					<line class="flow" x1="573" y1="162" x2="573" y2="194" marker-end="url(#arrow)" />
 
-					<!-- On-cluster origin (accepted target, not yet live: accent + dashed) -->
-					<rect class="node accent sub" x="44" y="196" width="320" height="96" />
+					<!-- On-cluster origin (production, accent + solid) -->
+					<rect class="node accent" x="44" y="196" width="320" height="96" />
 					<text class="lbl strong" x="204" y="220">On-cluster serving</text>
-					<text class="lbl muted" x="204" y="238">accepted PRIMARY target, ADR 0008</text>
+					<text class="lbl muted" x="204" y="238">PRODUCTION, ADR 0008</text>
 					<text class="lbl muted" x="204" y="256">adapter-node to image to K8s to tunnel</text>
-					<text class="lbl muted" x="204" y="278">cutover operator-gated, NOT yet live</text>
+					<text class="lbl muted" x="204" y="278">live since the ADR 0010 cutover</text>
 
-					<!-- Cloudflare Pages (current live host, solid) -->
-					<rect class="node" x="430" y="196" width="286" height="96" />
+					<!-- Cloudflare Pages (retired, ADR 0010: dashed + muted) -->
+					<rect class="node sub" x="430" y="196" width="286" height="96" />
 					<text class="lbl strong" x="573" y="220">Cloudflare Pages</text>
 					<text class="lbl muted" x="573" y="238">static build (adapter-static)</text>
-					<text class="lbl muted" x="573" y="256">LIVE host today</text>
-					<text class="lbl muted" x="573" y="278">warm standby after cutover, ADR 0007</text>
+					<text class="lbl muted" x="573" y="256">RETIRED, ADR 0010</text>
+					<text class="lbl muted" x="573" y="278">project deleted</text>
 
 					<!-- On-cluster origin down into the cluster -->
-					<line class="flow dashed" x1="200" y1="292" x2="168" y2="362" marker-end="url(#arrow)" />
+					<line class="flow" x1="200" y1="292" x2="168" y2="362" marker-end="url(#arrow)" />
 
 					<!-- honey cluster container -->
 					<rect class="node" x="44" y="324" width="672" height="404" />
@@ -202,17 +201,15 @@
 				</svg>
 			</div>
 			<ul class="text-surface-500 mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs">
-				<li><span class="text-primary-500 font-semibold">Accent</span> = accepted on-cluster target (ADR 0008)</li>
-				<li><span class="font-semibold">Dashed origin</span> = cutover pending, not yet live</li>
-				<li><span class="font-semibold">Solid</span> = Cloudflare Pages, current live host</li>
+				<li><span class="text-primary-500 font-semibold">Accent</span> = on-cluster production path (ADR 0008)</li>
+				<li><span class="font-semibold">Dashed / muted</span> = Cloudflare Pages, retired (ADR 0010)</li>
 			</ul>
 			<figcaption class="text-surface-500 mt-3 text-xs">
 				The accent path (in-cluster cloudflared tunnel to a ClusterIP web Service to an adapter-node web Deployment) is
-				the accepted primary target per ADR 0008, which supersedes ADR 0003 for production hosting. Its cutover is
-				operator-gated and not yet done, so Cloudflare Pages (solid) is still the live host and becomes the warm standby
-				(ADR 0007) afterward. Gated-dynamic web I/O (the contact form) already serves on-cluster through the same tunnel
-				today; the static web serving path is the target this diagram adds. The apply plane is the org overlay
-				great-falls-tool-bus-infra; this public repo holds intent only.
+				production per ADR 0008, which supersedes ADR 0003 for production hosting. The ADR 0010 cutover is complete, so
+				Cloudflare Pages (dashed, muted) is retired and its project has been deleted. Gated-dynamic web I/O (the contact
+				form) and the static web serving path both serve on-cluster through the same tunnel today. The apply plane is
+				the org overlay great-falls-tool-bus-infra; this public repo holds intent only.
 			</figcaption>
 		</figure>
 	</section>
@@ -360,9 +357,8 @@
 				</li>
 				<li>
 					<span class="font-semibold">The live tunnel route.</span> The cloudflared public-hostname route is managed at the
-					Cloudflare edge and is not committed to git. On-cluster serving is the accepted primary target (ADR 0008), but the
-					route flip and image pin are an operator-gated overlay apply, so the static web serving path is prepared, not yet
-					live.
+					Cloudflare edge and is not committed to git. On-cluster serving is production (ADR 0008); the route flip and
+					image pin are an org overlay apply, applied outside this repo.
 				</li>
 			</ul>
 		</div>

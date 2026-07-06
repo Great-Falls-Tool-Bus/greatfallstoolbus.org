@@ -77,15 +77,6 @@ const ENTRIES: RegistryEntry[] = [
 		order: 3,
 	},
 	{
-		file: '/docs/runbooks/keyholders-client-setup.md',
-		slug: 'keyholders-client-setup',
-		title: 'Keyholders list: client setup',
-		summary:
-			'Draft mail-client setup for the keyholders@ role list, staged as join-page content until the list exists.',
-		group: 'Runbooks',
-		order: 4,
-	},
-	{
 		file: '/docs/deploy/cloudflare-pages.md',
 		slug: 'cloudflare-pages',
 		title: 'Cloudflare Pages deploy',
@@ -101,14 +92,6 @@ const ENTRIES: RegistryEntry[] = [
 			'The accepted on-cluster serving target (ADR 0008): the same source served in-cluster as an adapter-node server. Image build is active; the production cutover is operator-gated and not yet done, so Cloudflare Pages is still the live host.',
 		group: 'Deploy and launch',
 		order: 2,
-	},
-	{
-		file: '/docs/launch/apex-flip-readiness.md',
-		slug: 'apex-flip-readiness',
-		title: 'Apex flip readiness',
-		summary: 'The go-live readiness matrix for un-gating the public apex, with the open gaps called out.',
-		group: 'Deploy and launch',
-		order: 3,
 	},
 	{
 		file: '/docs/CI-SCHEMA.md',
