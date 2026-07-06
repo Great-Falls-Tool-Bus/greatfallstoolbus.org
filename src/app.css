@@ -299,8 +299,12 @@ pre.shiki span {
 }
 
 .prose blockquote {
-	border-left: 3px solid var(--color-primary-500);
-	padding-left: 1em;
+	/* Quotation, canon-clean: no side-stripe. A hairline top-and-bottom rule pair
+	 * brackets the passage; indent + italic + muted-toward-ink text carry the
+	 * "this is a quote" reading. No background-fill layering. */
+	padding: 0.75em 0 0.75em 1em;
+	border-top: 1px solid var(--color-surface-300-700);
+	border-bottom: 1px solid var(--color-surface-300-700);
 	margin: 1.5em 0;
 	font-style: italic;
 	color: var(--color-surface-700-300);

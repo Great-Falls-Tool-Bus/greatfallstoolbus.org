@@ -41,8 +41,9 @@
 </p>
 
 <style>
-	/* Calm, civic, not alarming: a muted tonal note, warm border accent, small
-	 * type. Reads as an invitation, not an error. */
+	/* Calm, civic, not alarming: a muted tonal note delineated by a full hairline
+	 * warning-tone border (no side-stripe) over a faint warning wash, small type.
+	 * Reads as an invitation, not an error. */
 	.details-needed {
 		display: flex;
 		flex-wrap: wrap;
@@ -50,9 +51,9 @@
 		gap: 0.35em 0.5em;
 		margin-top: 0.5rem;
 		padding: 0.4rem 0.6rem;
-		border-left: 2px solid var(--color-warning-500, currentColor);
+		border: 1px solid color-mix(in oklab, var(--color-warning-500, currentColor) 35%, transparent);
 		border-radius: 0;
-		background: color-mix(in oklab, currentColor 4%, transparent);
+		background: color-mix(in oklab, var(--color-warning-500, currentColor) 5%, transparent);
 		font-size: 0.8rem;
 		line-height: 1.4;
 	}
