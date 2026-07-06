@@ -39,7 +39,7 @@ That sentence is the whole contract. Expanded:
 | `keyholders@latoolb.us` | First production `MailAccount` application (`mail.tinyland.dev/v1alpha1`; CR applied from the infra overlay, reconciled by the house mail substrate) |
 | `keyholders` list | Mailman 3 + Postorius + HyperKitty, pinned trio 3.3.10 / 1.3.13 / 1.3.12, private/members-only archive or archive off (row e corrected 2026-07-04) |
 | `discuss` list | Public/open discussion list with public archive; source/transport reconciled, smoke proof tracked on TIN-2498 |
-| Anubis v1.25.0 | Behind the Cloudflare tunnel (edge apply in the infra overlay); default-allow with a single CHALLENGE rule scoped to the join/contact form route only; `/agent`, `/llms.txt`, and SEO surfaces stay unguarded once the apex gate opens (row f) |
+| Anubis v1.13.0 | Two independent instances behind the Cloudflare tunnel (edge apply in the infra overlay): `forms` (default-allow, ALLOWs `/api/contact` only, CHALLENGEs the rest of the forms browsing surface) and `archive` / `anubis-archive` (default-CHALLENGE in front of the public discuss@ archive, TIN-2528); `/agent`, `/llms.txt`, and SEO surfaces stay unguarded once the apex gate opens (row f) |
 
 ## Related
 

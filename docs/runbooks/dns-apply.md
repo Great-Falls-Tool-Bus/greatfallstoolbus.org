@@ -11,9 +11,14 @@ the GFTB apply plane is the org overlay, not blahaj:
   the Cloudflare API + DreamHost steps (credentials by name only;
   DreamHost API is read-only capture; the NS flip is a panel step).
 - **Apply stack:**
-  `great-falls-tool-bus-infra/tofu/stacks/edge-dns`, toggle-gated and
-  fail-closed (both `manage_*` toggles default off; the default plan is
-  empty).
+  `great-falls-tool-bus-infra/tofu/stacks/edge` — the TIN-2385
+  zone-scoped-token stack that actually applies every live record
+  declared in `tofu/dns-intent/intent.yaml` (zones are added
+  console-side; this stack only looks them up by name). Its sibling
+  `great-falls-tool-bus-infra/tofu/stacks/edge-dns` predates TIN-2385 and
+  stays permanently toggle-gated / fail-closed (both `manage_*` toggles
+  default off; the default plan is empty) — it does not apply anything
+  today.
 - **Edge authority:** resolved by TIN-2385, a zone-scoped Cloudflare
   token held by the infra overlay; overlays never hold account-wide
   Cloudflare credentials.

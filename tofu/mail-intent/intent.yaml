@@ -63,19 +63,37 @@ lists:
       copy should promote it.
 
 anubis:
-  version: 1.25.0 # first real Techaro Anubis deployment in the house (row f)
+  version: 1.13.0 # digest-pinned Techaro Anubis, both instances below (row f)
   placement: behind-cloudflare-tunnel # edge apply in the infra overlay
-  policy:
-    default: ALLOW
-    rules:
-      - action: CHALLENGE
-        scope: join/contact form route only
+  instances:
+    - name: forms
+      fronts: forms.latoolb.us contact-intake handler (TIN-2420)
+      policy:
+        default: ALLOW
+        rules:
+          - action: ALLOW
+            scope: /api/contact only (cross-origin JSON fetch() can't solve a browser PoW challenge)
+          - action: CHALLENGE
+            scope: every other path on the forms hostname (the browsing surface)
+    - name: archive (anubis-archive)
+      fronts: lists.latoolb.us HyperKitty web tier (TIN-2528)
+      policy:
+        default: CHALLENGE # pure browsing surface; no API carve-out needed
+        rules:
+          - action: CHALLENGE
+            scope: HyperKitty mbox export path (anti-bulk-export, all user agents)
+          - action: ALLOW
+            scope: known search-engine crawlers (Googlebot/Bingbot/Qwant)
   unguarded_surfaces: # explicitly never challenged (row f)
-    - discuss-list public archive
     - /agent
     - /llms.txt
     - all SEO-relevant surfaces
   notes: >-
-    Signing key material is named (names-only) in secrets.contract.yaml
-    at the repo root; the key itself lives in the infra overlay's sops
-    lane.
+    "discuss-list public archive" was dropped from unguarded_surfaces
+    2026-07-06: TIN-2528 added a second, independent Anubis instance
+    (anubis-archive) in front of the HyperKitty web tier serving
+    lists.latoolb.us, and every human-browser request there IS challenged
+    (only allowlisted crawlers pass) — see docs/discuss-archive-packet.md
+    in the infra overlay. Signing key material is named (names-only) in
+    secrets.contract.yaml at the repo root; the key itself lives in the
+    infra overlay's sops lane.
