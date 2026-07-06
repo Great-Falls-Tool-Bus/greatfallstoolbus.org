@@ -42,9 +42,9 @@
 				<Network class="text-primary-500 h-6 w-6" aria-hidden="true" />
 			{/snippet}
 			<p class="text-surface-700-300 mt-1 text-sm leading-relaxed">
-				The serving topology (the on-cluster adapter-node deployment behind the Cloudflare tunnel, now production),
-				the cluster node roles, and the end-to-end mail flow with its port map, grounded in the documented
-				infrastructure truth.
+				The serving topology (the on-cluster adapter-node deployment behind the Cloudflare tunnel, now production), the
+				cluster node roles, and the end-to-end mail flow with its port map, grounded in the documented infrastructure
+				truth.
 			</p>
 		</Card>
 	</section>

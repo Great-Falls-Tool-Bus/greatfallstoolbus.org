@@ -71,8 +71,8 @@
 			<a class="underline" href={`${base}/docs/oncluster-container-readiness`}>on-cluster container readiness</a>, and
 			the org apply-plane architecture record. On-cluster serving (adapter-node image into a K8s Deployment behind a
 			ClusterIP Service and the in-cluster cloudflared tunnel) is production per ADR 0008; the ADR 0010 cutover is
-			complete and Cloudflare Pages has been retired (project deleted). The diagram below marks the live production
-			path in the accent colour and solid.
+			complete and Cloudflare Pages has been retired (project deleted). The diagram below marks the live production path
+			in the accent colour and solid.
 		</p>
 	</section>
 
@@ -81,10 +81,10 @@
 		<h2 class="text-2xl font-semibold">Serving topology</h2>
 		<p class="text-surface-700-300 mt-2 leading-relaxed">
 			A visitor always reaches the Cloudflare edge first, where TLS terminates and the apex and www sit behind
-			Cloudflare Access during the gated phase. From the edge the diagram shows the production origin. The accent,
-			solid path is production per ADR 0008: an adapter-node image in a K8s Deployment, behind a ClusterIP Service and
-			the in-cluster cloudflared tunnel on the honey ingress. Cloudflare Pages is drawn muted and marked retired: the
-			ADR 0010 cutover is complete and the Pages project has been deleted, so nobody should read it as still serving
+			Cloudflare Access during the gated phase. From the edge the diagram shows the production origin. The accent, solid
+			path is production per ADR 0008: an adapter-node image in a K8s Deployment, behind a ClusterIP Service and the
+			in-cluster cloudflared tunnel on the honey ingress. Cloudflare Pages is drawn muted and marked retired: the ADR
+			0010 cutover is complete and the Pages project has been deleted, so nobody should read it as still serving
 			traffic.
 		</p>
 
@@ -357,8 +357,8 @@
 				</li>
 				<li>
 					<span class="font-semibold">The live tunnel route.</span> The cloudflared public-hostname route is managed at the
-					Cloudflare edge and is not committed to git. On-cluster serving is production (ADR 0008); the route flip and
-					image pin are an org overlay apply, applied outside this repo.
+					Cloudflare edge and is not committed to git. On-cluster serving is production (ADR 0008); the route flip and image
+					pin are an org overlay apply, applied outside this repo.
 				</li>
 			</ul>
 		</div>
