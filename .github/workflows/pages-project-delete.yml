@@ -1,0 +1,43 @@
+# ONE-OFF: delete the retired greatfallstoolbus-org CF Pages project (TIN-2560).
+# The serving cutover to the on-cluster origin is verified (ADR 0010 + Amendment
+# 1); the deploy lane was retired in the PR that landed this file's sibling
+# change. This workflow exists only to run the deletion with the repo's own
+# Pages-scoped secret, then be removed. Dispatch-only; fail-closed without the
+# secrets; requires typing the project name to confirm.
+name: Pages Project Delete (one-off)
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type the project name (greatfallstoolbus-org) to authorize deletion"
+        required: true
+        default: ""
+        type: string
+permissions:
+  contents: read
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Delete the Pages project (fail-closed)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [ "${CONFIRM}" != "greatfallstoolbus-org" ]; then
+            echo "::error::Refusing: confirm input must be the exact project name."
+            exit 1
+          fi
+          if [ -z "${CLOUDFLARE_API_TOKEN}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID}" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID secrets are required."
+            exit 1
+          fi
+          resp=$(curl -s -X DELETE \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/greatfallstoolbus-org")
+          echo "${resp}" | grep -q '"success":\s*true' \
+            && echo "Pages project greatfallstoolbus-org deleted." \
+            || { echo "::error::Deletion failed: ${resp}"; exit 1; }
