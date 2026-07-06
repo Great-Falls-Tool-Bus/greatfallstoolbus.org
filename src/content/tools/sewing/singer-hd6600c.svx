@@ -3,7 +3,7 @@ name: 'SINGER Heavy Duty 6600C Sterling (computerized)'
 status: 'in-kit'
 cell: 'sewing'
 order: 1
-blurb: 'The working machine — 100 built-in stitches, six one-step buttonholes. Manual linked below.'
+blurb: 'The working machine: 100 built-in stitches, six one-step buttonholes. Manual linked below.'
 docUrl: 'https://cdn.poconosewandvac.com/web/products/instruction-manuals/pdfs/singer/hd6600c-hd6605c/hd6600c-hd6605c-instruction-manual.pdf'
 docLabel: 'Instruction manual (PDF)'
 ---
@@ -11,5 +11,5 @@ docLabel: 'Instruction manual (PDF)'
 The working machine on the bus: a computerized heavy-duty SINGER with 100
 built-in stitches and six one-step buttonholes. Threading paths, tension, and
 buttonhole setup are all in the
-[instruction manual (PDF)](https://cdn.poconosewandvac.com/web/products/instruction-manuals/pdfs/singer/hd6600c-hd6605c/hd6600c-hd6605c-instruction-manual.pdf)
-— keep a printed copy in the kit.
+[instruction manual (PDF)](https://cdn.poconosewandvac.com/web/products/instruction-manuals/pdfs/singer/hd6600c-hd6605c/hd6600c-hd6605c-instruction-manual.pdf).
+Keep a printed copy in the kit.

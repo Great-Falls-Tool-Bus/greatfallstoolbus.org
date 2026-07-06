@@ -14,7 +14,7 @@
 		{
 			name: 'J.',
 			role: 'Alderman, Lewiston',
-			note: 'Hosts the bus on his property — the home base a keyholder shares with you on request.',
+			note: 'Hosts the bus on his property: the home base a keyholder shares with you on request.',
 		},
 		{
 			name: 'Alex',

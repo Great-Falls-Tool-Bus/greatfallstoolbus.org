@@ -3,5 +3,5 @@ name: 'FIVEIZERO seam-ripper set (2 large + 2 small + snips)'
 status: 'in-kit'
 cell: 'sewing'
 order: 4
-blurb: 'In kit — the most-used tools in any alteration.'
+blurb: 'In kit. The most-used tools in any alteration.'
 ---

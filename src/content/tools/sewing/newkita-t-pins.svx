@@ -3,5 +3,5 @@ name: 'Newkita 2″ T-pins (100, E0106)'
 status: 'in-kit'
 cell: 'sewing'
 order: 6
-blurb: 'In kit. For blocking and heavy layers — too thick for shirting.'
+blurb: 'In kit. For blocking and heavy layers: too thick for shirting.'
 ---

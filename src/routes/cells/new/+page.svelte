@@ -260,7 +260,7 @@ Care: what it needs, and who to ask when it needs it.`;
 						id="doc-blurb"
 						class="{inputClass} min-h-20"
 						bind:value={values.blurb}
-						placeholder="The working machine — 100 built-in stitches, six one-step buttonholes."
+						placeholder="The working machine: 100 built-in stitches, six one-step buttonholes."
 						aria-invalid={errors.blurb ? 'true' : undefined}
 						aria-describedby="doc-blurb-help {errors.blurb ? 'doc-blurb-error' : ''}"
 						required></textarea>

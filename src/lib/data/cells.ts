@@ -58,7 +58,7 @@ const CELL_META: Array<Omit<ToolCell, 'tools'>> = [
 		name: 'Sewing cell',
 		captain: null,
 		travels:
-			'Machine in its case, notions boxed, every bit marked as part of the set. If the kit cannot be repacked and rolling in ten minutes, something is missing — tell a keyholder.',
+			'Machine in its case, notions boxed, every bit marked as part of the set. If the kit cannot be repacked and rolling in ten minutes, something is missing, tell a keyholder.',
 	},
 	{
 		slug: 'network',

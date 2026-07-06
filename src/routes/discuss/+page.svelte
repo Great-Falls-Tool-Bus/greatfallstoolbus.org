@@ -72,7 +72,7 @@
 		>
 			<h2 class="text-xl font-semibold">Read the board</h2>
 			<p class="text-surface-700 dark:text-surface-300 mt-3">
-				The full archive is open to read — recent threads are below.
+				The full archive is open to read. Recent threads are below.
 			</p>
 
 			<DiscussThreads {snapshot} />
@@ -101,7 +101,7 @@
 			<p class="text-surface-500 text-xs tracking-widest uppercase">Coming soon</p>
 			<h2 class="mt-2 text-xl font-semibold">The board is not open yet</h2>
 			<p class="text-surface-700 dark:text-surface-300 mt-3">
-				We are still setting it up. When it is ready, this page links straight to the archive — check back soon.
+				We are still setting it up. When it is ready, this page links straight to the archive. Check back soon.
 			</p>
 			<p class="text-surface-700 dark:text-surface-300 mt-4">
 				To reach a person now, use

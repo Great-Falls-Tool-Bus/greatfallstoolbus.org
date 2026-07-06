@@ -165,7 +165,8 @@ files, so they can never drift apart.
 Inventory doctrine: every entry resolves to a real model number with a
 manufacturer manual or datasheet link (no invented product names, ever). A
 tool that is not yet resolved gets honestly framed in its `blurb`, like the
-treadle Singer. New cells register a slug in `src/lib/data/tool-schema.ts`
+serger the bus still wants. New cells register a slug in
+`src/lib/data/tool-schema.ts`
 (`CELL_SLUGS`) and their captain/travel doctrine in `$lib/data/cells.ts`
 (`CELL_META`).
 
