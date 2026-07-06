@@ -110,7 +110,5 @@
 		</aside>
 	{/if}
 
-	<footer class="text-surface-500 pt-12 text-sm">
-		Be kind, be useful, and help a neighbor build something.
-	</footer>
+	<footer class="text-surface-500 pt-12 text-sm">Be kind, be useful, and help a neighbor build something.</footer>
 </main>
