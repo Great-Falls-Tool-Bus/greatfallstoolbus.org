@@ -2,8 +2,7 @@ name: Production Health
 
 # Credential-free production health probe for greatfallstoolbus.org (TIN-2401).
 #
-# The apex, www, and the greatfallstoolbus-org.pages.dev origin are all served
-# BEHIND a Cloudflare Access gate (see docs/decisions hosting posture + the
+# The apex and www hostnames are served BEHIND a Cloudflare Access gate (see docs/decisions hosting posture + the
 # great-falls-tool-bus-infra tofu/stacks/edge zero-trust apps). A naive HTTP-200
 # health check would FAIL against a healthy site, because an unauthenticated
 # request is answered with a 302 to *.cloudflareaccess.com/cdn-cgi/access/login.
@@ -46,13 +45,14 @@ jobs:
       - name: Probe gated production hostnames
         env:
           # Space-separated list of hostnames that MUST answer with the Access
-          # login 302. apex + www are zone-bound Access apps; the pages.dev origin
-          # is an account-level Access app covering the Pages project (all three
-          # are declared in great-falls-tool-bus-infra tofu/stacks/edge).
+          # login 302. apex + www are zone-bound Access apps (declared in
+          # great-falls-tool-bus-infra tofu/stacks/edge), serving from the
+          # on-cluster origin via the honey-ingress tunnel since the ADR 0010
+          # cutover (2026-07-06). The retired pages.dev origin probe left with
+          # the Pages lane (this PR).
           HOSTS: >-
             greatfallstoolbus.org
             www.greatfallstoolbus.org
-            greatfallstoolbus-org.pages.dev
           # Cloudflare Access team domain the gate must redirect to.
           EXPECT_REDIRECT_SUBSTR: cloudflareaccess.com/cdn-cgi/access/login
         run: |

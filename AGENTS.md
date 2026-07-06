@@ -351,18 +351,22 @@ and [`docs/decisions/dynamic-canary-blue-green.md`](docs/decisions/dynamic-canar
 A dynamic spoke is `app-stateful-spoke`, so the static-spoke boundary block does NOT
 constrain it, re-check `boundaries` in `tinyland.repo.json` after flipping.
 
-**Deploy lane (GFTB = Cloudflare Pages).** This repo has taken the sanctioned
-Cloudflare Pages opt-in for org/edge spokes. `.github/workflows/deploy-pages.yml`
-is a thin wrapper around
-`tinyland-inc/ci-templates/.github/workflows/spoke-deploy-cloudflare-pages.yml@v2.10.0`.
-The shared lane builds the static `build/` with the house `nix develop --command
-just` entrypoints and deploys with Wrangler when org-provisioned
-`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` secrets exist. PRs build only;
-missing secrets skip deployment with a notice. Blahaj/the org overlay own DNS,
-Access, and Tunnel; this public repo never stores CF credentials or edge apply
-authority. The scaffold default remains GitHub Pages for personal/static spokes;
-GFTB's accepted override is ADR 0003 and
-[`docs/deploy/cloudflare-pages.md`](docs/deploy/cloudflare-pages.md).
+**Deploy lane (GFTB = on-cluster, `adapter-node`).** ADR 0010
+([`docs/decisions/0010-on-prem-is-the-production-host.md`](docs/decisions/0010-on-prem-is-the-production-host.md),
+executed 2026-07-06) retired the Cloudflare Pages opt-in this section used to
+describe: `.github/workflows/deploy-pages.yml` has been removed. Production
+now serves on-cluster behind the `cloudflared` tunnel — `adapter-node` -> OCI
+image (`.github/workflows/container-ghcr.yml` -> GHCR) -> K8s Deployment in
+`great-falls-tool-bus-infra`. This public repo still never stores CF
+credentials or edge-apply authority; Blahaj/the org overlay own DNS, Access,
+Tunnel, and the image pin. Cloudflare Pages is retained only as a short
+rollback-window standby (ADR 0010 §3, until ~2026-07-08) — see
+[`docs/deploy/cloudflare-pages.md`](docs/deploy/cloudflare-pages.md)
+(historical) and
+[`docs/runbooks/cf-pages-rollback.md`](docs/runbooks/cf-pages-rollback.md)
+(rollback procedure while the window holds). The scaffold default remains
+GitHub Pages for personal/static spokes; GFTB's history of overrides is ADR
+0003 (Cloudflare Pages) then ADR 0010 (on-cluster).
 
 **Dynamic deploy lane.** A `--adapter=node` spoke does NOT use the Pages lane. Its
 deploy is **blue/green via the Blahaj GitOps receiver** (build a server image →
