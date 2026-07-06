@@ -19,14 +19,13 @@ WHAT WE NEED RIGHT NOW
 GET ACCESS
 ----------
 Reach out, a keyholder answers. Keyholders vet requests and share
-the bus location directly. The keyholders mailing list and contact
-form are being built -- until they open, watch:
+the bus location directly. Use the contact form:
 
-    https://greatfallstoolbus.org
+    https://greatfallstoolbus.org/contact
 
 WHO
 ---
-Alex (founder) * Ripley (founding supporter) * Joe (Lewiston
+Alex (founder) * Ripley (founding supporter) * J. (Lewiston
 alderman -- the bus lives on his property) * Jess Sullivan
 (webmaster & mail admin) * and the initial tool donors.
 
