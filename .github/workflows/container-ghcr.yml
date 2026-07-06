@@ -58,6 +58,11 @@ jobs:
   build-push:
     name: Build + push adapter-node image (daemonless nix)
     runs-on: tinyland-nix
+    outputs:
+      # 'true' only when the GF-core credential gate activated the build (image
+      # was actually built + pushed). The signal-cd job below deploys ONLY when
+      # this is 'true', so a credential-gated no-op never dispatches a deploy.
+      published: ${{ steps.gfcore.outputs.available }}
     steps:
       - name: Check GloriousFlywheel core credential
         id: gfcore
@@ -115,3 +120,99 @@ jobs:
             export GF_CORE_PATH=../GloriousFlywheel
             export GF_CORE_CI_PATH=../GloriousFlywheel#ci
             nix develop ../GloriousFlywheel#ci -c just container-image-publish
+
+  # CONTINUOUS DEPLOYMENT SIGNAL (merge-on-green == live). This repo SIGNALS; the
+  # infra repo APPLIES. After a green main image build+push, resolve the pushed
+  # @sha256 digest and fire a repository_dispatch (web-image-published) to
+  # great-falls-tool-bus-infra, whose web-stack.yml re-verifies CI-green and then
+  # applies. The security boundary is unchanged: this public repo still holds NO
+  # cluster/edge creds — only a cross-repo dispatch token. FAIL-SOFT: if
+  # INFRA_CD_DISPATCH_TOKEN is absent the job skips with a ::notice:: (same idiom
+  # as the GF-core credential gate above), so main stays green until the operator
+  # provisions the token; manual web-stack dispatch remains the deploy path.
+  signal-cd:
+    name: Signal infra CD (repository_dispatch)
+    needs: build-push
+    # Only a real, freshly-pushed main image signals a deploy: main ref + the
+    # build job succeeded AND actually published (credential gate was active).
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      needs.build-push.result == 'success' &&
+      needs.build-push.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Resolve pushed digest + dispatch deploy signal (fail-soft on absent token)
+        env:
+          INFRA_CD_DISPATCH_TOKEN: ${{ secrets.INFRA_CD_DISPATCH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${INFRA_CD_DISPATCH_TOKEN:-}" ]]; then
+            echo "::notice::INFRA_CD_DISPATCH_TOKEN not provisioned; skipping the infra CD signal (fail-soft). Continuous deployment stays inert until the operator adds the token — manual great-falls-tool-bus-infra web-stack dispatch remains the deploy path."
+            exit 0
+          fi
+
+          owner_lc="$(printf '%s' "${OWNER}" | tr '[:upper:]' '[:lower:]')"
+          image_ref="ghcr.io/${owner_lc}/greatfallstoolbus.org"
+          tag="sha-${COMMIT_SHA}"
+
+          # Resolve the @sha256 digest just pushed for ${tag}. Primary: the GHCR
+          # registry manifest (strongly consistent immediately after the push).
+          # Fallback: the GH package-versions API. Both read-only, ambient
+          # GITHUB_TOKEN (packages:read).
+          resolve_via_registry() {
+            local bearer
+            bearer="$(printf '%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
+            curl -sSL -o /dev/null -D - \
+              -H "Authorization: Bearer ${bearer}" \
+              -H "Accept: application/vnd.oci.image.index.v1+json" \
+              -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+              -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+              -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+              "https://ghcr.io/v2/${owner_lc}/greatfallstoolbus.org/manifests/${tag}" \
+              | tr -d '\r' | awk -F': ' 'tolower($1)=="docker-content-digest"{print $2}'
+          }
+          resolve_via_api() {
+            GH_TOKEN="${GITHUB_TOKEN}" gh api \
+              "orgs/${OWNER}/packages/container/greatfallstoolbus.org/versions?per_page=100" \
+              --jq "[.[] | select(.metadata.container.tags[]? == \"${tag}\")][0].name // \"\"" 2>/dev/null || true
+          }
+
+          digest=""
+          for attempt in 1 2 3 4 5; do
+            digest="$(resolve_via_registry || true)"
+            [[ -n "${digest}" ]] && break
+            digest="$(resolve_via_api || true)"
+            [[ -n "${digest}" ]] && break
+            echo "digest not resolvable yet for ${image_ref}:${tag} (attempt ${attempt}); retrying..."
+            sleep 6
+          done
+
+          if [[ -z "${digest}" ]]; then
+            echo "::error::could not resolve the @sha256 digest for ${image_ref}:${tag} from GHCR; the build reported success but the digest is not queryable. Not dispatching a deploy."
+            exit 1
+          fi
+
+          image="${image_ref}@${digest}"
+          echo "Resolved pushed image: ${image}"
+
+          # Build the nested client_payload as JSON (unambiguous) and POST the
+          # repository_dispatch using the cross-repo token (contents:write on the
+          # infra repo). event_type + client_payload contract must match
+          # great-falls-tool-bus-infra web-stack.yml.
+          payload="$(jq -n \
+            --arg image "${image}" \
+            --arg sha "${COMMIT_SHA}" \
+            --arg replicas "2" \
+            '{event_type:"web-image-published", client_payload:{image:$image, sha:$sha, replicas:$replicas}}')"
+
+          printf '%s' "${payload}" | GH_TOKEN="${INFRA_CD_DISPATCH_TOKEN}" gh api \
+            -X POST "repos/${OWNER}/great-falls-tool-bus-infra/dispatches" --input -
+
+          echo "::notice::Signaled great-falls-tool-bus-infra (web-image-published) to deploy ${image} for ${COMMIT_SHA}. The infra CD path re-checks CI-green before applying."
