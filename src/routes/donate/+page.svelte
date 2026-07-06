@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { base } from '$app/paths';
-	// Row (h): tool donations are the headline ask. The "what we need now"
-	// section pulls from the same wants tree as /wants so this page can never
-	// invent a gap that isn't real, and never drift from the honest list.
+	// Tools are the headline ask, and there are two ways to give one: donate it
+	// outright, or lend it and stay the owner (you can take it back). The "what
+	// we need now" section pulls from the same wants tree as /wants so this page
+	// can never invent a gap that isn't real, and never drift from the honest list.
 	import { wants } from '$lib/data/cells';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Card from '$lib/components/Card.svelte';
@@ -28,14 +29,14 @@
 	<title>Donate a tool | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="We suggest tool donations, particularly complex, large, or heavy tools with many little bits and bobs. Transportable, marked, repairable."
+		content="Give a tool to the bus, or lend it and stay the owner — you can take it back. Complex, large, or heavy tools especially. Transportable, marked, repairable."
 	/>
 </svelte:head>
 
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
 	<PageHeader
 		title="Donate a tool"
-		lead="Tools are what we need most. We especially welcome the ones that are hard to own alone: complex, large, heavy, or blessed with many little bits and bobs."
+		lead="Tools are what we need most — the ones that are hard to own alone: complex, large, heavy, or blessed with many little bits and bobs. Give one outright, or lend it and stay its owner. Either way it goes to work."
 		icon={Gift}
 	/>
 
@@ -53,8 +54,21 @@
 		</section>
 	{/if}
 
-	<section class="mt-12" aria-label="Before you donate">
-		<h2 class="text-2xl font-semibold">Before you donate, walk it through three questions</h2>
+	<section class="mt-12" aria-label="Give it, or lend it">
+		<h2 class="text-2xl font-semibold">Give it, or lend it — your call</h2>
+		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
+			Donating outright is the simplest path, and for a tool you are done with, the best one. But you do not have to
+			give up ownership to put a tool to work. You can make a tool available to the bus and stay its owner: lend it, let
+			a cell run it, and take it back whenever you need it. For a big or expensive tool, lending is often the right fit.
+		</p>
+		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
+			Given or lent, a tool goes through the same three questions below and the same keyholder hand-off. Tell us which
+			one you mean when you reach out, and we will sort out the details together.
+		</p>
+	</section>
+
+	<section class="mt-12" aria-label="Before you hand one over">
+		<h2 class="text-2xl font-semibold">Before you hand one over, walk it through three questions</h2>
 		<dl class="mt-6 space-y-4">
 			{#each checklist as item (item.q)}
 				<div>
@@ -68,8 +82,8 @@
 	<section class="border-surface-200-800 mt-12 border-t pt-8" aria-label="Arrange the hand-off">
 		<h2 class="text-2xl font-semibold">Arrange the hand-off</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
-			Ready to hand off a tool, or want to talk through whether yours is a fit? Reach a keyholder. That is the whole
-			process.
+			Ready to hand off a tool — for good or on loan — or want to talk through whether yours is a fit? Reach a
+			keyholder. That is the whole process.
 		</p>
 		<a
 			class="bg-primary-500 hover:bg-primary-600 mt-4 inline-block px-5 py-2.5 text-sm font-semibold text-white transition-colors"
