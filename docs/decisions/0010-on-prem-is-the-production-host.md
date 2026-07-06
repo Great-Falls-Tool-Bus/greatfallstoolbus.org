@@ -181,3 +181,116 @@ Amendment 2) are likewise unaffected.
   cutover plan; the cutover steps in §5 are operator + overlay work and are not
   applied by this document. On-prem is the **accepted** host; it is not claimed
   **live** until the operator completes §5.
+
+## Amendment 1 — §2 & §7: adapter-node is the production serving mode (AMENDED 2026-07-06, operator decision; TIN-2543)
+
+**Superseded text (retained per the no-silent-rewrite rule):**
+
+> ~~**adapter-static is the primary path.** The site is a static spoke
+> (`owns_runtime_backend=false`), and its accepted host is the static `build/`
+> output served by a simple in-cluster static file server. This keeps the
+> static-spoke contract intact: no Node runtime, no server state, no new backend
+> authority. The on-cluster origin is a plain internal Service fronted by the
+> tunnel; it is the same immutable `build/` artifact Cloudflare Pages serves
+> today, just served from the cluster instead of the CDN.~~
+>
+> ~~**adapter-node remains viable, reserved for a future genuine server need.**
+> The `adapter-node -> OCI image -> K8s -> cloudflared` path (0008 §3, the
+> MassageIthaca house standard) already builds and publishes from this repo
+> (`docs/deploy/oncluster-container-readiness.md`). It is retained as the
+> sanctioned path **if and when** GFTB acquires a real runtime need (a
+> secret-holding proxy, thin API routes, upstream normalization). Adopting a Node
+> server for a site that has no runtime requirement would be gratuitous, so the
+> static surface takes the static path. This does not weaken 0008: the MI pattern
+> stays the house standard for genuinely dynamic surfaces; GFTB's static-
+> production surface simply does not need it.~~
+>
+> ~~**Correction to 0008 §3 as applied to GFTB's static surface:** 0008 named
+> `adapter-node` as the shape for "every on-cluster GFTB web surface." For the
+> static-production surface that is narrowed here to **adapter-static served by a
+> static file server**; adapter-node is the reserved future path, not the default
+> for a site with no server need.~~
+
+> ~~Because the primary path is adapter-static (not adapter-node), the
+> static-spoke boundary block is **not** disturbed by this ruling; no
+> `owns_container_image_production` flip is required for the static surface
+> (0008 §6 flagged that flip only for the adapter-node shape, which the static
+> surface does not take).~~ (§7, second bullet)
+
+**Replacement — adapter-node is the production serving mode:**
+
+The operator ruled (2026-07-05, **reaffirmed 2026-07-06**, verbatim: *"none of
+this site should be CF pages served, that was shot down in favor of
+adapter-node"*) that GFTB's on-cluster production surface runs **adapter-node**,
+not a static file server. §2's "adapter-static primary / adapter-node reserved"
+framing — including its "Correction to 0008 §3" paragraph, quoted above — is
+**superseded**: 0008's original framing (`adapter-node` as the shape for
+on-cluster GFTB web) turns out to be the shipped shape after all, once the
+operator ruled out any CF-Pages-served lane, interim or long-term, entirely —
+not narrowed to a case-by-case "genuine server need" test.
+
+adapter-static is retained only as:
+
+1. the build target for the deprecated, spinning-down interim Cloudflare Pages
+   lane (`deploy-pages.yml`, §3/§5), until that project is deleted; and
+2. a local/CI fallback build (`just build` with no `ADAPTER` set stays green
+   against the frozen lockfile, so the default gates never regress).
+
+Every build-active artifact since this ADR's Accepted date confirms adapter-node
+as the shipped shape, not a reserved future path:
+
+- The GHCR image is built `ADAPTER=node` via `nix2container`
+  (`.github/workflows/container-ghcr.yml`;
+  `docs/deploy/oncluster-container-readiness.md`).
+- The infra web Deployment runs that image today
+  (`great-falls-tool-bus-infra:k8s/web/greatfallstoolbus-org-production/`, infra
+  PR #60): digest-pinned, `replicas: 0 -> 2`, readiness/liveness `httpGet
+  /health` probes.
+- The `/health` probe route and the `PUBLIC_ARCHIVE_LIVE` build-time flag are
+  baked into that node image (site PR #111); the probe target
+  (`node build/index.js` serving `GET /health` live) is adapter-node-specific.
+- `/discuss` does a build-time in-cluster fetch of the HyperKitty archive (site
+  PR #113, wired in PR #114), with a documented, deliberate post-cutover flip to
+  **per-request SSR** once adapter-node is the served origin (PR #114: *"Post-
+  cutover (TIN-2543, adapter-node) the `prerender` flip makes this per-request
+  live — deliberately NOT done here."*). Per-request SSR against a live
+  in-cluster origin is a capability a plain static file server structurally
+  cannot provide; it requires a running Node process.
+- **MassageIthaca parity**: the same `adapter-node -> OCI image -> K8s ->
+  cloudflared` shape 0008 §1 established as the house on-cluster pattern is what
+  GFTB now ships.
+
+**Boundary-schema note, flagged not applied (mirrors 0008 §6's own
+convention):** if/when the operator formalizes the container-producing shape in
+the schema, `tinyland.repo.json` would gain `owns_container_image_production=true`
+for the reason 0008 §6 already named — `owns_gitops_apply` and
+`owns_cloudflare_mutation` still stay false; the overlay still owns the pin and
+apply. This amendment flags it; it does not change the schema file.
+
+**§7 replacement:** the boundary reasoning tied to "the primary path is
+adapter-static (not adapter-node)" no longer holds — the primary path *is*
+adapter-node. §7's other posture claims (zero secrets/endpoints in the public
+tree; DNS, Access, Tunnel ingress, and manifests staying in
+`great-falls-tool-bus-infra` / blahaj) are unaffected by the adapter-mode
+correction and still stand as written.
+
+**What this amendment does not change:** §1 (on-prem is the host of record),
+§3 (Cloudflare Pages spins down, warm only for the cutover window), §4 (previews
+move to the on-cluster reaper), §5 (the cutover checklist — none of its seven
+steps name an adapter mode; they describe the Deployment/DNS/Access mechanics
+generically and already match adapter-node operationally, so no wording there
+implies a static-file-server origin), §6 (the Access gate is unaffected), and
+§8's "not yet applied" caveat (the DNS/Access cutover in §5 remains
+operator-gated pending; this amendment corrects the *serving-mode* decision, not
+a claim that the cutover is live) all stand as written.
+
+**Citations:** site PR #111 (`feat(oncluster): /health probe + bake
+PUBLIC_ARCHIVE_LIVE into node image (TIN-2543)`), site PR #113 (`feat(discuss):
+in-cluster HyperKitty fetch for the discuss@ archive snapshot`), site PR #114
+(`feat(discuss): wire live in-cluster archive fetch into the /discuss load
+(TIN-2528)`), infra PR #60 (`feat(web): ADR 0010 on-cluster cutover — pin
+digest, replicas 0->2, /health probes (TIN-2543)`).
+
+**Operator decision:** 2026-07-05, reaffirmed 2026-07-06, verbatim: *"none of
+this site should be CF pages served, that was shot down in favor of
+adapter-node."*
