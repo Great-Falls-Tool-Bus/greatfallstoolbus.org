@@ -16,7 +16,11 @@ import type { EntryGenerator, PageServerLoad } from './$types';
 // never throws), so entries yields [] and the route simply prerenders no pages —
 // the build MUST NOT fail off-cluster. Post-cutover (adapter-node) flipping
 // prerender off makes this a live per-request read with no other change.
-export const prerender = true;
+// Adapter-conditional like the index (TIN-2559): live per-request reads under
+// the ADAPTER=node production image; prerendered thread pages (via entries())
+// under the default adapter-static build. entries() is only consulted when
+// prerendering, so it needs no guard of its own.
+export const prerender = process.env.ADAPTER !== 'node';
 
 export const entries: EntryGenerator = async () => {
 	const snapshot = await fetchDiscussSnapshot({ origin: env.DISCUSS_ARCHIVE_ORIGIN || undefined });
