@@ -4,15 +4,19 @@ import type { DiscussSnapshot } from '$lib/data/discuss-snapshot';
 import { fetchDiscussSnapshot } from '$lib/server/discuss-archive';
 
 // Server load (not universal): the fetch module is $lib/server-only, so this
-// wiring lives in +page.server.ts. With prerender=true the fetch runs at BUILD
-// time — the tinyland-nix builder is in-cluster and reaches the HyperKitty web
-// tier directly (netpol: great-falls-tool-bus-infra #61), so every deploy bakes
-// a fresh REAL thread index. Off-cluster builds (local dev, forks) fall back to
-// the module's default EMPTY snapshot with a loud console warning — the page
-// renders its honest empty state, never invented content. Post-cutover
-// (TIN-2543, adapter-node) flipping prerender off makes this a per-request live
-// fetch with zero further changes — that flip is a deliberate operator step.
-export const prerender = true;
+// wiring lives in +page.server.ts.
+//
+// PRERENDER IS ADAPTER-CONDITIONAL (TIN-2559, the post-cutover flip). Under
+// the ADAPTER=node production image the route is NOT prerendered: adapter-node
+// serves it per-request, so the in-cluster fetch runs live and new list posts
+// appear without a redeploy (the netpol allowance for the site namespace,
+// great-falls-tool-bus-infra #61, is what makes the request-time read work).
+// Under the default adapter-static build (local dev, CI gates) prerender stays
+// on — adapter-static requires prerenderable routes — and off-cluster builds
+// fall back to the module's default EMPTY snapshot with a loud warning: honest
+// empty state, never invented content. ADAPTER is the same build-time switch
+// svelte.config.js keys the adapter choice on.
+export const prerender = process.env.ADAPTER !== 'node';
 
 // SINGLE SWAP POINT, now wired to the real data plane (supersedes the fixture
 // inline load and the earlier committed-snapshot-JSON pipeline plan). The
