@@ -7,10 +7,9 @@
 	// (theme.isDark), so it reads correctly whether the user picked an explicit
 	// mode or is on `system`. Flipping it always sets an explicit light/dark.
 	//
-	// A tiny secondary "auto" dot keeps `system` reachable after the user has
-	// chosen an explicit mode; new visitors default to `system` (store default),
-	// so the auto dot starts active. This is NOT a menu: it is one toggle plus
-	// one reset affordance.
+	// New visitors default to `system` (store default), so the switch follows the
+	// OS color scheme until the user flips it, at which point an explicit
+	// light/dark is persisted. This is a single two-state toggle, not a menu.
 	//
 	// Reduced motion: the sliding/crossfade transitions collapse to an instant
 	// state change via the global `prefers-reduced-motion` rule in src/app.css
@@ -19,10 +18,6 @@
 
 	function toggle() {
 		theme.setMode(theme.isDark ? 'light' : 'dark');
-	}
-
-	function useSystem() {
-		theme.setMode('system');
 	}
 </script>
 
@@ -43,19 +38,6 @@
 				<Moon class="theme-slider__glyph theme-slider__glyph--moon" aria-hidden="true" />
 			</span>
 		</span>
-	</button>
-
-	<button
-		type="button"
-		class="theme-slider__auto"
-		class:is-active={theme.mode === 'system'}
-		aria-pressed={theme.mode === 'system'}
-		aria-label="Use system color scheme"
-		title="Match system color scheme"
-		onclick={useSystem}
-	>
-		<span class="theme-slider__auto-dot" aria-hidden="true"></span>
-		<span class="theme-slider__auto-label">auto</span>
 	</button>
 </div>
 
@@ -151,55 +133,5 @@
 	.theme-slider__switch:focus-visible {
 		outline: 2px solid var(--color-primary-500);
 		outline-offset: 2px;
-	}
-
-	/* ── Auto (system) reset ────────────────────────────────────────── */
-	.theme-slider__auto {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.3rem;
-		padding: 0.15rem 0.4rem;
-		border: 1px solid transparent;
-		border-radius: 0;
-		background: none;
-		cursor: pointer;
-		/* surface-600/400 (paired) clears WCAG AA at this 11px small-caps size,
-		   where a flat surface-500 sat just under the contrast floor. */
-		color: light-dark(var(--color-surface-600), var(--color-surface-400));
-		font-size: 0.6875rem;
-		line-height: 1;
-		letter-spacing: 0.02em;
-		transition:
-			color 200ms ease,
-			border-color 200ms ease,
-			background-color 200ms ease;
-	}
-	.theme-slider__auto:hover {
-		color: light-dark(var(--color-surface-700), var(--color-surface-300));
-	}
-	.theme-slider__auto.is-active {
-		color: var(--color-primary-500);
-		border-color: color-mix(in oklch, var(--color-primary-500) 40%, transparent);
-		background: color-mix(in oklch, var(--color-primary-500) 12%, transparent);
-	}
-	.theme-slider__auto:focus-visible {
-		outline: 2px solid var(--color-primary-500);
-		outline-offset: 2px;
-	}
-
-	.theme-slider__auto-dot {
-		width: 7px;
-		height: 7px;
-		border-radius: 0;
-		background: currentColor;
-		opacity: 0.55;
-		transition: opacity 200ms ease;
-	}
-	.theme-slider__auto.is-active .theme-slider__auto-dot {
-		opacity: 1;
-	}
-
-	.theme-slider__auto-label {
-		font-variant: small-caps;
 	}
 </style>
