@@ -48,6 +48,51 @@ export interface DiscussSnapshot {
 	fixture?: boolean;
 }
 
+// --- On-site thread reader contract (TIN-2528) ------------------------------
+// The /discuss index renders excerpts (DiscussThread above); the /discuss/[thread]
+// reader renders the FULL conversation on-site so a reader is never dumped into
+// unstyled HyperKitty/Postorius. The server data plane
+// ($lib/server/discuss-archive) fetches, sanitizes and privacy-gates a thread
+// into this exact shape; the reader page renders it and never sees a raw address.
+
+/** One quotation-aware paragraph of a message body. */
+export interface DiscussMessageBlock {
+	/** 0 = the sender's own prose; 1+ = nested reply-quotation depth. The reader
+	 *  renders depth via indentation + muted ink — never a side-stripe border. */
+	quoteLevel: number;
+	/** Sanitized plain-text paragraph: HTML/signature stripped, inline addresses
+	 *  neutralized (`foo@bar.com` → `foo@…`), the public list address exempt. */
+	text: string;
+}
+
+/** One message inside a thread — a sanitized, privacy-safe rendering unit. */
+export interface DiscussThreadMessage {
+	/** Stable HyperKitty message-id hash. */
+	id: string;
+	/** Display name of the sender — a name only, never an address. */
+	senderName: string;
+	/** ISO 8601 timestamp the message was sent. */
+	sentAt: string;
+	/** Body as ordered, quotation-aware paragraphs. Empty for a body-less message. */
+	body: DiscussMessageBlock[];
+}
+
+/** A single thread rendered in full on-site — the reader-page contract. */
+export interface DiscussThreadDetail {
+	/** Stable HyperKitty thread id (matches DiscussThread.threadId). */
+	threadId: string;
+	/** Thread subject, list prefix stripped. */
+	subject: string;
+	/** ISO 8601 timestamp of the first message. */
+	startedAt: string;
+	/** ISO 8601 timestamp of the most recent message. */
+	lastActiveAt: string;
+	/** Distinct participant count. */
+	participantsCount: number;
+	/** Messages in chronological (oldest-first) reading order. */
+	messages: DiscussThreadMessage[];
+}
+
 /** Threads sorted newest-activity-first (most recent `lastActiveAt` on top). */
 export const sortByLastActiveDesc = (threads: DiscussThread[]): DiscussThread[] =>
 	[...threads].sort((a, b) => new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime());
