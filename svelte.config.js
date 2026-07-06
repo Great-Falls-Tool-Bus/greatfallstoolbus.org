@@ -18,9 +18,12 @@ const modernMdsvexPreprocess = {
 // On-cluster readiness (TIN-2541). The build default is unchanged: adapter-static
 // -> Cloudflare Pages, DB-less, no edge auth. Setting ADAPTER=node selects
 // @sveltejs/adapter-node so the same source can be served in-cluster as
-// `node build/index.js` (see ContainerFile). On-cluster is now the accepted
-// direction: ADR 0008 (Accepted) supersedes ADR 0003 for production hosting.
-// adapter-static stays the current default build until the cutover applies.
+// `node build/index.js` (see ContainerFile). adapter-node is the decided
+// production serving mode (ADR 0010, Accepted 2026-07-05; Amendment 1,
+// 2026-07-06): Cloudflare Pages, including this build default, is the
+// deprecated interim lane, spinning down per ADR 0010 §3. adapter-static stays
+// the default `just build` output only for that interim lane and as a
+// local/CI fallback.
 //
 // adapter-node is now a committed devDependency (TIN-2543, MassageIthaca parity
 // @sveltejs/adapter-node ^5.5.7): package.json and pnpm-lock.yaml carry it, and
