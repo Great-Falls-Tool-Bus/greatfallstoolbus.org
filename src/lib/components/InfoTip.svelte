@@ -14,7 +14,7 @@
 
 <Tooltip openDelay={200} closeDelay={150} positioning={{ placement: 'top' }}>
 	<Tooltip.Trigger
-		class="text-surface-500 hover:text-primary-600 focus-visible:text-primary-600 inline-flex translate-y-[0.1em] items-center align-baseline transition-colors"
+		class="text-surface-500 hover:text-primary-600 focus-visible:text-primary-600 inline-flex translate-y-[0.1em] items-center align-baseline p-1.5 -m-1.5 transition-colors"
 		aria-label={label}
 	>
 		<Info class="h-[1em] w-[1em]" aria-hidden="true" />
