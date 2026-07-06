@@ -18,9 +18,9 @@
 //
 // OFF-CLUSTER (local dev, fork CI): the Service DNS does not resolve, so the
 // fetch fails fast and `fetchDiscussSnapshot` returns the caller-supplied
-// fallback (the route's committed fixture) with a loud console warning. It
-// NEVER throws out of `fetchDiscussSnapshot`, so a build off-cluster still
-// succeeds against the fixture.
+// fallback (default: an EMPTY snapshot — the UI renders its honest empty
+// state, never invented content) with a loud console warning. It NEVER throws
+// out of `fetchDiscussSnapshot`, so a build off-cluster still succeeds.
 //
 // PRIVACY (hard invariants, enforced in `assertSnapshotIsPublicSafe`):
 //   - discuss@latoolb.us ONLY. The private keyholders@ list must never appear.
@@ -28,28 +28,14 @@
 //     `name (a) host` obfuscation, may survive into the payload.
 //   - excerpts are plain text, quote/signature-stripped, capped at 280 chars.
 // Any breach hard-fails the build of the snapshot (throws inside the fetch,
-// which is caught and downgraded to the fixture fallback) rather than emitting
-// a partial or leaky payload.
+// which is caught and downgraded to the fallback) rather than emitting a
+// partial or leaky payload.
 
-export type DiscussThread = {
-	threadId: string;
-	subject: string;
-	startedAt: string;
-	lastActiveAt: string;
-	repliesCount: number;
-	participantsCount: number;
-	starterName: string;
-	url: string;
-	excerpt: string;
-};
-
-export type DiscussSnapshot = {
-	generatedAt: string;
-	list: string;
-	archiveUrl: string;
-	threadCount: number;
-	threads: DiscussThread[];
-};
+// One type source: the UI-facing contract in $lib/data/discuss-snapshot is
+// canonical; this module consumes and re-exports it (the mapper always emits
+// `excerpt`, which is assignable to the contract's optional field).
+import type { DiscussSnapshot, DiscussThread } from '$lib/data/discuss-snapshot';
+export type { DiscussSnapshot, DiscussThread };
 
 export type FetchDiscussSnapshotOptions = {
 	/**
@@ -209,7 +195,7 @@ export function assertSnapshotIsPublicSafe(snapshot: DiscussSnapshot): void {
 		if (!thread.url.startsWith(`${PUBLIC_ARCHIVE_BASE}/list/${LIST_ADDRESS}/thread/`)) {
 			throw new DiscussArchiveError(`thread url not anchored to the public discuss archive: ${thread.url}`);
 		}
-		if (thread.excerpt.length > EXCERPT_MAX) {
+		if ((thread.excerpt?.length ?? 0) > EXCERPT_MAX) {
 			throw new DiscussArchiveError(`excerpt exceeds ${EXCERPT_MAX} chars`);
 		}
 	}
