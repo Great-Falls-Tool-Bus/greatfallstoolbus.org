@@ -3,7 +3,16 @@
 	import { MessagesSquare } from '@lucide/svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import ExternalLink from '$lib/components/ExternalLink.svelte';
+	import DiscussThreads from '$lib/components/DiscussThreads.svelte';
 	import { archiveVisible } from '$lib/flags';
+
+	// Snapshot-driven archive index (TIN-2528). The thread data arrives through
+	// the universal load in `+page.ts` (fixture today, swapped for a live
+	// in-cluster HyperKitty fetch later); this page just renders `data.snapshot`
+	// inside the archiveVisible branch. Full bodies stay on the Anubis-gated
+	// archive — the rows deep-link out, and the outbound archive link stays below.
+	let { data } = $props();
+	const snapshot = $derived(data.snapshot);
 
 	// Public community board surface (TIN-2528). This page always exists and
 	// always explains what discuss@ is. What it gates on the fail-closed
@@ -66,15 +75,18 @@
 		>
 			<h2 class="text-xl font-semibold">Read the board</h2>
 			<p class="text-surface-700 dark:text-surface-300 mt-3">
-				The full archive is open to read. Browse threads, follow a conversation, and catch up on what the community is
-				talking about.
+				The full archive is open to read. Recent threads are indexed below — open any one to follow the whole
+				conversation, or browse the complete archive.
 			</p>
-			<p class="mt-5">
+
+			<DiscussThreads {snapshot} />
+
+			<p class="mt-8">
 				<ExternalLink
 					href={ARCHIVE_URL}
 					class="text-primary-600 hover:text-primary-500 font-semibold underline underline-offset-4"
 				>
-					Read the {LIST_ADDRESS} archive
+					Browse the full {LIST_ADDRESS} archive
 				</ExternalLink>
 			</p>
 			<p class="text-surface-500 mt-3 text-sm">

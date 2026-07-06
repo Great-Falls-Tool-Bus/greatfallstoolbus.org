@@ -48,17 +48,24 @@ export interface NavItem {
 // going + credibility (Bibliography, Shout-outs) → reach us (Get access).
 // `navItems` stays the single flat array (DRY); `primary` and `footerGroup`
 // mark where each item renders (see `primaryNavItems` and `footerNavGroups`
-// below). Primary bar: Mission, Tools, Cells, Donate, Get access: the browse →
-// use → give → reach arc a Lewiston neighbor actually needs. TIN-2536 folded
-// the former /access and /find-the-bus surfaces into the single /contact route
-// (reach out → get access → find the bus is one intent), so the primary
-// "Get access" item points at /contact; access-how-to and the request-first
-// location now live as anchored sections there (#access, #find-the-bus).
-// Safety, Wants, Keyholders, Bibliography, Shout-outs, and Operator docs
-// demote to footer groups; /stewards remains a footer-only link hard-coded in
-// +layout.svelte (predates this array). Safety demotes off the primary bar
-// because its docs need careful hand editing before they lead the site; it stays
-// reachable via the footer and sitemap.
+// below). Primary bar: Mission, Tools, Cells, Donate, Get access, and — once the
+// archive is visible — Discuss: the browse → use → give → reach → talk arc a
+// Lewiston neighbor actually needs. That is the ≤6-item cap exactly: 5 primary
+// items always, plus Discuss as the gated 6th (TIN-2528 promoted it from the
+// "Get involved" footer group now that /discuss carries a real on-site thread
+// index, not just an outbound link). The archiveVisible gate is inlined at
+// build, so the bar is 5 items while the archive is hidden and 6 once it is
+// live — never over cap (the AppBar primary <nav> is `lg:flex`, desktop-only;
+// the mobile drawer lists the same items vertically, so there is no 375px fit
+// concern). TIN-2536 folded the former /access and /find-the-bus surfaces into
+// the single /contact route (reach out → get access → find the bus is one
+// intent), so the primary "Get access" item points at /contact; access-how-to
+// and the request-first location now live as anchored sections there (#access,
+// #find-the-bus). Safety, Wants, Keyholders, Bibliography, Shout-outs, and
+// Operator docs demote to footer groups; /stewards remains a footer-only link
+// hard-coded in +layout.svelte (predates this array). Safety demotes off the
+// primary bar because its docs need careful hand editing before they lead the
+// site; it stays reachable via the footer and sitemap.
 export const navItems: NavItem[] = [
 	{ label: 'Mission', href: '/mission', match: ['/mission'], primary: true, icon: Compass },
 	{ label: 'Tools', href: '/tools', match: ['/tools'], primary: true, icon: Hammer },
@@ -82,20 +89,23 @@ export const navItems: NavItem[] = [
 	{ label: 'Operator docs', href: '/docs', match: ['/docs'], footerGroup: 'About', icon: FileText },
 	{ label: 'Get access', href: '/contact', match: ['/contact'], primary: true, icon: KeyRound },
 	// Discuss: the public `discuss@latoolb.us` community board archive (TIN-2528).
-	// GATED behind the fail-closed `archiveVisible` predicate: this nav entry only
-	// appears once the archive is visible, either via gated PREVIEW testing inside
-	// the Access-gated deploy (PUBLIC_ARCHIVE_PREVIEW) or the reserved PUBLIC
-	// go-live (PUBLIC_ARCHIVE_LIVE). Until then the /discuss route still exists and
-	// explains the board is coming, it is simply not advertised in nav and carries
-	// no outbound link. The conditional spread means a false predicate is inlined
-	// at build and the item is dead-code-eliminated from the bundle.
+	// PROMOTED to the primary bar as the 6th item (the on-site thread index makes
+	// it a first-class browse surface, not a footer link) — see the ≤6 accounting
+	// in the block above. It stays GATED behind the fail-closed `archiveVisible`
+	// predicate: this entry only appears once the archive is visible, via gated
+	// PREVIEW testing inside the Access-gated deploy (PUBLIC_ARCHIVE_PREVIEW) or
+	// the reserved PUBLIC go-live (PUBLIC_ARCHIVE_LIVE). Until then the /discuss
+	// route still exists and explains the board is coming, it is simply not
+	// advertised in nav. The conditional spread means a false predicate is inlined
+	// at build and the item is dead-code-eliminated from the bundle — so the
+	// primary bar is 5 items while gated and 6 once visible, never over cap.
 	...(archiveVisible
 		? [
 				{
 					label: 'Discuss',
 					href: '/discuss',
 					match: ['/discuss'],
-					footerGroup: 'Get involved',
+					primary: true,
 					icon: MessagesSquare,
 				} satisfies NavItem,
 			]
