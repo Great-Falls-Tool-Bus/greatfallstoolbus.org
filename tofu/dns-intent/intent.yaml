@@ -1,12 +1,18 @@
 # tofu/dns-intent/intent.yaml — DECLARATIVE DNS intent (Cloudflare house plane)
 #
-# TIN-2360 rows (b)/(g); prep tracked on TIN-2366.
+# TIN-2360 rows (b)/(g); prep tracked on TIN-2366; record set reconciled to
+# TIN-2378 (NS cutover, closed Done 2026-07-03) and TIN-2543 (apex+www
+# on-cluster tunnel cutover, applied 2026-07-06).
 # This file is intent documentation only. Nothing in this repo applies it.
-# Apply authority is the org apply-plane overlay great-falls-tool-bus-infra
-# (tofu/stacks/edge-dns, zone-scoped Cloudflare token per TIN-2385; packet
-# 0001 Amendment 1 re-homed apply from blahaj). The exact API steps are in
-# that repo's docs/edge-apply-runbook.md (docs/runbooks/dns-apply.md here is
-# a pointer stub) and the operator verification surface is
+# Apply authority is the org apply-plane overlay great-falls-tool-bus-infra,
+# specifically tofu/stacks/edge — the TIN-2385 zone-scoped-token realization
+# and the stack actually applying the live records below. Its sibling
+# tofu/stacks/edge-dns predates TIN-2385 and stays permanently fail-closed
+# (both `manage_*` toggles default off; see that repo's edge/README.md
+# "Relationship to tofu/stacks/edge-dns") — don't cite it as the apply
+# authority. The exact API steps are in that repo's
+# docs/edge-apply-runbook.md (docs/runbooks/dns-apply.md here is a pointer
+# stub) and the operator verification surface is
 # docs/runbooks/dns-mail-checklist.md.
 # No endpoints, no state, no credentials — ever. Credentials are referenced
 # by NAME only (CLOUDFLARE_API_TOKEN, CF_ACCOUNT_ID, DREAMHOST_API_KEY).
@@ -16,55 +22,64 @@
 
 version: 1
 kind: dns-intent
-linear: [TIN-2360, TIN-2366]
+linear: [TIN-2360, TIN-2366, TIN-2378, TIN-2543]
 applied_by: great-falls-tool-bus-infra # never by this repo
 
 # Registrar posture (data, not mutation): both domains are registered at
-# DreamHost. Captured 2026-07-02: NS = ns1/ns2/ns3.dreamhost.com, ZERO
-# records on both zones (authoritative NOERROR, empty answer), neither
-# domain has a Cloudflare zone yet. DreamHost becomes REGISTRAR-ONLY after
-# the NS cutover; its API is used read-only for state capture (the
-# DreamHost API has no registration-nameserver mutation — the NS flip is a
-# panel step, documented in the apply runbook).
+# DreamHost. TIN-2378 NS cutover closed Done 2026-07-03: both zones are live
+# on Cloudflare (house account); DreamHost is registrar-only from here on.
+# Its API is used read-only for state capture (the DreamHost API has no
+# registration-nameserver mutation — the NS flip was a panel step,
+# documented in the apply runbook).
 registrar:
   provider: dreamhost
-  posture: registrar-only-after-ns-cutover
+  posture: registrar-only
   api_use: read-only-capture # domain-list_domains / dns-list_records
 
 zones:
   - domain: greatfallstoolbus.org
     role: web # canonical site domain; latoolb.us 301s here
-    plane: cloudflare-house-account # zone to be created; none exists today
+    plane: cloudflare-house-account
     records:
       - name: '@'
-        type: A
-        values: # GitHub Pages apex set
-          - 185.199.108.153
-          - 185.199.109.153
-          - 185.199.110.153
-          - 185.199.111.153
-        proxied: false # grey-cloud until Pages issues the custom-domain cert
+        type: CNAME
+        value: da3ffda2-68ee-46d1-aa55-ec8dae2bd471.cfargotunnel.com
+        proxied: true # CF-flattened apex CNAME; proxy required for the Access gate
+        notes: >-
+          Tracks great-falls-tool-bus-infra tofu/stacks/edge `var.pages_host`
+          (TIN-2543 cutover, applied 2026-07-06): the shared honey-ingress
+          Cloudflare Tunnel cname target, routing to the adapter-node web
+          Deployment (ADR 0010). History: GitHub Pages apex A-set
+          (185.199.108-111.153) through 2026-07-02 -> CF Pages custom domain
+          (greatfallstoolbus-org.pages.dev, infra PR #15, 2026-07-03) -> this
+          tunnel cutover (infra PR #63). Rollback is a one-line `pages_host`
+          change in the edge stack while the CF Pages project still exists;
+          see docs/runbooks/cf-pages-rollback.md.
       - name: www
         type: CNAME
-        value: great-falls-tool-bus.github.io
-        proxied: false # grey-cloud until Pages issues the custom-domain cert
+        value: da3ffda2-68ee-46d1-aa55-ec8dae2bd471.cfargotunnel.com
+        proxied: true # same target + history as the apex record above
       - name: _github-pages-challenge-great-falls-tool-bus
         type: TXT
-        value: <issued-by-github-at-domain-verification>
+        value: <superseded>
         notes: >-
-          GitHub org-level custom-domain verification record; value is
-          issued in the GitHub org settings flow at execution time.
-    preconditions:
-      - >-
-        Repo-side: static/CNAME containing greatfallstoolbus.org and a
-        BASE_PATH="" build must land before DNS points here, otherwise
-        Pages serves broken project-path URLs (today the site serves from
-        the project path at great-falls-tool-bus.github.io).
+          Superseded: this was the GitHub org custom-domain verification
+          record for the original GitHub Pages hosting plan (pre-2026-07-03).
+          Hosting moved to CF Pages then the on-cluster tunnel; nothing
+          consumes this record today. Left declared (not deleted) as
+          history — safe to drop once confirmed absent from the live zone.
+    preconditions: []
     mail: none # no MX/mailboxes on the web domain in the MVP window (row a)
+    access_gate: >-
+      Not a DNS record: apex + www (and the pages.dev origin, while the CF
+      Pages project still exists as a cold-standby rollback target) sit
+      behind a Cloudflare Access self_hosted application (REV-2 posture),
+      gated on `var.access_allowed_emails`. Opening criteria: TIN-2421 /
+      docs/decisions/0004-gate-opening-criteria.md.
 
   - domain: latoolb.us
     role: mail-and-redirect-alias # never a second site repo (row a)
-    plane: cloudflare-house-account # zone to be created; none exists today
+    plane: cloudflare-house-account
     records:
       - name: '@'
         type: A
@@ -74,6 +89,26 @@ zones:
         type: CNAME
         value: latoolb.us
         proxied: true # redirect-rule anchor only
+      - name: forms
+        type: CNAME
+        value: da3ffda2-68ee-46d1-aa55-ec8dae2bd471.cfargotunnel.com
+        proxied: true
+        notes: >-
+          TIN-2420 Path B, LIVE since 2026-07-05 (`var.forms_dns_enabled`
+          default true). Contact-form ingress: same shared honey-ingress
+          tunnel as the apex, fronted in-cluster by an Anubis PoW gate
+          ahead of the intake handler.
+      - name: lists
+        type: CNAME
+        value: da3ffda2-68ee-46d1-aa55-ec8dae2bd471.cfargotunnel.com
+        proxied: true
+        notes: >-
+          TIN-2528, LIVE (`var.archives_dns_enabled` default true). Public
+          discuss@ HyperKitty archive ingress: same shared tunnel, fronted
+          by a second, independent in-cluster Anubis PoW gate
+          (`anubis-archive`) ahead of the HyperKitty web tier that also
+          serves the PRIVATE keyholders@ archive — see
+          ../mail-intent/intent.yaml.
       - name: '@'
         type: MX
         priority: 10
@@ -81,31 +116,42 @@ zones:
         proxied: false # MX is never proxied; Cloudflare cannot proxy SMTP
       - name: '@'
         type: TXT
-        value: v=spf1 mx ~all
+        value: v=spf1 ip4:45.61.188.177 ip4:71.168.64.84 mx ~all
         notes: >-
-          Starting SPF; final mechanism list follows the house
-          mail-transport egress (substrate authority; must cover real
-          list-mail egress). Do not tighten ~all to -all
-          until DMARC reports are quiet for a full list cycle.
-      - name: <selector>._domainkey
+          Reconciled 2026-07-04 by live evidence (port25 round-trip): house
+          outbound egresses directly from honey (71.168.64.84), not only via
+          the BuyVM relay (45.61.188.177) that `mx` alone covers — plain
+          `v=spf1 mx ~all` softfailed. Mirrors great-falls-tool-bus-infra
+          tofu/stacks/edge `alias_spf` verbatim. Do not tighten `~all` to
+          `-all` until DMARC reports are quiet for a full list cycle.
+      - name: mail._domainkey
         type: TXT
         value: v=DKIM1; k=rsa; p=<public-key-from-infra-overlay>
         notes: >-
-          DKIM public half only. Key pair and selector are minted
-          apply-plane-side (infra overlay sops lane); the private key is
-          named (names-only) as
-          latoolbus-dkim-private-key in secrets.contract.yaml and never
+          Selector resolved to "mail" (matches
+          k8s/mail/latoolb-us-production/maildomain-latoolb-us.yaml
+          dkimSelector). Public key value only minted apply-plane-side
+          (infra overlay sops lane); the private key is named (names-only)
+          as latoolbus-dkim-private-key in secrets.contract.yaml and never
           appears in this repo, not even as ciphertext.
       - name: _dmarc
         type: TXT
-        value: v=DMARC1; p=none; rua=mailto:<operator-chosen-report-mailbox>
-        notes: monitor-only to start; tighten after clean reports.
+        value: v=DMARC1; p=none; rua=mailto:postmaster@latoolb.us
+        notes: >-
+          rua mailbox resolved to postmaster@latoolb.us (deliberately
+          different from the blahaj dhall fragment's dmarc-reports@latoolb.us
+          default — operator-specified divergence, not an oversight).
+          Monitor-only to start; tighten after clean reports.
     redirect_rules:
       - match: latoolb.us/* and www.latoolb.us/*
         action: redirect
         status: 301
         target: https://greatfallstoolbus.org/
-        notes: single dynamic redirect rule; the alias preserves no paths.
+        notes: >-
+          End-state intent once the TIN-2421 apex Access gate opens.
+          CURRENT live `alias_redirect_target` is still the raw GitHub
+          Pages fallback (`https://great-falls-tool-bus.github.io/greatfallstoolbus.org/`)
+          — a single dynamic redirect rule; the alias preserves no paths.
     mta_sts: deferred # blahaj render ships enable_mta_sts = False today
 
 out_of_scope:
@@ -115,6 +161,6 @@ out_of_scope:
     org / Pages host great-falls-tool-bus.github.io. Registering the
     hyphenated .org would be a new decision, not part of this intent.
   - >-
-    Anubis fronting for the join/contact form origin is declared in
-    ../mail-intent/intent.yaml and is wired only AFTER mail exists
-    (operator decision 2026-07-02) — no DNS is reserved for it here.
+    Anubis policy/version detail for the forms.latoolb.us and
+    lists.latoolb.us gates declared above is owned by
+    ../mail-intent/intent.yaml, not duplicated here.
