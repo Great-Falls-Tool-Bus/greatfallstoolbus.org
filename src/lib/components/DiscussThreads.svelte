@@ -2,12 +2,16 @@
 	// On-site archive thread index (TIN-2528). Renders the discuss snapshot as a
 	// hairline-divided list of threads — the same row idiom the home page uses
 	// (subject → meta line → excerpt, separated by top hairlines), never a card
-	// grid. Full message bodies stay behind the Anubis-gated HyperKitty: each
-	// subject deep-links out to its thread `url`; the page keeps one clear
-	// "browse the full archive" link of its own. Snapshot-driven and tolerant by
-	// contract: 0 threads (calm empty state), missing excerpt (line omitted), and
-	// long subjects (break-words, never truncated).
-	import ExternalLink from '$lib/components/ExternalLink.svelte';
+	// grid. Each subject now links INTERNALLY to the on-site reader at
+	// `/discuss/<threadId>` (the full conversation renders on-site, never dumping a
+	// reader into unstyled HyperKitty); the external deep link lives on that reader
+	// page. `DiscussThread.url` intentionally still holds the public HyperKitty URL
+	// (the privacy gate asserts it is archive-anchored) — the internal href is
+	// derived from `threadId` here so the data contract and its gate stay stable.
+	// Snapshot-driven and tolerant by contract: 0 threads (calm empty state),
+	// missing excerpt (line omitted), and long subjects (break-words, never
+	// truncated).
+	import { base } from '$app/paths';
 	import {
 		type DiscussSnapshot,
 		sortByLastActiveDesc,
@@ -40,12 +44,12 @@
 			{#each threads as thread (thread.threadId)}
 				<li class="border-surface-200-800 border-t py-6">
 					<h3 class="text-xl leading-snug font-semibold break-words">
-						<ExternalLink
-							href={thread.url}
+						<a
+							href={`${base}/discuss/${thread.threadId}`}
 							class="hover:text-primary-600 dark:hover:text-primary-400 underline-offset-4 hover:underline"
 						>
 							{thread.subject}
-						</ExternalLink>
+						</a>
 					</h3>
 					<p class="text-surface-500 mt-2 text-sm">{threadMeta(thread)}</p>
 					{#if thread.excerpt}

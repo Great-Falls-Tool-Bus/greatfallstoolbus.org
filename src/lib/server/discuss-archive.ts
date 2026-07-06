@@ -34,8 +34,14 @@
 // One type source: the UI-facing contract in $lib/data/discuss-snapshot is
 // canonical; this module consumes and re-exports it (the mapper always emits
 // `excerpt`, which is assignable to the contract's optional field).
-import type { DiscussSnapshot, DiscussThread } from '$lib/data/discuss-snapshot';
-export type { DiscussSnapshot, DiscussThread };
+import type {
+	DiscussSnapshot,
+	DiscussThread,
+	DiscussThreadDetail,
+	DiscussThreadMessage,
+	DiscussMessageBlock,
+} from '$lib/data/discuss-snapshot';
+export type { DiscussSnapshot, DiscussThread, DiscussThreadDetail, DiscussThreadMessage, DiscussMessageBlock };
 
 export type FetchDiscussSnapshotOptions = {
 	/**
@@ -69,6 +75,16 @@ export const LIST_ADDRESS = 'discuss@latoolb.us';
 // which carry the internal request host.
 export const PUBLIC_ARCHIVE_BASE = 'https://lists.latoolb.us/hyperkitty';
 export const PUBLIC_ARCHIVE_URL = `${PUBLIC_ARCHIVE_BASE}/list/${LIST_ADDRESS}/`;
+
+/**
+ * Public, human-facing archive deep link for one thread — built from the public
+ * base plus an id we control, never echoed from an API `url` field (those carry
+ * the internal request host). This is the single "View on the mailing-list
+ * archive" secondary link the on-site reader offers.
+ */
+export function publicThreadUrl(threadId: string): string {
+	return `${PUBLIC_ARCHIVE_BASE}/list/${LIST_ADDRESS}/thread/${encodeURIComponent(threadId)}/`;
+}
 
 // In-cluster read origin (Service mailman-web: ClusterIP 8080 -> web tier). This
 // name resolves ONLY inside the honey cluster; it is inert and non-sensitive off
@@ -155,6 +171,97 @@ export function sanitizeExcerpt(raw: string | null | undefined): string {
 	return out;
 }
 
+// The sentinel an inline address is reduced to: local part kept, domain elided
+// to a single ellipsis so the address is unusable but the sentence still reads.
+// The privacy gate treats `@…` as allowed (unlike a raw `@`).
+const NEUTRALIZED_MARK = '…';
+// Inline raw address, e.g. "bob@example.com".
+const INLINE_RAW_ADDRESS = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+// Inline HyperKitty-obfuscated address, e.g. "bob (a) example.com".
+const INLINE_OBFUSCATED_ADDRESS = /([A-Za-z0-9._%+-]+)\s\((?:a|at)\)\s[A-Za-z0-9.-]+\.[A-Za-z]{2,}/gi;
+
+/**
+ * Neutralize any address that appears inline in a message body: reduce
+ * `foo@bar.com` (and the obfuscated `foo (a) bar.com`) to `foo@…` so it is no
+ * longer a contactable address, while leaving the surrounding prose intact. The
+ * one exception is the public list address discuss@latoolb.us, which is allowed
+ * to pass through verbatim (it is already public and readers may need it).
+ */
+export function neutralizeInlineAddresses(text: string): string {
+	// Obfuscated first — collapse "local (a) domain" to "local@…" so no " (a) "
+	// marker survives for the privacy gate to (correctly) hard-fail on.
+	let out = text.replace(INLINE_OBFUSCATED_ADDRESS, (_match, local: string) => `${local}@${NEUTRALIZED_MARK}`);
+	// Then raw addresses. The public list address is exempt; every other address
+	// keeps only its local part.
+	out = out.replace(INLINE_RAW_ADDRESS, (match) =>
+		match.toLowerCase() === LIST_ADDRESS ? match : `${match.split('@')[0]}@${NEUTRALIZED_MARK}`,
+	);
+	return out;
+}
+
+/**
+ * Full-body plain-text sanitizer for the on-site reader — the richer sibling of
+ * `sanitizeExcerpt`. Unlike the excerpt it PRESERVES structure a reader needs:
+ * paragraph breaks survive, and quoted (`>`) reply blocks are kept as structured
+ * quotation LEVELS (depth = leading `>` count) rather than dropped, so reply
+ * context reads. It still strips HTML tags and angle-bracket `<url>` citations,
+ * cuts the signature block (everything after a `-- ` delimiter), collapses
+ * hard-wrapped lines within a paragraph, and neutralizes inline addresses. The
+ * output is an ordered list of `{ quoteLevel, text }` blocks the reader renders
+ * with indentation + muted ink (never a side-stripe border).
+ */
+export function sanitizeBody(raw: string | null | undefined): DiscussMessageBlock[] {
+	if (!raw) return [];
+	// Drop HTML tags and angle-bracket <url> citations up front (same class the
+	// excerpt strips), then work line-by-line so structure survives.
+	const lines = String(raw)
+		.replace(/<[^>]+>/g, ' ')
+		.split(/\r?\n/);
+
+	// First pass: strip signature, measure each line's quotation depth.
+	const measured: Array<{ level: number; text: string }> = [];
+	const quoteMarker = /^(\s*>\s?)/;
+	for (const rawLine of lines) {
+		if (/^--\s*$/.test(rawLine.trimEnd())) break; // signature delimiter -> stop
+		let rest = rawLine;
+		let level = 0;
+		let hit: RegExpMatchArray | null;
+		while ((hit = rest.match(quoteMarker))) {
+			level += 1;
+			rest = rest.slice(hit[0].length);
+		}
+		measured.push({ level, text: rest.trim() });
+	}
+
+	// Second pass: group consecutive same-level lines into paragraphs. A blank
+	// line ends the current paragraph; a level change starts a new block. Wrapped
+	// lines inside a paragraph rejoin with a space (mailing-list hard-wraps read
+	// as prose). Addresses are neutralized once, on the assembled paragraph.
+	const blocks: DiscussMessageBlock[] = [];
+	let curLevel = -1;
+	let buffer: string[] = [];
+	const flush = () => {
+		if (buffer.length) {
+			const text = neutralizeInlineAddresses(buffer.join(' ').replace(/\s+/g, ' ').trim());
+			if (text) blocks.push({ quoteLevel: curLevel, text });
+		}
+		buffer = [];
+	};
+	for (const line of measured) {
+		if (line.text === '') {
+			flush(); // blank line -> paragraph break
+			continue;
+		}
+		if (line.level !== curLevel) {
+			flush();
+			curLevel = line.level;
+		}
+		buffer.push(line.text);
+	}
+	flush();
+	return blocks;
+}
+
 /** Normalize any parseable timestamp to a stable ISO-8601 UTC string. */
 export function toIso(value: string): string {
 	const d = new Date(value);
@@ -220,6 +327,64 @@ export function assertValidSnapshotShape(snapshot: DiscussSnapshot): void {
 	}
 }
 
+/**
+ * PRIVACY GATE for the thread reader — the DiscussThreadDetail sibling of
+ * `assertSnapshotIsPublicSafe`. Scans the SERIALIZED detail and throws (which
+ * the reader's load turns into a calm unavailable state) on: any `keyholders`
+ * trace, any surviving obfuscated address, any raw `@` other than the public
+ * list address, or any non-public `@latoolb.us`. The only `@` allowed besides
+ * the list address is the `@…` sentinel a neutralized inline address leaves.
+ */
+export function assertThreadDetailIsPublicSafe(detail: DiscussThreadDetail): void {
+	const serialized = JSON.stringify(detail);
+	if (/keyholders/i.test(serialized)) {
+		throw new DiscussArchiveError('forbidden token "keyholders" present in thread detail');
+	}
+	if (OBFUSCATED_AT.test(serialized)) {
+		throw new DiscussArchiveError('obfuscated email address ("(a)"/"(at)") present in thread detail');
+	}
+	// Remove the allowed public list address and the neutralized `@…` sentinels,
+	// then no raw "@" may remain anywhere in the payload.
+	const residual = serialized.split(LIST_ADDRESS).join('').split(`@${NEUTRALIZED_MARK}`).join('');
+	if (RAW_AT.test(residual)) {
+		throw new DiscussArchiveError('a raw email address other than the public list address is present in thread detail');
+	}
+	if (/@latoolb\.us/i.test(residual)) {
+		throw new DiscussArchiveError('a non-public @latoolb.us address is present in thread detail');
+	}
+}
+
+/** Validate the structural contract of a thread detail before it is trusted. */
+export function assertValidThreadDetailShape(detail: DiscussThreadDetail): void {
+	const isIso = (s: string) => typeof s === 'string' && !Number.isNaN(Date.parse(s)) && /\dT\d/.test(s);
+	for (const [k, v] of Object.entries({ threadId: detail.threadId, subject: detail.subject })) {
+		if (typeof v !== 'string' || v.length === 0) throw new DiscussArchiveError(`thread detail ${k} empty`);
+	}
+	if (!isIso(detail.startedAt) || !isIso(detail.lastActiveAt)) {
+		throw new DiscussArchiveError('thread detail timestamps not ISO-8601');
+	}
+	if (!Number.isInteger(detail.participantsCount) || detail.participantsCount < 0) {
+		throw new DiscussArchiveError('participantsCount invalid');
+	}
+	if (!Array.isArray(detail.messages) || detail.messages.length === 0) {
+		throw new DiscussArchiveError('thread detail has no messages');
+	}
+	for (const msg of detail.messages) {
+		if (typeof msg.id !== 'string' || msg.id.length === 0) throw new DiscussArchiveError('message id empty');
+		if (typeof msg.senderName !== 'string' || msg.senderName.length === 0) {
+			throw new DiscussArchiveError('message senderName empty');
+		}
+		if (!isIso(msg.sentAt)) throw new DiscussArchiveError('message sentAt not ISO-8601');
+		if (!Array.isArray(msg.body)) throw new DiscussArchiveError('message body not an array');
+		for (const block of msg.body) {
+			if (!Number.isInteger(block.quoteLevel) || block.quoteLevel < 0) {
+				throw new DiscussArchiveError('block quoteLevel invalid');
+			}
+			if (typeof block.text !== 'string') throw new DiscussArchiveError('block text not a string');
+		}
+	}
+}
+
 // --- HyperKitty response shapes (only the fields we read) -------------------
 
 type HkThreadListItem = {
@@ -240,6 +405,25 @@ type HkThreadDetail = {
 };
 
 type HkEmail = {
+	sender_name?: string | null;
+	date: string;
+	content?: string | null;
+};
+
+// A thread's `emails/` sub-resource lists each message WITHOUT its body (verified
+// live: 1.3.12 returns a bare array whose items carry `message_id_hash`/`date`/
+// `sender_name` but no `content`), so bodies are read per-message from the email
+// detail endpoint below.
+type HkThreadEmailItem = {
+	url: string;
+	message_id_hash: string;
+	sender_name?: string | null;
+	date: string;
+};
+
+// The email DETAIL endpoint (`/email/<hash>/`) adds the `content` body.
+type HkEmailDetail = {
+	message_id_hash: string;
 	sender_name?: string | null;
 	date: string;
 	content?: string | null;
@@ -278,6 +462,43 @@ export function mapThread(detail: HkThreadDetail, starter: HkEmail): DiscussThre
 	};
 }
 
+/**
+ * Build the canonical thread-reader payload from the thread detail plus the full
+ * (content-bearing) email reads. Messages are ordered oldest-first (the natural
+ * reading order) sorting on `date` — we never trust the API's native ordering.
+ * `startedAt` is the earliest message; `lastActiveAt` is the thread's
+ * `date_active`. Every sender name goes through `safeDisplayName` (HyperKitty
+ * hands us raw addresses in `sender_name` — verified live) and every body through
+ * `sanitizeBody`; the result is shape- and privacy-validated before it is
+ * trusted, so a leak or a malformed payload throws rather than shipping.
+ */
+export function mapThreadDetail(detail: HkThreadDetail, emails: HkEmailDetail[]): DiscussThreadDetail {
+	const messages: DiscussThreadMessage[] = emails
+		.map((email) => ({
+			id: email.message_id_hash,
+			senderName: safeDisplayName(email.sender_name),
+			sentAt: toIso(email.date),
+			body: sanitizeBody(email.content),
+		}))
+		.sort((a, b) => {
+			const delta = Date.parse(a.sentAt) - Date.parse(b.sentAt);
+			return delta !== 0 ? delta : a.id.localeCompare(b.id);
+		});
+	if (messages.length === 0) throw new DiscussArchiveError('thread has no messages');
+
+	const threadDetail: DiscussThreadDetail = {
+		threadId: detail.thread_id,
+		subject: stripSubjectPrefix(detail.subject),
+		startedAt: messages[0].sentAt,
+		lastActiveAt: detail.date_active ? toIso(detail.date_active) : messages[messages.length - 1].sentAt,
+		participantsCount: Math.max(0, Number(detail.participants_count) || 0),
+		messages,
+	};
+	assertValidThreadDetailShape(threadDetail);
+	assertThreadDetailIsPublicSafe(threadDetail);
+	return threadDetail;
+}
+
 /** Deterministic ordering: most-recently-active first, ties broken by id. */
 export function sortThreads(threads: DiscussThread[]): DiscussThread[] {
 	return [...threads].sort((a, b) => {
@@ -312,13 +533,39 @@ function resolveOrigin(explicit?: string): string {
 	return (explicit ?? fromEnv ?? DEFAULT_INCLUSTER_ORIGIN).replace(/\/+$/, '');
 }
 
-async function getJson<T>(fetchImpl: typeof fetch, url: string, timeoutMs: number): Promise<T> {
+/**
+ * Django's HyperKitty rejects a request whose Host header is not in its
+ * ALLOWED_HOSTS with a bare HTTP 400. Verified live (2026-07):
+ *   ALLOWED_HOSTS = ['localhost', 'mailman-web', 'lists.latoolb.us',
+ *                    '10.245.116.58', '127.0.0.1']
+ * That list carries the SHORT service name `mailman-web` but NOT the full
+ * in-cluster Service FQDN `mailman-web.latoolb-us-production.svc.cluster.local`
+ * that DNS forces us to dial from the builder — so the default in-cluster read
+ * 400s (Host=svc-FQDN → 400, Host=mailman-web → 200), silently degrading every
+ * build to the empty fallback. When (and only when) the origin is a
+ * `*.svc.cluster.local` address we therefore send its first DNS label as an
+ * explicit Host header (undici allows overriding it). An overridden
+ * DISCUSS_ARCHIVE_ORIGIN (a localhost port-forward, `lists.latoolb.us`, an IP)
+ * is left alone — its own host is already allow-listed.
+ */
+export function clusterHostHeader(origin: string): string | undefined {
+	let hostname: string;
+	try {
+		hostname = new URL(origin).hostname;
+	} catch {
+		return undefined;
+	}
+	if (!hostname.endsWith('.svc.cluster.local')) return undefined;
+	return hostname.split('.')[0] || undefined;
+}
+
+async function getJson<T>(fetchImpl: typeof fetch, url: string, timeoutMs: number, hostHeader?: string): Promise<T> {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
 	try {
 		const res = await fetchImpl(url, {
 			signal: controller.signal,
-			headers: { Accept: 'application/json' },
+			headers: { Accept: 'application/json', ...(hostHeader ? { host: hostHeader } : {}) },
 		});
 		if (!res.ok) throw new DiscussArchiveError(`HTTP ${res.status} for ${url}`);
 		return (await res.json()) as T;
@@ -346,9 +593,10 @@ export async function fetchDiscussSnapshot(options: FetchDiscussSnapshotOptions 
 
 	const origin = resolveOrigin(options.origin);
 	const apiBase = `${origin}${HYPERKITTY_PREFIX}/api/list/${LIST_ADDRESS}`;
+	const hostHeader = clusterHostHeader(origin);
 
 	try {
-		const listBody = await getJson<unknown>(fetchImpl, `${apiBase}/threads/?format=json`, timeoutMs);
+		const listBody = await getJson<unknown>(fetchImpl, `${apiBase}/threads/?format=json`, timeoutMs, hostHeader);
 		const items = unwrapList<HkThreadListItem>(listBody);
 
 		// Sort + cap on the cheap list payload BEFORE hydrating, so we only make
@@ -366,12 +614,14 @@ export async function fetchDiscussSnapshot(options: FetchDiscussSnapshotOptions 
 				fetchImpl,
 				`${apiBase}/thread/${encodeURIComponent(item.thread_id)}/?format=json`,
 				timeoutMs,
+				hostHeader,
 			);
 			const starterId = idFromUrl(item.starting_email);
 			const starter = await getJson<HkEmail>(
 				fetchImpl,
 				`${apiBase}/email/${encodeURIComponent(starterId)}/?format=json`,
 				timeoutMs,
+				hostHeader,
 			);
 			threads.push(mapThread(detail, starter));
 		}
@@ -382,9 +632,79 @@ export async function fetchDiscussSnapshot(options: FetchDiscussSnapshotOptions 
 	} catch (error) {
 		const reason = error instanceof Error ? error.message : String(error);
 		console.warn(
-			`[discuss-archive] live fetch from ${origin} failed (${reason}); serving fixture fallback. ` +
+			`[discuss-archive] live fetch from ${origin} failed (${reason}); serving empty-state fallback. ` +
 				'This is expected off-cluster (local dev / fork CI).',
 		);
 		return fallback;
 	}
+}
+
+export type FetchDiscussThreadOptions = {
+	/** HyperKitty origin. Defaults to the in-cluster Service DNS; override via the
+	 *  DISCUSS_ARCHIVE_ORIGIN env var (see the reader load) or explicitly in tests. */
+	origin?: string;
+	/** Injected fetch (tests / non-global-fetch runtimes). Defaults to globalThis.fetch. */
+	fetch?: typeof fetch;
+	/** Per-request timeout in ms. Defaults to 8000. */
+	timeoutMs?: number;
+};
+
+/**
+ * Fetch, map, sanitize and privacy-gate ONE thread for the on-site reader. It
+ * reads the thread detail, its `emails/` sub-resource (the ordered message list),
+ * and each message's body from the email-detail endpoint, all scoped to the
+ * public discuss@ list, all carrying the in-cluster Host header (see
+ * `clusterHostHeader`) so the build-time read is not 400'd.
+ *
+ * Unlike `fetchDiscussSnapshot`, this THROWS (DiscussArchiveError) on ANY
+ * transport, shape, or privacy failure — the reader's `+page.server.ts` catches
+ * it and renders a calm "not available right now" state rather than a hard 500 or
+ * invented content. A build off-cluster never reaches here for a real page: the
+ * route's `entries` generator yields no entries when the snapshot comes back
+ * empty, so no thread pages are prerendered.
+ */
+export async function fetchDiscussThread(
+	threadId: string,
+	options: FetchDiscussThreadOptions = {},
+): Promise<DiscussThreadDetail> {
+	const fetchImpl = options.fetch ?? globalThis.fetch;
+	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+	if (typeof fetchImpl !== 'function') throw new DiscussArchiveError('no fetch available for thread read');
+
+	const id = String(threadId ?? '').trim();
+	if (!id) throw new DiscussArchiveError('empty thread id');
+
+	const origin = resolveOrigin(options.origin);
+	const apiBase = `${origin}${HYPERKITTY_PREFIX}/api/list/${LIST_ADDRESS}`;
+	const hostHeader = clusterHostHeader(origin);
+	const encoded = encodeURIComponent(id);
+
+	const detail = await getJson<HkThreadDetail>(
+		fetchImpl,
+		`${apiBase}/thread/${encoded}/?format=json`,
+		timeoutMs,
+		hostHeader,
+	);
+	const emailsBody = await getJson<unknown>(
+		fetchImpl,
+		`${apiBase}/thread/${encoded}/emails/?format=json`,
+		timeoutMs,
+		hostHeader,
+	);
+	const items = unwrapList<HkThreadEmailItem>(emailsBody);
+
+	const emails: HkEmailDetail[] = [];
+	for (const item of items) {
+		const hash = item.message_id_hash || idFromUrl(item.url);
+		emails.push(
+			await getJson<HkEmailDetail>(
+				fetchImpl,
+				`${apiBase}/email/${encodeURIComponent(hash)}/?format=json`,
+				timeoutMs,
+				hostHeader,
+			),
+		);
+	}
+
+	return mapThreadDetail(detail, emails);
 }
