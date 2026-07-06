@@ -102,15 +102,12 @@
 	<section class="border-surface-200-800 mt-12 border-t pt-8 prose max-w-none" aria-label="How access works">
 		<h2 class="text-2xl font-semibold">Access, in one sentence</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
-			<strong>Anyone may ask to borrow</strong>: there is no membership fee and no paperwork wall, a short safety
-			orientation covers the capability you want to use, and a keyholder approves and coordinates the borrow. Donations
-			are welcome but never required.
+			<strong>Anyone may ask to borrow</strong>: a short safety orientation and a keyholder's yes are the whole gate,
+			and donations are welcome but never required.
 			<!-- Access model (ratified): keyholders are a curated, owner-approved group; anyone may request access; non-member requests reach all keyholders. -->
-			The full path is on
-			<a class="underline" href={`${base}/contact#access`}>how access works</a>, and the ground rules live on
-			<a class="underline" href={`${base}/safety`}>safety &amp; responsible use</a>. The people behind the project are
-			on
-			<a class="underline" href={`${base}/stewards`}>stewards</a>.
+			The full path is on <a class="underline" href={`${base}/contact#access`}>how access works</a>, the ground rules
+			live on <a class="underline" href={`${base}/safety`}>safety &amp; responsible use</a>, and the people behind the
+			project are on <a class="underline" href={`${base}/stewards`}>stewards</a>.
 		</p>
 	</section>
 

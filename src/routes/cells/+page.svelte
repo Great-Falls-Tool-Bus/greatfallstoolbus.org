@@ -25,6 +25,10 @@
 			kit, how it packs, and who to ask when something needs care.
 		</p>
 		<p class="text-surface-700 dark:text-surface-300 leading-relaxed">
+			Splitting the bus into cells is a proposal, not a fixed rule: one workable way to organize, open to change by the
+			people who use it. Captains and borrowers can split, merge, or rename cells as the collection grows.
+		</p>
+		<p class="text-surface-700 dark:text-surface-300 leading-relaxed">
 			Every cell gets a printable sheet that lives in the kit: the inventory as a checklist, the care rules, and who to
 			ask. Check the kit against its sheet every time it goes out and comes back. The all-cells printable set is at
 			<a class="underline" href={`${base}/cell-sheets`}>/cell-sheets</a>; the browsable inventory is at
