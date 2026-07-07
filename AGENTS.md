@@ -353,20 +353,24 @@ constrain it, re-check `boundaries` in `tinyland.repo.json` after flipping.
 
 **Deploy lane (GFTB = on-cluster, `adapter-node`).** ADR 0010
 ([`docs/decisions/0010-on-prem-is-the-production-host.md`](docs/decisions/0010-on-prem-is-the-production-host.md),
-executed 2026-07-06) retired the Cloudflare Pages opt-in this section used to
-describe: `.github/workflows/deploy-pages.yml` has been removed. Production
-now serves on-cluster behind the `cloudflared` tunnel — `adapter-node` -> OCI
-image (`.github/workflows/container-ghcr.yml` -> GHCR) -> K8s Deployment in
-`great-falls-tool-bus-infra`. This public repo still never stores CF
-credentials or edge-apply authority; Blahaj/the org overlay own DNS, Access,
-Tunnel, and the image pin. Cloudflare Pages is retained only as a short
-rollback-window standby (ADR 0010 §3, until ~2026-07-08) — see
+executed 2026-07-06, Amendment 2 2026-07-07) retired the Cloudflare Pages
+opt-in this section used to describe: `.github/workflows/deploy-pages.yml` has
+been removed. Production now serves on-cluster behind the `cloudflared` tunnel
+— `adapter-node` -> OCI image (`.github/workflows/container-ghcr.yml` -> GHCR)
+-> K8s Deployment in `great-falls-tool-bus-infra`. This public repo still
+never stores CF credentials or edge-apply authority; Blahaj/the org overlay
+own DNS, Access, Tunnel, and the image pin. Cloudflare Pages is not just
+retired — the project itself is **deleted** (ADR 0010 Amendment 2, TIN-2560:
+the operator closed the rollback window early, 2026-07-06, rather than holding
+it warm to ~2026-07-08) — see
 [`docs/deploy/cloudflare-pages.md`](docs/deploy/cloudflare-pages.md)
 (historical) and
 [`docs/runbooks/cf-pages-rollback.md`](docs/runbooks/cf-pages-rollback.md)
-(rollback procedure while the window holds). The scaffold default remains
-GitHub Pages for personal/static spokes; GFTB's history of overrides is ADR
-0003 (Cloudflare Pages) then ADR 0010 (on-cluster).
+(why its rollback procedure no longer applies; rollback is now the on-cluster
+re-pin-previous-digest primitive via the infra `web-stack.yml` dispatch). The
+scaffold default remains GitHub Pages for personal/static spokes; GFTB's
+history of overrides is ADR 0003 (Cloudflare Pages) then ADR 0010
+(on-cluster, Pages deleted).
 
 **Dynamic deploy lane.** A `--adapter=node` spoke does NOT use the Pages lane. Its
 deploy is **blue/green via the Blahaj GitOps receiver** (build a server image →

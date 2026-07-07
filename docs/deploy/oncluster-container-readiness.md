@@ -1,20 +1,29 @@
-# On-cluster container readiness (image build active; cutover operator-gated)
+# On-cluster container readiness (HISTORICAL framing — cutover is DONE)
 
-- Status: Image build ACTIVE (TIN-2543); production cutover NOT yet done and
-  operator-gated. This repo builds the on-cluster serve artifact; it does not
-  flip the live host.
+> **STATUS (2026-07-07): the cutover this doc describes as pending has
+> EXECUTED.** ADR 0010
+> (`docs/decisions/0010-on-prem-is-the-production-host.md`, executed
+> 2026-07-06, Amendment 2 2026-07-07) superseded ADR 0008's operator-gated
+> framing: on-cluster (`adapter-node` -> OCI image -> K8s -> `cloudflared`) is
+> the **live, sole** production host, and Cloudflare Pages is not a warm
+> standby — the `greatfallstoolbus-org` Pages project was **deleted**
+> 2026-07-06 (TIN-2560). The image-build mechanics described below (the
+> `ContainerFile`, `container-ghcr.yml`, the adapter-static/adapter-node table)
+> are still accurate as a description of how the artifact is built; the
+> "not yet done" / "warm standby" framing around them is not — see
+> `docs/DEVELOPMENT.md` "Deploying" for the current, live posture.
+
+- Status (as of this doc's original writing, TIN-2543): image build ACTIVE;
+  production cutover not yet done and operator-gated. **Superseded** — see the
+  banner above.
 - ADR 0008 (Accepted 2026-07-05) supersedes ADR 0003 for production hosting: it
   accepts on-cluster (`adapter-node` -> OCI image -> K8s Deployment -> ClusterIP
   Service -> in-cluster `cloudflared` tunnel -> apex) as the **primary** target
-  for the static-production surface, on the MassageIthaca precedent.
-- The direction reduces reliance on Cloudflare Pages: after cutover, Cloudflare
-  Pages is retained as the **warm standby** (ADR 0007) rather than the primary
-  publisher. That warm standby is the named mitigation for the site-level
-  single-location tradeoff on-cluster serving carries (ADR 0008 SPOF analysis).
-- Current serving host is still Cloudflare Pages (project
-  `greatfallstoolbus-org`, `adapter-static`, behind Cloudflare Access) and stays
-  the primary host until the operator applies the overlay stack, flips the tunnel
-  ingress, and bumps the image pin.
+  for the static-production surface, on the MassageIthaca precedent. ADR 0010
+  then executed this direction and, per Amendment 2, closed out the Pages
+  warm-standby mitigation entirely rather than holding it open-ended.
+- Current serving host is on-cluster (`adapter-node`); Cloudflare Pages no
+  longer exists as a project to fall back to.
 
 ## What this is
 
@@ -37,7 +46,7 @@ format lint typecheck test-unit skills-check source-map-check build`) stay green
 with the frozen lockfile. The container workflow builds the image on its own
 lane; it never mutates production serving.
 
-## Accepted direction, cutover not yet done
+## Accepted direction, cutover EXECUTED (was: "not yet done")
 
 ADR 0003 originally bound the serving host to Cloudflare Pages and rejected
 cluster-served static behind the blahaj tunnel (no house precedent; honey
@@ -47,34 +56,32 @@ live pod-headroom probe that retired the pod-cap blocker. It supersedes 0003 for
 the static-production serving host and names the `adapter-node -> image -> K8s ->
 cloudflared` pattern as the house standard.
 
-Accepting the direction is not flipping the host. The cutover is phased and
-operator-gated (0008 §7, phases P2 through P5); only the image-build phase (P2)
-is active in this repo. Cloudflare Pages remains the live host until the operator
-applies the overlay stack, flips the tunnel ingress, and bumps the image pin.
-That cutover re-checks the static-spoke `boundaries` in `tinyland.repo.json`
-(0008 §6 flags adding `owns_container_image_production` while `owns_gitops_apply`
-and `owns_cloudflare_mutation` stay false, so the overlay still owns the pin and
-apply) and moves the deploy lane to the blahaj GitOps receiver (see
-`docs/decisions/dynamic-canary-blue-green.md`).
+ADR 0010 then executed the cutover this section originally described as
+phased-and-pending: all of 0008 §7's phases have run, the overlay is applied,
+the tunnel ingress is live, and the image pin is current. Cloudflare Pages is
+not the live host and is not on standby — the project is deleted (ADR 0010
+Amendment 2, TIN-2560). The static-spoke `boundaries` re-check this section
+anticipated (0008 §6's `owns_container_image_production` flag) is the
+operator's to formalize in `tinyland.repo.json` when convenient; it does not
+block the already-executed cutover.
 
-## What changes at cutover: Cloudflare Pages becomes the warm standby
+## What changed at cutover: Cloudflare Pages is gone, not standing by
 
-The direction does not delete Cloudflare Pages; it demotes it from primary
-publisher to **warm standby**. Once serving is on-cluster:
+The original plan was to demote Cloudflare Pages from primary publisher to
+**warm standby** rather than delete it outright. The operator ruled otherwise
+(ADR 0010 Amendment 2, 2026-07-07: *"decommission now, align docs"*) and closed
+the standby window early:
 
-- The primary origin is the in-cluster tunnel fronting the ClusterIP web Service
-  fronting the adapter-node Deployment. Rollback becomes an overlay image-pin
-  revert (re-pin the previous `sha-<commit>` and re-apply, ADR 0008 §5), not the
-  Cloudflare Pages / GitHub Pages model in `docs/runbooks/cf-pages-rollback.md`.
-- Cloudflare Pages is kept warm as the second origin and the site-level-outage
-  mitigation (the cluster is one physical location; the warm Pages publisher is
-  the named fallback in ADR 0008's SPOF analysis, tied to the ADR 0007 rollback
-  posture). Keeping it warm rather than cold is the reduce-reliance step, not a
-  removal.
-
-Until the operator rules the cutover, none of this is in effect: Cloudflare Pages
-is the primary and only production publisher, and the on-cluster serving path
-described here is a prepared, build-active target.
+- The primary — and only — origin is the in-cluster tunnel fronting the
+  ClusterIP web Service fronting the adapter-node Deployment. Rollback is an
+  overlay image-pin revert (re-pin a previous known-good digest and re-dispatch
+  the infra `web-stack.yml` workflow, ADR 0008 §5 / 0010 §5 / Amendment 2), not
+  the Cloudflare Pages / GitHub Pages model `docs/runbooks/cf-pages-rollback.md`
+  describes (that runbook is now historical — see its own status banner).
+- Cloudflare Pages is **not** kept warm as a second origin. The
+  site-level-outage tradeoff (the cluster is one physical location) is the
+  accepted posture, same as MassageIthaca already runs in production; there is
+  no second live publisher mitigating it anymore.
 
 ## Boundary posture (public repo holds nothing operational)
 
