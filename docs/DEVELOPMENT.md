@@ -24,22 +24,24 @@ Access (gated to the operator during prose refinement); DNS, Access, and the
 zone live in the `great-falls-tool-bus-infra` edge tofu stack.
 
 Cloudflare Pages (project `greatfallstoolbus-org`, `adapter-static`) is
-**retired** as of the same cutover: `.github/workflows/deploy-pages.yml` has
-been removed. Per ADR 0010 §3 the Pages project is kept only as a short warm
-standby through the cutover-rollback window (until ~2026-07-08), then deleted
-along with the repo's `Pages:Edit` token — see
+**retired and deleted** as of ADR 0010 Amendment 2 (TIN-2560):
+`.github/workflows/deploy-pages.yml` has been removed, and the operator closed
+the cutover-rollback window early — the Pages project itself was **deleted
+2026-07-06** (PR #122/#123, workflow run 28801030150) along with the repo's
+`Pages:Edit` token, rather than held warm through ~2026-07-08 — see
 `docs/deploy/cloudflare-pages.md` (historical) and
-`docs/runbooks/cf-pages-rollback.md` (rollback-window procedure).
+`docs/runbooks/cf-pages-rollback.md` (why its rollback procedure is no longer
+reachable).
 
 - Secrets (repo-level, org-provisioned, never in source): none for the
   on-cluster lane (the overlay owns the image pin and apply, not this repo).
   The now-retired Pages lane's `CLOUDFLARE_API_TOKEN` (`Pages:Edit`) +
-  `CLOUDFLARE_ACCOUNT_ID` are retired with it, per ADR 0010 §3/§7.
-- Rollback (only while the ADR 0010 cutover-rollback window holds): re-point
-  `var.pages_host` in the edge stack back to the Cloudflare Pages host — see
-  `docs/runbooks/cf-pages-rollback.md`. After the window (Pages project
-  deleted), rollback is the on-cluster re-pin-previous-digest primitive (ADR
-  0008 §5 / 0010 §5).
+  `CLOUDFLARE_ACCOUNT_ID` are retired with it, per ADR 0010 §3/§7/Amendment 2.
+- Rollback: the Cloudflare Pages project is gone, so there is no DNS-flip-back
+  option anymore. Rollback is the on-cluster re-pin-previous-digest primitive
+  (ADR 0008 §5 / 0010 §5 / Amendment 2): re-dispatch the infra `web-stack.yml`
+  workflow (`workflow_dispatch`, `confirm=apply`, `image=<prior known-good
+  digest>`) in `great-falls-tool-bus-infra`.
 
 ## Stack
 

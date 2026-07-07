@@ -1,21 +1,27 @@
-# Runbook: greatfallstoolbus.org Cloudflare Pages rollback (HISTORICAL — rollback-window reference)
+# Runbook: greatfallstoolbus.org Cloudflare Pages rollback (HISTORICAL — the project is deleted, this is reference only)
 
-> **STATUS (2026-07-06): Cloudflare Pages is RETIRED as the serving host.**
-> ADR 0010 (`docs/decisions/0010-on-prem-is-the-production-host.md`) executed
-> the cutover: apex + `www` now resolve to the on-cluster `cloudflared` tunnel
-> origin (infra PR #63), not the Pages host this runbook describes below. Per
-> ADR 0010 §3/§5, the Cloudflare Pages project is kept only as a **short warm
-> standby for the cutover window** (until ~2026-07-08) — its deletion, and
-> retirement of the repo's `Pages:Edit` token, is a separate operator/dashboard
-> step *after* that window closes. `.github/workflows/deploy-pages.yml` has
-> been removed (`chore/retire-pages-lane`); Amendment 1 on ADR 0010 already
-> called it "the deprecated, spinning-down interim Cloudflare Pages lane."
+> **STATUS (2026-07-07): Cloudflare Pages is RETIRED and its project is
+> DELETED.** ADR 0010 (`docs/decisions/0010-on-prem-is-the-production-host.md`)
+> executed the cutover: apex + `www` resolve to the on-cluster `cloudflared`
+> tunnel origin (infra PR #63), not the Pages host this runbook describes
+> below. The operator closed the cutover-rollback window early (ADR 0010
+> Amendment 2, TIN-2560): the `greatfallstoolbus-org` Pages project was
+> **deleted 2026-07-06** (site PR #122/#123, workflow run 28801030150, API
+> `{"success":true}`) rather than held warm through ~2026-07-08.
+> `.github/workflows/deploy-pages.yml` has been removed
+> (`chore/retire-pages-lane`); Amendment 1 on ADR 0010 already called it "the
+> deprecated, spinning-down interim Cloudflare Pages lane."
 >
-> **Rollback during the window** is the one-line revert this runbook's "Full
-> path" used to describe in reverse: flip `var.pages_host` in the infra `edge`
-> stack back to `greatfallstoolbus-org.pages.dev` (ADR 0010 §5 "rollback during
-> the window"). Everything below this notice is retained as historical
-> procedure + reference for that window, not the live posture.
+> **Neither rollback path below is reachable anymore.** The "Fast path"
+> (promote a prior Pages deployment) and the DNS-flip-back described as
+> "rollback during the window" both require a live Pages project — there is
+> none left to promote a deployment on or flip DNS back to. The **current,
+> real rollback** is the on-cluster re-pin primitive named in ADR 0010 §5 /
+> Amendment 2: re-dispatch the infra `web-stack.yml` workflow
+> (`workflow_dispatch`, `confirm=apply`, `image=<prior known-good digest>`) to
+> roll the Deployment back to a previously-served image. Everything below this
+> notice is retained as historical procedure for the CF-Pages-serving era
+> (through 2026-07-06), not a live option.
 
 Two-level rollback for the apex/`www` production surface of greatfallstoolbus.org
 (TIN-2401). This is the explicit rollback path the CD audit flagged as missing.

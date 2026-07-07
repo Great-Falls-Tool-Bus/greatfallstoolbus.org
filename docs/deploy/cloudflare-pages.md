@@ -1,17 +1,20 @@
-# Deploy lane: Cloudflare Pages (RETIRED — rollback-window standby only)
+# Deploy lane: Cloudflare Pages (RETIRED — project deleted, historical reference only)
 
-> **STATUS (2026-07-06): retired as the serving lane.** ADR 0010
+> **STATUS (2026-07-07): retired as the serving lane AND deleted.** ADR 0010
 > (`docs/decisions/0010-on-prem-is-the-production-host.md`) executed the
-> cutover ADR 0008 accepted: production now serves on-cluster (`adapter-node`
-> -> OCI image -> K8s -> `cloudflared`), not Cloudflare Pages. Per ADR 0010
-> §3, the Pages project is retained **only as a short warm standby for the
-> cutover window** (until ~2026-07-08), then deleted along with the repo's
-> `Pages:Edit` token — a separate operator/dashboard step, not part of any PR.
+> cutover ADR 0008 accepted: production serves on-cluster (`adapter-node` ->
+> OCI image -> K8s -> `cloudflared`), not Cloudflare Pages. Per ADR 0010
+> Amendment 2 (TIN-2560), the operator closed the cutover-rollback window early
+> and the `greatfallstoolbus-org` Pages project was **deleted 2026-07-06**
+> (PR #122/#123, workflow run 28801030150) along with the repo's `Pages:Edit`
+> token, rather than held warm through ~2026-07-08.
 > `.github/workflows/deploy-pages.yml` — the workflow this doc describes below
-> — has been removed (`chore/retire-pages-lane`). This page is kept as the
-> historical/rollback-window reference; see
+> — has been removed (`chore/retire-pages-lane`). This page is kept as a
+> historical reference to a lane that no longer exists in any form (no
+> project, no warm standby, no rollback target); see
 > [`docs/runbooks/cf-pages-rollback.md`](../runbooks/cf-pages-rollback.md) for
-> the rollback procedure while the window holds.
+> why the rollback procedure it once described is no longer reachable and what
+> the current rollback path is instead.
 
 Historical description of the retired lane, for reference: this repo did not
 carry the Wrangler implementation locally; the removed

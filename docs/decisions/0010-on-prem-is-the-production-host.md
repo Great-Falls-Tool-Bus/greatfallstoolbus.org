@@ -294,3 +294,84 @@ digest, replicas 0->2, /health probes (TIN-2543)`).
 **Operator decision:** 2026-07-05, reaffirmed 2026-07-06, verbatim: *"none of
 this site should be CF pages served, that was shot down in favor of
 adapter-node."*
+
+## Amendment 2 — §5 step 7 & §8: cutover fully executed, Cloudflare Pages project deleted (AMENDED 2026-07-07, operator ruling; TIN-2560)
+
+**Superseded text (retained per the no-silent-rewrite rule):**
+
+> ~~7. Delete the Cloudflare Pages project and retire the public repo's
+> `Pages:Edit` token last (after the on-cluster origin has baked).~~
+
+> ~~**Rollback during the window:** re-flip DNS / Access origin back to the warm
+> Pages standby (Decision 2 keeps it warm precisely for this window); after the
+> window, on-cluster rollback is the re-pin-previous-`sha-<commit>` primitive
+> (0008 §5).~~
+
+> ~~**Not yet applied.** This ADR codifies the accepted host and the executing
+> cutover plan; the cutover steps in §5 are operator + overlay work and are not
+> applied by this document. On-prem is the **accepted** host; it is not claimed
+> **live** until the operator completes §5.~~ (§8, final bullet)
+
+**Replacement — the cutover is fully executed; the warm-standby window closed early:**
+
+The operator ruled (2026-07-07, verbatim: *"decommission now, align docs"*) to
+retire the Cloudflare Pages project immediately rather than hold it through the
+full cutover-rollback window originally bounded at ~2026-07-08 (§3). Amendment
+1 already established that on-cluster `adapter-node` serving was live and
+verified; the remaining day of warm-standby overlap bought nothing once that
+was proven, so the operator closed the window early instead of waiting out the
+date.
+
+All seven §5 steps are **done**:
+
+- Steps 1–6 (SA/RBAC, namespace, `replicas` 0→2, tunnel route, apex/www DNS
+  flip, Access re-point) are the state `great-falls-tool-bus-infra` carries
+  today: `tofu/stacks/edge` `var.pages_host` now **defaults to the
+  honey-ingress tunnel cname**, not `greatfallstoolbus-org.pages.dev` (infra
+  PR #63); the web Deployment overlay is the executing shape (`replicas: 2`,
+  digest-pinned; infra PR #60), and `web-stack.yml` run 28767572897 put 2/2
+  replicas `Ready` on `/health`.
+- Step 7 — **the `greatfallstoolbus-org` Cloudflare Pages project is deleted.**
+  Site PR #122 added a one-off, dispatch-only, name-confirm-gated GitHub
+  Actions workflow whose sole job was the deletion (fail-closed without the
+  repo's `Pages:Edit`-scoped secret). Run
+  [`28801030150`](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/actions/runs/28801030150)
+  executed it 2026-07-06T14:58Z: the Cloudflare API `DELETE
+  .../pages/projects/greatfallstoolbus-org` call returned `{"success":true}`
+  (job log: `Pages project greatfallstoolbus-org deleted.`). PR #123 removed
+  the one-off workflow immediately after (its whole job was done) and recorded
+  the verification: `greatfallstoolbus-org.pages.dev` no longer resolves in
+  DNS at all, and apex/`www` are healthy on the tunnel origin.
+
+**Rollback truth, corrected:** the "rollback during the window" primitive this
+ADR named above **no longer exists** — there is no Cloudflare Pages project
+left to flip DNS back to; `var.pages_host = "greatfallstoolbus-org.pages.dev"`
+would now point the apex at a dead host. The **one remaining rollback path** is
+the on-cluster re-pin this ADR always named as the *after*-window primitive
+(0008 §5 / 0010 §5, above): re-dispatch the infra `web-stack.yml` workflow
+(`workflow_dispatch`, `confirm=apply`, `image=<prior known-good
+ghcr.io/great-falls-tool-bus/greatfallstoolbus.org@sha256:<digest>>`) to roll
+the Deployment back to a previously-served image. That path is not new — it
+was always the eventual rollback story once Pages was gone — it is simply now
+the **only** rollback, effective 2026-07-06, not the fallback-of-last-resort it
+read as when this ADR was Accepted.
+
+**§8 replacement:** "Not yet applied" is superseded. The cutover is live and
+fully applied end-to-end: on-prem is not merely the *accepted* host, it is the
+**sole** serving host, verified — apex/`www` resolve through the tunnel, and
+the retired `pages.dev` hostname no longer resolves at all (no second live
+publisher remains, by construction).
+
+**What this amendment does not change:** §1–§4, §6, and §7 stand as written
+(and as already amended by Amendment 1); this amendment closes out §5 step 7
+and corrects §8's "not yet applied" caveat and the now-obsolete
+rollback-during-the-window text only.
+
+**Citations:** site PR #122
+(`chore(tin-2560): one-off dispatch workflow to delete the retired Pages
+project`), site PR #123
+(`chore(tin-2560): remove the one-off Pages-delete workflow (executed)`),
+workflow run 28801030150, infra `tofu/stacks/edge/variables.tf` (`var.pages_host`
+current default = the honey-ingress `cfargotunnel.com` target).
+
+**Operator decision:** 2026-07-07, verbatim: *"decommission now, align docs."*
