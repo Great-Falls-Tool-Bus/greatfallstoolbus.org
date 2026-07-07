@@ -6,11 +6,6 @@
 	import DiscussThreads from '$lib/components/DiscussThreads.svelte';
 	import { archiveVisible } from '$lib/flags';
 
-	// Snapshot-driven archive index (TIN-2528). The thread data arrives through
-	// the universal load in `+page.ts` (fixture today, swapped for a live
-	// in-cluster HyperKitty fetch later); this page just renders `data.snapshot`
-	// inside the archiveVisible branch. Full bodies stay on the Anubis-gated
-	// archive — the rows deep-link out, and the outbound archive link stays below.
 	let { data } = $props();
 	const snapshot = $derived(data.snapshot);
 
@@ -38,7 +33,7 @@
 	<title>Discuss | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="discuss@latoolb.us is the public community board for the Great Falls Tool Bus: an open place to talk tools, projects, and the bus in Lewiston-Auburn, Maine."
+		content="discuss@latoolb.us is the public HyperKitty board for the Great Falls Tool Bus: an open place to talk tools, projects, and the bus in Lewiston-Auburn, Maine."
 	/>
 </svelte:head>
 
@@ -46,21 +41,9 @@
 	<PageHeader
 		eyebrow="Community board"
 		title="Discuss"
-		lead="discuss@latoolb.us is the public board for the Great Falls Tool Bus: an open, readable place to talk tools and projects with your neighbors."
+		lead="discuss@latoolb.us is the public HyperKitty board for the Great Falls Tool Bus."
 		icon={MessagesSquare}
 	/>
-
-	<section class="mt-10 leading-relaxed" aria-label="What the board is">
-		<h2 class="text-2xl font-semibold">An open place to talk</h2>
-		<p class="text-surface-700 dark:text-surface-300 mt-4">
-			It is the everyday back-and-forth of a shared tool library: what to build, how a repair went, which tool did the
-			job, who is up to what around Lewiston-Auburn.
-		</p>
-		<p class="text-surface-700 dark:text-surface-300 mt-4">
-			Borrowing a tool is a separate, personal path: the board is for talking, access is for doing. To use the bus,
-			start with <a class="underline underline-offset-4" href={`${base}/contact#access`}>how access works</a>.
-		</p>
-	</section>
 
 	{#if archiveVisible}
 		<!-- VISIBLE: gated preview (PUBLIC_ARCHIVE_PREVIEW) or public go-live
