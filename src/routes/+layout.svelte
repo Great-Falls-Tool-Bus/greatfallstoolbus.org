@@ -13,6 +13,7 @@
 	import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
 	import ExternalLink from '$lib/components/ExternalLink.svelte';
 	import ContributeMenu from '$lib/components/ContributeMenu.svelte';
+	import { buildSha, buildShaShort } from '$lib/build-info';
 	import { toaster } from '$lib/toaster';
 	import { theme } from '$lib/theme.svelte';
 	import { primaryNavItems, footerNavGroups, isActivePath } from '$lib/nav-items';
@@ -209,6 +210,22 @@
 					The Great Falls Tool Bus is an unincorporated community project in Lewiston-Auburn, Maine.
 				</p>
 				<p class="text-surface-500 mt-2 text-xs italic">Infrastructure built &amp; hosted in Lewiston, ME.</p>
+				<!-- Build provenance: shown only for a real published container image, where
+				     PUBLIC_BUILD_SHA is baked in (Justfile container recipes -> build-info.ts).
+				     Degrades to nothing on local / adapter-static builds. The short sha links to
+				     the exact source commit, whose GitHub "Verified" badge substantiates the note:
+				     main is merged through GitHub, so its commits are signed by GitHub's web-flow
+				     key (committer = GitHub), not the author's own key. -->
+				{#if buildShaShort}
+					<p class="text-surface-500 mt-2 text-xs">
+						built from
+						<ExternalLink
+							href={`${REPO_URL}/commit/${buildSha}`}
+							class="hover:text-primary-500 font-mono transition-colors"
+							label={`source commit ${buildShaShort} on GitHub`}>{buildShaShort}</ExternalLink
+						>, GitHub-verified
+					</p>
+				{/if}
 			</div>
 			{#each footerNavGroups as group (group.heading)}
 				<nav aria-label={group.heading}>
