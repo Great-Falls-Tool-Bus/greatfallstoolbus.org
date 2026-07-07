@@ -130,7 +130,12 @@ container-image-publish:
     else \
         echo "No static/photos assets; keeping committed image-manifest fallback."; \
     fi
-    ADAPTER=node PUBLIC_ARCHIVE_LIVE=true pnpm run build
+    # PUBLIC_BUILD_SHA carries the build commit into the client bundle (Vite
+    # inlines it via import.meta.env, src/lib/build-info.ts) so the footer renders
+    # a "built from <sha>" provenance link to this exact commit. Only the container
+    # recipes set it — local / adapter-static builds leave it unset and the line
+    # degrades to nothing.
+    ADAPTER=node PUBLIC_ARCHIVE_LIVE=true PUBLIC_BUILD_SHA="${BUILD_COMMIT_SHA}" pnpm run build
     export APP_BUILD="$PWD/build"
     # 2. Build the nix2container image and push it to GHCR through the n2c-patched
     #    skopeo. copyToRegistry derives docker://${IMAGE_REF}:${tag} from the image
@@ -168,7 +173,9 @@ container-image-build:
     fi
     # PUBLIC_ARCHIVE_LIVE=true so the local tarball matches the prod on-cluster
     # image (see container-image-publish); PUBLIC_* is build-time-inlined by Vite.
-    ADAPTER=node PUBLIC_ARCHIVE_LIVE=true pnpm run build
+    # PUBLIC_BUILD_SHA bakes the build commit for the footer "built from <sha>"
+    # provenance link (src/lib/build-info.ts).
+    ADAPTER=node PUBLIC_ARCHIVE_LIVE=true PUBLIC_BUILD_SHA="${BUILD_COMMIT_SHA}" pnpm run build
     export APP_BUILD="$PWD/build"
     nix run --impure .#image.copyTo -- docker-archive:greatfallstoolbus-oci.tar
     echo "wrote greatfallstoolbus-oci.tar"
