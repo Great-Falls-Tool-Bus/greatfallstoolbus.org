@@ -101,15 +101,15 @@
 	>
 
 	<AppBar class="saturn-nav sticky top-0 z-40">
-		<AppBar.Toolbar class="grid-cols-[auto_1fr_auto] px-4 py-2">
+		<AppBar.Toolbar class="grid-cols-[minmax(0,auto)_1fr_auto] px-4 py-2">
 			<AppBar.Lead>
 				<a
 					href={`${base}/`}
-					class="hover:text-primary-500 inline-flex items-center gap-2 text-base whitespace-nowrap transition-colors sm:text-lg"
+					class="hover:text-primary-500 inline-flex min-w-0 items-center gap-2 text-sm whitespace-nowrap transition-colors sm:text-lg"
 					aria-label={SITE_NAME + ' home'}
 				>
 					<BusMark decorative class="text-primary-500 h-[1.15em] w-[1.15em]" />
-					<Wordmark text={SITE_NAME} /></a
+					<Wordmark text={SITE_NAME} class="truncate" /></a
 				>
 			</AppBar.Lead>
 			<AppBar.Headline></AppBar.Headline>
