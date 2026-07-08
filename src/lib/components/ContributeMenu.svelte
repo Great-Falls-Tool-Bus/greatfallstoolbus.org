@@ -204,13 +204,14 @@
 	/* Dropdown-tier fixed affordance, anchored bottom-left so it clears both the
 	   sticky AppBar (top) and the bottom-right Toast stack. flex-col-reverse pins
 	   the trigger to the bottom and grows the panel upward from the same corner.
-	   z-30 sits below the AppBar (z-40) and Toasts (z-50): a coherent scale, not
-	   an arbitrary 9999. */
+	   --z-dropdown sits below the sticky AppBar, the mobile drawer, and Toasts on
+	   the semantic z-index scale in app.css: a coherent ladder, not an arbitrary
+	   9999. */
 	.contribute-fab {
 		position: fixed;
 		bottom: 1rem;
 		left: 1rem;
-		z-index: 30;
+		z-index: var(--z-dropdown);
 		display: flex;
 		flex-direction: column-reverse;
 		align-items: flex-start;

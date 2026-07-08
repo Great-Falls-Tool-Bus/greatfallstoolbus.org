@@ -19,7 +19,7 @@
 	>
 		<Info class="h-[1em] w-[1em]" aria-hidden="true" />
 	</Tooltip.Trigger>
-	<Tooltip.Positioner class="z-50">
+	<Tooltip.Positioner class="z-(--z-tooltip)">
 		<Tooltip.Content
 			class="border-surface-300-700 bg-surface-50-950 text-surface-800-200 max-w-xs border px-3 py-2 text-sm leading-relaxed shadow-lg"
 		>
