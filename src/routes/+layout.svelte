@@ -7,7 +7,7 @@
 	import BusMark from '$lib/components/BusMark.svelte';
 	import Wordmark from '$lib/components/Wordmark.svelte';
 	import SEOHead from '$lib/components/SEOHead.svelte';
-	import { AppBar, Dialog, Navigation, Toast } from '@skeletonlabs/skeleton-svelte';
+	import { AppBar, Dialog, Navigation, Portal, Toast } from '@skeletonlabs/skeleton-svelte';
 	import { TinyVectors } from '@tummycrypt/tinyvectors';
 	import '../app.css';
 	import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
@@ -97,11 +97,11 @@
 	{/if}
 	<a
 		href="#content"
-		class="focus:bg-primary-500 sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+		class="focus:bg-primary-500 sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-(--z-tooltip) focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
 		>Skip to content</a
 	>
 
-	<AppBar class="saturn-nav sticky top-0 z-40">
+	<AppBar class="saturn-nav sticky top-0 z-(--z-sticky)">
 		<AppBar.Toolbar class="grid-cols-[minmax(0,auto)_1fr_auto] px-4 py-2">
 			<AppBar.Lead>
 				<a
@@ -149,46 +149,55 @@
 					<Dialog.Trigger class="hover:bg-surface-200-800 p-2 lg:hidden" aria-label="Open navigation">
 						<Menu class="h-5 w-5" />
 					</Dialog.Trigger>
-					<Dialog.Backdrop class="fixed inset-0 z-40 bg-black/40" />
-					<Dialog.Positioner class="fixed inset-y-0 right-0 z-50 flex w-72 max-w-[85vw]">
-						<Dialog.Content class="bg-surface-50-950 flex w-full flex-col">
-							<div class="border-surface-200-800 flex items-center justify-between border-b px-4 py-3">
-								<span class="inline-flex items-center gap-2 text-sm">
-									<BusMark decorative class="text-primary-500 h-[1.15em] w-[1.15em]" />
-									<Wordmark text={SITE_NAME} />
-								</span>
-								<Dialog.CloseTrigger class="hover:bg-surface-200-800 p-2" aria-label="Close navigation">
-									<X class="h-5 w-5" />
-								</Dialog.CloseTrigger>
-							</div>
-							<Navigation layout="sidebar">
-								<Navigation.Content>
-									<Navigation.Menu>
-										{#each primaryNavItems as item (item.href)}
-											{@const Icon = item.icon}
-											<Navigation.TriggerAnchor
-												href={`${base}${item.href}`}
-												aria-current={isActivePath(currentPath, item.match) ? 'page' : undefined}
-												onclick={() => {
-													mobileOpen = false;
-												}}
-											>
-												{#if Icon}
-													<Icon class="h-4 w-4" aria-hidden="true" />
-												{/if}
-												<Navigation.TriggerText>{item.label}</Navigation.TriggerText>
-											</Navigation.TriggerAnchor>
-										{/each}
-									</Navigation.Menu>
-								</Navigation.Content>
-								<Navigation.Footer>
-									<div class="flex w-full justify-center py-2">
-										<ThemeSwitcher />
-									</div>
-								</Navigation.Footer>
-							</Navigation>
-						</Dialog.Content>
-					</Dialog.Positioner>
+					<!-- Portal to <body>: Skeleton 4 dialogs do not auto-portal, and the
+					     saturn-nav backdrop-filter makes the AppBar the containing block
+					     for fixed descendants (CSS Filter Effects 2). Rendered inline the
+					     backdrop/positioner's inset resolved against the ~52px AppBar box,
+					     so at mobile widths the open drawer collapsed to a strip behind
+					     the page content. Portaled, `fixed inset-*` means the viewport
+					     again and the drawer overlays everything at the modal tier. -->
+					<Portal>
+						<Dialog.Backdrop class="fixed inset-0 z-(--z-modal-backdrop) bg-black/40" />
+						<Dialog.Positioner class="fixed inset-y-0 right-0 z-(--z-modal) flex w-72 max-w-[85vw]">
+							<Dialog.Content class="bg-surface-50-950 flex w-full flex-col">
+								<div class="border-surface-200-800 flex items-center justify-between border-b px-4 py-3">
+									<span class="inline-flex items-center gap-2 text-sm">
+										<BusMark decorative class="text-primary-500 h-[1.15em] w-[1.15em]" />
+										<Wordmark text={SITE_NAME} />
+									</span>
+									<Dialog.CloseTrigger class="hover:bg-surface-200-800 p-2" aria-label="Close navigation">
+										<X class="h-5 w-5" />
+									</Dialog.CloseTrigger>
+								</div>
+								<Navigation layout="sidebar">
+									<Navigation.Content>
+										<Navigation.Menu>
+											{#each primaryNavItems as item (item.href)}
+												{@const Icon = item.icon}
+												<Navigation.TriggerAnchor
+													href={`${base}${item.href}`}
+													aria-current={isActivePath(currentPath, item.match) ? 'page' : undefined}
+													onclick={() => {
+														mobileOpen = false;
+													}}
+												>
+													{#if Icon}
+														<Icon class="h-4 w-4" aria-hidden="true" />
+													{/if}
+													<Navigation.TriggerText>{item.label}</Navigation.TriggerText>
+												</Navigation.TriggerAnchor>
+											{/each}
+										</Navigation.Menu>
+									</Navigation.Content>
+									<Navigation.Footer>
+										<div class="flex w-full justify-center py-2">
+											<ThemeSwitcher />
+										</div>
+									</Navigation.Footer>
+								</Navigation>
+							</Dialog.Content>
+						</Dialog.Positioner>
+					</Portal>
 				</Dialog>
 			</AppBar.Trail>
 		</AppBar.Toolbar>
@@ -264,7 +273,10 @@
 	     below the AppBar and Toasts, anchored bottom-left to clear the toast stack. -->
 	<ContributeMenu />
 
-	<Toast.Group {toaster} class="fixed right-4 bottom-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-3">
+	<Toast.Group
+		{toaster}
+		class="fixed right-4 bottom-4 z-(--z-toast) flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-3"
+	>
 		{#snippet children(toast)}
 			<Toast {toast} class="border-surface-300-700 bg-surface-50-950 text-surface-900-50 border p-4 shadow-lg">
 				<div class="flex items-start justify-between gap-3">

@@ -59,6 +59,21 @@
 	color-scheme: dark;
 }
 
+/* ===== Semantic z-index scale =====
+   One ladder for every stacked surface: dropdown < sticky < modal-backdrop <
+   modal < toast < tooltip. Never an arbitrary 999/9999. Markup consumes the
+   tokens through the Tailwind v4 var shorthand (z-(--z-sticky)); scoped
+   component styles use var() directly (see ContributeMenu). The 30/40 anchors
+   match the values the site already shipped, so nothing shifts visually. */
+:root {
+	--z-dropdown: 30;
+	--z-sticky: 40;
+	--z-modal-backdrop: 50;
+	--z-modal: 60;
+	--z-toast: 70;
+	--z-tooltip: 80;
+}
+
 /* ===== Warm-variant editorial overrides (blog-structural uplift) =====
    Retarget the omux typography vars onto the Crimson Pro (body) / Fraunces
    (headings + display) pairing and flatten container radii to sharp (0),
@@ -373,9 +388,16 @@ pre.shiki span {
    1. A 1.5px primary-tinted bottom edge (the planet's ring line).
    2. A faint warm radial halo at the top-right (the planet's atmosphere
       tinting the chrome from outside the document flow).
-   Both are subtle — the brand voice, not a focal element. */
+   Both are subtle: the brand voice, not a focal element.
+
+   Do NOT set `position` here: this rule is unlayered, so it out-cascades the
+   layered Tailwind utilities and a `position: relative` silently defeated the
+   markup's `sticky top-0` (the header never actually stuck). The ::after halo
+   only needs a positioned ancestor, which `sticky` already provides. Note the
+   backdrop-filter below also makes this element the containing block for any
+   fixed-position descendants (CSS Filter Effects 2), which is why the mobile
+   drawer must portal out of the AppBar (see +layout.svelte). */
 .saturn-nav {
-	position: relative;
 	background: color-mix(in oklch, var(--color-surface-50) 88%, transparent);
 	border-bottom: 2px solid color-mix(in oklch, var(--color-primary-500) 50%, transparent);
 }
