@@ -80,12 +80,12 @@ jobs:
             echo "::notice::GF_CORE_DEPLOY_KEY / GF_CORE_READ_TOKEN not provisioned; skipping the adapter-node image build. Add the secret to activate it."
           fi
       - name: Checkout overlay
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: overlay
       - name: Checkout GloriousFlywheel core with deploy key
         if: env.HAS_GF_CORE_DEPLOY_KEY == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: tinyland-inc/GloriousFlywheel
           ref: ${{ env.GF_CORE_REF }}
@@ -93,7 +93,7 @@ jobs:
           ssh-key: ${{ secrets.GF_CORE_DEPLOY_KEY }}
       - name: Checkout GloriousFlywheel core with read token
         if: env.HAS_GF_CORE_DEPLOY_KEY != 'true' && env.HAS_GF_CORE_READ_TOKEN == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: tinyland-inc/GloriousFlywheel
           ref: ${{ env.GF_CORE_REF }}
