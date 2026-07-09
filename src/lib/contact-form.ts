@@ -70,21 +70,32 @@ export function hasErrors(errors: ContactFieldErrors): boolean {
 }
 
 /** The JSON body POSTed to the form-handler. Trimmed to what the handler injects
- *  over LMTP; the honeypot rides along so the server can also drop bot posts. */
+ *  over LMTP; the honeypot rides along so the server can also drop bot posts.
+ *  `altcha` is the solved ALTCHA proof-of-work payload, present only once the
+ *  vendored widget has solved a challenge (TIN-2420 Path B). It is optional on
+ *  the wire: the handler accepts legacy bodies without it while its
+ *  ALTCHA_REQUIRED flag is false, and enforces it once flipped. */
 export interface ContactPayload {
 	name: string;
 	email: string;
 	message: string;
 	website: string;
+	altcha?: string;
 }
 
-export function toContactPayload(values: ContactFormValues): ContactPayload {
-	return {
+export function toContactPayload(values: ContactFormValues, altcha = ''): ContactPayload {
+	const payload: ContactPayload = {
 		name: values.name.trim(),
 		email: values.email.trim(),
 		message: values.message.trim(),
 		website: values.website,
 	};
+	// Only attach a non-empty proof, so a legacy submit (widget absent or not yet
+	// solved) stays a clean four-field body the handler accepts in grace mode.
+	if (altcha) {
+		payload.altcha = altcha;
+	}
+	return payload;
 }
 
 /** Join the configured endpoint origin to the contact route, tolerating a
@@ -92,6 +103,12 @@ export function toContactPayload(values: ContactFormValues): ContactPayload {
  *  `https://forms.latoolb.us/` both resolve to one canonical URL. */
 export function contactApiUrl(endpoint: string): string {
 	return `${endpoint.replace(/\/+$/, '')}/api/contact`;
+}
+
+/** The ALTCHA challenge-issuance URL on the same handler origin. The vendored
+ *  `<altcha-widget>` GETs this to obtain a signed challenge to solve. */
+export function contactChallengeUrl(endpoint: string): string {
+	return `${endpoint.replace(/\/+$/, '')}/api/challenge`;
 }
 
 /** Build the `mailto:` fallback the page offers when there is no live endpoint

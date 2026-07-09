@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	buildMailtoHref,
 	contactApiUrl,
+	contactChallengeUrl,
 	emptyContactValues,
 	hasErrors,
 	isHoneypotTripped,
@@ -79,6 +80,21 @@ describe('toContactPayload', () => {
 			website: ' bot ',
 		});
 	});
+
+	it('omits altcha entirely when no proof is supplied (legacy body)', () => {
+		const payload = toContactPayload(values());
+		expect('altcha' in payload).toBe(false);
+	});
+
+	it('attaches a solved altcha proof when one is supplied', () => {
+		const payload = toContactPayload(values(), 'base64proofpayload');
+		expect(payload.altcha).toBe('base64proofpayload');
+	});
+
+	it('treats an empty-string proof as no proof', () => {
+		const payload = toContactPayload(values(), '');
+		expect('altcha' in payload).toBe(false);
+	});
 });
 
 describe('contactApiUrl', () => {
@@ -89,6 +105,16 @@ describe('contactApiUrl', () => {
 	it('tolerates one or more trailing slashes on the endpoint', () => {
 		expect(contactApiUrl('https://forms.latoolb.us/')).toBe('https://forms.latoolb.us/api/contact');
 		expect(contactApiUrl('https://forms.latoolb.us///')).toBe('https://forms.latoolb.us/api/contact');
+	});
+});
+
+describe('contactChallengeUrl', () => {
+	it('appends the challenge route to a bare origin', () => {
+		expect(contactChallengeUrl('https://forms.latoolb.us')).toBe('https://forms.latoolb.us/api/challenge');
+	});
+
+	it('tolerates trailing slashes on the endpoint', () => {
+		expect(contactChallengeUrl('https://forms.latoolb.us//')).toBe('https://forms.latoolb.us/api/challenge');
 	});
 });
 
