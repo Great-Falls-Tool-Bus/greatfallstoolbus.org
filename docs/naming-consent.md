@@ -4,6 +4,11 @@
   lands
 - Date opened: 2026-07-03 (DECISION-APPLICATION wave)
 - Related: 0004 (gate-opening criteria, A5), TIN-2421 (gate-opening owner)
+- A5 status (2026-07-08): **individual-name redaction COMPLETE**. The last live
+  leak (`static/readme.txt` "Joe") was redacted to "J." in PR #130 (2026-07-06);
+  a fresh grep of `src/**` + `static/**` finds no unconsented individual name.
+  The **only remaining A5 blocker is the PENDING org/reference rows** (§C below),
+  which need operator consent or an explicit redaction ruling before the flip.
 
 ## Policy (verbatim, operator, 2026-07-03)
 
@@ -22,10 +27,10 @@ is a blocker to the gate opening at all.
 
 | Name / org | Surface | Asked? | Agreed? | Date | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Ripley (gh: krosepulham) | /shout-outs (Founding supporter) | Yes | CONSENTED | 2026-07-04 | Operator ruling 2026-07-04: public name = Ripley (was Kate Pulham). D4 wording sign-off still tracked separately. |
-| J. (Alderman, Lewiston) | /shout-outs (hosts the bus) | Yes | CONSENTED | 2026-07-04 | Operator ruling 2026-07-04: initial-only credit approved. |
-| Alex | /shout-outs (Founder) | Yes | CONSENTED | 2026-07-04 | Operator ruling 2026-07-04: first-name credit approved. |
-| Jess Sullivan | /shout-outs, /stewards (footer/links) | N/A | SELF | 2026-07-03 | Operator's own name/bio; self-consent stands, listed here for completeness only |
+| Ripley (gh: krosepulham) | /shout-outs (Founding supporter), /cells* (Captain) | Yes | CONSENTED | 2026-07-04 | Operator ruling 2026-07-04: public name = Ripley (was Kate Pulham). D4 wording sign-off still tracked separately. Surface column updated 2026-07-08 to include the /cells* captain surfaces noted in the addendum. |
+| J. (Alderman, Lewiston) | /shout-outs (hosts the bus), static/readme.txt | Yes | CONSENTED | 2026-07-04 | Operator ruling 2026-07-04: initial-only credit approved. Full first name redacted to "J." on static/readme.txt in PR #130 (2026-07-06); all served surfaces now use "J." only. |
+| Alex | /shout-outs (Founder), static/readme.txt | Yes | CONSENTED | 2026-07-04 | Operator ruling 2026-07-04: first-name credit approved. |
+| Jess Sullivan | /shout-outs, /stewards (footer/links), /cells (Captain), /plans, static/readme.txt | N/A | SELF | 2026-07-03 | Operator's own name/bio; self-consent stands, listed here for completeness only. Surface column updated 2026-07-08 to include /cells + /plans. |
 | The Portland makerspace community | /shout-outs (Friends of the bus) | No | PENDING | — | Community reference, not an individual — confirm who can speak for it before public flip |
 | Ithaca Generator | /shout-outs (Friends of the bus) | No | PENDING | — | Added per D10; org reference (501(c)(3) makerspace), needs org-level consent before public flip |
 | Artisan's Asylum | /shout-outs (Friends of the bus + About-Jess bio) | No | PENDING | — | Referenced twice (friends list + bibliography credit); one consent covers both |
@@ -63,15 +68,22 @@ status is changed here — these are operator escalations.
   `src/lib/data/cells.ts:66`) and **`/plans`** ("webmaster Jess"). SELF consent
   covers these; noted for completeness.
 
-### B. LIVE CONSENT LEAK — blocks A5 (redaction required before flip)
+### B. Individual-name leak, RESOLVED 2026-07-06 (was: static/readme.txt "Joe")
 
-- **`static/readme.txt:29`** publishes **"Joe (Lewiston alderman -- the bus
-  lives on his property)"**. The operator ruling (2026-07-04) consented this
-  person **only to the initial-only credit "J."** (see the "J." row above and
-  `/shout-outs`). `static/readme.txt` is a public, indexable file served at
-  `/readme.txt`. Publishing the full first name exceeds the recorded consent.
-  **Action: redact "Joe" → "J." before the Access gate opens.** (PR #69 fixed
-  the Kate→Ripley leak in this same file but did not catch "Joe".)
+- **RESOLVED.** `static/readme.txt` previously published **"Joe (Lewiston
+  alderman -- the bus lives on his property)"**, the full first name of the
+  person the operator ruling (2026-07-04) consented **only to the initial-only
+  credit "J."**. That was a live, public consent-scope leak on an indexable file
+  (`/readme.txt`). **PR #130 (`8916767`, 2026-07-06) redacted "Joe" → "J."** in
+  the same line; the served WHO block now reads "J. (Lewiston alderman -- the bus
+  lives on his property)". (PR #69 had earlier fixed the Kate→Ripley leak in this
+  file but missed "Joe"; #130 closed it.)
+- **Individual-name sweep is now clean.** A fresh grep of `src/**` and `static/**`
+  (2026-07-08) finds **no** occurrence of "Joe", "Kate", "Pulham", or
+  "krosepulham" on any served route or static file. Every individual currently
+  published (Ripley, J., Alex, Jess Sullivan) is CONSENTED (or SELF) and appears
+  within the recorded consent scope. **The A5 individual-name redaction is
+  complete; the only remaining A5 gap is the PENDING org/reference rows in §C.**
 
 ### C. PENDING org/reference rows still block A5 as written
 
