@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   lane-env:
-    uses: tinyland-inc/ci-templates/.github/workflows/spoke-lane-env.yml@v2.9.0
+    uses: tinyland-inc/ci-templates/.github/workflows/spoke-lane-env.yml@v2.10.0
     with:
       spoke: site-scaffold
       lanes_path: .github/lanes.json

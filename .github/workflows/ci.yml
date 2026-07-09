@@ -26,7 +26,7 @@ jobs:
     # `just check` lane (no Bazel involved). The name is owned by ci-templates'
     # matrix — do not rename it here. Real Bazel cache attach happens in the
     # `flywheel-build` / `bazel-graph` jobs.
-    uses: tinyland-inc/ci-templates/.github/workflows/spoke-ci.yml@v2.9.0
+    uses: tinyland-inc/ci-templates/.github/workflows/spoke-ci.yml@v2.10.0
     with:
       node_version: '22'
       pnpm_version: '10.13.1'
