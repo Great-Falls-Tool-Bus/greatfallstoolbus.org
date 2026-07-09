@@ -7,6 +7,16 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ### Added
 
+- ALTCHA proof-of-work on the contact form (TIN-2420 Path B): a vendored,
+  self-hosted `<altcha-widget>` (`static/vendor/altcha/altcha.js`, MIT, pinned to
+  reference ALTCHA v3.2.0, zero npm/CDN dependency, CSP-clean) solves a signed
+  SHA-256 challenge from the keyholders form handler, and the solved token rides
+  the existing JSON POST as an optional `altcha` field. The widget is a quiet,
+  keyboard-free verification row matching the house glass / zero-radius canon;
+  the form still submits while the handler's `ALTCHA_REQUIRED` flag is off, so it
+  never blocks a real visitor. Because this repo auto-deploys on merge, this
+  change must land only AFTER the handler PR is applied with
+  `ALTCHA_REQUIRED=false` (see the PR body).
 - Wave-2.5 interaction polish (Skeleton-bundled Zag, zero new deps): calm,
   keyboard-accessible interaction upgrades built entirely on components
   `@skeletonlabs/skeleton-svelte@4.15.2` already re-exports (Zag 1.39.1), so no

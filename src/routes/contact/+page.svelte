@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { MediaQuery } from 'svelte/reactivity';
 	import { fade } from 'svelte/transition';
+	import { base } from '$app/paths';
 	import { KeyRound, LoaderCircle, Mail, MailCheck, MapPin, RotateCcw, Send, TriangleAlert } from '@lucide/svelte';
 	import CopyAddressButton from '$lib/components/CopyAddressButton.svelte';
 	import InfoTip from '$lib/components/InfoTip.svelte';
@@ -8,6 +9,7 @@
 	import {
 		buildMailtoHref,
 		contactApiUrl,
+		contactChallengeUrl,
 		emptyContactValues,
 		hasErrors,
 		isHoneypotTripped,
@@ -43,6 +45,49 @@
 	let values = $state<ContactFormValues>(emptyContactValues());
 	let fieldErrors = $state<ContactFieldErrors>({});
 	let submitError = $state('');
+
+	// ALTCHA proof-of-work (TIN-2420 Path B, widget side). The vendored,
+	// self-hosted <altcha-widget> solves a challenge from the handler and the
+	// solved token rides the existing JSON POST. Graceful by design: while the
+	// handler's ALTCHA_REQUIRED flag is false a submission still succeeds without
+	// a proof, so the widget never blocks the form.
+	let altchaPayload = $state('');
+	let widgetEl = $state<HTMLElement | undefined>(undefined);
+	const challengeUrl = $derived(endpointLive ? contactChallengeUrl(formEndpoint) : '');
+
+	// Load the self-hosted widget script once, client-side. The <altcha-widget>
+	// element is already in the DOM, so it upgrades as soon as the script defines
+	// it. No CDN; served from static/ at {base}/vendor/altcha/altcha.js.
+	$effect(() => {
+		if (!endpointLive || typeof document === 'undefined') return;
+		if (document.querySelector('script[data-altcha]')) return;
+		const script = document.createElement('script');
+		script.src = `${base}/vendor/altcha/altcha.js`;
+		script.defer = true;
+		script.setAttribute('data-altcha', '');
+		document.head.appendChild(script);
+	});
+
+	// Capture the solved payload from the widget's events. Cleared if the widget
+	// leaves the verified state, so a stale proof never rides a later submit.
+	$effect(() => {
+		const el = widgetEl;
+		if (!el) return;
+		const onVerified = (event: Event) => {
+			const detail = (event as CustomEvent).detail;
+			altchaPayload = detail && typeof detail.payload === 'string' ? detail.payload : '';
+		};
+		const onState = (event: Event) => {
+			const detail = (event as CustomEvent).detail;
+			if (detail && detail.state !== 'verified') altchaPayload = '';
+		};
+		el.addEventListener('verified', onVerified);
+		el.addEventListener('statechange', onState);
+		return () => {
+			el.removeEventListener('verified', onVerified);
+			el.removeEventListener('statechange', onState);
+		};
+	});
 
 	const reducedMotion = new MediaQuery('(prefers-reduced-motion: reduce)');
 	// A zero-duration fade collapses the panel swap to an instant cut under
@@ -94,7 +139,7 @@
 			const res = await fetch(contactApiUrl(formEndpoint), {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify(toContactPayload(values)),
+				body: JSON.stringify(toContactPayload(values, altchaPayload)),
 				signal: controller.signal,
 			});
 			if (!res.ok) {
@@ -115,10 +160,14 @@
 	}
 
 	// Retry from the error state keeps every field value the visitor typed; only
-	// the alert clears so they can resubmit or reach for the mail fallback.
+	// the alert clears so they can resubmit or reach for the mail fallback. The
+	// prior ALTCHA proof is single-use, so ask the widget for a fresh one.
 	function retry() {
 		submitError = '';
 		status = 'idle';
+		const el = widgetEl as (HTMLElement & { reset?: () => void; solve?: () => void }) | undefined;
+		el?.reset?.();
+		el?.solve?.();
 	}
 
 	const listAddresses = LIST_ADDRESSES;
@@ -375,6 +424,27 @@
 						bind:value={values.website}
 					/>
 				</div>
+
+				{#if endpointLive}
+					<!-- ALTCHA proof-of-work: a quick in-browser check that keeps spam off
+					     the keyholders list. No puzzle, no tracking; the solved token rides
+					     the JSON POST. Zero-radius, glass frame per the house canon. The
+					     form still submits if it has not solved yet (server accepts it while
+					     enforcement is off), so it never blocks a real visitor. -->
+					<div class="grid gap-1.5">
+						<altcha-widget
+							bind:this={widgetEl}
+							class="border-surface-200-800 bg-surface-50-950/60 flex items-center gap-3 border px-4 py-3 text-sm"
+							challengeurl={challengeUrl}
+							name="altcha"
+							auto="onload"
+							label="Human verification"
+						></altcha-widget>
+						<p class="text-surface-500 text-xs leading-relaxed">
+							A quick automated check runs in your browser to keep spam off the keyholders list. No puzzle, no tracking.
+						</p>
+					</div>
+				{/if}
 
 				<button
 					type="submit"
