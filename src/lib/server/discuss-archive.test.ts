@@ -209,6 +209,11 @@ describe('assertSnapshotIsPublicSafe (privacy gate)', () => {
 			/keyholders/,
 		);
 	});
+	it('allows the bare word "keyholders" as prose in an excerpt', () => {
+		expect(() =>
+			assertSnapshotIsPublicSafe({ ...safe, threads: [thread({ excerpt: 'the keyholders share the burden' })] }),
+		).not.toThrow();
+	});
 	it('hard-fails on a raw email address in any field', () => {
 		expect(() =>
 			assertSnapshotIsPublicSafe({ ...safe, threads: [thread({ excerpt: 'mail me at bob@evil.com' })] }),
@@ -467,10 +472,36 @@ describe('assertThreadDetailIsPublicSafe (privacy gate)', () => {
 		});
 		expect(() => assertThreadDetailIsPublicSafe(safe)).not.toThrow();
 	});
-	it('hard-fails on a keyholders trace anywhere', () => {
-		expect(() => assertThreadDetailIsPublicSafe(detailFixture({ subject: 'about the keyholders list' }))).toThrow(
+	it('hard-fails on a keyholders address trace anywhere', () => {
+		expect(() => assertThreadDetailIsPublicSafe(detailFixture({ subject: 'mail keyholders@ about it' }))).toThrow(
 			/keyholders/,
 		);
+	});
+	it('hard-fails on a neutralized keyholders address', () => {
+		expect(() => assertThreadDetailIsPublicSafe(detailFixture({ subject: 'mail keyholders@…' }))).toThrow(/keyholders/);
+	});
+	it('hard-fails on a HyperKitty-obfuscated keyholders address', () => {
+		expect(() =>
+			assertThreadDetailIsPublicSafe(detailFixture({ subject: 'write keyholders (at) latoolb.us' })),
+		).toThrow(/keyholders/);
+	});
+	it('allows the bare word "keyholders" as prose in a message body', () => {
+		const prose = detailFixture({
+			messages: [
+				{
+					id: 'P1',
+					senderName: 'Jess',
+					sentAt: '2026-07-04T17:45:00.000Z',
+					body: [
+						{
+							quoteLevel: 0,
+							text: 'The idea is keyholders / those aiming to keep the tool bus on the rails share the burden',
+						},
+					],
+				},
+			],
+		});
+		expect(() => assertThreadDetailIsPublicSafe(prose)).not.toThrow();
 	});
 	it('hard-fails on a raw address that slipped through', () => {
 		const leak = detailFixture({
