@@ -103,6 +103,15 @@ const OBFUSCATED_AT = /\s\((?:a|at)\)\s/i;
 const RAW_AT = /@/;
 const ADDRESS_LIKE = /^[^\s@]+(?:@|\s\((?:a|at)\)\s)[^\s@]+\.[^\s@]+$/i;
 
+// The PRIVATE keyholders list id in any address-shaped form: raw
+// (`keyholders@`), neutralized (`keyholders@` + the ellipsis sentinel),
+// HyperKitty-obfuscated (`keyholders (a) ...` / `keyholders (at) ...`), or
+// prose-spelled (`keyholders at latoolb...`). The bare word "keyholders" in
+// message prose is public-safe (members legitimately discuss the keyholder
+// model) and must NOT trip the privacy gates; a bare-word match made a real
+// public thread render as unavailable.
+const KEYHOLDERS_ADDRESS = /keyholders\s*(?:@|\((?:a|at)\))|keyholders\s+at\s+latoolb/i;
+
 // --- Pure helpers (unit-tested; no network) ---------------------------------
 
 /** Strip a leading list subject prefix such as "[Discuss] ". */
@@ -281,8 +290,8 @@ export function assertSnapshotIsPublicSafe(snapshot: DiscussSnapshot): void {
 	}
 	const serialized = JSON.stringify(snapshot);
 
-	if (/keyholders/i.test(serialized)) {
-		throw new DiscussArchiveError('forbidden token "keyholders" present in snapshot');
+	if (KEYHOLDERS_ADDRESS.test(serialized)) {
+		throw new DiscussArchiveError('private keyholders list address present in snapshot');
 	}
 	if (OBFUSCATED_AT.test(serialized)) {
 		throw new DiscussArchiveError('obfuscated email address ("(a)"/"(at)") present in snapshot');
@@ -330,15 +339,17 @@ export function assertValidSnapshotShape(snapshot: DiscussSnapshot): void {
 /**
  * PRIVACY GATE for the thread reader — the DiscussThreadDetail sibling of
  * `assertSnapshotIsPublicSafe`. Scans the SERIALIZED detail and throws (which
- * the reader's load turns into a calm unavailable state) on: any `keyholders`
- * trace, any surviving obfuscated address, any raw `@` other than the public
- * list address, or any non-public `@latoolb.us`. The only `@` allowed besides
- * the list address is the `@…` sentinel a neutralized inline address leaves.
+ * the reader's load turns into a calm unavailable state) on: any keyholders
+ * ADDRESS trace (never the bare word in prose; members legitimately discuss
+ * the keyholder model), any surviving obfuscated address, any raw `@` other
+ * than the public list address, or any non-public `@latoolb.us`. The only `@`
+ * allowed besides the list address is the `@…` sentinel a neutralized inline
+ * address leaves.
  */
 export function assertThreadDetailIsPublicSafe(detail: DiscussThreadDetail): void {
 	const serialized = JSON.stringify(detail);
-	if (/keyholders/i.test(serialized)) {
-		throw new DiscussArchiveError('forbidden token "keyholders" present in thread detail');
+	if (KEYHOLDERS_ADDRESS.test(serialized)) {
+		throw new DiscussArchiveError('private keyholders list address present in thread detail');
 	}
 	if (OBFUSCATED_AT.test(serialized)) {
 		throw new DiscussArchiveError('obfuscated email address ("(a)"/"(at)") present in thread detail');
