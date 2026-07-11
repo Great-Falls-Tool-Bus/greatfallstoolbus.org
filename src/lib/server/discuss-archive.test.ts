@@ -478,14 +478,12 @@ describe('assertThreadDetailIsPublicSafe (privacy gate)', () => {
 		);
 	});
 	it('hard-fails on a neutralized keyholders address', () => {
-		expect(() => assertThreadDetailIsPublicSafe(detailFixture({ subject: 'mail keyholders@…' }))).toThrow(
-			/keyholders/,
-		);
+		expect(() => assertThreadDetailIsPublicSafe(detailFixture({ subject: 'mail keyholders@…' }))).toThrow(/keyholders/);
 	});
 	it('hard-fails on a HyperKitty-obfuscated keyholders address', () => {
-		expect(() => assertThreadDetailIsPublicSafe(detailFixture({ subject: 'write keyholders (at) latoolb.us' }))).toThrow(
-			/keyholders/,
-		);
+		expect(() =>
+			assertThreadDetailIsPublicSafe(detailFixture({ subject: 'write keyholders (at) latoolb.us' })),
+		).toThrow(/keyholders/);
 	});
 	it('allows the bare word "keyholders" as prose in a message body', () => {
 		const prose = detailFixture({
