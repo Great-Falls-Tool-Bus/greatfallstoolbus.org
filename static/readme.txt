@@ -18,9 +18,9 @@ WHAT WE NEED RIGHT NOW
 
 GET ACCESS
 ----------
-Reach out, a keyholder answers. Keyholders vet requests and share
-the bus location directly. The keyholders mailing list and contact
-form are being built -- until they open, watch:
+Reach out, a keyholder answers. Keyholders vet requests and coordinate
+access privately. The keyholders mailing list and contact form are the
+public handoff:
 
     https://greatfallstoolbus.org
 

@@ -89,7 +89,7 @@
 				<section aria-label="Get access">
 					<h3 class="sheet-h">GET ACCESS</h3>
 					<p>
-						Reach out, a keyholder answers. Keyholders vet requests and share the bus location directly.
+						Reach out through the contact form. A keyholder answers and coordinates access privately.
 						<br />https://greatfallstoolbus.org
 					</p>
 				</section>

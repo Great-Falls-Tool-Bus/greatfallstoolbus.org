@@ -5,6 +5,17 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Collapse the short-lived `/find-the-bus` surface back into the actual
+  access-request path. Linear TIN-2420/TIN-2421 make `/contact` and the private
+  `keyholders@latoolb.us` role list the operational handoff; location and
+  access details are coordinated privately after a request, not through a
+  parallel primary route. The primary nav returns to six items, the homepage
+  points directly to `/contact`, `/access` explains expectations after a
+  request, and research/docs/printable sheets now say "coordinate access
+  privately" instead of "share the bus location directly."
+
 ### Added
 
 - Wave-2.5 interaction polish (Skeleton-bundled Zag, zero new deps): calm,
@@ -22,24 +33,6 @@ Versioning: [SemVer 2.0](https://semver.org/).
   Skeleton `Toast` (`createToaster`, region mounted once in `+layout.svelte`).
   Every affordance rides the existing global `prefers-reduced-motion` guard, so
   motion snaps off for users who ask for it while the state stays legible.
-- Find-the-bus surface (TIN-2419): a new short, prerendered `/find-the-bus`
-  route closes the "where is it?" gap flagged in `docs/ux-research.md` (line
-  149) — nothing on the site answered where the bus is. The answer is
-  request-first by design: the bus is based at a fixed location in
-  Lewiston-Auburn, Maine (concrete, known), but the exact spot is
-  deliberately not published; a visitor reaches out through the live
-  `/contact` form and a keyholder shares the location and walks them through
-  access. The page names this as a deliberate, keyholder-stewarded posture
-  for safety and access control while the Tool Bus is an unincorporated
-  neighborhood initiative. It invents nothing: the bus does not roam, so there
-  are no stops, routes, hours, or schedule, and the page carries no
-  placeholder `detailsNeeded` scaffolding. The route uses `PageHeader`, so it
-  gains the view/edit-source affordance for free and is registered in the
-  generated `source-map.json`. Added to the primary nav (with a `MapPin` icon)
-  in the "use" cluster and linked from the homepage's "Getting on the bus"
-  section and more-pages row so a visitor looking for "where" finds it. The
-  `/access` step-three copy is corrected to match: the bus sits at a fixed
-  location a keyholder shares, rather than one that moves.
 - Media pipeline proven end-to-end with a verifiably public-domain image. Adds
   `static/photos/hand-tools-plate-1922.jpg` — a labeled 1922 plate of
   woodworking hand tools from Louis M. Roehl's _Manual Training for the Rural

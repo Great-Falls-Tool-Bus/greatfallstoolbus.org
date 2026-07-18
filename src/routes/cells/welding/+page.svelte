@@ -166,7 +166,7 @@
 				</li>
 				<li>
 					<span aria-hidden="true">*</span>
-					<span>A keyholder: access, borrowing, and the bus location. Ask at https://greatfallstoolbus.org</span>
+					<span>A keyholder: access, borrowing, and coordination. Ask at https://greatfallstoolbus.org</span>
 				</li>
 				<li>
 					<span aria-hidden="true">*</span>

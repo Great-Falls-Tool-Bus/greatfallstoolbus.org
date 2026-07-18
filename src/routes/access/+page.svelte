@@ -5,26 +5,25 @@
 	import InfoTip from '$lib/components/InfoTip.svelte';
 	import { KeyRound } from '@lucide/svelte';
 
-	// "How access works": the path from first inquiry to a tool in your hands.
-	// This is where the /contact form points (this lane does NOT wire the form).
 	// Access model (ratified): keyholders are a curated, owner-approved group;
-	// anyone may request access; non-member requests reach all keyholders.
-	// No membership fee, no paperwork wall; access is stewarded.
+	// anyone may request access through /contact; non-member requests reach all
+	// keyholders. This page explains expectations after a request, not a second
+	// submission or location-discovery flow.
 	const steps = [
 		{
 			n: '1',
-			title: 'Reach out',
-			body: 'Tell us what you want to make or fix. The contact page is where that starts. Requests from non-members reach every keyholder, and one of them picks yours up: keyholders are a small, owner-approved group, so a real person reads every ask.',
+			title: 'Ask through contact',
+			body: 'Tell the keyholders what you want to make or fix. The contact form is the single intake path, and it reaches the private keyholders list.',
 		},
 		{
 			n: '2',
-			title: 'Safety orientation',
-			body: 'Before your first borrow of a capability, a keyholder walks you through a short safety orientation for it: the real hazards, the protective gear, and how the kit packs and travels. It is quick, and it is required.',
+			title: 'A keyholder replies',
+			body: 'A keyholder picks up the request, checks what capability you need, and coordinates the practical details privately. That includes the exact location when it is appropriate to share.',
 		},
 		{
 			n: '3',
-			title: 'Get the location and a time',
-			body: 'The bus sits at a fixed location in Lewiston-Auburn, shared privately on request. A keyholder gives you the exact spot and settles on a time that works, once the capability you need is ready for you.',
+			title: 'Safety orientation',
+			body: 'Before your first borrow of a capability, a keyholder walks you through the real hazards, the protective gear, and how the kit packs and travels.',
 		},
 		{
 			n: '4',
@@ -38,14 +37,14 @@
 	<title>How access works | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="How to borrow from the Great Falls Tool Bus: reach out, complete a short safety orientation, get the privately shared location and a time from a keyholder, and use the tool. No membership fee, no paperwork wall; every request gets a keyholder's answer."
+		content="How to borrow from the Great Falls Tool Bus: ask through the contact form, coordinate with a keyholder, complete a short safety orientation, and use the tool."
 	/>
 </svelte:head>
 
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
 	<PageHeader
 		title="How access works"
-		lead="Anyone can ask to borrow, and every ask gets a human answer. Four steps take you from a first message to a tool in your hands: no membership fee, no paperwork wall, and a keyholder alongside you the whole way."
+		lead="Anyone can ask to borrow, and every ask gets a human answer. The contact form is the intake path; this page explains what keyholders coordinate after that request."
 		icon={KeyRound}
 	/>
 
@@ -69,9 +68,8 @@
 			/>
 		</div>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
-			Reach a keyholder. That is step one, and it is the whole ask. Read the <a
-				class="underline"
-				href={`${base}/safety`}>safety &amp; responsible-use guide</a
+			Use the contact form when you are ready. Read the <a class="underline" href={`${base}/safety`}
+				>safety &amp; responsible-use guide</a
 			>
 			before your orientation, browse the <a class="underline" href={`${base}/tools`}>capability catalog</a> to see what
 			is on the bus, and meet the <a class="underline" href={`${base}/stewards`}>stewards</a> who keep it running.
@@ -86,12 +84,12 @@
 			class="bg-primary-500 hover:bg-primary-600 inline-block rounded-sm px-5 py-2.5 text-sm font-semibold text-white transition-colors"
 			href={`${base}/contact`}
 		>
-			Contact / join page
+			Start with contact
 		</a>
 	</div>
 
 	<footer class="text-surface-500 pt-12 text-sm">
-		No membership fee, no means test, no paperwork wall. A safety orientation, a keyholder's go-ahead, and a little
-		coordination, and the bus is yours to borrow.
+		No membership fee, no means test, no paperwork wall. A safety orientation, a keyholder's reply, and a little
+		coordination get you from request to tool.
 	</footer>
 </main>

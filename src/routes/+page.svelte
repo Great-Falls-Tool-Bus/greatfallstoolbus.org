@@ -59,7 +59,7 @@
 		{
 			eyebrow: 'Get access',
 			title: 'Access & contact',
-			body: 'How access works, and how to reach a keyholder directly.',
+			body: 'What borrowing requires, and how to reach the keyholders.',
 			href: `${base}/access`,
 		},
 	];
@@ -67,7 +67,6 @@
 	// Everything else: demoted and condensed to a single link row instead of
 	// duplicating the primary nav bar as another 8-card grid.
 	const morePages = [
-		{ title: 'Find the bus', href: `${base}/find-the-bus` },
 		{ title: 'Tool cells', href: `${base}/cells` },
 		{ title: 'Wants', href: `${base}/wants` },
 		{ title: 'Plans', href: `${base}/plans` },
@@ -137,10 +136,9 @@
 	<section class="border-surface-200-800 mt-12 border-y py-8" aria-label="How access works">
 		<h2 class="text-2xl font-semibold">Getting on the bus</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 max-w-3xl leading-relaxed">
-			Anyone can ask to borrow: no membership fee, no paperwork wall. Reach out and a keyholder answers. Keyholders
-			review each request and share the bus location directly. See
-			<a class="underline" href={`${base}/find-the-bus`}>where to find the bus</a>, then start on the
-			<a class="underline" href={`${base}/contact`}>contact / join page</a>.
+			Anyone can ask to borrow: no membership fee, no paperwork wall. Start with the
+			<a class="underline" href={`${base}/contact`}>contact form</a>; it reaches the private keyholders list, and a
+			keyholder replies with the next step, including any location or orientation details.
 		</p>
 	</section>
 

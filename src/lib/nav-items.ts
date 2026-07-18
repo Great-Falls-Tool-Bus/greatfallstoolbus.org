@@ -11,7 +11,6 @@ import {
 	Gift,
 	ClipboardList,
 	Map,
-	MapPin,
 	BookOpen,
 	Megaphone,
 	Mail,
@@ -42,27 +41,19 @@ export interface NavItem {
  * there is no "Home" item. hrefs are base-relative; the layout prepends
  * `base`.
  */
-// Ordered as a narrative: who we are (Mission) → what's on the bus (Tools,
-// Cells) → how to use it (Access, Find the bus, Safety) → how to give (Donate,
-// Wants) → where it's going + credibility (Plans, Bibliography, Shout-outs) →
-// reach us (Contact). `navItems` stays the single flat array (DRY); `primary`
-// and `footerGroup` mark where each item renders (see `primaryNavItems` and
-// `footerNavGroups` below). Primary bar: Tools, Cells, Access, Find the bus,
-// Safety, Donate, Contact — the browse → use → give → reach arc a Lewiston
-// neighbor actually needs. Find the bus joins the "use" cluster and lifts the
-// bar to 7: "where is it?" was the single biggest gap in the borrow
-// walkthrough (docs/ux-research.md line 149), and the answer is request-first
-// (the bus sits at a fixed, deliberately-unpublished location shared by a
-// keyholder), so the surface earns a top-tier slot rather than a footer
-// demotion. Mission, Wants, Plans, Bibliography, and Shout-outs demote to
-// footer groups; /stewards remains a footer-only link hard-coded in
-// +layout.svelte (predates this array).
+// Ordered as a narrative: what is on the bus (Tools, Cells) → what borrowing
+// requires (Access, Safety) → how to give (Donate, Wants) → where it is going +
+// credibility (Plans, Bibliography, Shout-outs) → reach us (Contact).
+// `navItems` stays the single flat array (DRY); `primary` and `footerGroup`
+// mark where each item renders (see `primaryNavItems` and `footerNavGroups`
+// below). The actual request path is deliberately singular: `/contact` posts to
+// the private keyholders list, and keyholders share location/access details
+// privately. Do not add a parallel "find the bus" primary surface.
 export const navItems: NavItem[] = [
 	{ label: 'Mission', href: '/mission', match: ['/mission'], footerGroup: 'About', icon: Compass },
 	{ label: 'Tools', href: '/tools', match: ['/tools'], primary: true, icon: Hammer },
 	{ label: 'Cells', href: '/cells', match: ['/cells', '/cell-sheets'], primary: true, icon: Boxes },
 	{ label: 'Access', href: '/access', match: ['/access'], primary: true, icon: KeyRound },
-	{ label: 'Find the bus', href: '/find-the-bus', match: ['/find-the-bus'], primary: true, icon: MapPin },
 	{ label: 'Safety', href: '/safety', match: ['/safety'], primary: true, icon: ShieldCheck },
 	{ label: 'Donate', href: '/donate', match: ['/donate'], primary: true, icon: Gift },
 	{ label: 'Wants', href: '/wants', match: ['/wants'], footerGroup: 'Get involved', icon: ClipboardList },

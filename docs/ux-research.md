@@ -6,11 +6,14 @@ and public tool-library precedents. No invented data; anything not yet
 operator-confirmed on the live site is called out as such, matching the
 site's own `OPERATOR-CONFIRM` markers.
 
-Update 2026-07-05: PR #64 added `/find-the-bus` and corrected the location
-model. The bus is treated as based at a fixed Lewiston-Auburn location; the
-exact spot is shared privately after a request through `/contact`. This document
-keeps the original friction notes where useful, but recommendations about public
-routes, stops, or hours are no longer the near-term model.
+Update 2026-07-05: PR #64 briefly added `/find-the-bus`, but the later Linear
+truth pass around TIN-2420/TIN-2421 made the duplication clear: `/contact` and
+the private `keyholders@latoolb.us` role list are the access-request surface.
+The bus is treated as based at a fixed Lewiston-Auburn location; exact location
+and access details are coordinated privately by keyholders after contact. This
+document keeps the original friction notes where useful, but recommendations
+about public routes, stops, hours, or a standalone location page are no longer
+the near-term model.
 
 File paths below are routes in the `greatfallstoolbus.org` repo, not this
 scaffold repo.
@@ -24,9 +27,8 @@ scaffold repo.
   already, will I be judged for not knowing tool names, is the bus even
   running this week, what if I break something.
 - **Site tasks**: find out if the bus has the tool (`/tools`), find out what
-  borrowing costs and requires (`/access`, `/safety`), learn that the exact
-  bus location is shared privately after contact (`/find-the-bus`), reach a
-  human (`/contact`).
+  borrowing costs and requires (`/access`, `/safety`), and reach a human
+  through the access-request surface (`/contact`).
 
 ### Tool donor
 - **Goals**: get a tool that is taking up space into productive use instead
@@ -70,13 +72,14 @@ Path: `/` -> `/tools` -> `/access` -> `/safety` -> `/contact`.
   (cells), each with a tool count, how the kit travels, and a safety-gate
   note, then lists individual tools underneath. Good: frames tools by what
   they let you *do*, not just brand/model.
-- `src/routes/access/+page.svelte` gives a clean four-step flow (reach out,
-  safety orientation, get the privately shared location and a time, use the
-  tool).
-- **Closed by PR #64**: the site now has `/find-the-bus`, which states the
-  fixed-location model and sends visitors to `/contact` for the exact spot and
-  access procedure. That matches the current security posture: location is
-  private-by-request, not a public stop schedule.
+- `src/routes/access/+page.svelte` should explain the borrowing expectations
+  after a request: keyholder reply, private coordination, safety orientation,
+  and tool use. It should not become a second intake or location-discovery
+  flow.
+- **Corrected after PR #64**: `/find-the-bus` duplicated the real request path
+  and is collapsed back into `/contact` + keyholder coordination. That matches
+  the current security posture: location is private-by-request, not a public
+  stop schedule or a separate route.
 - **Friction**: the safety-orientation gate is per-capability (`/tools`
   line 58-61) but there is no page showing which orientations exist, how
   long they take, or how to schedule one — only that one happens "before
@@ -149,9 +152,10 @@ Path: `/contact`.
 
 ## 3. Usability checklist for the next design pass
 
-- [x] Add a request-first bus location surface — `/find-the-bus` now explains
-  that the bus is based at a fixed location and that keyholders share the exact
-  spot after a request through `/contact`.
+- [x] Collapse bus-location handling into the request path — `/contact` is the
+  access handoff, and keyholders coordinate the exact location privately after
+  a request. Do not maintain a standalone location page unless the operating
+  model changes to public stops or hours.
 - [ ] Reconcile "keyholder" and the `/stewards` role ladder into one
   vocabulary, or explicitly map them, so a volunteer knows which role they
   are actually signing up for.
@@ -209,8 +213,8 @@ locations/tool-lending-library — both already cited in the site's own
 (Mobile Public Libraries, Santa Clara County, Kansas City) publish a schedule of
 stops, note that stops are subject to change, and advise calling ahead to
 confirm. That is a useful future pattern if the Tool Bus adopts a public route,
-but it is not the current model: `/find-the-bus` is intentionally request-first
-for a fixed location. (Mobile Public Libraries,
+but it is not the current model: location/access details stay inside the
+private keyholder reply path for a fixed-location initiative. (Mobile Public Libraries,
 https://www.mobilepubliclibrary.org/locations-hours/bookmobile-outreach.)
 
 **Multilingual note (Lewiston's Somali and French-speaking communities)** —
@@ -241,8 +245,8 @@ actually go through `/access` end to end):
   reply from a keyholder, where did you lose confidence or almost give up?
 - Did you understand what "safety orientation" would involve before you
   showed up for one? What did you expect versus what happened?
-- How did you find out the exact bus location and time? Did the request-first
-  handoff feel clear and safe, or did it feel like missing information?
+- How did the keyholder reply handle location, timing, and orientation? Did the
+  private handoff feel clear and safe, or did it feel like missing information?
 - If your first language is not English, what would have made the site
   easier to use, and at what point in the process (browsing, contacting,
   orientation) would translation have mattered most?
