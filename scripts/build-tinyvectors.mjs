@@ -14,9 +14,16 @@
 // using the package's own toolchain and its own committed pnpm-lock.yaml.
 //
 // INVARIANTS:
+// - Verified: pnpm records no integrity hash for URL tarballs (pnpm 10
+//   lockfile behavior), so this hook re-downloads the pinned archive itself,
+//   hard-fails unless its sha256 matches PINNED_INTEGRITY (the same SRI the
+//   bazel-registry's source.json carries), proves the pnpm-installed package
+//   is byte-identical to the verified archive, and builds dist/ from the
+//   verified tree — never from unverified bytes.
 // - Idempotent: exits fast when dist/ + dist-types/ are already present
 //   (pnpm re-creates the package directory whenever the pinned resolution
-//   changes, which clears the sentinel and forces a rebuild).
+//   changes, which clears the sentinel and forces a rebuild; the install
+//   that populated it verified the bytes).
 // - The scratch build happens OUTSIDE node_modules and only dist/ +
 //   dist-types/ are copied back: the installed package must never gain a
 //   nested node_modules (a second svelte runtime would break the site).
@@ -24,11 +31,31 @@
 //   aggregated by `just conformance` / `just scaffold-doctor`) separately
 //   enforces that the pinned tag version matches MODULE.bazel.
 
-import { cpSync, existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import {
+	cpSync,
+	existsSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from 'node:fs';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// Every bump of the package.json tarball pin MUST add its registry SRI here
+// (from bazel-registry modules/tummycrypt_tinyvectors/<version>/source.json);
+// an unknown URL hard-fails the install. This is the frozen-lockfile analog
+// pnpm cannot provide for URL tarballs.
+const PINNED_INTEGRITY = {
+	'https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.4.tar.gz':
+		'sha256-BSnkL1bEhtTRSLeeRLf8POiY5K8cbxCtJXukIQcO9L8=',
+};
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const linkPath = path.join(root, 'node_modules', '@tummycrypt', 'tinyvectors');
@@ -50,26 +77,97 @@ if (sentinels.every((rel) => existsSync(path.join(pkgDir, rel)))) {
 // registry/workspace state would leak into the package's own install.
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(npm_|PNPM_)/i.test(key)));
 
+const specifier = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).dependencies?.[
+	'@tummycrypt/tinyvectors'
+];
+const expected = PINNED_INTEGRITY[specifier];
+if (!expected) {
+	console.error(
+		`build-tinyvectors: no pinned integrity for specifier ${specifier}; add the registry source.json SRI to PINNED_INTEGRITY`,
+	);
+	process.exit(1);
+}
+
 const scratch = mkdtempSync(path.join(tmpdir(), 'tinyvectors-build-'));
-const run = (args) => {
-	const result = spawnSync('pnpm', args, { cwd: scratch, stdio: 'inherit', env });
+const run = (args, cwd = scratch) => {
+	const result = spawnSync('pnpm', args, { cwd, stdio: 'inherit', env });
 	if (result.status !== 0) {
 		console.error(`build-tinyvectors: pnpm ${args.join(' ')} failed`);
 		process.exit(result.status ?? 1);
 	}
 };
 
+// Walk a tree (excluding build outputs + node_modules) and return relative
+// file paths, for the byte-equality proof between the verified archive and
+// what pnpm actually installed.
+const EXCLUDED = new Set(['node_modules', 'dist', 'dist-types']);
+const walk = (dir, base = dir) => {
+	const out = [];
+	for (const entry of readdirSync(dir)) {
+		if (EXCLUDED.has(entry) && path.relative(base, dir) === '') continue;
+		const full = path.join(dir, entry);
+		if (statSync(full).isDirectory()) out.push(...walk(full, base));
+		else out.push(path.relative(base, full));
+	}
+	return out;
+};
+
 try {
-	cpSync(pkgDir, scratch, {
-		recursive: true,
-		// pkgDir itself lives under node_modules/.pnpm — filter on the path
-		// RELATIVE to the package root, or everything gets excluded.
-		filter: (src) => !path.relative(pkgDir, src).split(path.sep).includes('node_modules'),
-	});
-	run(['install', '--frozen-lockfile', '--ignore-workspace']);
-	run(['run', 'build']);
+	// 1. Fetch the pinned archive and verify its sha256 against the registry
+	//    SRI — pnpm's lockfile cannot pin URL-tarball bytes, so this is the
+	//    only content check on the pnpm rail.
+	const response = await fetch(specifier);
+	if (!response.ok) {
+		console.error(`build-tinyvectors: fetch of ${specifier} failed: ${response.status}`);
+		process.exit(1);
+	}
+	const bytes = Buffer.from(await response.arrayBuffer());
+	const actual = `sha256-${createHash('sha256').update(bytes).digest('base64')}`;
+	if (actual !== expected) {
+		console.error(
+			`build-tinyvectors: INTEGRITY MISMATCH for ${specifier}\n  expected ${expected}\n  actual   ${actual}\nRefusing to build; the archive bytes do not match the bazel-registry pin.`,
+		);
+		process.exit(1);
+	}
+
+	// 2. Unpack the VERIFIED bytes; build from them, never from the pnpm copy.
+	const archivePath = path.join(scratch, 'archive.tar.gz');
+	writeFileSync(archivePath, bytes);
+	const tar = spawnSync('tar', ['-xzf', archivePath, '-C', scratch], { stdio: 'inherit' });
+	if (tar.status !== 0) {
+		console.error('build-tinyvectors: tar extraction failed');
+		process.exit(1);
+	}
+	const unpacked = readdirSync(scratch).find((d) => d.startsWith('tinyvectors-'));
+	if (!unpacked) {
+		console.error('build-tinyvectors: unexpected archive layout (no tinyvectors-* root)');
+		process.exit(1);
+	}
+	const verifiedDir = path.join(scratch, unpacked);
+
+	// 3. Prove the pnpm-installed package is byte-identical to the verified
+	//    source (runtime resolves package.json/exports from the pnpm copy).
+	const verifiedFiles = walk(verifiedDir);
+	const installedFiles = walk(pkgDir);
+	const verifiedSet = new Set(verifiedFiles);
+	for (const rel of installedFiles) {
+		if (!verifiedSet.has(rel)) {
+			console.error(`build-tinyvectors: installed package has file not in verified archive: ${rel}`);
+			process.exit(1);
+		}
+	}
+	for (const rel of verifiedFiles) {
+		const installed = path.join(pkgDir, rel);
+		if (!existsSync(installed) || !readFileSync(path.join(verifiedDir, rel)).equals(readFileSync(installed))) {
+			console.error(`build-tinyvectors: installed package diverges from verified archive at: ${rel}`);
+			process.exit(1);
+		}
+	}
+
+	run(['install', '--frozen-lockfile', '--ignore-workspace'], verifiedDir);
+	run(['run', 'build'], verifiedDir);
 	for (const dir of ['dist', 'dist-types']) {
-		const built = path.join(scratch, dir);
+		const built = path.join(verifiedDir, dir);
 		if (!existsSync(built)) {
 			console.error(`build-tinyvectors: expected build output ${dir}/ is missing`);
 			process.exit(1);
