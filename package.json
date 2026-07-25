@@ -15,6 +15,7 @@
 		"node": ">=22 <25"
 	},
 	"scripts": {
+		"prepare": "node scripts/build-tinyvectors.mjs",
 		"dev": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
@@ -37,7 +38,7 @@
 		"@fontsource/inter": "^5.2.8",
 		"@lucide/svelte": "^1.23.0",
 		"@tummycrypt/tinyland-color-utils": "0.2.3",
-		"@tummycrypt/tinyvectors": "0.3.0",
+		"@tummycrypt/tinyvectors": "https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.4.tar.gz",
 		"effect": "^3.21.4"
 	},
 	"devDependencies": {
