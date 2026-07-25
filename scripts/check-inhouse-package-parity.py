@@ -4,6 +4,13 @@
 The scaffold still uses pnpm/Vite for its canonical static build, so some
 in-house packages must remain in package.json. The Bazel-first contract is that
 those package versions match the corresponding bazel_dep entry exactly.
+
+npm-retirement extension (TIN-3165): the npm channel for in-house @tummycrypt
+packages is retired; the tinyland-inc/bazel-registry graph is the sole rail. A
+package pinned to the registry source seam — the exact GitHub tag archive named
+by the module's source.json — satisfies parity too. This script accepts exactly
+that URL shape (repo name must match the package, tag version must match
+MODULE.bazel) and holds every other specifier to the original exact-semver rule.
 """
 
 from __future__ import annotations
@@ -18,6 +25,13 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_JSON = ROOT / "package.json"
 MODULE_BAZEL = ROOT / "MODULE.bazel"
 IN_HOUSE_SCOPES = ("@tummycrypt/", "@tinyland/")
+
+# The only sanctioned non-registry specifier: the exact GitHub tag archive the
+# tinyland-inc/bazel-registry names in the module's source.json.
+REGISTRY_SOURCE_TARBALL_RE = re.compile(
+    r"^https://github\.com/tinyland-inc/(?P<repo>[a-z0-9-]+)"
+    r"/archive/refs/tags/v(?P<version>\d+\.\d+\.\d+)\.tar\.gz$"
+)
 
 
 def npm_to_bazel_module(package_name: str) -> str:
@@ -59,7 +73,18 @@ def main() -> int:
             failures.append(f"{package_name} has no matching bazel_dep({module_name})")
             continue
 
-        if npm_version.startswith(("^", "~", ">", "<", "=")) or any(token in npm_version for token in ("*", "||", " - ")):
+        tarball = REGISTRY_SOURCE_TARBALL_RE.match(npm_version)
+        if tarball is not None:
+            expected_repo = package_name.split("/", 1)[1]
+            if tarball.group("repo") != expected_repo:
+                failures.append(
+                    f"{package_name} tarball pin names repo {tarball.group('repo')!r}, expected {expected_repo!r}"
+                )
+                continue
+            npm_version = tarball.group("version")
+        elif npm_version.startswith(("^", "~", ">", "<", "=")) or any(
+            token in npm_version for token in ("*", "||", " - ")
+        ):
             failures.append(f"{package_name} uses non-exact npm version {npm_version!r}")
             continue
 

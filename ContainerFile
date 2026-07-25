@@ -54,14 +54,17 @@ WORKDIR /app
 # Install the committed, frozen dependency set first (cache-friendly layer).
 # adapter-node is a committed devDependency (TIN-2543), so the frozen-lockfile
 # install brings it in — no out-of-band mutation of the lockfile.
+# scripts/ must land before the install: the root `prepare` hook
+# (scripts/build-tinyvectors.mjs) runs at the end of pnpm install and builds
+# the registry-pinned tinyvectors dist from source.
 COPY package.json pnpm-lock.yaml .npmrc ./
+COPY scripts/ ./scripts/
 RUN pnpm install --frozen-lockfile
 
 # Copy config + sources.
 COPY svelte.config.js vite.config.ts tsconfig.json eslint.config.ts ./
 COPY src/ ./src/
 COPY static/ ./static/
-COPY scripts/ ./scripts/
 
 # ADAPTER=node makes svelte.config.js select @sveltejs/adapter-node; output is
 # a Node server under build/ (entry build/index.js). Image optimization is

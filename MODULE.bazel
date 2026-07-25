@@ -42,7 +42,7 @@ bazel_dep(name = "aspect_rules_swc", version = "2.6.1")
 bazel_dep(name = "tummycrypt_tinyland_color_utils", version = "0.2.3")
 bazel_dep(name = "tummycrypt_vite_plugin_a11y", version = "0.2.2")
 bazel_dep(name = "tummycrypt_vite_plugin_skeleton_colors", version = "0.2.2")
-bazel_dep(name = "tummycrypt_tinyvectors", version = "0.3.0")
+bazel_dep(name = "tummycrypt_tinyvectors", version = "0.3.4")
 
 # Node 22.13.1
 node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")
