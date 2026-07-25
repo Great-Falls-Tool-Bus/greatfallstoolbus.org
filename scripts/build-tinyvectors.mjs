@@ -73,9 +73,17 @@ if (sentinels.every((rel) => existsSync(path.join(pkgDir, rel)))) {
 }
 
 // Nested pnpm invocations must not inherit the outer install's lifecycle
-// environment (npm_config_* / PNPM_*), or flags like --frozen-lockfile and
-// registry/workspace state would leak into the package's own install.
-const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(npm_|PNPM_)/i.test(key)));
+// CONFIG (npm_config_* / PNPM_*), or flags like --frozen-lockfile and
+// registry/workspace state would leak into the package's own install —
+// but npm_execpath must survive: it is the reliable way to locate the
+// package manager when `pnpm` is not on PATH.
+const env = Object.fromEntries(
+	Object.entries(process.env).filter(([key]) => !/^(npm_config_|npm_package_|PNPM_)/i.test(key)),
+);
+const pnpmCmd =
+	process.env.npm_execpath && /pnpm/.test(process.env.npm_execpath)
+		? [process.execPath, process.env.npm_execpath]
+		: ['pnpm'];
 
 const specifier = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).dependencies?.[
 	'@tummycrypt/tinyvectors'
@@ -90,7 +98,12 @@ if (!expected) {
 
 const scratch = mkdtempSync(path.join(tmpdir(), 'tinyvectors-build-'));
 const run = (args, cwd = scratch) => {
-	const result = spawnSync('pnpm', args, { cwd, stdio: 'inherit', env });
+	const [cmd, ...prefix] = pnpmCmd;
+	const result = spawnSync(cmd, [...prefix, ...args], { cwd, stdio: 'inherit', env });
+	if (result.error) {
+		console.error(`build-tinyvectors: failed to spawn ${cmd}: ${result.error.message}`);
+		process.exit(1);
+	}
 	if (result.status !== 0) {
 		console.error(`build-tinyvectors: pnpm ${args.join(' ')} failed`);
 		process.exit(result.status ?? 1);
