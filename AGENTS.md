@@ -126,7 +126,10 @@ reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
   raw Bazel config flags are not the scaffold contract.
 - In-house `@tummycrypt/*` / `@tinyland/*` npm dependencies are compatibility
   edges for pnpm/Vite until the static build moves fully under Bazel. Their
-  versions must be exact and match the corresponding `bazel_dep` version.
+  versions must be either an exact semver matching the corresponding
+  `bazel_dep` version or the registry-named GitHub tag-archive URL whose repo
+  matches the package and whose tag version matches that `bazel_dep`
+  (TIN-3165 npm retirement).
 
 ## GloriousFlywheel Cache Enrollment (cache-first, TIN-2119)
 
