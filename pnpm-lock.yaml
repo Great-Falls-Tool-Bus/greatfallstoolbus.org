@@ -27,8 +27,8 @@ importers:
         specifier: 0.2.3
         version: 0.2.3
       '@tummycrypt/tinyvectors':
-        specifier: https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.5.tar.gz
-        version: https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.5.tar.gz(svelte@5.56.4(@typescript-eslint/types@8.63.0))
+        specifier: https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.6.tar.gz
+        version: https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.6.tar.gz(svelte@5.56.4(@typescript-eslint/types@8.63.0))
       effect:
         specifier: ^3.21.4
         version: 3.21.4
@@ -1037,9 +1037,9 @@ packages:
     resolution: {integrity: sha512-0BBLLmwdRqlcEp2XCHlK8SoXrXGxhO8oLfYPUyqg9xkQ1HZMD04xf+X6uNQFtA6h+dcGJunFRiPHOJmBHbh5Hg==}
     engines: {node: '>=22.0.0'}
 
-  '@tummycrypt/tinyvectors@https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.5.tar.gz':
-    resolution: {tarball: https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.5.tar.gz}
-    version: 0.3.5
+  '@tummycrypt/tinyvectors@https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.6.tar.gz':
+    resolution: {tarball: https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.6.tar.gz}
+    version: 0.3.6
     engines: {node: '>=22.0.0'}
     peerDependencies:
       svelte: '>=5.20.0'
@@ -3543,7 +3543,7 @@ snapshots:
 
   '@tummycrypt/tinyland-color-utils@0.2.3': {}
 
-  '@tummycrypt/tinyvectors@https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.5.tar.gz(svelte@5.56.4(@typescript-eslint/types@8.63.0))':
+  '@tummycrypt/tinyvectors@https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.6.tar.gz(svelte@5.56.4(@typescript-eslint/types@8.63.0))':
     dependencies:
       svelte: 5.56.4(@typescript-eslint/types@8.63.0)
 
