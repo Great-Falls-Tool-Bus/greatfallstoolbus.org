@@ -17,8 +17,9 @@ The current serving host is **on-cluster, behind the `cloudflared` tunnel**
 2026-07-06 — supersedes ADR 0008's operator-gated framing and ADR 0003's
 Cloudflare-Pages-bound serving). The container image build is
 `.github/workflows/container-ghcr.yml` (builds and pushes to GHCR on push to
-`main`); the infra web Deployment consumes that image (digest-pinned) behind
-the shared honey-ingress Cloudflare Tunnel. See
+`main`, then may signal the infra apply plane; a manual dispatch publishes
+without signaling production). The infra web Deployment consumes that image
+(digest-pinned) behind the shared honey-ingress Cloudflare Tunnel. See
 `docs/deploy/oncluster-container-readiness.md`. The apex sits behind Cloudflare
 Access (gated to the operator during prose refinement); DNS, Access, and the
 zone live in the `great-falls-tool-bus-infra` edge tofu stack.
