@@ -19,14 +19,16 @@ trap 'rm -f "${curl_error_file}"' EXIT
 
 escape_actions_message() {
 	local value="$1"
-	value="${value//'%'/'%25'}"
-	value="${value//$'\r'/'%0D'}"
-	value="${value//$'\n'/'%0A'}"
+	value="${value//%/%25}"
+	value="${value//$'\r'/%0D}"
+	value="${value//$'\n'/%0A}"
 	printf '%s' "${value}"
 }
 
 host_list=()
-read -r -a host_list <<<"${hosts}"
+normalized_hosts="${hosts//$'\r'/ }"
+normalized_hosts="${normalized_hosts//$'\n'/ }"
+read -r -a host_list <<<"${normalized_hosts}"
 if [[ "${#host_list[@]}" -eq 0 ]]; then
 	echo "::error title=Production edge health FAILED::HOSTS contains no production hostnames; refusing a false-green empty probe."
 	exit 1
@@ -83,11 +85,11 @@ for host in "${host_list[@]}"; do
 	elif [[ \
 		"${code}" == "302" &&
 			"${redirect_host}" == *".${expected_redirect_host_suffix}" &&
-			"${redirect_path}" == "${expected_redirect_path_prefix}"* \
+			"${redirect_path}" == "${expected_redirect_path_prefix}${host}" \
 	]]; then
 		echo "OK   ${host}: ${code} -> ${safe_redirect} remote=${remote_ip:-<none>} tls_verify=${tls_verify:-<none>}"
 	else
-		echo "::error title=Access gate assertion failed for ${host}::curl_exit=0 expected 302 to https://*.${expected_redirect_host_suffix}${expected_redirect_path_prefix}..., got code=${code} redirect=${annotation_redirect} remote=${remote_ip:-<none>} ssl_verify_result=${tls_verify:-<none>}"
+		echo "::error title=Access gate assertion failed for ${host}::curl_exit=0 expected 302 to https://*.${expected_redirect_host_suffix}${expected_redirect_path_prefix}${host}, got code=${code} redirect=${annotation_redirect} remote=${remote_ip:-<none>} ssl_verify_result=${tls_verify:-<none>}"
 		fail=1
 	fi
 done

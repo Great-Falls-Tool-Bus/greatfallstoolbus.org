@@ -8,18 +8,52 @@ trap 'rm -rf "${tmp}"' EXIT
 mock_curl="${tmp}/curl"
 cat >"${mock_curl}" <<'MOCK'
 #!/usr/bin/env bash
-set -u
+set -euo pipefail
 
-url="${!#}"
+url=""
+saw_silent=false
+saw_max_time=false
+saw_output=false
+saw_write_out=false
+while [[ "$#" -gt 0 ]]; do
+	case "$1" in
+		-sS)
+			saw_silent=true
+			;;
+		--max-time)
+			shift
+			[[ "${1:-}" == "20" ]]
+			saw_max_time=true
+			;;
+		-o)
+			shift
+			[[ "${1:-}" == "/dev/null" ]]
+			saw_output=true
+			;;
+		-w)
+			shift
+			[[ "${1:-}" == '%{http_code}\n%{redirect_url}\n%{remote_ip}\n%{ssl_verify_result}\n' ]]
+			saw_write_out=true
+			;;
+		-L)
+			echo "mock curl refuses redirect following" >&2
+			exit 98
+			;;
+		https://*)
+			url="$1"
+			;;
+	esac
+	shift
+done
+
+[[ "${saw_silent}" == "true" ]]
+[[ "${saw_max_time}" == "true" ]]
+[[ "${saw_output}" == "true" ]]
+[[ "${saw_write_out}" == "true" ]]
+[[ -n "${url}" ]]
+
 host="${url#https://}"
 host="${host%%/*}"
-
-joined_args=" $* "
-[[ "${joined_args}" == *" -sS "* ]]
-[[ "${joined_args}" == *" --max-time 20 "* ]]
-[[ "${joined_args}" == *" -o /dev/null "* ]]
-[[ "${joined_args}" == *" -w %{http_code}\\n%{redirect_url}\\n%{remote_ip}\\n%{ssl_verify_result}\\n "* ]]
-[[ "${joined_args}" != *" -L "* ]]
 
 case "${MOCK_CURL_MODE:?}" in
 	success-without-newline)
@@ -44,6 +78,9 @@ case "${MOCK_CURL_MODE:?}" in
 	wrong-redirect)
 		printf '302\nhttps://example.com/login?next=https://team.cloudflareaccess.com/cdn-cgi/access/login/%s\n198.51.100.20\n0' "${host}"
 		;;
+	wrong-login-host)
+		printf '302\nhttps://team.cloudflareaccess.com/cdn-cgi/access/login/other.example\n198.51.100.20\n0'
+		;;
 	empty-success)
 		:
 		;;
@@ -59,7 +96,7 @@ run_probe() {
 	MOCK_CURL_MODE="$1" \
 		CURL_BIN="${mock_curl}" \
 		HOSTS="${2:-greatfallstoolbus.org}" \
-		bash "${root}/scripts/production-health-probe.sh" 2>&1
+		"${PROBE_BASH:-bash}" "${root}/scripts/production-health-probe.sh" 2>&1
 }
 
 success_output="$(run_probe success-without-newline)"
@@ -77,6 +114,10 @@ fi
 two_host_output="$(run_probe success-without-newline 'first.example second.example')"
 grep -Fq 'OK   first.example: 302' <<<"${two_host_output}"
 grep -Fq 'OK   second.example: 302' <<<"${two_host_output}"
+
+multiline_host_output="$(run_probe success-without-newline $'first.example\nsecond.example')"
+grep -Fq 'OK   first.example: 302' <<<"${multiline_host_output}"
+grep -Fq 'OK   second.example: 302' <<<"${multiline_host_output}"
 
 set +e
 transport_output="$(run_probe transport-failure)"
@@ -107,6 +148,13 @@ wrong_redirect_exit=$?
 set -e
 [[ "${wrong_redirect_exit}" -eq 1 ]]
 grep -Fq 'Access gate assertion failed for greatfallstoolbus.org' <<<"${wrong_redirect_output}"
+
+set +e
+wrong_login_host_output="$(run_probe wrong-login-host)"
+wrong_login_host_exit=$?
+set -e
+[[ "${wrong_login_host_exit}" -eq 1 ]]
+grep -Fq 'Access gate assertion failed for greatfallstoolbus.org' <<<"${wrong_login_host_output}"
 
 set +e
 empty_output="$(run_probe empty-success)"

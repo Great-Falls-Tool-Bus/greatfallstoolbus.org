@@ -28,6 +28,12 @@ on:
     # Every 30 minutes, matching transscendsurvival.org's production-health cadence.
     - cron: '*/30 * * * *'
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/production-health.yml'
+      - 'Justfile'
+      - 'scripts/production-health-probe.sh'
+      - 'scripts/production-health-probe.test.sh'
 
 permissions:
   contents: read
@@ -47,4 +53,4 @@ jobs:
         with:
           persist-credentials: false
       - name: Probe gated production hostnames
-        run: just production-health-probe
+        run: nix develop --command just production-health-probe
