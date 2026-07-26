@@ -64,7 +64,8 @@ separate heavier authority/serving-substrate revert). The two levels here are:
   Cloudflare Access (`cloudflare_zero_trust_access_application.web_apex` /
   `web_www` / `pages_dev`). An unauthenticated request returns
   `302 -> <team>.cloudflareaccess.com/cdn-cgi/access/login/...`. That 302 is the
-  health signal, see `.github/workflows/production-health.yml`.
+  public edge/Access signal, not proof of the protected origin; see
+  `.github/workflows/production-health.yml`.
 - **Rollback publisher of record:** GitHub Pages at
   `great-falls-tool-bus.github.io` remains the substrate-level fallback. The infra
   `var.pages_host` default and `var.alias_redirect_target`
@@ -85,7 +86,7 @@ Substrate fallback (full path only):
 | Symptom | Path |
 | ------- | ---- |
 | A bad build shipped (broken page, wrong content, regression) but the Pages project/edge/gate are healthy | **Fast path**: promote a prior Pages deployment |
-| `production-health.yml` fails (no `302` to `cloudflareaccess.com`) but DNS delegation is intact and the Pages dashboard shows the project healthy | Investigate the Access app first; if the Pages origin itself is down, escalate toward **Full path** |
+| `production-health.yml` fails (transport error or no expected Access `302`) but DNS delegation is intact | Investigate runner transport, Cloudflare edge, and the Access app first. Verify the origin independently before escalating toward **Full path** |
 | Cloudflare Pages is the failure mode: project build pipeline broken, Pages origin returning 5xx behind the gate, account/project lockout, AND GitHub Pages is healthy | **Full path**: move the substrate back to GitHub Pages |
 | `cloudflare-dns-drift.yml` fails on **NS** drift | Neither: this is a registrar/delegation incident, not a Pages rollback. Fix the delegation. |
 
