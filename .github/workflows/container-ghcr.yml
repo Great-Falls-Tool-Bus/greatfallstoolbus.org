@@ -26,11 +26,10 @@
 # remote-execution eligible (`container-image-and-push` is blocked at the GF
 # manifest layer — see docs/CI-SCHEMA.md §5 and the flywheel skill's rule 8).
 #
-# CREDENTIALS (public-repo-safe, switchable): no cache/executor endpoint, token,
-# or UUID is committed. GF-core is checked out with GF_CORE_DEPLOY_KEY if that
-# org secret is present, else GF_CORE_READ_TOKEN, else the job fails fast with a
-# clear message (never a silent no-op). The image push uses only the ambient
-# GITHUB_TOKEN (packages: write) — NO new secret.
+# CREDENTIALS (public-repo-safe): no cache/executor endpoint, token, or UUID is
+# committed. The public GF core is checked out at the exact GF_CORE_REF without
+# a cross-repo credential. The image push uses only the ambient GITHUB_TOKEN
+# (packages: write) — NO additional secret.
 
 name: Build Container (GHCR)
 
@@ -51,56 +50,29 @@ permissions:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   GF_CORE_REF: 2281b576bce0e8dd776a047b84e7464f5b508a62
-  HAS_GF_CORE_DEPLOY_KEY: ${{ secrets.GF_CORE_DEPLOY_KEY != '' }}
-  HAS_GF_CORE_READ_TOKEN: ${{ secrets.GF_CORE_READ_TOKEN != '' }}
 
 jobs:
   build-push:
     name: Build + push adapter-node image (daemonless nix)
     runs-on: tinyland-nix
     outputs:
-      # 'true' only when the GF-core credential gate activated the build (image
-      # was actually built + pushed). The signal-cd job below deploys ONLY when
-      # this is 'true', so a credential-gated no-op never dispatches a deploy.
-      published: ${{ steps.gfcore.outputs.available }}
+      # 'true' only after the image build + push action succeeds. The signal-cd
+      # job below deploys ONLY when this marker exists.
+      published: ${{ steps.publish.outputs.published }}
     steps:
-      - name: Check GloriousFlywheel core credential
-        id: gfcore
-        run: |
-          # Credential-gated activation: the adapter-node image build needs a
-          # read credential to check out the private GloriousFlywheel core. When
-          # neither secret is present the build is not yet activated for this
-          # repo, so SKIP it with a notice (keeps main green) rather than failing.
-          # Provision GF_CORE_DEPLOY_KEY (or GF_CORE_READ_TOKEN) and the build
-          # auto-activates on the next push, no workflow edit required.
-          if [[ "${HAS_GF_CORE_DEPLOY_KEY}" == "true" || "${HAS_GF_CORE_READ_TOKEN}" == "true" ]]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::GF_CORE_DEPLOY_KEY / GF_CORE_READ_TOKEN not provisioned; skipping the adapter-node image build. Add the secret to activate it."
-          fi
       - name: Checkout overlay
         uses: actions/checkout@v7
         with:
           path: overlay
-      - name: Checkout GloriousFlywheel core with deploy key
-        if: env.HAS_GF_CORE_DEPLOY_KEY == 'true'
+          persist-credentials: false
+      - name: Checkout public GloriousFlywheel core
         uses: actions/checkout@v7
         with:
           repository: tinyland-inc/GloriousFlywheel
           ref: ${{ env.GF_CORE_REF }}
           path: GloriousFlywheel
-          ssh-key: ${{ secrets.GF_CORE_DEPLOY_KEY }}
-      - name: Checkout GloriousFlywheel core with read token
-        if: env.HAS_GF_CORE_DEPLOY_KEY != 'true' && env.HAS_GF_CORE_READ_TOKEN == 'true'
-        uses: actions/checkout@v7
-        with:
-          repository: tinyland-inc/GloriousFlywheel
-          ref: ${{ env.GF_CORE_REF }}
-          path: GloriousFlywheel
-          token: ${{ secrets.GF_CORE_READ_TOKEN }}
+          persist-credentials: false
       - name: Build + push adapter-node image
-        if: steps.gfcore.outputs.available == 'true'
         uses: ./GloriousFlywheel/.github/actions/nix-job
         env:
           GHCR_USER: ${{ github.actor }}
@@ -120,6 +92,9 @@ jobs:
             export GF_CORE_PATH=../GloriousFlywheel
             export GF_CORE_CI_PATH=../GloriousFlywheel#ci
             nix develop ../GloriousFlywheel#ci -c just container-image-publish
+      - name: Record successful image publication
+        id: publish
+        run: echo "published=true" >> "$GITHUB_OUTPUT"
 
   # CONTINUOUS DEPLOYMENT SIGNAL (merge-on-green == live). This repo SIGNALS; the
   # infra repo APPLIES. After a green main image build+push, resolve the pushed
@@ -127,14 +102,14 @@ jobs:
   # great-falls-tool-bus-infra, whose web-stack.yml re-verifies CI-green and then
   # applies. The security boundary is unchanged: this public repo still holds NO
   # cluster/edge creds — only a cross-repo dispatch token. FAIL-SOFT: if
-  # INFRA_CD_DISPATCH_TOKEN is absent the job skips with a ::notice:: (same idiom
-  # as the GF-core credential gate above), so main stays green until the operator
-  # provisions the token; manual web-stack dispatch remains the deploy path.
+  # INFRA_CD_DISPATCH_TOKEN is absent the job skips with a ::notice::, so main
+  # stays green until the operator provisions the token; manual web-stack
+  # dispatch remains the deploy path.
   signal-cd:
     name: Signal infra CD (repository_dispatch)
     needs: build-push
     # Only a real, freshly-pushed main image signals a deploy: main ref + the
-    # build job succeeded AND actually published (credential gate was active).
+    # build job succeeded AND actually published.
     if: >-
       github.ref == 'refs/heads/main' &&
       needs.build-push.result == 'success' &&
