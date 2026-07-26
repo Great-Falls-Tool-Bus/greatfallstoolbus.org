@@ -1,12 +1,14 @@
 # Build + push the on-cluster container image to GHCR (TIN-2543).
 #
-# ACTIVE / BUILD-ONLY. Produces a real adapter-node OCI image on every push to
-# main (and on demand via workflow_dispatch) so the on-cluster serve path has a
-# concrete artifact to consume. Deliberately scoped to BUILD + PUSH only:
+# ACTIVE. Produces a real adapter-node OCI image on every push to main and on
+# demand via workflow_dispatch so the on-cluster serve path has a concrete
+# artifact to consume:
 #
-#   * The PRODUCTION host is unchanged — adapter-static -> Cloudflare Pages
-#     (ADR 0003, DB-less, no edge auth). This workflow never touches production
-#     serving; publishing an image does not deploy it.
+#   * A push to main builds and publishes the image, then may signal the infra
+#     apply plane to deploy its exact digest. A manual dispatch builds and
+#     publishes only; it never sends the production signal.
+#   * The production host is the on-cluster adapter-node service behind
+#     Cloudflare Access (ADR 0010). Cloudflare Pages is retired.
 #   * The default `just build` / CF Pages pipeline still emits adapter-static.
 #     Only ADAPTER=node (set by the image recipe) selects adapter-node.
 #   * The image is consumed by great-falls-tool-bus-infra (blahaj), which owns
@@ -38,6 +40,9 @@ on:
     branches:
       - main
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/container-ghcr.yml'
 
 concurrency:
   group: container-ghcr-${{ github.ref }}
@@ -45,16 +50,43 @@ concurrency:
 
 permissions:
   contents: read
-  packages: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   GF_CORE_REF: 2281b576bce0e8dd776a047b84e7464f5b508a62
 
 jobs:
+  verify-public-gf-core:
+    name: Verify exact public GF core checkout
+    if: github.event_name == 'pull_request'
+    runs-on: tinyland-nix
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout public GloriousFlywheel core
+        uses: actions/checkout@v7
+        with:
+          repository: tinyland-inc/GloriousFlywheel
+          ref: ${{ env.GF_CORE_REF }}
+          path: GloriousFlywheel
+          persist-credentials: false
+      - name: Assert exact checkout
+        run: |
+          set -euo pipefail
+          actual="$(git -C GloriousFlywheel rev-parse HEAD)"
+          if [[ "${actual}" != "${GF_CORE_REF}" ]]; then
+            echo "::error::GloriousFlywheel checkout drift: expected ${GF_CORE_REF}, got ${actual}"
+            exit 1
+          fi
+          echo "Verified public GloriousFlywheel core at ${actual}"
+
   build-push:
     name: Build + push adapter-node image (daemonless nix)
+    if: github.event_name != 'pull_request'
     runs-on: tinyland-nix
+    permissions:
+      contents: read
+      packages: write
     outputs:
       # 'true' only after the image build + push action succeeds. The signal-cd
       # job below deploys ONLY when this marker exists.
@@ -108,9 +140,11 @@ jobs:
   signal-cd:
     name: Signal infra CD (repository_dispatch)
     needs: build-push
-    # Only a real, freshly-pushed main image signals a deploy: main ref + the
-    # build job succeeded AND actually published.
+    # Only a real, freshly-pushed main image signals a deploy: push event + main
+    # ref + the build job succeeded AND actually published. A manual main
+    # dispatch publishes an image but remains deployment-inert.
     if: >-
+      github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       needs.build-push.result == 'success' &&
       needs.build-push.outputs.published == 'true'

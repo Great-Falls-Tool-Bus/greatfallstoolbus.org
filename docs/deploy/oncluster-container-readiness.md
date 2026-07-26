@@ -27,24 +27,23 @@
 
 ## What this is
 
-On-cluster is the accepted direction (ADR 0008), but the live host has not
-changed yet. This repo carries the on-cluster serve path as a concrete,
-build-active artifact while Cloudflare Pages keeps serving production. The same
-source CF Pages serves statically can also be served in-cluster as a Node server
-(`node build/index.js`); the image is built and published, but nothing here
-deploys it or moves the live host:
+On-cluster is the live serving path under ADR 0010. This repo builds and
+publishes its Node-server image (`node build/index.js`); on a green push to
+`main`, the workflow may signal the separate infra apply plane to deploy the
+exact digest. A manual workflow dispatch publishes an image but never sends
+that production signal.
 
-| Surface | Today (Cloudflare Pages is live) | On-cluster serve path |
+| Surface | Default build | Live on-cluster serve path |
 | --- | --- | --- |
-| `svelte.config.js` | adapter-static (CF Pages) | adapter-node **iff** `ADAPTER=node` |
-| `ContainerFile` | not built by the CF Pages deploy lane | multi-stage `ADAPTER=node` build -> `node build/index.js` on `:3000`, non-root |
-| `.github/workflows/container-ghcr.yml` | builds + pushes an `adapter-node` OCI image to GHCR on every push to `main` (and on `workflow_dispatch`); publishing the image does **not** deploy it | supplies the `sha-<commit>` image the overlay pins at the operator-gated cutover |
+| `svelte.config.js` | adapter-static | adapter-node **iff** `ADAPTER=node` |
+| `ContainerFile` | not used | multi-stage `ADAPTER=node` build -> `node build/index.js` on `:3000`, non-root |
+| `.github/workflows/container-ghcr.yml` | manual dispatch builds + pushes only | a green `main` push builds + pushes, then may signal the infra apply plane |
 
 The default static build (`just build`) still emits adapter-static and never
 imports adapter-node or touches the ContainerFile, so all default gates (`just
 format lint typecheck test-unit skills-check source-map-check build`) stay green
-with the frozen lockfile. The container workflow builds the image on its own
-lane; it never mutates production serving.
+with the frozen lockfile. The container workflow holds no apply credentials;
+production mutation remains in the separate infra repository.
 
 ## Accepted direction, cutover EXECUTED (was: "not yet done")
 
