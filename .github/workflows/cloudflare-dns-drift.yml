@@ -15,10 +15,10 @@ name: Cloudflare DNS Drift
 #      Cloudflare FLATTENS them at the edge: public dig returns Cloudflare
 #      anycast A records, never the pages.dev origin target. The origin CNAME
 #      target is therefore NOT publicly observable and cannot be asserted here —
-#      it is owned/verified by the great-falls-tool-bus-infra tofu plan, and the
-#      live "is the gated origin serving" question is answered by
-#      production-health.yml (the Access-login 302 embeds the hostname, proving
-#      apex/www/pages.dev all serve behind the gate).
+#      it is owned/verified by the great-falls-tool-bus-infra tofu plan.
+#      production-health.yml separately proves that public DNS/TLS reaches
+#      Cloudflare and the Access application answers; its unauthenticated
+#      redirect cannot assert protected-origin reachability.
 #
 # Mirrors transscendsurvival.org's .github/workflows/cloudflare-dns-drift.yml
 # (scheduled read-only drift check with a GITHUB_STEP_SUMMARY report), simplified
@@ -119,7 +119,8 @@ jobs:
             echo "> apex/www are proxied CNAMEs to the honey-ingress tunnel target;"
             echo "> Cloudflare flattens them, so the origin target is not publicly"
             echo "> observable. It is owned by the great-falls-tool-bus-infra edge"
-            echo "> overlay and asserted live by \`production-health.yml\`."
+            echo "> overlay; \`production-health.yml\` only asserts the public"
+            echo "> Cloudflare edge and Access gate."
           } >> "${GITHUB_STEP_SUMMARY}"
 
           if [ "${status}" -ne 0 ]; then

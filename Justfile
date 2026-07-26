@@ -259,9 +259,17 @@ sbom out_dir="build/sbom":
         -o cyclonedx-json="{{ out_dir }}/greatfallstoolbus.org.cyclonedx.json" \
         -o spdx-json="{{ out_dir }}/greatfallstoolbus.org.spdx.json"
 
-# Run secrets scan + lint + typecheck + tool-inventory + unit (pre-commit gate)
-check: flywheel-enrollment-contract-check secrets-scan-dir lint typecheck tools-validate skills-validate skills-check source-map-check test-unit
+# Run the complete pre-commit validation gate.
+check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir lint typecheck tools-validate skills-validate skills-check source-map-check test-unit
     @echo "All checks passed."
+
+# Probe the declared production hostnames at the public Cloudflare Access edge.
+production-health-probe:
+    cd {{ root }} && bash scripts/production-health-probe.sh
+
+# Deterministic parser and failure-diagnostic coverage for the scheduled probe.
+production-health-contract-check:
+    cd {{ root }} && bash scripts/production-health-probe.test.sh
 
 # Run full CI pipeline locally
 ci: check build test-e2e

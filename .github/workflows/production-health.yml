@@ -7,12 +7,12 @@ name: Production Health
 # health check would FAIL against a healthy site, because an unauthenticated
 # request is answered with a 302 to *.cloudflareaccess.com/cdn-cgi/access/login.
 #
-# So this probe inverts the assertion: a healthy gated origin returns
+# So this probe inverts the assertion: a healthy public Access gate returns
 #   302 -> https://<team>.cloudflareaccess.com/cdn-cgi/access/login/<hostname>...
-# Getting that 302 proves BOTH that Cloudflare's edge is up AND that the origin
-# behind the gate is reachable (Access only issues the login redirect for a
-# hostname whose Access application + origin are configured and serving). A 5xx,
-# a connection failure, or a 200 (gate silently removed) all fail the run.
+# Getting that 302 proves public DNS/TLS reached Cloudflare's edge and the Access
+# application answered. It does NOT prove the origin is reachable: Access checks
+# identity before it forwards an allowed request to the origin. A connection
+# failure, unexpected status/redirect, or a 200 (gate silently removed) fails.
 #
 # Alerting: GitHub's native "workflow failed" notification IS the alert for now.
 # A richer push alert (ntfy, matching transscendsurvival.org's production-health
@@ -28,6 +28,12 @@ on:
     # Every 30 minutes, matching transscendsurvival.org's production-health cadence.
     - cron: '*/30 * * * *'
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/production-health.yml'
+      - 'Justfile'
+      - 'scripts/production-health-probe.sh'
+      - 'scripts/production-health-probe.test.sh'
 
 permissions:
   contents: read
@@ -42,42 +48,9 @@ jobs:
     runs-on: tinyland-nix
     timeout-minutes: 10
     steps:
+      - name: Checkout probe
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Probe gated production hostnames
-        env:
-          # Space-separated list of hostnames that MUST answer with the Access
-          # login 302. apex + www are zone-bound Access apps (declared in
-          # great-falls-tool-bus-infra tofu/stacks/edge), serving from the
-          # on-cluster origin via the honey-ingress tunnel since the ADR 0010
-          # cutover (2026-07-06). The retired pages.dev origin probe left with
-          # the Pages lane (this PR).
-          HOSTS: >-
-            greatfallstoolbus.org
-            www.greatfallstoolbus.org
-          # Cloudflare Access team domain the gate must redirect to.
-          EXPECT_REDIRECT_SUBSTR: cloudflareaccess.com/cdn-cgi/access/login
-        run: |
-          set -uo pipefail
-          fail=0
-          for host in ${HOSTS}; do
-            url="https://${host}/"
-            # -sS quiet but show errors; do NOT follow the redirect (-L) — the
-            # 302 to the Access login IS the healthy signal we want to assert.
-            read -r code redirect < <(
-              curl -sS --max-time 20 -o /dev/null \
-                -w '%{http_code} %{redirect_url}' "${url}" 2>/dev/null
-            ) || { code=000; redirect=""; }
-
-            if [ "${code}" = "302" ] && \
-               printf '%s' "${redirect}" | grep -q "${EXPECT_REDIRECT_SUBSTR}"; then
-              echo "OK   ${host}: ${code} -> ${redirect%%\?*}"
-            else
-              echo "::error title=Gate health failed for ${host}::expected 302 to *.${EXPECT_REDIRECT_SUBSTR}, got code=${code} redirect=${redirect:-<none>}"
-              fail=1
-            fi
-          done
-
-          if [ "${fail}" -ne 0 ]; then
-            echo "::error title=Production health FAILED::One or more gated hostnames did not return the Access login 302. The edge, the Access app, or the origin behind the gate is unhealthy."
-            exit 1
-          fi
-          echo "All gated hostnames returned the expected Access login 302."
+        run: nix develop --command just production-health-probe
