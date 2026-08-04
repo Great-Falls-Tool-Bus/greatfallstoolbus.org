@@ -151,6 +151,9 @@ wf_13f12359 recheck.
 > Pages serving is unaffected (wrangler direct upload). Re-publicizing the
 > repo joins the TIN-2421 gate-opening sweep. Note: GH Pages rollback (ADR
 > 0003) requires public-or-paid — acceptable while CF Pages is primary.
+>
+> **SUPERSEDED 2026-08-04 — see Amendment 4.** The repos are PUBLIC again;
+> the paragraph immediately above is retained as record, not as current state.
 
 > **CORRECTION (dated 2026-07-04, supersedes the two latoolb.us lines above —
 > D1=A executed):** the operator repointed **latoolb.us NS to Cloudflare**
@@ -196,3 +199,75 @@ present.
 - Exit from the gated posture is decision **D2** — see
   `0004-gate-opening-criteria.md`. Until that packet is signed, gate-opening
   is UNOWNED.
+
+---
+
+## Amendment 4 — rows (a)/(d): repo visibility is PUBLIC (AMENDED 2026-08-04, operator ruling; supersedes the 2026-07-04 "repos PRIVATE for now" amendment nested in Amendment 2)
+
+**Superseded text (retained per the no-silent-rewrite rule)** — the 2026-07-04
+amendment recorded inside Amendment 2 above:
+
+> ~~**AMENDMENT (dated 2026-07-04, operator): repos PRIVATE for now.** Row (d)
+> made this repo PUBLIC; the operator flipped both org repos private on
+> 2026-07-04 pending launch — consistent with the gated apex + the
+> naming-consent policy (consent-pending names live in repo content). CF Pages
+> serving is unaffected (wrangler direct upload). Re-publicizing the repo joins
+> the TIN-2421 gate-opening sweep.~~ (The trailing GH-Pages note in that
+> paragraph — ADR 0003 rollback requires public-or-paid — is **not**
+> superseded; it now simply describes a satisfied condition.)
+
+**Replacement record — repo visibility:**
+
+> **All four `Great-Falls-Tool-Bus` repos are PUBLIC as of 2026-08-04, and
+> public is the ruling.** Row (a) ("One PUBLIC monorepo") and row (d)
+> ("Zero secrets in this repo, ever") stand exactly as decided 2026-07-02;
+> the 2026-07-04 private flip was a temporary pre-launch posture and is over.
+> Re-publicizing is no longer a TIN-2421 gate-opening deliverable — it has
+> already happened, ahead of the gate.
+>
+> **Verification (OBSERVED 2026-08-04):** `gh repo list Great-Falls-Tool-Bus`
+> returns `greatfallstoolbus.org`, `great-falls-tool-bus-infra`, `.github`,
+> and `LA-Mesh`, each with `"visibility":"PUBLIC"`; an unauthenticated
+> `curl` of `https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org`
+> returns **HTTP 200**. The record was stale, not the setting.
+
+**Consequence — anything committed here is world-readable.** This is the
+operative half of the amendment:
+
+- **Drafts are published the moment they are committed.** There is no
+  private-repo grace period between commit and review. Anything not fit for a
+  stranger to read must be sanitized *before* it lands, not before the gate
+  opens. This binds `docs/drafts/**` and `docs/decisions/*-draft.md` the same
+  as shipped site content.
+- **Organizations and people not on `docs/naming-consent.md` must not be
+  named anywhere in this repo** — not in drafts, not in commit messages, not
+  in "private note to self" framing. The naming-consent policy's distinction
+  between "gated" and "public" surfaces no longer has a gated side on the
+  git-tracked plane; the repo *is* the public surface. Five org/institution
+  rows on that tracker remain **PENDING**, and organizations absent from the
+  tracker entirely have no row at all — absence is not permission.
+- **Two known consent leaks are now public leaks**, not pre-flip cleanup
+  items, and should be redacted on their own merits and on their own
+  schedule, independent of D2:
+  1. `static/readme.txt:29` publishes a full first name where consent covers
+     the initial-only credit "J." (naming-consent addendum §B).
+  2. **This file, line 69** — the open sign-off checklist item names the
+     `/shout-outs` supporter by the pre-ruling name rather than the consented
+     public name **Ripley** (operator ruling 2026-07-04). Flagged here rather
+     than silently rewritten, because it sits in a dated sign-off record;
+     **operator to decide** whether to redact in place or strike-and-replace
+     in amendment form.
+- Row (d)'s NEVER list is unchanged and now unambiguously load-bearing: no
+  ciphertext, no age keys, no DNS credentials, no cluster hostnames or
+  endpoints, no tofu state coordinates, no DKIM private keys. `just
+  secrets-scan` / `just scan-endpoints` are the enforcement, and they fail
+  closed.
+
+**Not decided here:** this amendment records repo *visibility* only. The
+Cloudflare Access apex gate and decision **D2** (`0004-gate-opening-criteria.md`)
+are untouched — the site can stay gated while the source is public, and it
+does.
+
+**Operator signature:** operator ruling 2026-08-04, recorded in-session; the
+2026-07-04 private-repo amendment is retained above as superseded record per
+the no-silent-rewrite rule.
