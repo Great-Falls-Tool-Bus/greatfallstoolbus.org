@@ -14,7 +14,6 @@ import {
 	Megaphone,
 	MailCheck,
 	MessagesSquare,
-	FileText,
 	type Icon as LucideIcon,
 } from '@lucide/svelte';
 import { archiveVisible } from '$lib/flags';
@@ -94,11 +93,12 @@ export const navItems: NavItem[] = [
 		icon: BookOpen,
 	},
 	{ label: 'Shout-outs', href: '/shout-outs', match: ['/shout-outs'], footerGroup: 'About', icon: Megaphone },
-	// Operator docs: the on-site index of the operator-facing runbooks, deploy /
+	// Operator docs: REMOVED 2026-08-04. Operational documentation moved to the
+	// private Great-Falls-Tool-Bus/meta repo — the site repo is the site, and docs
+	// are not part of the vite build. Former index of runbooks, deploy /
 	// launch readiness, CI + development contracts, and the network / port
 	// diagrams (all rendered from the real docs/** tree). Footer-demoted into
 	// "About"; the technical surface never belongs in the ≤6-item primary bar.
-	{ label: 'Operator docs', href: '/docs', match: ['/docs'], footerGroup: 'About', icon: FileText },
 	{ label: 'Get access', href: '/contact', match: ['/contact'], primary: true, icon: KeyRound },
 	// Discuss: the public `discuss@latoolb.us` community board archive (TIN-2528).
 	// PROMOTED to the primary bar as the 6th item (the on-site thread index makes
