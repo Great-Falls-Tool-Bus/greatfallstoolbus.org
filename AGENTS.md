@@ -527,15 +527,12 @@ prior artifact). Both lanes are designed in
 - TTL: default 72h. Per-PR raise via labels `lane-ttl/7d`,
   `lane-ttl/30d`, `lane-ttl/keep` (capped at 720h). Reap on PR close +
   hourly TTL backstop + manual `workflow_dispatch`. Reap is idempotent.
-- Local dry-run: `just lane-dispatch <pr>` prints the payload Blahaj
-  would receive; `just lane-reap <pr>` does the same for destroy (with
-  a confirm prompt; `--dispatch` requires `REAP_CONFIRM=1`).
-- `.github/workflows/lane-env.yml` (this repo) still calls the deprecated
-  `spoke-lane-env.yml@v2.10.0` with no live receiver — it is *why* "do we
-  have PR envs?" reads as yes when the answer is no (truth doc C8). This ADR
-  round does not delete that workflow: a separate, already-in-flight lane
-  (`feat/preview-tailnet-lane`) carries that deletion alongside standing up
-  the tailnet preview lane above; do not duplicate it here.
+- Historical local dry-run: `just lane-dispatch <pr>` and
+  `just lane-reap <pr>` constructed these payloads. TIN-489 removed both
+  recipes and `scripts/lane-dispatch.py` after the receiver disappeared.
+- `.github/workflows/lane-env.yml` was the fail-open sender for this retired
+  path and has also been removed. `docs/schemas/blahaj-dispatch.schema.json`
+  records the historical payload contract only.
 
 ## Public Client Previews — SUPERSEDED, see meta ADR 0020
 
