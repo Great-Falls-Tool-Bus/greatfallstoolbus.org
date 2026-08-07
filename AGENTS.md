@@ -386,18 +386,11 @@ prior artifact). Both lanes are designed in
 
 ## Per-PR Ephemeral Envs
 
-- Each PR provisions one ephemeral environment per declared lane via the
-  `tinyland-inc/blahaj` GitHub App (`repository_dispatch` payload
-  schema: `docs/schemas/blahaj-dispatch.schema.json`).
-- DNS naming: `pr-{PR_NUMBER}-{LANE}.<spoke.domain>`.
-- Image tag template: `pr-{PR_NUMBER}-sha-{COMMIT_SHA}` (override per
-  spoke or per lane).
-- TTL: default 72h. Per-PR raise via labels `lane-ttl/7d`,
-  `lane-ttl/30d`, `lane-ttl/keep` (capped at 720h). Reap on PR close +
-  hourly TTL backstop + manual `workflow_dispatch`. Reap is idempotent.
-- Local dry-run: `just lane-dispatch <pr>` prints the payload Blahaj
-  would receive; `just lane-reap <pr>` does the same for destroy (with
-  a confirm prompt; `--dispatch` requires `REAP_CONFIRM=1`).
+Not wired in this repo: the Blahaj dispatch receiver was evicted
+(blahaj PR #1260, TIN-3293), and the local sender surfaces
+(`scripts/lane-dispatch.py`, `.github/workflows/lane-env.yml`) were
+removed with it. `docs/schemas/blahaj-dispatch.schema.json` records the
+historical payload contract.
 
 ## Public Client Previews
 

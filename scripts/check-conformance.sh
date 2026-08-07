@@ -104,8 +104,8 @@ if [[ -f .github/lanes.json ]]; then
 fi
 
 # 6. No runs-on: ubuntu-latest in artifact / state / bazel jobs.
-# Allowed on ubuntu-latest: secrets-scan, lane-dispatch dispatcher, pulse-ingest
-# wrapper, cloudflare/vercel/netlify external-publication deploys (need vendor
+# Allowed on ubuntu-latest: secrets-scan, pulse-ingest wrapper, and
+# cloudflare/vercel/netlify external-publication deploys (need vendor
 # API egress, can't realistically live on self-hosted ARC). Flagged: any job
 # whose key matches bazel-*, build*, publish-image, tofu-*, test-e2e, or
 # flywheel-*.
