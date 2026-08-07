@@ -374,16 +374,6 @@ scaffold-doctor:
       echo "" && echo "=== Layer 3: authority-boundary audit ===" && \
       bash scripts/scaffold-doctor-boundary.sh
 
-# Dry-run construct the Blahaj provision payload for a PR
-lane-dispatch pr filter="all":
-    cd {{ root }} && python3 scripts/lane-dispatch.py --pr {{ pr }} --filter "{{ filter }}"
-
-# Dry-run construct the Blahaj destroy payload for a PR (set REAP_CONFIRM=1 + pass --dispatch to actually send)
-lane-reap pr:
-    @cd {{ root }} && read -p "Construct reap payload for PR #{{ pr }}? [y/N] " ans; [ "$ans" = "y" ] || { echo "aborted."; exit 1; }
-    cd {{ root }} && python3 scripts/lane-dispatch.py --pr {{ pr }} --reap
-    @echo "(dry-run; set REAP_CONFIRM=1 and pass --dispatch to actually send)"
-
 # Run the spoke conformance checklist (docs/CI-SCHEMA.md §12)
 conformance:
     cd {{ root }} && bash scripts/check-conformance.sh
