@@ -7,6 +7,11 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ### Added
 
+- `/health` now serves the build-info commit sha at `.sha` alongside
+  `status: ok`, so the converge-agent's real-edge served-sha assert
+  (`site.scaffold` `modules/converge_agent` publication blocker item 3) can
+  verify the edge serves the commit it just applied; images without build
+  provenance serve `''`, which fails the assert instead of false-passing.
 - ALTCHA proof-of-work on the contact form (TIN-2420 Path B): a vendored,
   self-hosted `<altcha-widget>` (`static/vendor/altcha/altcha.js`, MIT, pinned to
   reference ALTCHA v3.2.0, zero npm/CDN dependency, CSP-clean) solves a signed
