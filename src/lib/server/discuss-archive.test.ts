@@ -419,13 +419,13 @@ describe('mapThreadDetail', () => {
 			},
 			{
 				message_id_hash: 'H2',
-				sender_name: 'jess@sulliwood.org',
+				sender_name: 'person@example.invalid',
 				date: '2026-07-04T17:45:00Z',
 				content: 'First post.',
 			},
 		]);
 		expect(mapped.messages.map((m) => m.id)).toEqual(['H2', 'H1']); // oldest first
-		expect(mapped.messages[0].senderName).toBe('Jess'); // raw address never leaks
+		expect(mapped.messages[0].senderName).toBe('Person'); // synthetic raw address never leaks
 		expect(mapped.startedAt).toBe('2026-07-04T17:45:00.000Z');
 		expect(mapped.lastActiveAt).toBe('2026-07-05T23:10:30.000Z');
 		expect(mapped.subject).toBe('Hello world!');
@@ -556,7 +556,7 @@ describe('fetchDiscussThread', () => {
 	};
 	const email2 = {
 		message_id_hash: 'H2',
-		sender_name: 'jess@sulliwood.org',
+		sender_name: 'person@example.invalid',
 		date: '2026-07-04T17:45:00Z',
 		content: 'First post.',
 	};
@@ -582,7 +582,7 @@ describe('fetchDiscussThread', () => {
 		const detail = await fetchDiscussThread('TID1', { origin: FQDN_ORIGIN, fetch: recordingFetch(calls) });
 		expect(detail.subject).toBe('Hello world!');
 		expect(detail.messages.map((m) => m.id)).toEqual(['H2', 'H1']); // oldest first
-		expect(detail.messages[0].senderName).toBe('Jess'); // raw sender_name reduced
+		expect(detail.messages[0].senderName).toBe('Person'); // synthetic raw sender_name reduced
 		expect(detail.startedAt).toBe('2026-07-04T17:45:00.000Z');
 		const quoted = detail.messages[1].body.find((b) => b.quoteLevel === 1);
 		expect(quoted?.text).toContain('@…');
