@@ -69,7 +69,7 @@
 		<h2 class="text-2xl font-semibold">Code of conduct</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
 			The bus is a shared space, even on wheels. Borrowing from it means agreeing to a few simple commitments:
-			<!-- OPERATOR-CONFIRM: code of conduct is a community-default draft (AA / Station North precedent), not operator-ratified. -->
+			<!-- OPERATOR-CONFIRM: this code of conduct is a community-default draft, not operator-ratified. -->
 		</p>
 		<ul class="prose mt-4 max-w-none">
 			{#each conduct as item (item)}

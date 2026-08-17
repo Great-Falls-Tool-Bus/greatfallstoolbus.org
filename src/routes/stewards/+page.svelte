@@ -4,8 +4,8 @@
 	import Card from '$lib/components/Card.svelte';
 	import { Users } from '@lucide/svelte';
 
-	// Stewardship SCAFFOLD: the three-tier makerspace leadership model (Artisan's
-	// Asylum precedent) scaled down for a bus: Coordinator, Cell / Shop Leads,
+	// Stewardship SCAFFOLD: an established three-tier makerspace leadership model
+	// scaled down for a bus: Coordinator, Cell / Shop Leads,
 	// Safety Steward. Roles are defined; the roster is intentionally EMPTY.
 	// Do NOT invent names here; the operator populates the roster. Real people
 	// already credited on /shout-outs are acknowledgements, not role assignments.
