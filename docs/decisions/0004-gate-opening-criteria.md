@@ -46,11 +46,11 @@ criterion may be waived silently.
 | A2 | Kate Pulham wording sign-off (D4) | the open checkbox in 0001's sign-off record is checked, with the agreed copy landed |
 | A3 | Mail/list smoke green | TIN-2379 CRs applied and a keyholders@latoolb.us round-trip + list smoke passes |
 | A4 | ~~Allowlist expanded (Alex/Kate/Joe)~~ Allowlist expanded (Alex/Ripley/J.) — *corrected 2026-08-05: per the naming-consent authority (operator rulings 2026-07-04), the founding supporter's consented public name is **Ripley** and the alderman's consented credit is initial-only **"J."**; the superseded text is retained struck-through per decision-record convention* | the three named reviewers have seen the gated site through their own Access logins before the flip |
-| A5 | **Naming-consent sweep clean** | every named stakeholder/reference currently on the site has explicitly agreed to be named (see `docs/naming-consent.md`); any name without recorded consent is redacted from the site in the pre-flip sweep before the Access policy changes |
+| A5 | **Naming-consent sweep clean** | every named stakeholder/reference currently on the site has explicitly agreed to be named under the private Meta `steering/naming-consent.md` authority; any name without recorded consent is redacted from the site in the pre-flip sweep before the Access policy changes |
 
 A5 is tracked in TIN-2421 alongside A1–A4 and is a first-class gate-opening
 criterion, not a secondary cleanup step — the standing naming-consent policy
-(see `docs/naming-consent.md`) holds that names are withheld from public view
+(private Meta `steering/naming-consent.md`) holds that names are withheld from public view
 until each stakeholder/reference has agreed to be named, and the gate must
 not open around an un-swept name.
 
@@ -86,4 +86,4 @@ accruing.
 - [ ] Option B (hard date: \_\_\_\_\_\_\_\_)
 - [ ] Option C (gated-until-notice, monthly review)
 - [x] Amendments to the criteria set (note inline) — A5 (naming-consent
-      sweep) added per the naming-consent policy; see `docs/naming-consent.md`
+      sweep) added per the private Meta naming-consent authority

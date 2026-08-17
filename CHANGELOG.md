@@ -38,8 +38,8 @@ Versioning: [SemVer 2.0](https://semver.org/).
   Every affordance rides the existing global `prefers-reduced-motion` guard, so
   motion snaps off for users who ask for it while the state stays legible.
 - Find-the-bus surface (TIN-2419): a new short, prerendered `/find-the-bus`
-  route closes the "where is it?" gap flagged in `docs/ux-research.md` (line
-  149) — nothing on the site answered where the bus is. The answer is
+  route closes the "where is it?" gap found in the prior UX research — nothing
+  on the site answered where the bus is. The answer is
   request-first by design: the bus is based at a fixed location in
   Lewiston-Auburn, Maine (concrete, known), but the exact spot is
   deliberately not published; a visitor reaches out through the live

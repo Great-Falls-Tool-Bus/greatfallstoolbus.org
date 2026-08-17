@@ -11,7 +11,7 @@
 > `ContainerFile`, `container-ghcr.yml`, the adapter-static/adapter-node table)
 > are still accurate as a description of how the artifact is built; the
 > "not yet done" / "warm standby" framing around them is not — see
-> `docs/DEVELOPMENT.md` "Deploying" for the current, live posture.
+> `AGENTS.md` "Deploy lane" for the current, live posture.
 
 - Status (as of this doc's original writing, TIN-2543): image build ACTIVE;
   production cutover not yet done and operator-gated. **Superseded** — see the
