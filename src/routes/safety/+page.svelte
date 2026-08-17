@@ -4,9 +4,9 @@
 	import SourceLink from '$lib/components/SourceLink.svelte';
 	import { ShieldCheck } from '@lucide/svelte';
 
-	// Safety + responsible-use is MANDATORY for a public power-tool organization
-	// (Artisan's Asylum / Station North precedent: safety orientation before
-	// use, published code of conduct). The specifics below are community
+	// Safety + responsible-use is MANDATORY for a public power-tool organization.
+	// Established makerspace and tool-library practice requires orientation before
+	// use and a published code of conduct. The specifics below are community
 	// defaults drawn from that precedent and are NOT operator-confirmed; see the
 	// OPERATOR-CONFIRM markers and the PR operator_review_flags. Nothing here is
 	// legal advice or a substitute for tool-specific manufacturer guidance.
