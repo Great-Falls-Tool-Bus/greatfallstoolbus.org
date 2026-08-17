@@ -1,0 +1,30 @@
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/lib/house-stack-contract.test.ts > house frontend-stack exact-pin contract > keeps the icon identity on scoped @lucide/svelte 1.x; unscoped lucide-svelte is retired
+AssertionError: expected '^0.542.0' to be undefined
+
+- Expected:
+undefined
+
++ Received:
+"^0.542.0"
+
+ ❯ src/lib/house-stack-contract.test.ts:62:44
+     60|  it('keeps the icon identity on scoped @lucide/svelte 1.x; unscoped lu…
+     61|   expect(packageJson.dependencies?.['@lucide/svelte']).toMatch(/^\^1\.…
+     62|   expect(allDeclaredDeps['lucide-svelte']).toBeUndefined();
+       |                                            ^
+     63|  });
+     64|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  2 failed | 13 passed (15)
+   Start at  01:54:41
+   Duration  563ms (transform 132ms, setup 0ms, import 168ms, tests 258ms, environment 0ms)
+
+ ELIFECYCLE  Command failed with exit code 1.
+error: Recipe `test-unit` failed on line 90 with exit code 1
