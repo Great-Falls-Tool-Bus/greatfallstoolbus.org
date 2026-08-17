@@ -65,14 +65,14 @@ export interface NavItem {
 // per-row cell tag, so Cells demotes to the "Get involved" footer group as the
 // steward, kit-logistics, and captaincy plus authoring view. Its natural peers
 // there are Wants and Keyholders (participatory get-involved surfaces), not the
-// read-only "About" references (Safety, Bibliography, Shout-outs, Operator
-// docs). The /cells routes are unaffected; only the nav placement moves.
+// read-only "About" references (Safety, Bibliography, Shout-outs). The /cells
+// routes are unaffected; only the nav placement moves.
 //
 // TIN-2536 folded the former /access and /find-the-bus surfaces into the single
 // /contact route (reach out, get access, find the bus is one intent), so the
 // primary "Get access" item points at /contact; access-how-to and the
 // request-first location now live as anchored sections there (#access,
-// #find-the-bus). Safety, Cells, Wants, Keyholders, Bibliography, Shout-outs,
+// #find-the-bus). Safety, Cells, Wants, Keyholders, Bibliography, and Shout-outs
 // demote to footer groups; /stewards remains a footer-only
 // link hard-coded in +layout.svelte (predates this array). Safety demotes off
 // the primary bar because its docs need careful hand editing before they lead

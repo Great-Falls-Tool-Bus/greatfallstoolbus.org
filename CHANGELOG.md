@@ -5,6 +5,12 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+
+- Retired the public operator-docs routes and renderer after moving current
+  planning and consent authority to the private Meta repository. Live local
+  schemas and repo-operation contracts remain in source for validation.
+
 ### Added
 
 - `/health` now serves the build-info commit sha at `.sha` alongside

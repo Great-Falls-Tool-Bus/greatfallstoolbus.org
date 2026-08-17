@@ -66,7 +66,7 @@
 - [x] Row (j) confirmed: latoolb.us = Lewiston-Auburn tool bus
 - [x] "movement" = the UPLIFT follow-through (driving prompts 34–38/52
       execution across spokes); no new Linear object
-- [ ] Kate Pulham shout-out wording sign-off — still open (current copy stays
+- [ ] Named collaborator shout-out wording sign-off — still open (current copy stays
       modest/recipient-neutral)
 
 
@@ -186,7 +186,7 @@ present.
   gate opens is decided (TIN-2378 comment b25465d8), not drift.
 - `/agent` + `/llms.txt` currently sit behind the **stronger apex gate**: the
   apex, `www`, and `pages.dev` hosts all serve from Cloudflare Pages but are
-  Access-gated (302 to Access login; allowlist = jess@sulliwood.org). Nothing
+  Access-gated (302 to Access login; operator-only allowlist). Nothing
   on the site is "unguarded" today — every surface is behind a gate stronger
   than the CHALLENGE rule row (f) scopes to the form route.
 - The Anubis **origin placement** (which hostname/origin serves the

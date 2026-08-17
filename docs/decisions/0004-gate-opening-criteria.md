@@ -10,7 +10,7 @@
   has an exit condition: the criteria below)
 - Related: TIN-2378 (closed Done 2026-07-03T17:25Z — NS cutover executed),
   TIN-2419 (Wave-3 prose), TIN-2420 (Anubis origin placement, deferred), D4
-  (Kate Pulham wording sign-off), 0005 (Wave-1 content ratification, D3),
+  (named collaborator wording sign-off), 0005 (Wave-1 content ratification, D3),
   TIN-2421 (gate-opening owner, tracks A1–A5 below)
 
 ## Problem
@@ -19,7 +19,7 @@ The **founding ask was a public, indexable site** (prompt-50). REV-2 gated the
 launch behind Cloudflare Access — a sound interim posture — but assigned **no
 exit owner and no exit condition**. Today the apex, `www`, and `pages.dev`
 hosts all serve from Cloudflare Pages and all 302 to Access login, with an
-allowlist of exactly one person (jess@sulliwood.org). An open-ended gate with
+operator-only allowlist. An open-ended gate with
 no owner is structurally indistinguishable from "gated forever."
 
 ## Cost of gated-forever
@@ -43,9 +43,9 @@ criterion may be waived silently.
 | # | Criterion | Evidence of "done" |
 | --- | --- | --- |
 | A1 | Wave-3 prose sign-off | TIN-2419 closed Done |
-| A2 | Kate Pulham wording sign-off (D4) | the open checkbox in 0001's sign-off record is checked, with the agreed copy landed |
+| A2 | Named collaborator wording sign-off (D4) | the open checkbox in 0001's sign-off record is checked, with the agreed copy landed |
 | A3 | Mail/list smoke green | TIN-2379 CRs applied and a keyholders@latoolb.us round-trip + list smoke passes |
-| A4 | ~~Allowlist expanded (Alex/Kate/Joe)~~ Allowlist expanded (Alex/Ripley/J.) — *corrected 2026-08-05: per the naming-consent authority (operator rulings 2026-07-04), the founding supporter's consented public name is **Ripley** and the alderman's consented credit is initial-only **"J."**; the superseded text is retained struck-through per decision-record convention* | the three named reviewers have seen the gated site through their own Access logins before the flip |
+| A4 | Named-reviewer Access check | the three consented reviewers have seen the gated site through their own Access logins before the flip |
 | A5 | **Naming-consent sweep clean** | every named stakeholder/reference currently on the site has explicitly agreed to be named under the private Meta `steering/naming-consent.md` authority; any name without recorded consent is redacted from the site in the pre-flip sweep before the Access policy changes |
 
 A5 is tracked in TIN-2421 alongside A1–A4 and is a first-class gate-opening
