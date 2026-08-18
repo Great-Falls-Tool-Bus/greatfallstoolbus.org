@@ -5,7 +5,18 @@
 # `pnpm run build`; Bazel exists for module-graph integrity proofs.
 
 common --enable_bzlmod
-common --registry=https://raw.githubusercontent.com/tinyland-inc/bazel-registry/main/
+# Supply-chain hardening (mirrors gftb-site / MassageIthaca): pin
+# tinyland-inc/bazel-registry to an immutable commit SHA instead of the
+# mutable `main` ref so module metadata (MODULE.bazel + source.json) cannot
+# silently change under us. Bump the SHA deliberately and refresh
+# MODULE.bazel.lock when the registry advances:
+#   sed -i '' "s|bazel-registry/[0-9a-f]\{40\}|bazel-registry/$(gh api repos/tinyland-inc/bazel-registry/commits/main --jq .sha)|" .bazelrc
+# NOTE (TIN-3857): this SHA is origin/main of tinyland-inc/bazel-registry as
+# of the .bazelversion 8.2.1 convergence PR, taken BEFORE that PR merged.
+# Re-pin to the post-merge main SHA once that PR lands.
+common --registry=https://raw.githubusercontent.com/tinyland-inc/bazel-registry/6f4d35d266fdbc66cb0ad98e02680bbd9a296d0c
+# bcr stays as a secondary registry; the Tinyland registry stays first so
+# in-house Bazel modules resolve before falling through to bcr.bazel.build.
 common --registry=https://bcr.bazel.build
 
 # Build performance
