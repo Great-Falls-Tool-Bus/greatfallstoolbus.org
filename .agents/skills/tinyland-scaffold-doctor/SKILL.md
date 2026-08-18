@@ -88,6 +88,18 @@ These are the rules that should NEVER drift in a spoke:
 
 - `tinyland.repo.json` `boundaries.owns_*` flags match the role.
 - `.bazelrc.flywheel` has NO `remote_cache=` or `remote_executor=` lines.
+- Root `.bazelversion` equals the estate-wide Bazel version the repo
+  recorded next to its exact-SHA `bazel-registry` pin, as a
+  `# estate-bazelversion: <x.y.z>` line in `.bazelrc` (TIN-3857 Step A).
+  The row is gated on that registry pin actually being present in
+  `.bazelrc`; a repo without one gets an explicit `SKIP` row, never a
+  silently missing row.
+  Offline check: it catches local drift, it does NOT contact the registry,
+  so re-reading the registry's own `.bazelversion` stays part of the
+  documented re-pin step in `.bazelrc`. Those two values differ on purpose
+  right now: the estate value 8.2.1 is set by the companion
+  `tinyland-inc/bazel-registry` PR, and the registry commit currently
+  pinned still records 8.1.1 until the post-merge re-pin lands.
 - `flake.nix` has no hard-coded secrets or token paths.
 - `.github/workflows/*.yml` do not invoke a Cloudflare API mutation step
   directly — they call into `blahaj` via the dispatch schemas.

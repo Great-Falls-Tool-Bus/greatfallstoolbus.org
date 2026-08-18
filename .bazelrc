@@ -5,19 +5,40 @@
 # `pnpm run build`; Bazel exists for module-graph integrity proofs.
 
 common --enable_bzlmod
-# Supply-chain hardening (mirrors gftb-site / MassageIthaca): pin
-# tinyland-inc/bazel-registry to an immutable commit SHA instead of the
-# mutable `main` ref so module metadata (MODULE.bazel + source.json) cannot
-# silently change under us. Bump the SHA deliberately and refresh
-# MODULE.bazel.lock when the registry advances:
+# Supply-chain hardening: pin tinyland-inc/bazel-registry to an immutable
+# commit SHA instead of the mutable `main` ref so module metadata
+# (MODULE.bazel + source.json) cannot silently change under us. Bump the SHA
+# deliberately, in its own commit, with the refresh one-liner:
 #   sed -i '' "s|bazel-registry/[0-9a-f]\{40\}|bazel-registry/$(gh api repos/tinyland-inc/bazel-registry/commits/main --jq .sha)|" .bazelrc
+#   bazelisk mod graph   # regenerates MODULE.bazel.lock
+# The registry README states the rule this repo follows: "A SHA bump must
+# land alongside a `MODULE.bazel.lock` refresh in the same commit." Bumping
+# the SHA without re-committing the regenerated lock is a broken change.
+#
 # NOTE (TIN-3857): this SHA is origin/main of tinyland-inc/bazel-registry as
-# of the .bazelversion 8.2.1 convergence PR, taken BEFORE that PR merged.
-# Re-pin to the post-merge main SHA once that PR lands.
+# of the .bazelversion 8.2.1 convergence PR, taken BEFORE that PR merged, so
+# the commit pinned below still records .bazelversion 8.1.1. Re-pin to the
+# post-merge main SHA once that PR lands -- and in the SAME commit regenerate
+# MODULE.bazel.lock (the re-pin rewrites every registry URL key in it, ~161
+# keys) and re-read the registry's .bazelversion to confirm it then records
+# the estate-bazelversion value below.
+#
+# estate-bazelversion: 8.2.1
+#   The estate-wide Bazel version, as set by the companion registry PR
+#   (tinyland-inc/bazel-registry, branch chore/tin-3857-bazelversion-8.2.1).
+#   The registry commit pinned below is NOT yet that value: it still records
+#   8.1.1. The post-merge re-pin described above is what makes the pinned
+#   commit agree with this line. scripts/scaffold-doctor-boundary.sh asserts
+#   root .bazelversion equals this value (offline). See "LIMITS" in that
+#   script: it proves this repo has not drifted from the value recorded here,
+#   NOT that the pinned registry commit records the same value -- today it
+#   does not, and reconciling that is the re-pin step above.
 #
 # The estate-wide Bazel version SSOT, the two-registry chain, and this pin
-# convention are specified in that registry's own docs, not here:
-#   https://github.com/tinyland-inc/bazel-registry/blob/6f4d35d266fdbc66cb0ad98e02680bbd9a296d0c/docs/bazel-adoption-v0.md
+# convention are specified in that registry's own docs, not here (this link
+# tracks the registry's default branch; it resolves once the companion
+# registry PR that adds the doc lands, and does not need re-pinning):
+#   https://github.com/tinyland-inc/bazel-registry/blob/main/docs/bazel-adoption-v0.md
 common --registry=https://raw.githubusercontent.com/tinyland-inc/bazel-registry/6f4d35d266fdbc66cb0ad98e02680bbd9a296d0c
 # bcr stays as a secondary registry; the Tinyland registry stays first so
 # in-house Bazel modules resolve before falling through to bcr.bazel.build.

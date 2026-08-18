@@ -3,6 +3,8 @@
 #
 # Surfaces violations of the rules that should NEVER drift in a spoke:
 #  - .bazelrc.flywheel has no remote_cache= or remote_executor= lines.
+#  - root .bazelversion matches the estate value recorded in .bazelrc
+#    next to the exact-SHA bazel-registry pin (TIN-3857 Step A SSOT).
 #  - flake.nix has no hard-coded secrets or token paths.
 #  - .github/workflows/*.yml do not invoke Cloudflare API mutations directly.
 #  - package.json does not range-pin in-house @tummycrypt/* or @tinyland/*.
@@ -35,6 +37,12 @@ check_pass() {
   echo "PASS | $1"
 }
 
+# Neither PASS nor FAIL: the row does not apply to this repo. Printed so an
+# inapplicable row is explicit rather than silently absent.
+check_skip() {
+  echo "SKIP | $1"
+}
+
 # .bazelrc.flywheel must be endpoint-free
 if [ -f .bazelrc.flywheel ]; then
   if grep -E '^[^#]*--remote_cache=' .bazelrc.flywheel >/dev/null 2>&1; then
@@ -44,6 +52,43 @@ if [ -f .bazelrc.flywheel ]; then
   else
     check_pass ".bazelrc.flywheel is endpoint-free"
   fi
+fi
+
+# .bazelversion SSOT (TIN-3857 Step A): if this repo pins tinyland-inc/bazel-registry
+# in .bazelrc, the root .bazelversion must equal the estate-wide value recorded
+# next to that pin, as a `# estate-bazelversion: <x.y.z>` line in .bazelrc.
+#
+# The row is gated on the registry pin actually being present, not merely on
+# .bazelrc existing: a repo with a .bazelrc but no registry pin is out of scope
+# for the SSOT rule, and says so with a SKIP row rather than emitting nothing.
+#
+# LIMITS, stated plainly: this is an OFFLINE check. It proves the root
+# .bazelversion has not drifted from the value recorded in .bazelrc; it does
+# NOT contact tinyland-inc/bazel-registry, so it cannot see what the pinned
+# registry commit's own .bazelversion says. That gap is live right now: 8.2.1
+# is the estate value set by the companion registry PR (branch
+# chore/tin-3857-bazelversion-8.2.1), and the registry commit currently pinned
+# in .bazelrc still records 8.1.1. The post-merge re-pin -- plus the
+# MODULE.bazel.lock regeneration in the same commit -- is what makes the pinned
+# commit agree with the recorded value. This row cannot do that, and does not
+# claim to.
+if [ -f .bazelrc ] && grep -Eq '^[^#]*--registry=https://raw\.githubusercontent\.com/tinyland-inc/bazel-registry/' .bazelrc; then
+  recorded="$(sed -n 's|^#[[:space:]]*estate-bazelversion:[[:space:]]*\([0-9][0-9.]*\)[[:space:]]*$|\1|p' .bazelrc | head -1)"
+  actual=""
+  if [ -f .bazelversion ]; then actual="$(tr -d '[:space:]' < .bazelversion)"; fi
+  if [ ! -f .bazelversion ]; then
+    check_fail "no root .bazelversion, but .bazelrc pins tinyland-inc/bazel-registry - the estate version must be pinned per repo (TIN-3857)"
+  elif [ -z "$recorded" ]; then
+    check_fail ".bazelrc records no '# estate-bazelversion: <x.y.z>' next to the registry pin (TIN-3857)"
+  elif [ "$recorded" != "$actual" ]; then
+    check_fail ".bazelversion ($actual) != estate value recorded in .bazelrc ($recorded) - converge or re-record at the next registry re-pin"
+  else
+    check_pass ".bazelversion ($actual) matches the estate value recorded in .bazelrc"
+  fi
+elif [ ! -f .bazelrc ]; then
+  check_skip ".bazelversion SSOT not checked: no .bazelrc (row out of scope for this repo)"
+else
+  check_skip ".bazelversion SSOT not checked: .bazelrc has no tinyland-inc/bazel-registry pin (row out of scope for this repo)"
 fi
 
 # flake.nix must not hard-code secrets
