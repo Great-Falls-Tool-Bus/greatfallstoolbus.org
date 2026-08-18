@@ -14,6 +14,10 @@ common --enable_bzlmod
 # NOTE (TIN-3857): this SHA is origin/main of tinyland-inc/bazel-registry as
 # of the .bazelversion 8.2.1 convergence PR, taken BEFORE that PR merged.
 # Re-pin to the post-merge main SHA once that PR lands.
+#
+# The estate-wide Bazel version SSOT, the two-registry chain, and this pin
+# convention are specified in that registry's own docs, not here:
+#   https://github.com/tinyland-inc/bazel-registry/blob/6f4d35d266fdbc66cb0ad98e02680bbd9a296d0c/docs/bazel-adoption-v0.md
 common --registry=https://raw.githubusercontent.com/tinyland-inc/bazel-registry/6f4d35d266fdbc66cb0ad98e02680bbd9a296d0c
 # bcr stays as a secondary registry; the Tinyland registry stays first so
 # in-house Bazel modules resolve before falling through to bcr.bazel.build.
