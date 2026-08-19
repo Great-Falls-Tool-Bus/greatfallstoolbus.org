@@ -13,8 +13,9 @@
 		}
 	},
 	"taxonomy": {
-		"primary_role": "static-spoke",
-		"layers": ["org-wide-repo-contract", "bazel-package-cache-rbe", "static-spoke"]
+		"primary_role": "app-stateful-spoke",
+		"spawned_repo_role": "app-stateful-spoke",
+		"layers": ["org-wide-repo-contract", "bazel-package-cache-rbe", "app-stateful-spoke"]
 	},
 	"enrollment": {
 		"forgeScope": "Great-Falls-Tool-Bus",
@@ -31,7 +32,7 @@
 		"conformance": "just conformance"
 	},
 	"boundaries": {
-		"owns_runtime_backend": false,
+		"owns_runtime_backend": true,
 		"owns_auth": false,
 		"owns_payments": false,
 		"owns_activitypub_delivery": false,
