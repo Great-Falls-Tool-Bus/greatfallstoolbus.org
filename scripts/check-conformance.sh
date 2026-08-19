@@ -108,32 +108,43 @@ if [[ -f .github/lanes.json ]]; then
   fi
 fi
 
-# 6. No runs-on: ubuntu-latest in artifact / state / bazel jobs.
-# Allowed on ubuntu-latest: secrets-scan, pulse-ingest wrapper, and
-# cloudflare/vercel/netlify external-publication deploys (need vendor
-# API egress, can't realistically live on self-hosted ARC). Flagged: any job
-# whose key matches bazel-*, build*, publish-image, tofu-*, test-e2e, or
-# flywheel-*.
+# 6. No GitHub-hosted runner label anywhere in .github/workflows (TIN-3914).
+# Operator ruling 2026-08-19: this org's CI runs only on the GF cache-fronted
+# ARC fleet. `runs-on:` must name a `tinyland-*` capability label (served for
+# Great-Falls-Tool-Bus by the `great-falls-tool-bus-nix` scale set); a
+# GitHub-hosted label (`ubuntu-*`, `macos-*`, `windows-*`) is a hard fail at any
+# nesting -- scalar, list item, or the `{group:, labels:}` mapping form. This
+# supersedes the earlier artifact/bazel-shaped-jobs-only scope and the §6
+# escape hatch, and it no longer softens to MANUAL when ci.yml is unpinned.
+# Reusable workflows owned by ci-templates are out of scope here; this repo can
+# only declare what it owns.
 if [[ -d .github/workflows ]]; then
   offenders=""
-  while IFS= read -r f; do
-    # Only flag if file declares a non-exempt job AND that job uses ubuntu-latest.
-    if grep -qE '^\s*(bazel-[a-z]+|build-[a-z]+|publish-image|tofu-[a-z]+|flywheel-[a-z]+):' "$f"; then
-      if grep -qE '^\s*runs-on:\s*ubuntu-latest\b' "$f"; then
-        offenders="$offenders $f"
-      fi
+  for f in .github/workflows/*.yml .github/workflows/*.yaml; do
+    [[ -e "$f" ]] || continue
+    # Emit the `runs-on:` line plus its more-indented continuation block, then
+    # look for a hosted label in that block only.
+    if awk '
+        /^[[:space:]]*runs-on:/ {
+          runs = 1
+          match($0, /[^ ]/); ind = RSTART
+          print
+          next
+        }
+        runs {
+          if ($0 ~ /^[[:space:]]*$/) next
+          match($0, /[^ ]/)
+          if (RSTART <= ind) { runs = 0; next }
+          print
+        }
+      ' "$f" | grep -qE '(^|[^A-Za-z0-9_-])(ubuntu|macos|macOS|windows)-'; then
+      offenders="$offenders $f"
     fi
-  done < <(ls .github/workflows/*.yml 2>/dev/null)
+  done
   if [[ -z "$offenders" ]]; then
-    ok "No runs-on: ubuntu-latest in artifact/bazel/state jobs"
+    ok "No GitHub-hosted runs-on label in any workflow (TIN-3914)"
   else
-    # Pre-D3 PR6 cutover state is tolerated; once ci-templates pin lands,
-    # promote this to a hard fail.
-    if grep -qE 'tinyland-inc/ci-templates[^@]*@v[0-9]+\.[0-9]+\.[0-9]+' .github/workflows/ci.yml 2>/dev/null; then
-      no "runs-on: ubuntu-latest found in artifact-shaped jobs:$offenders"
-    else
-      man "runs-on: ubuntu-latest in artifact-shaped jobs:$offenders (acceptable pre-D3 PR6 cutover)"
-    fi
+    no "GitHub-hosted runs-on label found (TIN-3914: GFTB CI is ARC-only):$offenders"
   fi
 fi
 

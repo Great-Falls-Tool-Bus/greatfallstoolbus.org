@@ -34,20 +34,22 @@ concurrency:
   group: pulse-ingest-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  # Every tinyland-nix job in this repo sets this so the ARC runner's Node
+  # runtime serves JavaScript actions (mirrors container-ghcr.yml).
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   ingest:
     name: Sync reviewed Tinyland projection
-    runs-on: ubuntu-latest
+    runs-on: tinyland-nix
     timeout-minutes: 30
     if: github.repository != 'tinyland-inc/greatfallstoolbus.org' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v7
 
-      - uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-
+      # No install-nix-action: tinyland-nix ships the Nix daemon and the
+      # GloriousFlywheel cache configuration already (TIN-3914).
       - name: Install workspace dependencies
         run: nix develop --command just setup
 
