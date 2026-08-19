@@ -1,15 +1,21 @@
 # Build + push the on-cluster container image to GHCR (TIN-2543).
 #
-# ACTIVE. Produces a real adapter-node OCI image on every push to main and on
-# demand via workflow_dispatch so the on-cluster serve path has a concrete
-# artifact to consume:
+# ACTIVE, BUILD-AND-PUBLISH ONLY. Produces a real adapter-node OCI image on every
+# push to main and on demand via workflow_dispatch so the on-cluster serve path
+# has a concrete artifact to consume:
 #
-#   * A push to main builds and publishes the image, then may signal the infra
-#     apply plane to deploy its exact digest. A manual dispatch builds and
-#     publishes only; it never sends the production signal.
-#   * The production host is the on-cluster adapter-node service behind
-#     Cloudflare Access (ADR 0010). Cloudflare Pages is retired.
-#   * The default `just build` / CF Pages pipeline still emits adapter-static.
+#   * A push to main builds and publishes the image. That is the end of this
+#     workflow's authority: it does NOT deploy and does NOT signal a deploy.
+#   * TIN-3899 retired the `signal-cd` job, which resolved the pushed @sha256
+#     digest and fired a `repository_dispatch` (`web-image-published`) at
+#     great-falls-tool-bus-infra so its web-stack.yml would apply it. The
+#     receiving workflow is deleted; the gftb-site static origin is now promoted
+#     in place by an attended, reviewed release chain in the overlay. Nothing in
+#     this public repo triggers a production deploy any more, and no
+#     INFRA_CD_DISPATCH_TOKEN is consumed.
+#   * The production host is the on-cluster service behind Cloudflare Access
+#     (ADR 0010). Cloudflare Pages is retired.
+#   * The default `just build` / static pipeline still emits adapter-static.
 #     Only ADAPTER=node (set by the image recipe) selects adapter-node.
 #   * The image is consumed by great-falls-tool-bus-infra (blahaj), which owns
 #     DNS, Access, Tunnel, and any actual deploy/cutover. This repo never holds
@@ -88,8 +94,10 @@ jobs:
       contents: read
       packages: write
     outputs:
-      # 'true' only after the image build + push action succeeds. The signal-cd
-      # job below deploys ONLY when this marker exists.
+      # 'true' only after the image build + push action succeeds. Retained as a
+      # machine-readable publication marker for operators and for any future
+      # reviewed consumer; TIN-3899 removed the signal-cd job that used to gate
+      # a deploy on it, so nothing downstream reads it inside this repository.
       published: ${{ steps.publish.outputs.published }}
     steps:
       - name: Checkout overlay
@@ -127,101 +135,3 @@ jobs:
       - name: Record successful image publication
         id: publish
         run: echo "published=true" >> "$GITHUB_OUTPUT"
-
-  # CONTINUOUS DEPLOYMENT SIGNAL (merge-on-green == live). This repo SIGNALS; the
-  # infra repo APPLIES. After a green main image build+push, resolve the pushed
-  # @sha256 digest and fire a repository_dispatch (web-image-published) to
-  # great-falls-tool-bus-infra, whose web-stack.yml re-verifies CI-green and then
-  # applies. The security boundary is unchanged: this public repo still holds NO
-  # cluster/edge creds — only a cross-repo dispatch token. FAIL-SOFT: if
-  # INFRA_CD_DISPATCH_TOKEN is absent the job skips with a ::notice::, so main
-  # stays green until the operator provisions the token; manual web-stack
-  # dispatch remains the deploy path.
-  signal-cd:
-    name: Signal infra CD (repository_dispatch)
-    needs: build-push
-    # Only a real, freshly-pushed main image signals a deploy: push event + main
-    # ref + the build job succeeded AND actually published. A manual main
-    # dispatch publishes an image but remains deployment-inert.
-    if: >-
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
-      needs.build-push.result == 'success' &&
-      needs.build-push.outputs.published == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-    steps:
-      - name: Resolve pushed digest + dispatch deploy signal (fail-soft on absent token)
-        env:
-          INFRA_CD_DISPATCH_TOKEN: ${{ secrets.INFRA_CD_DISPATCH_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
-          COMMIT_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${INFRA_CD_DISPATCH_TOKEN:-}" ]]; then
-            echo "::notice::INFRA_CD_DISPATCH_TOKEN not provisioned; skipping the infra CD signal (fail-soft). Continuous deployment stays inert until the operator adds the token — manual great-falls-tool-bus-infra web-stack dispatch remains the deploy path."
-            exit 0
-          fi
-
-          owner_lc="$(printf '%s' "${OWNER}" | tr '[:upper:]' '[:lower:]')"
-          image_ref="ghcr.io/${owner_lc}/greatfallstoolbus.org"
-          tag="sha-${COMMIT_SHA}"
-
-          # Resolve the @sha256 digest just pushed for ${tag}. Primary: the GHCR
-          # registry manifest (strongly consistent immediately after the push).
-          # Fallback: the GH package-versions API. Both read-only, ambient
-          # GITHUB_TOKEN (packages:read).
-          resolve_via_registry() {
-            local bearer
-            bearer="$(printf '%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
-            curl -sSL -o /dev/null -D - \
-              -H "Authorization: Bearer ${bearer}" \
-              -H "Accept: application/vnd.oci.image.index.v1+json" \
-              -H "Accept: application/vnd.oci.image.manifest.v1+json" \
-              -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-              -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
-              "https://ghcr.io/v2/${owner_lc}/greatfallstoolbus.org/manifests/${tag}" \
-              | tr -d '\r' | awk -F': ' 'tolower($1)=="docker-content-digest"{print $2}'
-          }
-          resolve_via_api() {
-            GH_TOKEN="${GITHUB_TOKEN}" gh api \
-              "orgs/${OWNER}/packages/container/greatfallstoolbus.org/versions?per_page=100" \
-              --jq "[.[] | select(.metadata.container.tags[]? == \"${tag}\")][0].name // \"\"" 2>/dev/null || true
-          }
-
-          digest=""
-          for attempt in 1 2 3 4 5; do
-            digest="$(resolve_via_registry || true)"
-            [[ -n "${digest}" ]] && break
-            digest="$(resolve_via_api || true)"
-            [[ -n "${digest}" ]] && break
-            echo "digest not resolvable yet for ${image_ref}:${tag} (attempt ${attempt}); retrying..."
-            sleep 6
-          done
-
-          if [[ -z "${digest}" ]]; then
-            echo "::error::could not resolve the @sha256 digest for ${image_ref}:${tag} from GHCR; the build reported success but the digest is not queryable. Not dispatching a deploy."
-            exit 1
-          fi
-
-          image="${image_ref}@${digest}"
-          echo "Resolved pushed image: ${image}"
-
-          # Build the nested client_payload as JSON (unambiguous) and POST the
-          # repository_dispatch using the cross-repo token (contents:write on the
-          # infra repo). event_type + client_payload contract must match
-          # great-falls-tool-bus-infra web-stack.yml.
-          payload="$(jq -n \
-            --arg image "${image}" \
-            --arg sha "${COMMIT_SHA}" \
-            --arg replicas "2" \
-            '{event_type:"web-image-published", client_payload:{image:$image, sha:$sha, replicas:$replicas}}')"
-
-          printf '%s' "${payload}" | GH_TOKEN="${INFRA_CD_DISPATCH_TOKEN}" gh api \
-            -X POST "repos/${OWNER}/great-falls-tool-bus-infra/dispatches" --input -
-
-          echo "::notice::Signaled great-falls-tool-bus-infra (web-image-published) to deploy ${image} for ${COMMIT_SHA}. The infra CD path re-checks CI-green before applying."

@@ -17,9 +17,11 @@ The current serving host is **on-cluster, behind the `cloudflared` tunnel**
 2026-07-06 — supersedes ADR 0008's operator-gated framing and ADR 0003's
 Cloudflare-Pages-bound serving). The container image build is
 `.github/workflows/container-ghcr.yml` (builds and pushes to GHCR on push to
-`main`, then may signal the infra apply plane; a manual dispatch publishes
-without signaling production). The infra web Deployment consumes that image
-(digest-pinned) behind the shared honey-ingress Cloudflare Tunnel. See
+`main`, and stops there — TIN-3899 retired the `signal-cd` job that used to fire
+a `repository_dispatch` at the infra apply plane, so no push from this repo
+triggers a deploy). The infra web Deployment consumes that image (digest-pinned)
+behind the shared honey-ingress Cloudflare Tunnel, on an attended, reviewed
+release. See
 `docs/deploy/oncluster-container-readiness.md`. The apex sits behind Cloudflare
 Access (gated to the operator during prose refinement); DNS, Access, and the
 zone live in the `great-falls-tool-bus-infra` edge tofu stack.
@@ -39,10 +41,11 @@ reachable).
   The now-retired Pages lane's `CLOUDFLARE_API_TOKEN` (`Pages:Edit`) +
   `CLOUDFLARE_ACCOUNT_ID` are retired with it, per ADR 0010 §3/§7/Amendment 2.
 - Rollback: the Cloudflare Pages project is gone, so there is no DNS-flip-back
-  option anymore. Rollback is the on-cluster re-pin-previous-digest primitive
-  (ADR 0008 §5 / 0010 §5 / Amendment 2): re-dispatch the infra `web-stack.yml`
-  workflow (`workflow_dispatch`, `confirm=apply`, `image=<prior known-good
-  digest>`) in `great-falls-tool-bus-infra`.
+  option anymore. Rollback is on-cluster, attended, and lives entirely in
+  `great-falls-tool-bus-infra`: re-plan and re-apply its reviewed release chain
+  with the previous known-good digest. The `web-stack.yml` re-dispatch this note
+  used to name (ADR 0008 §5 / 0010 §5 / Amendment 2) was retired by TIN-3899
+  along with the CD signal job here.
 
 ## Stack
 

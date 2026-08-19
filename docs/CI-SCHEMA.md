@@ -443,7 +443,7 @@ schema validation.
 | `bazel-graph` (`bazelisk mod graph`, wrapper build for `//:node_modules`) | `tinyland-nix-heavy` | Graph queries are memory-hungry. | yes (proved classes only) |
 | `bazel-rbe-proof` (optional) | `tinyland-nix-heavy` | Dispatches/awaits GloriousFlywheel proof. | n/a (dispatcher only) |
 | `publish-image` (dind pools) | `tinyland-dind` | Container build + push to GHCR (buildx). | no (`container-image-and-push` blocked) |
-| `publish-image` (nix-only pools, e.g. GFTB) | `tinyland-nix` | Daemonless Nix image build (`dockerTools.streamLayeredImage`) + skopeo push via the nix-job action; the pool has no `tinyland-dind` (TIN-2543). | no (`container-image-and-push` blocked) |
+| `publish-image` (nix-only pools, e.g. GFTB) | `tinyland-nix` | Daemonless Nix image build (`dockerTools.streamLayeredImage`) + skopeo push via the nix-job action; the pool has no `tinyland-dind` (TIN-2543). Build-and-publish only: GFTB's `container-ghcr.yml` no longer carries a CD-signal job (see the escape-hatch note below). | no (`container-image-and-push` blocked) |
 | `lane-qa` (waits for envs, runs E2E) | `tinyland-nix-kvm` | Needs tailnet join + Playwright. | candidate (`web-playwright-chromium-static-smoke`), gated |
 | `dispatch-apply` / `dispatch-reap` | `ubuntu-latest` | Pure `gh api` calls; no cluster reachability needed. | n/a |
 | `pulse-ingest` (snapshot refresh PRs) | `tinyland-nix` | Nix devshell. | no |
@@ -452,6 +452,18 @@ schema validation.
 jobs whose entire purpose is a `gh api` call, a webhook dispatch, or a
 security gate that must execute before cluster trust is established.
 Every other job MUST use a `tinyland-*` class.
+
+**GFTB, TIN-3899:** the one job in this spoke that used the escape hatch was
+`container-ghcr.yml`'s `signal-cd` — an `ubuntu-latest` `gh api` job that
+resolved the pushed `@sha256` digest and fired a `repository_dispatch`
+(`web-image-published`) at `great-falls-tool-bus-infra`, whose `web-stack.yml`
+then applied it. Both ends are retired: the receiving workflow is deleted and
+the signal job is removed. This spoke now declares **no** `ubuntu-latest` job in
+`container-ghcr.yml`, so conformance item "No `runs-on: ubuntu-latest` in jobs
+that touch state, build images, or run Bazel" (§12) passes mechanically rather
+than by exemption. Building and publishing the image is the whole of this
+repository's deploy authority; promotion is an attended, reviewed release in the
+overlay.
 
 ---
 
