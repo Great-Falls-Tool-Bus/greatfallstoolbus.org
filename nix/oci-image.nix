@@ -62,7 +62,11 @@ let
 
   # ONE image, THREE stable process names (spec §6, TIN-3815 S0) — mirrors the
   # PRIMARY nix2container path in flake.nix so the fallback cannot drift into a
-  # different image contract.
+  # different image contract. That mirroring is the whole reason this file is in
+  # the S0 diff: nothing imports it (CI never evaluates it; see the header), but
+  # leaving it behind would strand a second, silently divergent image contract
+  # for whoever reaches for the escape hatch. Same positional-wrapper rationale
+  # as flake.nix — see the WRAPPER FORM note there.
   mkPlatformEntrypoint =
     role:
     pkgs.writeShellApplication {
@@ -96,6 +100,9 @@ in
       pkgs.nodejs_22
       pkgs.dumb-init
       pkgs.cacert
+      # coreutils supplies `id`, which S0's acceptance row runs INSIDE the image
+      # to prove non-root (uid/gid 1001); `just container-image-smoke` executes
+      # it. Drop coreutils only together with that row.
       pkgs.coreutils
       platformEntrypoints
       appRoot

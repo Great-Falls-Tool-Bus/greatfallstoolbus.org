@@ -162,6 +162,22 @@
         # argv contract. They all dispatch into the single
         # scripts/platform-entrypoint.mjs; S1 (migrator) and S3 (worker) fill in
         # the placeholders WITHOUT changing this image contract.
+        #
+        # WRAPPER FORM — deliberate, and NOT the same code path as ContainerFile.
+        # These wrappers pass the role POSITIONALLY. ContainerFile instead
+        # symlinks /usr/local/bin/<role> at the dispatcher, which exercises the
+        # linked-name branch (Node keeps argv[1] as the link path). The
+        # dispatcher supports both and the unit test pins linked-name-wins
+        # precedence, but be honest about which ships where: CI publishes THIS
+        # (nix2container) artifact, so the POSITIONAL branch is what production
+        # runs; the linked-name branch is the local ContainerFile mirror's.
+        #
+        # The positional form is used here on purpose rather than reproducing the
+        # symlink: a store symlink would re-enter the dispatcher through its
+        # `#!/usr/bin/env node` shebang, making the image depend on `env` and
+        # `node` resolving via PATH. Calling the interpreter by absolute store
+        # path removes that assumption entirely. `just container-image-smoke`
+        # executes whichever form the image under test actually ships.
         mkPlatformEntrypoint =
           role:
           pkgs.writeShellApplication {
@@ -185,8 +201,11 @@
 
         # SLOW/stable layer: the Node runtime + certs + init. Kept separate from the
         # fast app layer so a content-only redeploy re-pushes ONLY the app layer.
-        # coreutils rides along so the image is inspectable in place (`id -u` is
-        # the non-root proof in S0's acceptance rows).
+        # coreutils rides along for exactly one reason: S0's acceptance row
+        # proves non-root by running `id -u` INSIDE the image, and `just
+        # container-image-smoke` executes that. Node cannot stand in — it would
+        # report the uid of a process the row is meant to audit from outside the
+        # app. Drop coreutils only together with that row.
         imageRoot = pkgs.buildEnv {
           name = "gftb-image-root";
           paths = [

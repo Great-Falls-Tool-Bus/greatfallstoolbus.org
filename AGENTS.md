@@ -95,7 +95,9 @@ repository as private or renamed** in code, comments, docs, or image refs.
 - **Image entrypoints**: `just platform-entrypoints-check` runs the exact
   derivations the image installs at `/bin/web`, `/bin/worker`, and
   `/bin/migrator`. It needs no container daemon, so it is the per-entrypoint
-  proof to run locally.
+  proof to run locally. `just container-image-smoke` proves the *assembled*
+  image instead (per-role `--entrypoint … --help`, in-container `id -u` = 1001);
+  it skips with a message when no container daemon answers.
 - **Check**: `just check` runs sync + svelte-check.
 - **SBOM**: `just sbom` generates local CycloneDX JSON and SPDX JSON artifacts
   under ignored `build/sbom/`.

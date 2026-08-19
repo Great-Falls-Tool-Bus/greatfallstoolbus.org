@@ -202,6 +202,83 @@ platform-entrypoints-check:
     done
     echo "platform entrypoints OK: web, worker, migrator"
 
+# The EXECUTED half of S0's acceptance rows: `docker run --entrypoint <role> …
+# --help` exits 0 for each of web/worker/migrator, and in-container `id -u` is
+# 1001. platform-entrypoints-check proves the DERIVATIONS and `nix build .#image`
+# proves the image CONFIG; only this recipe proves the ASSEMBLED, RUNNING image,
+# so it needs a live container runtime.
+#
+# SKIPS LOUDLY, exit 0, when no runtime DAEMON answers. The guard probes
+# `<runtime> info`, not `command -v`: the docker CLI is present on the operator's
+# macOS host while the daemon is not running, so a PATH-only guard reports a
+# false positive and then fails deep inside the build. It FAILS HARD when a
+# runtime does answer and an assertion does not hold, so these rows self-execute
+# the moment a daemon exists — no further code change.
+#
+# WHICH IMAGE. By default this builds ContainerFile, the local docker/podman
+# mirror of the image contract: it is the artifact a container runtime can
+# actually execute here, and `docker build` needs no Nix remote builder. CI
+# ships the nix2container artifact instead, which on a macOS host would contain
+# Mach-O binaries the Linux runtime cannot exec — so to smoke the REAL published
+# artifact, pass its ref:
+#   GFTB_SMOKE_IMAGE=ghcr.io/great-falls-tool-bus/<repo>@sha256:… just container-image-smoke
+# Prove the ASSEMBLED image: per-role --entrypoint --help, and id -u == 1001 (skips without a running daemon)
+container-image-smoke:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ root }}
+
+    runtime=""
+    for candidate in docker podman; do
+        if command -v "$candidate" >/dev/null 2>&1 && "$candidate" info >/dev/null 2>&1; then
+            runtime="$candidate"; break
+        fi
+    done
+    if [ -z "$runtime" ]; then
+        echo "container-image-smoke: SKIP — no responding docker or podman daemon."
+        echo "  S0's executed in-container rows (per-role --entrypoint --help, id -u == 1001)"
+        echo "  stay CI-pending. The per-entrypoint CONTRACT is still proved daemonlessly by"
+        echo "  'just platform-entrypoints-check', and the image CONFIG (User, Cmd) by"
+        echo "  'nix build .#image'. Re-run on a host with a running container runtime."
+        exit 0
+    fi
+    echo "container-image-smoke: using ${runtime}"
+
+    ref="${GFTB_SMOKE_IMAGE:-}"
+    if [ -z "$ref" ]; then
+        ref="greatfallstoolbus.org:smoke"
+        echo "container-image-smoke: building ${ref} from ContainerFile"
+        "$runtime" build -f ContainerFile -t "$ref" .
+    fi
+    echo "container-image-smoke: image ${ref}"
+
+    failed=0
+    for role in web worker migrator; do
+        if "$runtime" run --rm --entrypoint "$role" "$ref" --help >/dev/null; then
+            echo "  ✓ --entrypoint ${role} --help exited 0"
+        else
+            echo "  ✗ --entrypoint ${role} --help did not exit 0" >&2
+            failed=1
+        fi
+    done
+
+    # ADR 0008 §3: the image runs non-root as uid/gid 1001. `id` comes from
+    # busybox (ContainerFile image) or coreutils (nix images).
+    uid="$("$runtime" run --rm --entrypoint id "$ref" -u | tr -d '\r\n')"
+    gid="$("$runtime" run --rm --entrypoint id "$ref" -g | tr -d '\r\n')"
+    if [ "$uid" = "1001" ] && [ "$gid" = "1001" ]; then
+        echo "  ✓ in-container id -u/-g == 1001/1001"
+    else
+        echo "  ✗ in-container id -u/-g == ${uid}/${gid}, expected 1001/1001" >&2
+        failed=1
+    fi
+
+    if [ "$failed" -ne 0 ]; then
+        echo "container-image-smoke: FAIL" >&2
+        exit 1
+    fi
+    echo "container-image-smoke: OK — web, worker, migrator answer; image is non-root 1001:1001"
+
 # ─────────────────────────────────────────────
 # Validation
 # ─────────────────────────────────────────────
