@@ -17,11 +17,12 @@
 # with `pkgs.dockerTools.streamLayeredImage` and pushed with `skopeo` — no
 # daemon required. See `just container-image-publish`.
 #
-# The PRODUCTION default host is unchanged: adapter-static -> Cloudflare Pages
-# (ADR 0003, DB-less, no edge auth). This image only exists so
-# great-falls-tool-bus-infra (blahaj) has a concrete `node build/index.js`
-# artifact to consume when a server is genuinely needed. Publishing it never
-# deploys it and never flips the live host.
+# ADAPTER SELECTION (TIN-3815 S0, ADR 0010 Amendment 1 item 2): the no-`ADAPTER`
+# repository build stays adapter-static as the local/CI fallback, so the default
+# gates never regress. adapter-node is selected EXPLICITLY by the image recipes;
+# `svelte.config.js` keeps its static default. This file packages the resulting
+# adapter-node output for great-falls-tool-bus-infra (blahaj) to consume.
+# Publishing an image never deploys it and never flips a live route.
 #
 # `appBuild` is the @sveltejs/adapter-node output directory (build/), produced
 # imperatively by `ADAPTER=node pnpm run build` BEFORE this file is evaluated.
@@ -58,6 +59,27 @@ let
     cp -a ${appBuild} "$out/app/build"
     cp -a ${appPackageJson} "$out/app/package.json"
   '';
+
+  # ONE image, THREE stable process names (spec §6, TIN-3815 S0) — mirrors the
+  # PRIMARY nix2container path in flake.nix so the fallback cannot drift into a
+  # different image contract.
+  mkPlatformEntrypoint =
+    role:
+    pkgs.writeShellApplication {
+      name = role;
+      text = ''
+        exec ${pkgs.nodejs_22}/bin/node ${../scripts/platform-entrypoint.mjs} ${role} "$@"
+      '';
+    };
+  platformEntrypoints = pkgs.buildEnv {
+    name = "gftb-image-entrypoints";
+    paths = [
+      (mkPlatformEntrypoint "web")
+      (mkPlatformEntrypoint "worker")
+      (mkPlatformEntrypoint "migrator")
+    ];
+    pathsToLink = [ "/bin" ];
+  };
 in
 {
   # Exposed so `just container-image-publish` can resolve skopeo from the same
@@ -74,19 +96,30 @@ in
       pkgs.nodejs_22
       pkgs.dumb-init
       pkgs.cacert
+      pkgs.coreutils
+      platformEntrypoints
       appRoot
     ];
     config = {
       Entrypoint = [ "dumb-init" "--" ];
-      Cmd = [ "node" "/app/build/index.js" ];
+      # Default process is `web`; `worker` and `migrator` are selected by
+      # overriding the command, not by building a different image.
+      Cmd = [ "/bin/web" ];
+      # Non-root by uid:gid (ADR 0008 §3). Numeric on purpose — the image carries
+      # no /etc/passwd entry and none is required.
+      User = "1001:1001";
       WorkingDir = "/app";
       ExposedPorts = {
         "3000/tcp" = { };
       };
       Env = [
+        "PATH=/bin"
         "NODE_ENV=production"
         "HOST=0.0.0.0"
         "PORT=3000"
+        # The dispatcher lives in the Nix store, so it cannot infer a
+        # repo-relative build/. Hand it the absolute in-image path.
+        "GFTB_WEB_ENTRYPOINT=/app/build/index.js"
         "NODE_OPTIONS=--max-old-space-size=512"
         "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
       ];

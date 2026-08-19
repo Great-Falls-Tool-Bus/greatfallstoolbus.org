@@ -26,6 +26,11 @@ filegroup(
         allow_empty = True,
     ) + [
         ".npmrc",
+        # The platform process dispatcher (TIN-3815 S0). The scripts/ glob above
+        # only reaches *.mts and scripts/bazel/*.mjs, so this file must be
+        # enrolled by explicit label or //:unit_tests silently loses
+        # scripts/platform-entrypoint.test.mts's subject.
+        "scripts/platform-entrypoint.mjs",
         "package.json",
         "playwright.config.ts",
         "pnpm-lock.yaml",
@@ -211,6 +216,10 @@ pkg_tar(
         "nix/oci-image.nix",
         "package.json",
         "pnpm-lock.yaml",
+        # The three stable process names (web/worker/migrator) are part of the
+        # image contract, so the dispatcher is part of the image input set: a
+        # change to it must invalidate the container context (TIN-3815 S0).
+        "scripts/platform-entrypoint.mjs",
         "svelte.config.js",
     ],
     extension = "tar",

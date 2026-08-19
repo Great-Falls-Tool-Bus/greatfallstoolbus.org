@@ -81,13 +81,19 @@ clean-all: clean
 # remote-execution eligible (`container-image-and-push` is blocked at the GF
 # manifest layer — skill rule 8, docs/CI-SCHEMA.md §5). The default adapter-static
 # build is untouched; only ADAPTER=node here selects adapter-node.
+#
+# IMAGE CONTRACT (TIN-3815 S0): the image carries ONE dispatcher
+# (scripts/platform-entrypoint.mjs) installed under three stable process names —
+# `web`, `worker`, `migrator`. `platform-entrypoints-check` below runs each of
+# them as a prerequisite of both image recipes, so an image is never produced or
+# pushed whose entrypoints do not answer.
 
 # Build the adapter-node OCI image with nix2container and push it to GHCR (used by
 # .github/workflows/container-ghcr.yml on tinyland-nix via the nix-job action).
 # Required env (supplied by CI, never committed): GHCR_USER, GHCR_TOKEN.
 # Optional env: IMAGE_REF (default ghcr.io/great-falls-tool-bus/greatfallstoolbus.org),
 # BUILD_COMMIT_SHA, BUILD_COMMIT_REF, BUILD_DATE.
-container-image-publish:
+container-image-publish: platform-entrypoints-check
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{ root }}
@@ -148,7 +154,7 @@ container-image-publish:
 # can load with `skopeo copy docker-archive:greatfallstoolbus-oci.tar docker-daemon:...`
 # (or `docker load < greatfallstoolbus-oci.tar`). macOS builds a host-arch image
 # only; the Linux OCI is validated on the tinyland-nix runner.
-container-image-build:
+container-image-build: platform-entrypoints-check
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{ root }}
@@ -179,6 +185,22 @@ container-image-build:
     export APP_BUILD="$PWD/build"
     nix run --impure .#image.copyTo -- docker-archive:greatfallstoolbus-oci.tar
     echo "wrote greatfallstoolbus-oci.tar"
+
+# Per-entrypoint proof (TIN-3815 S0). Runs the EXACT derivations the OCI image
+# installs at /bin/web, /bin/worker, and /bin/migrator, so the three stable
+# process names are proved to answer without a Docker/podman daemon, a cluster,
+# or a registry. `--help` must exit 0 for every role — including the roles S1 and
+# S3 have not implemented yet, which otherwise fail closed.
+# Prove the image's web/worker/migrator entrypoints answer (no container daemon needed)
+platform-entrypoints-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ root }}
+    for role in web worker migrator; do
+        echo "── nix run .#${role} -- --help"
+        nix run ".#${role}" -- --help
+    done
+    echo "platform entrypoints OK: web, worker, migrator"
 
 # ─────────────────────────────────────────────
 # Validation
