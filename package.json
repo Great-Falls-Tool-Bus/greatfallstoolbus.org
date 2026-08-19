@@ -37,6 +37,7 @@
 		"@fontsource/crimson-pro": "^5.2.8",
 		"@fontsource/inter": "^5.2.8",
 		"@lucide/svelte": "^1.23.0",
+		"@sveltejs/adapter-node": "^5.5.7",
 		"@tummycrypt/tinyland-color-utils": "0.2.3",
 		"@tummycrypt/tinyvectors": "https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.6.tar.gz",
 		"effect": "^3.21.4"
@@ -45,7 +46,6 @@
 		"@playwright/test": "^1.61.1",
 		"@skeletonlabs/skeleton": "4.15.2",
 		"@skeletonlabs/skeleton-svelte": "4.15.2",
-		"@sveltejs/adapter-node": "^5.5.7",
 		"@sveltejs/adapter-static": "^3.0.10",
 		"@sveltejs/kit": "^2.69.2",
 		"@sveltejs/vite-plugin-svelte": "^7.2.0",
