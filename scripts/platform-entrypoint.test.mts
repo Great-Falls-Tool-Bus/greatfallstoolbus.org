@@ -1,18 +1,24 @@
-// Contract tests for the platform process dispatcher (TIN-3815, slice S0).
+// Contract tests for the platform process dispatcher (TIN-3815 slice S0,
+// extended by TIN-3817 slice S1).
 //
 // These lock the IMAGE CONTRACT, not an implementation detail: three stable
 // role names, `--help` answering 0 for each of them without side effects, and
-// worker/migrator failing CLOSED until S1/S3 land. S1 and S3 may change what
-// those roles DO; they must not change the contract asserted here.
+// an unimplemented role failing CLOSED rather than reporting healthy.
+//
+// S1 landed the migrator, so the rows that asserted `migrator` fails closed now
+// assert it DISPATCHES — the contract they were protecting (never exit 0 while
+// doing nothing) is unchanged and still asserted for `worker`.
 
 import { describe, expect, it } from 'vitest';
 
 import {
+	EXIT_MALFORMED,
 	EXIT_UNAVAILABLE,
 	EXIT_USAGE,
 	PLATFORM_ROLES,
 	isDirectInvocation,
 	platformRoleHelp,
+	resolveMigratorEntrypoint,
 	resolvePlatformRole,
 	resolveWebEntrypoint,
 	runPlatformEntrypoint,
@@ -73,8 +79,11 @@ describe('--help', () => {
 
 	it('marks the not-yet-implemented roles as declared-only in help text', () => {
 		expect(platformRoleHelp('worker')).toContain('not yet implemented');
-		expect(platformRoleHelp('migrator')).toContain('not yet implemented');
 		expect(platformRoleHelp('web')).not.toContain('not yet implemented');
+		// TIN-3817 S1: the migrator is real now, and its help must say so —
+		// a "declared only" line on a shipped role is a lie an operator acts on.
+		expect(platformRoleHelp('migrator')).not.toContain('not yet implemented');
+		expect(platformRoleHelp('migrator')).toContain('advisory lock');
 	});
 });
 
@@ -96,7 +105,7 @@ describe('role dispatch', () => {
 		expect(loaded).toEqual(['file:///app/build/index.js']);
 	});
 
-	it.each(['worker', 'migrator'])('fails closed for %s rather than reporting healthy', async (role: string) => {
+	it.each(['worker'])('fails closed for %s rather than reporting healthy', async (role: string) => {
 		const stderr = capture();
 		const code = await runPlatformEntrypoint({
 			argv1: `/bin/${role}`,
@@ -111,6 +120,61 @@ describe('role dispatch', () => {
 
 		expect(code).toBe(EXIT_UNAVAILABLE);
 		expect(stderr.text()).toContain('has not landed yet');
+	});
+
+	it('runs the bundled applier for migrator and returns ITS exit code', async () => {
+		const seen: { href?: string; args?: string[] } = {};
+		const code = await runPlatformEntrypoint({
+			argv1: '/bin/migrator',
+			args: ['--dry-run'],
+			env: { GFTB_MIGRATOR_ENTRYPOINT: '/app/build/migrator.mjs' },
+			stdout: capture(),
+			stderr: capture(),
+			importModule: async (href: string) => {
+				seen.href = href;
+				return {
+					main: async (args: string[]) => {
+						seen.args = args;
+						return 0;
+					},
+				};
+			},
+		});
+
+		expect(code).toBe(0);
+		expect(seen.href).toBe('file:///app/build/migrator.mjs');
+		expect(seen.args).toEqual(['--dry-run']);
+	});
+
+	it('passes the applier exit code through unchanged, including 78 for an unreachable database', async () => {
+		const code = await runPlatformEntrypoint({
+			argv1: '/bin/migrator',
+			args: [],
+			env: { GFTB_MIGRATOR_ENTRYPOINT: '/app/build/migrator.mjs' },
+			stdout: capture(),
+			stderr: capture(),
+			importModule: async () => ({ main: async () => EXIT_UNAVAILABLE }),
+		});
+
+		expect(code).toBe(EXIT_UNAVAILABLE);
+	});
+
+	it('reports a missing migrator bundle as a malformed image, not as an unavailable database', async () => {
+		const stderr = capture();
+		const code = await runPlatformEntrypoint({
+			argv1: '/bin/migrator',
+			args: [],
+			env: { GFTB_MIGRATOR_ENTRYPOINT: '/app/build/migrator.mjs' },
+			stdout: capture(),
+			stderr,
+			importModule: async () => {
+				throw new Error('ERR_MODULE_NOT_FOUND');
+			},
+		});
+
+		expect(code).toBe(EXIT_MALFORMED);
+		expect(code).not.toBe(EXIT_UNAVAILABLE);
+		expect(stderr.text()).toContain('just db-migrator-bundle');
 	});
 
 	it('rejects an unknown or missing role with EX_USAGE', async () => {
@@ -132,6 +196,16 @@ describe('web entrypoint resolution', () => {
 
 	it('defaults to the repo-relative adapter-node output', () => {
 		expect(resolveWebEntrypoint(undefined).href).toMatch(/\/build\/index\.js$/);
+	});
+});
+
+describe('migrator entrypoint resolution', () => {
+	it('prefers the absolute override the image supplies', () => {
+		expect(resolveMigratorEntrypoint('/app/build/migrator.mjs').href).toBe('file:///app/build/migrator.mjs');
+	});
+
+	it('defaults to the repo-relative bundle', () => {
+		expect(resolveMigratorEntrypoint(undefined).href).toMatch(/\/build\/migrator\.mjs$/);
 	});
 });
 

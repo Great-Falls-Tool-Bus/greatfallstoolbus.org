@@ -142,6 +142,11 @@ container-image-publish: platform-entrypoints-check
     # recipes set it — local / adapter-static builds leave it unset and the line
     # degrades to nothing.
     ADAPTER=node PUBLIC_ARCHIVE_LIVE=true PUBLIC_BUILD_SHA="${BUILD_COMMIT_SHA}" pnpm run build
+    # 1b. The /bin/migrator payload (TIN-3817 S1). It lands INSIDE build/ so it
+    #     rides the same APP_BUILD import as the web server; the flake refuses to
+    #     assemble an image without it rather than shipping a migrator that
+    #     exits 70.
+    just db-migrator-bundle
     export APP_BUILD="$PWD/build"
     # 2. Build the nix2container image and push it to GHCR through the n2c-patched
     #    skopeo. copyToRegistry derives docker://${IMAGE_REF}:${tag} from the image
@@ -182,6 +187,8 @@ container-image-build: platform-entrypoints-check
     # PUBLIC_BUILD_SHA bakes the build commit for the footer "built from <sha>"
     # provenance link (src/lib/build-info.ts).
     ADAPTER=node PUBLIC_ARCHIVE_LIVE=true PUBLIC_BUILD_SHA="${BUILD_COMMIT_SHA}" pnpm run build
+    # The /bin/migrator payload (TIN-3817 S1); see container-image-publish.
+    just db-migrator-bundle
     export APP_BUILD="$PWD/build"
     nix run --impure .#image.copyTo -- docker-archive:greatfallstoolbus-oci.tar
     echo "wrote greatfallstoolbus-oci.tar"
@@ -262,6 +269,23 @@ container-image-smoke:
         fi
     done
 
+    # TIN-3817 S1: `migrator` is a real applier now, so prove it answers with the
+    # code the pre-rollout Job keys on. No DATABASE_URL is supplied, so 78
+    # (database unreachable/unconfigured) is the CORRECT answer — 0 would mean a
+    # Job reported success without migrating, and 70 would mean the bundle never
+    # made it into the image.
+    set +e
+    "$runtime" run --rm --entrypoint migrator "$ref" >/dev/null 2>&1
+    migrator_code=$?
+    set -e
+    if [ "$migrator_code" = "78" ]; then
+        echo "  ✓ migrator without a DSN exits 78 (declared unavailable, not silently healthy)"
+    else
+        echo "  ✗ migrator without a DSN exited ${migrator_code}, expected 78" >&2
+        [ "$migrator_code" = "70" ] && echo "    70 means build/migrator.mjs is absent from the image." >&2
+        failed=1
+    fi
+
     # ADR 0008 §3: the image runs non-root as uid/gid 1001. `id` comes from
     # busybox (ContainerFile image) or coreutils (nix images).
     uid="$("$runtime" run --rm --entrypoint id "$ref" -u | tr -d '\r\n')"
@@ -278,6 +302,129 @@ container-image-smoke:
         exit 1
     fi
     echo "container-image-smoke: OK — web, worker, migrator answer; image is non-root 1001:1001"
+
+# ─────────────────────────────────────────────
+# Database (Member v0; TIN-3817 slice S1)
+# ─────────────────────────────────────────────
+# Migrations are GENERATED into the repo and applied by a first-party migrator.
+# `drizzle-kit push` is forbidden by TIN-3817 and `drizzle-kit migrate` is
+# unused, because it takes no advisory lock and does not fail closed on a
+# changed historical hash — both of which spec §6 requires. The applier is
+# src/lib/server/db/migrate.ts, and it is the same code the image runs at
+# /bin/migrator.
+#
+# No credential appears in any recipe below. DATABASE_URL is a runtime NAME
+# supplied by great-falls-tool-bus-infra; this repository is public.
+
+# Regenerate the checked-in migration SQL and its source-level hash manifest.
+db-generate:
+    cd {{ root }} && pnpm exec drizzle-kit generate
+    cd {{ root }} && pnpm exec tsx src/lib/server/db/ledger-manifest.ts write drizzle
+
+# Drift guard: regenerate, refuse if the tree moved, verify hashes, ban `push`.
+db-check: db-generate
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ root }}
+
+    # 1. The generated SQL is IN THE CHANGE UNDER REVIEW. If regenerating
+    #    modified a tracked file or produced an untracked one, the schema and the
+    #    migrations had drifted apart and the migration was never reviewed.
+    #
+    #    Staged-but-uncommitted counts as reviewed: `git diff` compares the tree
+    #    against the index, so `git add`ing a freshly generated migration is the
+    #    documented way to satisfy this. `git status --porcelain` would instead
+    #    report every staged addition as drift and fail on the very commit that
+    #    introduces the migrations.
+    untracked="$(git ls-files --others --exclude-standard -- drizzle)"
+    if ! git diff --quiet -- drizzle || [ -n "$untracked" ]; then
+        echo "db-check: FAIL — drizzle/ changed under just db-generate:" >&2
+        git --no-pager diff --stat -- drizzle >&2 || true
+        [ -n "$untracked" ] && printf '  untracked: %s\n' $untracked >&2
+        echo "  Stage the regenerated migration (git add drizzle), or revert the schema change." >&2
+        exit 1
+    fi
+
+    # 2. drizzle-kit's own journal/snapshot consistency check.
+    pnpm exec drizzle-kit check
+
+    # 3. Source-level half of the immutable hash ledger: an edit to an
+    #    already-committed migration fails HERE, in review, rather than at 03:00
+    #    in a pre-rollout Job.
+    pnpm exec tsx src/lib/server/db/ledger-manifest.ts verify drizzle
+
+    # 4. `push` is banned (TIN-3817). Comments are stripped first so the prose
+    #    explaining the ban is not mistaken for the ban being violated.
+    if { sed 's/#.*//' Justfile; jq -r '.scripts // {} | to_entries[] | .value' package.json; } \
+        | grep -qE 'drizzle-kit[[:space:]]+push|drizzle[[:space:]]+push'; then
+        echo "db-check: FAIL — a recipe or script reaches for drizzle-kit's 'push'." >&2
+        echo "  TIN-3817 forbids it: it mutates a live database with no ledger entry." >&2
+        exit 1
+    fi
+
+    echo "db-check: OK — generated SQL committed, hashes match, push absent."
+
+# Apply the checked-in migrations against $DATABASE_URL (the real migrator).
+db-migrate *args:
+    cd {{ root }} && pnpm exec tsx src/lib/server/db/migrate.ts {{ args }}
+
+# Bundle the migrator for the platform image: one file, no node_modules.
+# The production image carries build/ and package.json only (adapter-node
+# inlines the web server's deps), so the migrator's single dependency — pg — is
+# inlined the same way. The createRequire banner is required: pg is CommonJS and
+# reaches node builtins through require(), which bare ESM output cannot do.
+db-migrator-bundle:
+    cd {{ root }} && pnpm exec esbuild src/lib/server/db/migrate.ts \
+        --bundle --platform=node --format=esm --target=node22 \
+        --outfile=build/migrator.mjs \
+        --external:pg-native --external:cloudflare:sockets \
+        --tsconfig-raw='{}' \
+        --banner:js="import { createRequire as __gftbCreateRequire } from 'node:module'; const require = __gftbCreateRequire(import.meta.url);"
+    @echo "wrote build/migrator.mjs (the /bin/migrator payload)"
+
+# PostgreSQL suite: RLS, FORCE, advisory lock, ledger drift, runtime-role grants.
+#
+# Prefers a postgres:16.15 testcontainer, which is the exact version TIN-3817
+# acceptance row 1 narrows CNPG to. Falls back to an already-running server when
+# GFTB_TEST_PG_SUPERUSER_DSN names one — a NAME, supplied by the operator; the
+# value never enters this repository. That fallback exists because this org's
+# ARC pool advertises only `tinyland-nix` and has no dind runner, so a
+# container-only suite would never execute anywhere. It proves the SQL, the
+# policies, and the lock; it does NOT prove the 16.15 pin.
+#
+# SKIPS LOUDLY, exit 0, when neither is available — the same guard shape as
+# container-image-smoke, and for the same reason. The daemon probe is
+# `<runtime> info` rather than `command -v`, because the docker CLI is present
+# on the operator's macOS host while the daemon is not running.
+test-integration *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ root }}
+
+    if [ -n "${GFTB_TEST_PG_SUPERUSER_DSN:-}" ]; then
+        echo "test-integration: using the server named by GFTB_TEST_PG_SUPERUSER_DSN"
+        echo "  (a throwaway database per fixture; the postgres:16.15 pin is NOT proved by this path)"
+        exec pnpm exec vitest run --config vitest.integration.config.ts {{ args }}
+    fi
+
+    runtime=""
+    for candidate in docker podman; do
+        if command -v "$candidate" >/dev/null 2>&1 && "$candidate" info >/dev/null 2>&1; then
+            runtime="$candidate"; break
+        fi
+    done
+    if [ -z "$runtime" ]; then
+        echo "test-integration: SKIP — no responding docker or podman daemon, and"
+        echo "  GFTB_TEST_PG_SUPERUSER_DSN is unset."
+        echo "  The RLS, advisory-lock, FORCE, and ledger-drift rows stay CI-PENDING."
+        echo "  The tree-shaped half of those rows IS proved by 'just check'"
+        echo "  (src/lib/server/db/{ledger,migrations,tenant}.test.ts)."
+        echo "  Re-run with a container runtime, or point GFTB_TEST_PG_SUPERUSER_DSN"
+        echo "  at a PostgreSQL 16 superuser connection."
+        exit 0
+    fi
+    echo "test-integration: using ${runtime} + postgres:16.15"
+    pnpm exec vitest run --config vitest.integration.config.ts {{ args }}
 
 # ─────────────────────────────────────────────
 # Validation
@@ -359,7 +506,7 @@ sbom out_dir="build/sbom":
         -o spdx-json="{{ out_dir }}/greatfallstoolbus.org.spdx.json"
 
 # Run the complete pre-commit validation gate.
-check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir lint typecheck tools-validate skills-validate skills-check source-map-check test-unit
+check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir lint typecheck tools-validate skills-validate skills-check source-map-check db-check test-unit
     @echo "All checks passed."
 
 # Probe the declared production hostnames at the public Cloudflare Access edge.

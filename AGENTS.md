@@ -98,6 +98,21 @@ repository as private or renamed** in code, comments, docs, or image refs.
   proof to run locally. `just container-image-smoke` proves the *assembled*
   image instead (per-role `--entrypoint … --help`, in-container `id -u` = 1001);
   it skips with a message when no container daemon answers.
+- **Database (Member v0, TIN-3817 S1)**: `just db-generate` regenerates the
+  checked-in migration SQL and its hash manifest; `just db-check` refuses a
+  drifted tree, an edited committed migration, or a recipe that reaches for
+  `drizzle push`, and rides inside `just check`; `just db-migrate` runs the
+  real migrator against `$DATABASE_URL` (a runtime *name* — the value belongs
+  to `great-falls-tool-bus-infra`); `just db-migrator-bundle` builds the
+  `/bin/migrator` payload the image ships. Migrations are forward-only: an
+  applied file's hash is immutable, and changing one fails closed rather than
+  reapplying.
+- **Integration tests**: `just test-integration` runs the testcontainers-backed
+  PostgreSQL 16.15 suite (RLS, `FORCE`, advisory lock, ledger drift, runtime
+  role grants). It **skips loudly, exit 0, when no container daemon answers** —
+  this org's ARC pool advertises only `tinyland-nix` and has no dind runner, so
+  those rows are CI-pending, not merely flaky. The tree-shaped half of the same
+  properties is proved by `just check`.
 - **Check**: `just check` runs sync + svelte-check.
 - **SBOM**: `just sbom` generates local CycloneDX JSON and SPDX JSON artifacts
   under ignored `build/sbom/`.

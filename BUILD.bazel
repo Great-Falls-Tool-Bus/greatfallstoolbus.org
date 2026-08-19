@@ -22,10 +22,20 @@ filegroup(
             "static/**",
             "scripts/**/*.mts",
             "scripts/bazel/**/*.mjs",
+            # Generated + hand-written migrations (TIN-3817 S1). Enrolled so a
+            # change to a migration invalidates //:unit_tests — the ledger
+            # assertions in src/lib/server/db/migrations.test.ts read this tree,
+            # and a cached green from before the edit would defeat them.
+            "drizzle/**",
         ],
         allow_empty = True,
     ) + [
         ".npmrc",
+        # Read by src/lib/server/db/migrations.test.ts, which asserts that no
+        # recipe invokes `drizzle push`.
+        "Justfile",
+        "drizzle.config.ts",
+        "vitest.integration.config.ts",
         # The platform process dispatcher (TIN-3815 S0). The scripts/ glob above
         # only reaches *.mts and scripts/bazel/*.mjs, so this file must be
         # enrolled by explicit label or //:unit_tests silently loses
