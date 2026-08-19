@@ -6,6 +6,7 @@
 
 # Bazel files (registry consumer surface)
 /MODULE.bazel @Jesssullivan
+/MODULE.bazel.lock @Jesssullivan
 /.bazelrc @Jesssullivan
 /.bazelversion @Jesssullivan
 /.bazelignore @Jesssullivan
