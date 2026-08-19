@@ -96,10 +96,10 @@ These are the rules that should NEVER drift in a spoke:
   silently missing row.
   Offline check: it catches local drift, it does NOT contact the registry,
   so re-reading the registry's own `.bazelversion` stays part of the
-  documented re-pin step in `.bazelrc`. Those two values differ on purpose
-  right now: the estate value 8.2.1 is set by the companion
-  `tinyland-inc/bazel-registry` PR, and the registry commit currently
-  pinned still records 8.1.1 until the post-merge re-pin lands.
+  documented re-pin step in `.bazelrc`. Those two values agree as of the
+  current pin: the estate value 8.2.1 is what the pinned
+  `tinyland-inc/bazel-registry` commit itself records. Keeping them in
+  agreement is the re-pin procedure's job, not this row's.
 - `flake.nix` has no hard-coded secrets or token paths.
 - `.github/workflows/*.yml` do not invoke a Cloudflare API mutation step
   directly — they call into `blahaj` via the dispatch schemas.

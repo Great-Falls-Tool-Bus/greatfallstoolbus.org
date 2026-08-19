@@ -15,31 +15,30 @@ common --enable_bzlmod
 # land alongside a `MODULE.bazel.lock` refresh in the same commit." Bumping
 # the SHA without re-committing the regenerated lock is a broken change.
 #
-# NOTE (TIN-3857): this SHA is origin/main of tinyland-inc/bazel-registry as
-# of the .bazelversion 8.2.1 convergence PR, taken BEFORE that PR merged, so
-# the commit pinned below still records .bazelversion 8.1.1. Re-pin to the
-# post-merge main SHA once that PR lands -- and in the SAME commit regenerate
-# MODULE.bazel.lock (the re-pin rewrites every registry URL key in it, ~161
-# keys) and re-read the registry's .bazelversion to confirm it then records
-# the estate-bazelversion value below.
+# NOTE (TIN-3857): the SHA pinned below is origin/main of
+# tinyland-inc/bazel-registry taken AFTER the .bazelversion 8.2.1 convergence
+# PR merged, and that commit records .bazelversion 8.2.1 -- so the pinned
+# registry commit agrees with the estate-bazelversion line below. Every future
+# SHA bump repeats the same discipline: bump with the refresh one-liner above,
+# regenerate MODULE.bazel.lock in the SAME commit (a re-pin rewrites every
+# registry URL key in it, 161 keys), and re-read the registry's .bazelversion
+# at the new commit to confirm it still records the estate value below.
 #
 # estate-bazelversion: 8.2.1
-#   The estate-wide Bazel version, as set by the companion registry PR
-#   (tinyland-inc/bazel-registry, branch chore/tin-3857-bazelversion-8.2.1).
-#   The registry commit pinned below is NOT yet that value: it still records
-#   8.1.1. The post-merge re-pin described above is what makes the pinned
-#   commit agree with this line. scripts/scaffold-doctor-boundary.sh asserts
-#   root .bazelversion equals this value (offline). See "LIMITS" in that
-#   script: it proves this repo has not drifted from the value recorded here,
-#   NOT that the pinned registry commit records the same value -- today it
-#   does not, and reconciling that is the re-pin step above.
+#   The estate-wide Bazel version. It is the value recorded by the registry's
+#   own .bazelversion at the commit pinned below, read at that commit when
+#   this pin was taken. scripts/scaffold-doctor-boundary.sh asserts root
+#   .bazelversion equals this value (offline). See "LIMITS" in that script:
+#   it proves this repo has not drifted from the value recorded here, NOT that
+#   the pinned registry commit still records the same value. Only re-reading
+#   the registry at the pinned SHA proves that, which is why it is a step of
+#   the re-pin procedure above rather than a check this repo can run offline.
 #
 # The estate-wide Bazel version SSOT, the two-registry chain, and this pin
 # convention are specified in that registry's own docs, not here (this link
-# tracks the registry's default branch; it resolves once the companion
-# registry PR that adds the doc lands, and does not need re-pinning):
+# tracks the registry's default branch and does not need re-pinning):
 #   https://github.com/tinyland-inc/bazel-registry/blob/main/docs/bazel-adoption-v0.md
-common --registry=https://raw.githubusercontent.com/tinyland-inc/bazel-registry/6f4d35d266fdbc66cb0ad98e02680bbd9a296d0c
+common --registry=https://raw.githubusercontent.com/tinyland-inc/bazel-registry/f23d69758dd20633b2ceb7767545d8925a317825
 # bcr stays as a secondary registry; the Tinyland registry stays first so
 # in-house Bazel modules resolve before falling through to bcr.bazel.build.
 common --registry=https://bcr.bazel.build

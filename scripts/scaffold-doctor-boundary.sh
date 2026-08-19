@@ -65,13 +65,13 @@ fi
 # LIMITS, stated plainly: this is an OFFLINE check. It proves the root
 # .bazelversion has not drifted from the value recorded in .bazelrc; it does
 # NOT contact tinyland-inc/bazel-registry, so it cannot see what the pinned
-# registry commit's own .bazelversion says. That gap is live right now: 8.2.1
-# is the estate value set by the companion registry PR (branch
-# chore/tin-3857-bazelversion-8.2.1), and the registry commit currently pinned
-# in .bazelrc still records 8.1.1. The post-merge re-pin -- plus the
-# MODULE.bazel.lock regeneration in the same commit -- is what makes the pinned
-# commit agree with the recorded value. This row cannot do that, and does not
-# claim to.
+# registry commit's own .bazelversion says. Those two agree as of the current
+# pin: .bazelrc pins the registry commit that converged the estate on 8.2.1,
+# and that commit records 8.2.1. Keeping them in agreement is the job of the
+# re-pin procedure documented in .bazelrc -- re-read the registry's
+# .bazelversion at the newly pinned SHA, and regenerate MODULE.bazel.lock in
+# the same commit -- not of this row. This row cannot verify that, and does
+# not claim to.
 if [ -f .bazelrc ] && grep -Eq '^[^#]*--registry=https://raw\.githubusercontent\.com/tinyland-inc/bazel-registry/' .bazelrc; then
   recorded="$(sed -n 's|^#[[:space:]]*estate-bazelversion:[[:space:]]*\([0-9][0-9.]*\)[[:space:]]*$|\1|p' .bazelrc | head -1)"
   actual=""
