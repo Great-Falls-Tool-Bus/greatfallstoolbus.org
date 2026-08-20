@@ -254,6 +254,42 @@ export default ts.config(
 		},
 	},
 	{
+		// Tenant isolation is lint-enforced, not conventional (TIN-3817 S1,
+		// spec §1.3: "Direct pool access outside `withTenant` is a lint-enforced
+		// error"). `withTenant` is the only place that sets the app.tenant_id GUC;
+		// a query issued on the raw pool runs with the GUC unset, and under FORCE
+		// ROW LEVEL SECURITY that reads as an empty database rather than as an
+		// error — the quietest possible bug.
+		//
+		// `src/lib/server/db/**` is exempt: it is the module that OWNS the pool.
+		files: ['src/**/*.ts', 'src/**/*.svelte', 'src/**/*.svelte.ts'],
+		ignores: ['src/lib/server/db/**'],
+		rules: {
+			'no-restricted-imports': [
+				'error',
+				{
+					paths: [
+						{
+							name: '$lib/server/db/client',
+							importNames: ['getPool', 'getDb', 'createDb'],
+							message:
+								'Do not reach for the pool directly. Use withTenant(tenantId, fn) from $lib/server/db/tenant, ' +
+								'which sets app.tenant_id inside the transaction and hands you the tx handle to pass on ' +
+								'(including to createPgStorageAdapter({ db: tx })).',
+						},
+					],
+					patterns: [
+						{
+							group: ['**/server/db/client', '../client', './client'],
+							importNames: ['getPool', 'getDb', 'createDb'],
+							message: 'Do not reach for the pool directly. Use withTenant(tenantId, fn) from $lib/server/db/tenant.',
+						},
+					],
+				},
+			],
+		},
+	},
+	{
 		ignores: [
 			'build/',
 			'drizzle/',

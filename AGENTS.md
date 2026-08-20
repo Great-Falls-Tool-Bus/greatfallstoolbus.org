@@ -419,15 +419,27 @@ been removed. Production now serves on-cluster behind the `cloudflared` tunnel
 — `adapter-node` -> OCI image (`.github/workflows/container-ghcr.yml` -> GHCR)
 -> K8s Deployment in `great-falls-tool-bus-infra`. This public repo still
 never stores CF credentials or edge-apply authority; Blahaj/the org overlay
-own DNS, Access, Tunnel, and the image pin. Cloudflare Pages is not just
+own DNS, Access, Tunnel, and the image pin.
+
+**This repo publishes; it does not deploy (TIN-3899).** `container-ghcr.yml`
+used to carry a `signal-cd` job that resolved the pushed `@sha256` digest and
+fired a `repository_dispatch` (`web-image-published`) at the overlay's
+`web-stack.yml`, which then applied it — continuous deployment on merge-to-main.
+Both ends are retired: the overlay workflow is deleted and the signal job is
+gone, so a push to `main` builds and publishes an image and stops there. No
+`INFRA_CD_DISPATCH_TOKEN` is consumed, and nothing in this repository can mutate
+the live Deployment. Production changes are an attended, reviewed release in the
+overlay. Cloudflare Pages is not just
 retired — the project itself is **deleted** (ADR 0010 Amendment 2, TIN-2560:
 the operator closed the rollback window early, 2026-07-06, rather than holding
 it warm to ~2026-07-08) — see
 [`docs/deploy/cloudflare-pages.md`](docs/deploy/cloudflare-pages.md)
 (historical) and
 [`docs/runbooks/cf-pages-rollback.md`](docs/runbooks/cf-pages-rollback.md)
-(why its rollback procedure no longer applies; rollback is now the on-cluster
-re-pin-previous-digest primitive via the infra `web-stack.yml` dispatch). The
+(why its rollback procedure no longer applies; rollback is now an attended
+on-cluster re-plan/re-apply of the overlay's reviewed release chain with the
+previous digest — the infra `web-stack.yml` dispatch this line used to name was
+retired by TIN-3899). The
 scaffold default remains GitHub Pages for personal/static spokes; GFTB's
 history of overrides is ADR 0003 (Cloudflare Pages) then ADR 0010
 (on-cluster, Pages deleted).
