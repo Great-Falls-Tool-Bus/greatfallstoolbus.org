@@ -455,6 +455,98 @@ export const applicationEmailToken = pgTable(
 	],
 );
 
+/**
+ * A keyholder's live claim on one application review (TIN-3440 slice S5;
+ * spec §4 A4 `claim`; spec §6 "exactly one keyholder claims a review at a
+ * time, enforced by partial unique index").
+ *
+ * THE PARTIAL UNIQUE INDEX IS THE CONTRACT'S NAMED MECHANISM: at most one row
+ * per `(tenant_id, application_id)` may have `released_at IS NULL`. The claim
+ * write path also `SELECT … FOR UPDATE`s the application row, so racing
+ * claims serialise and the loser gets an explicit conflict rather than a
+ * unique-violation 500 — but the index is what makes "one live claim" a
+ * database fact rather than an application promise.
+ *
+ * `released_at` exists ONLY for the explicit operator un-claim path (slices
+ * §1.7 rollback note: "a claimed, undecided application returns to
+ * `email_verified` only by explicit operator action" — never auto-released on
+ * deploy). No such surface ships in S5; the column and its one-way trigger
+ * ship so the operator path needs no schema change. A claim on an application
+ * that later reaches a terminal state is left LIVE on purpose: it is the
+ * history of who reviewed, and rewriting it would edit the record.
+ *
+ * `keyholder_person_id` is deliberately NOT a foreign key: the `person` table
+ * is S6's (slices §1.8), the exact 0003 `member_role_grant` precedent. S6
+ * adds the FK in its own migration when `person` exists.
+ */
+export const applicationClaim = pgTable(
+	'application_claim',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenant.tenantId),
+		applicationId: uuid('application_id')
+			.notNull()
+			.references(() => application.id),
+		keyholderPersonId: uuid('keyholder_person_id').notNull(),
+		claimedAt: timestamp('claimed_at', { withTimezone: true }).notNull().defaultNow(),
+		releasedAt: timestamp('released_at', { withTimezone: true }),
+	},
+	(t) => [
+		// The spec §6 mechanism: one LIVE claim per application, ever.
+		uniqueIndex('application_claim_live_uniq')
+			.on(t.tenantId, t.applicationId)
+			.where(sql`${t.releasedAt} is null`),
+		// "What is this keyholder reviewing" — the queue's claimant join.
+		index('application_claim_keyholder').on(t.tenantId, t.keyholderPersonId),
+	],
+);
+
+/**
+ * The one recorded decision on an application (TIN-3440 slice S5; spec §4
+ * A6 `approve` / A7 `decline`; TIN-3440 "must record a reason").
+ *
+ * ONE DECISION PER APPLICATION, by unique constraint: the FSM admits exactly
+ * one terminal keyholder decision, and the table shape says so. Withdrawal
+ * (A8) is the APPLICANT's act and records no row here — its record is the
+ * application's `withdrawn` status and the S6 audit spine's future
+ * `application.withdrawn` event.
+ *
+ * `reason_class` is required for `declined` by CHECK (the recorded-reason
+ * rule, structurally) and is free text, not an enum: no decline-reason
+ * vocabulary is ratified anywhere, so constraining it by migration would
+ * invent one — the 0003 role-vocabulary posture applied again. `note` is the
+ * spec §4 "operational notes" slot; NEITHER column may carry contribution
+ * data (spec §4: decision records carry "no contribution data" — there is
+ * structurally nothing to copy it from pre-approval, and the integration
+ * suite scans this table's columns like it scans `application`'s).
+ *
+ * Rows are immutable — grant + trigger in migration 0008, the
+ * finance_receipt/member_role_grant append-only doctrine: a decision is the
+ * audit record of the decisive act and cannot be rewritten from the runtime.
+ *
+ * `decided_by` is not yet an FK for the S6 `person` reason above.
+ */
+export const applicationDecision = pgTable(
+	'application_decision',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenant.tenantId),
+		applicationId: uuid('application_id')
+			.notNull()
+			.references(() => application.id),
+		decision: text('decision').notNull(),
+		decidedBy: uuid('decided_by').notNull(),
+		reasonClass: text('reason_class'),
+		note: text('note'),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	},
+	(t) => [unique('application_decision_one_per_application').on(t.tenantId, t.applicationId)],
+);
+
 export type Tenant = typeof tenant.$inferSelect;
 export type NewTenant = typeof tenant.$inferInsert;
 export type OutboxJob = typeof outboxJob.$inferSelect;
@@ -471,3 +563,7 @@ export type Application = typeof application.$inferSelect;
 export type NewApplication = typeof application.$inferInsert;
 export type ApplicationEmailToken = typeof applicationEmailToken.$inferSelect;
 export type NewApplicationEmailToken = typeof applicationEmailToken.$inferInsert;
+export type ApplicationClaim = typeof applicationClaim.$inferSelect;
+export type NewApplicationClaim = typeof applicationClaim.$inferInsert;
+export type ApplicationDecision = typeof applicationDecision.$inferSelect;
+export type NewApplicationDecision = typeof applicationDecision.$inferInsert;

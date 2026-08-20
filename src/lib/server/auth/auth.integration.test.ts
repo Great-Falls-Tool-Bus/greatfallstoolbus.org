@@ -189,6 +189,7 @@ describe('the vendored auth.* tables are protected and single-ledgered (spec §1
 			'0005_payment_rails_rls_grants',
 			'0006_payment_rails_reversal_tenant_fk',
 			'0007_application_intake', // S4 (TIN-3440)
+			'0008_keyholder_review', // S5 (TIN-3440)
 		]);
 		expect(rows.some((r) => r.tag.includes('lush_carmella'))).toBe(false);
 	});
