@@ -1,7 +1,8 @@
 # Agent Notes: greatfallstoolbus.org
 
-This file is the working contract for coding agents and LLMs operating in any
-sister site spawned from this scaffold.
+This file is the working contract for coding agents and LLMs operating in the
+Great Falls Tool Bus platform repository and in the scaffold surfaces it still
+carries.
 
 ## Agent Coordination (multi-session)
 
@@ -28,7 +29,9 @@ duplicated merged #44/#37 on 2026-07-04):
 
 This spoke is the **Great Falls Tool Bus** public monorepo (see
 `docs/decisions/0001-gftb-mvp-decisions.md`, the binding decision packet,
-Linear TIN-2360). Non-negotiables beyond the scaffold contract: this repo holds
+Linear TIN-2360), promoted to the platform role under TIN-3815 / ADR 0014 —
+see "Repo Role" below for what that widens and what it does not.
+Non-negotiables beyond the scaffold contract: this repo holds
 **zero secrets and zero cluster endpoints, ever** (public repo; sops+age
 material lives in the org apply-plane overlay `great-falls-tool-bus-infra`
 under its `secrets/` lane); IaC here is declare-only intent, apply authority
@@ -42,19 +45,36 @@ row (h) is signed.
 
 ## Repo Role
 
-This repo is **a static brand/project site under the Tinyland enterprise**, one of many static projection consumers of the `tinyland.dev` authority
-monolith. It is **not** an application backend. It does not own user data,
-auth, payments, or business logic. Public content may later flow in through
-reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
+This repo is the **Great Falls Tool Bus platform**: an `app-stateful-spoke`
+(TIN-3815, ADR 0014). It owns member, contact, payment, and inventory behavior
+— runtime routes, domain state, schema and migrations, and the one immutable
+image that carries the `web`, `worker`, and `migrator` process boundaries.
+
+What it still does **not** own, and must never acquire: secret values, cluster
+credentials, kubeconfigs, DNS or edge mutation, and GitOps apply. Those stay in
+`great-falls-tool-bus-infra`, the sole apply plane. Runtime *references* are
+fine; a change that appears to need a secret or an endpoint has found an infra
+hand-off, not a code change. Public page copy and `.svx` logs belong to the
+separate `gftb-site` microsite, not here.
+
+**Naming and visibility are operator-gated (ADR 0014 §0.1).** The `gftb-platform`
+slug rename and the visibility flip are sequenced behind operator proofs
+(private CI, package pull, rollback) and are not part of any code slice. Until
+the change is observed, keep using the current slug and **do not describe this
+repository as private or renamed** in code, comments, docs, or image refs.
 
 ## Taxonomy Boundary
 
 - Cross-repo repo-shape truth lives in
   `docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md`.
-- Static-spoke rules in this repo apply to scaffolded static projection
-  consumers. Do not apply them wholesale to `tinyland.dev`, which is the
-  mothership/content authority, or to MassageIthaca-shaped app repos that own
-  runtime behavior.
+- Static-spoke rules retained in this repo apply to its **scaffold/template
+  surfaces** and to sister sites spawned from them — not to the platform's own
+  runtime behavior, which is app-stateful by declaration. Do not apply them
+  wholesale to `tinyland.dev`, which is the mothership/content authority.
+- The app-stateful role widens what this repo may own; it does not relax the
+  apply-plane boundary above. `just conformance` enforces exactly that: an
+  `app-stateful-spoke` manifest must set `owns_runtime_backend: true` and leave
+  `owns_gitops_apply` and `owns_cloudflare_mutation` false.
 - Org-wide rules still apply everywhere: clear `AGENTS.md`, reproducible
   Just/Nix entrypoints where commands exist, secrets scanning, GitHub-first CI,
   and no hidden prompt-only requirements.
@@ -69,7 +89,15 @@ reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
   `bazelisk` directly outside the Justfile unless adding a new recipe.
 - **Shell**: `nix develop` (auto-loaded by `direnv`), never assume host
   toolchain. CI runs `nix develop --command just <recipe>`.
-- **Build**: `just build` produces a static `build/` (adapter-static).
+- **Build**: `just build` with no `ADAPTER` set produces a static `build/`
+  (adapter-static). That default is the local/CI fallback ADR 0010 Amendment 1
+  item 2 requires; the image recipes select adapter-node explicitly.
+- **Image entrypoints**: `just platform-entrypoints-check` runs the exact
+  derivations the image installs at `/bin/web`, `/bin/worker`, and
+  `/bin/migrator`. It needs no container daemon, so it is the per-entrypoint
+  proof to run locally. `just container-image-smoke` proves the *assembled*
+  image instead (per-role `--entrypoint … --help`, in-container `id -u` = 1001);
+  it skips with a message when no container daemon answers.
 - **Check**: `just check` runs sync + svelte-check.
 - **SBOM**: `just sbom` generates local CycloneDX JSON and SPDX JSON artifacts
   under ignored `build/sbom/`.
@@ -108,7 +136,7 @@ reviewed static snapshots or runtime broker-display routes from `tinyland.dev`.
   `.agents/skills/*/SKILL.md` at build time, do not hand-edit the route to
   list skills; update the SKILL.md and rebuild.
 - `tinyland.repo.json` is the machine-readable repo-shape manifest. It declares
-  that this repo is a `static-spoke-scaffold`, not a mothership or stateful app.
+  this repo an `app-stateful-spoke` and keeps GitOps/edge authority external.
 - Durable operating truth belongs in repo files, schemas, tests, and Just
   recipes. Do not hide requirements only in prompt text.
 
@@ -213,7 +241,10 @@ After `gh repo create --template tinyland-inc/site.scaffold`:
 
 ## What Not To Do
 
-- Don't add runtime database / API server to a sister site. Keep it static.
+- Don't add a runtime database / API server to a **sister site** spawned from
+  these scaffold surfaces, or to the `gftb-site` microsite. Keep those static.
+  This platform repo may own that behavior; it still may not own cluster apply,
+  edge credentials, or secret values.
 - Don't fork tinyland-color-utils / tinyvectors / vite plugins per-site.
   Pin via the BCR.
 - Don't add in-house npm package ranges or allow `package.json` to drift from
@@ -327,17 +358,28 @@ illustrative, not scaffold content.
   `js_library` in the root package. Forgetting this silently drops the test from
   the slice.
 
-## Build target (adapter-static default; adapter-node is an opt-in escape hatch)
+## Build target (adapter-static fallback default; adapter-node chosen explicitly)
 
-The scaffold default is **adapter-static → GitHub Pages** (cheap, DB-less, no edge
-auth) and that is the house baseline for content/brand spokes. **adapter-node** is
-a *sanctioned opt-in*, not the default, adopt it only when a spoke genuinely needs
-a server: a secret-holding proxy, upstream normalization (e.g. ad-header stripping
-/ bbox rewriting), or thin API routes the browser can't do safely. The
+The scaffold default is **adapter-static** (cheap, DB-less, no edge auth) and that
+is the house baseline for content/brand spokes. **adapter-node** is a
+*sanctioned opt-in*, adopt it only when a spoke genuinely needs a server: a
+secret-holding proxy, upstream normalization (e.g. ad-header stripping / bbox
+rewriting), or thin API routes the browser can't do safely. The
 `darkmap.phasi.space` spoke is the adapter-node reference (it proxies + normalizes
 an upstream GeoServer). A spoke that switches must also flip its deploy lane
 (container build → server) and its smoke serve path (`node build/index.js` vs a
 static file server), keep both documented; never silently switch the default.
+
+**Here, adapter-node is the served artifact but NOT the no-`ADAPTER` default
+(TIN-3815 S0).** The platform is served by adapter-node, and every image recipe
+sets `ADAPTER=node` explicitly (`ContainerFile`, `just container-image-build`,
+`just container-image-publish`). `svelte.config.js` keeps its adapter-static
+default on purpose: ADR 0010 Amendment 1 item 2 retains adapter-static as "a
+local/CI fallback build (`just build` with no `ADAPTER` set stays green against
+the frozen lockfile, so the default gates never regress)". Flipping that default
+would amend a standing ADR as a side effect. If the operator later wants it
+flipped, that is a one-paragraph erratum against Amendment 1 item 2, raised on
+its own.
 
 **Dynamic-spoke variant (adapter-node, flagged at spawn, TIN-2228).** Rather than
 hand-rolling the static→node swap (the way `printstack`/TIN-1280 did), the swap is a

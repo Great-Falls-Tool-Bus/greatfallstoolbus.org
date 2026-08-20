@@ -29,7 +29,23 @@ ROLE_SKILLS: dict[str, list[str]] = {
         "tinyland-spawn-sister-site",
         "tinyland-scaffold-doctor",
     ],
-    "dynamic-spoke": ["tinyland-repo-contract"],
+    # A spoke that owns runtime behavior. `dynamic-spoke` is the heuristic
+    # spelling (svelte.config.js selects adapter-node with no manifest present);
+    # `app-stateful-spoke` is the manifest/schema spelling. They are the same
+    # shape, so they share one entry — see AGENTS.md "Dynamic-spoke variant",
+    # which rules that a dynamic spoke reuses `app-stateful-spoke` rather than
+    # adding an enum. Deliberately NOT `tinyland-static-spoke`: that skill's
+    # advice ("keep it static") is wrong for this role.
+    "app-stateful-spoke": [
+        "tinyland-repo-contract",
+        "tinyland-flywheel-bazel",
+        "tinyland-scaffold-doctor",
+    ],
+    "dynamic-spoke": [
+        "tinyland-repo-contract",
+        "tinyland-flywheel-bazel",
+        "tinyland-scaffold-doctor",
+    ],
     "package-producer": ["tinyland-repo-contract", "tinyland-flywheel-bazel"],
     "package-authority": ["tinyland-repo-contract"],
     "infra": ["tinyland-repo-contract"],
@@ -41,7 +57,20 @@ ROLE_RISKS: dict[str, str] = {
     "hub": "do not import static-spoke restrictions; owns auth/payments/AP delivery",
     "static-spoke": "must NOT own auth, payments, AP delivery, runtime broker fetches, or Cloudflare API creds",
     "static-spoke-scaffold": "same as static-spoke; this repo also templates new spokes",
-    "dynamic-spoke": "owns its own data store; consumes hub auth only",
+    # The apply-plane boundary is the load-bearing half of this role: promotion
+    # to app-stateful widens what the repo may own, it does NOT relax where
+    # apply authority lives (ADR 0014 §0.2). `just conformance` enforces it.
+    "app-stateful-spoke": (
+        "OWNS runtime backend, domain state, migrations, and the web/worker/migrator image. "
+        "Must NOT own gitops apply, Cloudflare/DNS mutation, secret values, or cluster "
+        "credentials — those stay in the infra apply plane; runtime references only. "
+        "Static-spoke rules bind only retained scaffold surfaces, never platform code."
+    ),
+    "dynamic-spoke": (
+        "owns its own data store; consumes hub auth only. "
+        "Must NOT own gitops apply, Cloudflare/DNS mutation, or secret values — "
+        "apply authority stays in the operator overlay."
+    ),
     "package-producer": "publishes into tinyland-inc/bazel-registry; consumers pin exact versions",
     "package-authority": "registry integrity; no consumer logic",
     "infra": "GitOps receiver; cluster authority; per-repo AGENTS.md is load-bearing",

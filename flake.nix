@@ -117,11 +117,13 @@
         # nix/oci-image.nix). Built + pushed via `just container-image-publish`
         # -> `nix run --impure .#image.copyToRegistry`.
         #
-        # PRODUCTION default is UNCHANGED: adapter-static -> Cloudflare Pages
-        # (ADR 0003, DB-less, no edge auth). This image only wraps the
-        # @sveltejs/adapter-node output so great-falls-tool-bus-infra (blahaj) has a
-        # concrete `node build/index.js` artifact to consume. Publishing it never
-        # deploys it and never flips the live host.
+        # ADAPTER SELECTION (TIN-3815 S0, ADR 0010 Amendment 1 item 2): the
+        # no-`ADAPTER` repository build stays adapter-static so the default gates
+        # never regress against the frozen lockfile. adapter-node is selected
+        # EXPLICITLY by the image recipes (`ADAPTER=node` in the
+        # `container-image-*` recipes and in ContainerFile) — `svelte.config.js`
+        # keeps its static default. Publishing an image never deploys it and
+        # never flips a live route; the infra apply plane owns promotion.
         n2c = nix2container.packages.${system}.nix2container;
 
         # The adapter-node build/ output is produced IMPERATIVELY by
@@ -148,16 +150,70 @@
         # GHCR requires an all-lowercase image ref; the org owner is
         # Great-Falls-Tool-Bus. copyToRegistry derives docker://name:tag from
         # these, so `name` IS the push destination.
+        # NOTE (TIN-3815, ADR 0014 §0.1): the default stays the CURRENT GitHub
+        # slug. The `gftb-platform` rename is an operator-gated action sequenced
+        # on the private-CI / package-pull / rollback proof; do not pre-empt it
+        # here. When the operator performs it, CI overrides IMAGE_REF anyway.
         imageName = pkgs.lib.toLower (envOr "IMAGE_REF" "ghcr.io/great-falls-tool-bus/greatfallstoolbus.org");
+
+        # ONE image, THREE stable process names (spec §6, TIN-3815 S0). Each
+        # wrapper is a real executable named `web` / `worker` / `migrator` so a
+        # Deployment or Job selects a process boundary by name, not by a bespoke
+        # argv contract. They all dispatch into the single
+        # scripts/platform-entrypoint.mjs; S1 (migrator) and S3 (worker) fill in
+        # the placeholders WITHOUT changing this image contract.
+        #
+        # WRAPPER FORM — deliberate, and NOT the same code path as ContainerFile.
+        # These wrappers pass the role POSITIONALLY. ContainerFile instead
+        # symlinks /usr/local/bin/<role> at the dispatcher, which exercises the
+        # linked-name branch (Node keeps argv[1] as the link path). The
+        # dispatcher supports both and the unit test pins linked-name-wins
+        # precedence, but be honest about which ships where: CI publishes THIS
+        # (nix2container) artifact, so the POSITIONAL branch is what production
+        # runs; the linked-name branch is the local ContainerFile mirror's.
+        #
+        # The positional form is used here on purpose rather than reproducing the
+        # symlink: a store symlink would re-enter the dispatcher through its
+        # `#!/usr/bin/env node` shebang, making the image depend on `env` and
+        # `node` resolving via PATH. Calling the interpreter by absolute store
+        # path removes that assumption entirely. `just container-image-smoke`
+        # executes whichever form the image under test actually ships.
+        mkPlatformEntrypoint =
+          role:
+          pkgs.writeShellApplication {
+            name = role;
+            text = ''
+              exec ${pkgs.nodejs_22}/bin/node ${./scripts/platform-entrypoint.mjs} ${role} "$@"
+            '';
+          };
+        webEntrypoint = mkPlatformEntrypoint "web";
+        workerEntrypoint = mkPlatformEntrypoint "worker";
+        migratorEntrypoint = mkPlatformEntrypoint "migrator";
+        platformEntrypoints = pkgs.buildEnv {
+          name = "gftb-image-entrypoints";
+          paths = [
+            webEntrypoint
+            workerEntrypoint
+            migratorEntrypoint
+          ];
+          pathsToLink = [ "/bin" ];
+        };
 
         # SLOW/stable layer: the Node runtime + certs + init. Kept separate from the
         # fast app layer so a content-only redeploy re-pushes ONLY the app layer.
+        # coreutils rides along for exactly one reason: S0's acceptance row
+        # proves non-root by running `id -u` INSIDE the image, and `just
+        # container-image-smoke` executes that. Node cannot stand in — it would
+        # report the uid of a process the row is meant to audit from outside the
+        # app. Drop coreutils only together with that row.
         imageRoot = pkgs.buildEnv {
           name = "gftb-image-root";
           paths = [
             pkgs.nodejs_22
             pkgs.dumb-init
             pkgs.cacert
+            pkgs.coreutils
+            platformEntrypoints
           ];
           pathsToLink = [ "/bin" "/etc" "/share" "/lib" ];
         };
@@ -181,12 +237,21 @@
           layers = [ appLayer ];
           config = {
             Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" ];
-            Cmd = [ "${pkgs.nodejs_22}/bin/node" "/app/build/index.js" ];
+            # Default process is `web`; `worker` and `migrator` are selected by
+            # overriding the command, not by building a different image.
+            Cmd = [ "/bin/web" ];
+            # Non-root by uid:gid (ADR 0008 §3). Numeric on purpose — the image
+            # carries no /etc/passwd entry and none is required.
+            User = "1001:1001";
             WorkingDir = "/app";
             Env = [
+              "PATH=/bin"
               "NODE_ENV=production"
               "HOST=0.0.0.0"
               "PORT=3000"
+              # The dispatcher lives in the Nix store, so it cannot infer a
+              # repo-relative build/. Hand it the absolute in-image path.
+              "GFTB_WEB_ENTRYPOINT=/app/build/index.js"
               "NODE_OPTIONS=--max-old-space-size=512"
               "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
             ];
@@ -200,7 +265,7 @@
               "org.opencontainers.image.ref.name" = commitRef;
               "org.opencontainers.image.created" = created;
               "org.opencontainers.image.description" =
-                "greatfallstoolbus.org adapter-node on-cluster serve image";
+                "Great Falls Tool Bus platform image — adapter-node web, worker, and migrator entrypoints";
             };
           };
         };
@@ -224,7 +289,17 @@
         # copyTo / copyToDockerDaemon ride the n2c-patched skopeo. Linux-only in
         # practice (the on-cluster serve arch); local macOS builds a host-arch
         # image only, so real validation is on the tinyland-nix runner.
-        packages.image = image;
+        #
+        # `.#web`, `.#worker`, and `.#migrator` are the SAME derivations the
+        # image installs at /bin/<role>. `just platform-entrypoints-check` runs
+        # each one, which proves the per-entrypoint contract on a machine with
+        # no container daemon at all.
+        packages = {
+          inherit image;
+          web = webEntrypoint;
+          worker = workerEntrypoint;
+          migrator = migratorEntrypoint;
+        };
 
         formatter = pkgs.nixpkgs-fmt;
       }

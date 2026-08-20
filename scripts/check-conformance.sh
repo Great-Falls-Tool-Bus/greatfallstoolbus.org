@@ -45,12 +45,29 @@ if [[ -f tinyland.repo.json ]]; then
     *) no "tinyland.repo.json fails schema validation (run just repo-manifest-validate for details)" ;;
   esac
 
+  # Role gate. The scaffold lineage is static-spoke-shaped, but TIN-3815 promotes
+  # THIS repository to an app-stateful spoke: it owns runtime backend behavior.
+  # Promotion does not relax the apply-plane boundary — ADR 0014 §0.2 keeps
+  # GitOps apply and edge/Cloudflare mutation in great-falls-tool-bus-infra, so
+  # an app-stateful manifest that claims either is a hard fail, not a warning.
   role=$(jq -r '.taxonomy.primary_role // empty' tinyland.repo.json)
-  if [[ "$role" == "static-spoke" || "$role" == "static-spoke-scaffold" ]]; then
-    ok "repo manifest declares a static-spoke-compatible role"
-  else
-    no "repo manifest must declare static-spoke or static-spoke-scaffold for this scaffold (got: ${role:-missing})"
-  fi
+  case "$role" in
+    static-spoke | static-spoke-scaffold)
+      ok "repo manifest declares a static-spoke-compatible role"
+      ;;
+    app-stateful-spoke)
+      if [[ "$(jq -r '.boundaries.owns_runtime_backend' tinyland.repo.json)" == "true" ]] \
+        && [[ "$(jq -r '.boundaries.owns_gitops_apply' tinyland.repo.json)" == "false" ]] \
+        && [[ "$(jq -r '.boundaries.owns_cloudflare_mutation' tinyland.repo.json)" == "false" ]]; then
+        ok "repo manifest declares app-stateful-spoke owning its runtime backend, apply authority left external"
+      else
+        no "app-stateful-spoke must set owns_runtime_backend=true and leave owns_gitops_apply/owns_cloudflare_mutation false"
+      fi
+      ;;
+    *)
+      no "repo manifest declares an unsupported role (got: ${role:-missing}); expected static-spoke, static-spoke-scaffold, or app-stateful-spoke"
+      ;;
+  esac
 else
   no "tinyland.repo.json is missing"
 fi

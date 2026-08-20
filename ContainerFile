@@ -1,11 +1,15 @@
-# ContainerFile — on-cluster readiness for greatfallstoolbus.org (TIN-2541).
+# ContainerFile — the Great Falls Tool Bus platform image (TIN-2541, TIN-3815 S0).
 #
-# DECLARE-ONLY / OPTIONALITY. The production host is unchanged: adapter-static
-# -> Cloudflare Pages (ADR 0003). This image lets the SAME source be served
-# in-cluster as `node build/index.js` when a server is genuinely needed. It is
-# built with ADAPTER=node so svelte.config.js selects @sveltejs/adapter-node;
-# the default (no ADAPTER) still produces the static build and never touches
-# this file.
+# ONE immutable image, THREE stable process names: `web`, `worker`, and
+# `migrator` (spec §6). They are installed as links onto the single dispatcher
+# scripts/platform-entrypoint.mjs, so a Deployment or Job picks a process
+# boundary by executable name. `worker` and `migrator` are declared and FAIL
+# CLOSED here; S1 and S3 implement them without changing this image contract.
+#
+# ADAPTER SELECTION (ADR 0010 Amendment 1 item 2). This image is built with
+# ADAPTER=node so svelte.config.js selects @sveltejs/adapter-node. The default
+# no-ADAPTER build stays adapter-static as the local/CI fallback and never
+# touches this file — `svelte.config.js` is deliberately NOT changed.
 #
 # adapter-node is a committed devDependency (TIN-2543, MassageIthaca parity
 # @sveltejs/adapter-node ^5.5.7): the frozen-lockfile install below installs it
@@ -102,6 +106,15 @@ RUN addgroup -g 1001 -S nodejs && \
 COPY --from=builder --chown=nodejs:nodejs /app/build ./build
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nodejs:nodejs /app/scripts/platform-entrypoint.mjs ./scripts/platform-entrypoint.mjs
+
+# One dispatcher, three stable process names. Node keeps argv[1] as the LINK
+# path rather than the realpath, so `basename(argv[1])` is what selects the
+# role — see scripts/platform-entrypoint.mjs.
+RUN chmod 0755 /app/scripts/platform-entrypoint.mjs && \
+    ln -s /app/scripts/platform-entrypoint.mjs /usr/local/bin/web && \
+    ln -s /app/scripts/platform-entrypoint.mjs /usr/local/bin/worker && \
+    ln -s /app/scripts/platform-entrypoint.mjs /usr/local/bin/migrator
 
 USER nodejs
 
@@ -110,11 +123,15 @@ EXPOSE 3000
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
+# The dispatcher is installed outside build/, so hand it the absolute path to
+# the adapter-node server bundle rather than letting it guess.
+ENV GFTB_WEB_ENTRYPOINT=/app/build/index.js
 
-# adapter-node serves the site at `/`; there is no separate /health route on a
-# static-content spoke, so the readiness probe hits `/`.
+# adapter-node serves the site at `/`; the readiness probe hits `/`.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -fsS http://localhost:3000/ >/dev/null || exit 1
 
+# Default process is `web`. Select another boundary by overriding the command:
+#   podman run --rm greatfallstoolbus.org:local migrator --help
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "build/index.js"]
+CMD ["web"]
