@@ -1,0 +1,22 @@
+{
+	"id": "evt_gftb_fx_0005",
+	"object": "event",
+	"api_version": "2026-01-28.clover",
+	"created": 1758278460,
+	"livemode": false,
+	"type": "customer.subscription.updated",
+	"pending_webhooks": 1,
+	"request": { "id": null, "idempotency_key": null },
+	"data": {
+		"object": {
+			"id": "sub_gftbfixture01",
+			"object": "subscription",
+			"status": "past_due",
+			"livemode": false,
+			"customer": "cus_gftbfixture01",
+			"currency": "usd",
+			"metadata": { "gftb_person_id": "11111111-1111-4111-8111-111111111111" }
+		},
+		"previous_attributes": { "status": "active" }
+	}
+}

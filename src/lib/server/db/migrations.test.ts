@@ -65,7 +65,11 @@ describe('the migration tree is checked in', () => {
 		// `current_setting(…, true)` returns '' (not NULL) for a GUC that was set
 		// and then reset, and ''::uuid RAISES. A policy missing the nullif turns a
 		// finished session into an error factory instead of an empty result.
-		for (const file of ['drizzle/0001_auth_pg_vendored_0_2_4.sql', 'drizzle/0002_rls_force_and_runtime_grants.sql']) {
+		for (const file of [
+			'drizzle/0001_auth_pg_vendored_0_2_4.sql',
+			'drizzle/0002_rls_force_and_runtime_grants.sql',
+			'drizzle/0005_payment_rails_rls_grants.sql',
+		]) {
 			const sql = read(file);
 			// Anchored to the start of a line so the prose explaining the rule is
 			// not counted as an instance of it.
@@ -84,7 +88,11 @@ describe('the migration tree is checked in', () => {
 	});
 
 	it('forces row-level security on every table it enables it for', () => {
-		for (const file of ['drizzle/0001_auth_pg_vendored_0_2_4.sql', 'drizzle/0002_rls_force_and_runtime_grants.sql']) {
+		for (const file of [
+			'drizzle/0001_auth_pg_vendored_0_2_4.sql',
+			'drizzle/0002_rls_force_and_runtime_grants.sql',
+			'drizzle/0005_payment_rails_rls_grants.sql',
+		]) {
 			const sql = read(file);
 			const enabled = sql.match(/^ALTER TABLE .* ENABLE ROW LEVEL SECURITY;$/gm) ?? [];
 			const forced = sql.match(/^ALTER TABLE .* FORCE ROW LEVEL SECURITY;$/gm) ?? [];

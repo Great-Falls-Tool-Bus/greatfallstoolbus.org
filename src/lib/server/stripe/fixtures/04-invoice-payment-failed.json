@@ -1,0 +1,24 @@
+{
+	"id": "evt_gftb_fx_0004",
+	"object": "event",
+	"api_version": "2026-01-28.clover",
+	"created": 1758278400,
+	"livemode": false,
+	"type": "invoice.payment_failed",
+	"pending_webhooks": 1,
+	"request": { "id": null, "idempotency_key": null },
+	"data": {
+		"object": {
+			"id": "in_gftbfixture02",
+			"object": "invoice",
+			"status": "open",
+			"livemode": false,
+			"customer": "cus_gftbfixture01",
+			"subscription": "sub_gftbfixture01",
+			"billing_reason": "subscription_cycle",
+			"currency": "usd",
+			"amount_due": 1000,
+			"attempt_count": 1
+		}
+	}
+}
