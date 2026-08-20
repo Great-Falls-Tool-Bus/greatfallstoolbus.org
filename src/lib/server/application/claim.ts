@@ -156,6 +156,8 @@ export interface ClaimInput {
 export interface ClaimResult {
 	application: Application;
 	claim: ApplicationClaim;
+	/** false: this exact keyholder's claim already stood; the original is returned. */
+	claimed: boolean;
 }
 
 /**
@@ -170,6 +172,17 @@ export async function claimApplication(tx: DbTransaction, input: ClaimInput): Pr
 	checkExpectedVersion(row, input.expectedVersion);
 
 	if (row.status === 'claimed' || row.status === 'tour_scheduled') {
+		// Spec §6: "A duplicate request returns the original result/receipt."
+		// Row 4's idempotency key is `…:claim:<keyholder_id>` — a repeat from
+		// the SAME keyholder (double-click, network retry, back-button
+		// resubmit) is by construction a duplicate of their own request, not
+		// another keyholder's conflict (reviewer finding H1, PR #181 review
+		// round 1). Only a genuinely different claimant reaches the conflict
+		// below, which is exactly what `ClaimConflictError`'s copy says.
+		const standing = await liveClaim(tx, tenantId, row.id);
+		if (standing && standing.keyholderPersonId === input.keyholderPersonId) {
+			return { application: row, claim: standing, claimed: false };
+		}
 		// Serialised behind the row lock, the race loser lands here: an
 		// explicit, nameable conflict (S5 acceptance row 1), not a 500.
 		throw new ClaimConflictError();
@@ -202,7 +215,7 @@ export async function claimApplication(tx: DbTransaction, input: ClaimInput): Pr
 		.where(eq(application.id, row.id))
 		.returning();
 
-	return { application: updated[0], claim: inserted[0] };
+	return { application: updated[0], claim: inserted[0], claimed: true };
 }
 
 /**
@@ -264,6 +277,15 @@ export async function scheduleTour(tx: DbTransaction, input: ScheduleTourInput):
 
 	const row = await lockApplication(tx, input.applicationId);
 	checkExpectedVersion(row, input.expectedVersion);
+	if (row.status === 'tour_scheduled') {
+		// Spec §6 duplicate-request convergence — same family as the H1 claim
+		// edit above: a repeat schedule_tour from the claimant is a duplicate
+		// of their own already-applied transition (row 5's key is
+		// `…:tour:<key>`), not an illegal one. A non-claimant still gets the
+		// ordinary NotClaimantError.
+		await requireClaimant(tx, tenantId, row.id, input.keyholderPersonId);
+		return row;
+	}
 	if (row.status !== 'claimed') {
 		throw new IllegalTransitionError(row.status, 'schedule_tour');
 	}

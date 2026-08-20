@@ -241,6 +241,47 @@ describe('A4 claim — one keyholder at a time, visibly (slices §2.2 row 4; spe
 		expect(claims).toHaveLength(1);
 	});
 
+	it('a repeat claim by the SAME keyholder converges on the original result — spec §6 duplicate-request contract (review round 1, H1)', async () => {
+		const tenantId = await newTenant();
+		const keyholder = await newKeyholder(tenantId);
+		const app = await verified(tenantId);
+
+		const first = await withTenant(
+			tenantId,
+			(tx) => claimApplication(tx, { applicationId: app.id, keyholderPersonId: keyholder }),
+			db,
+		);
+		expect(first.claimed).toBe(true);
+
+		// Row 4's idempotency key is `…:claim:<keyholder_id>` — the SAME
+		// keyholder retrying (double-click, network retry) is a duplicate of
+		// their own request, not a conflict.
+		const repeat = await withTenant(
+			tenantId,
+			(tx) => claimApplication(tx, { applicationId: app.id, keyholderPersonId: keyholder }),
+			db,
+		);
+		expect(repeat.claimed).toBe(false);
+		expect(repeat.claim.id).toBe(first.claim.id);
+		expect(repeat.application.version).toBe(first.application.version);
+
+		const claims = await asTenant(fixture.runtimeDsn, tenantId, async (client) => {
+			const { rows } = await client.query('select id from application_claim where application_id = $1', [app.id]);
+			return rows;
+		});
+		expect(claims).toHaveLength(1);
+	});
+
+	it('a repeat claim by a DIFFERENT keyholder while one stands is still an explicit conflict', async () => {
+		const tenantId = await newTenant();
+		const [alice, bert] = [await newKeyholder(tenantId), await newKeyholder(tenantId)];
+		const app = await claimed(tenantId, alice);
+
+		await expect(
+			withTenant(tenantId, (tx) => claimApplication(tx, { applicationId: app.id, keyholderPersonId: bert }), db),
+		).rejects.toBeInstanceOf(ClaimConflictError);
+	});
+
 	it('the claim is VISIBLE to other keyholders in the queue (claim semantics)', async () => {
 		const tenantId = await newTenant();
 		const [alice, bert] = [await newKeyholder(tenantId), await newKeyholder(tenantId)];
@@ -361,6 +402,38 @@ describe('A5 schedule_tour — state, not automation (slices §2.2 row 5; TIN-34
 			withTenant(tenantId, (tx) => scheduleTour(tx, { applicationId: app.id, keyholderPersonId: bert }), db),
 		).rejects.toThrowError(NotClaimantError);
 		expect((await appRow(tenantId, app.id)).status).toBe('claimed');
+	});
+
+	it('a repeat schedule_tour by the claimant converges (spec §6 duplicate-request contract, same family as H1)', async () => {
+		const tenantId = await newTenant();
+		const keyholder = await newKeyholder(tenantId);
+		const app = await claimed(tenantId, keyholder);
+
+		const first = await withTenant(
+			tenantId,
+			(tx) => scheduleTour(tx, { applicationId: app.id, keyholderPersonId: keyholder }),
+			db,
+		);
+		expect(first.status).toBe('tour_scheduled');
+
+		const repeat = await withTenant(
+			tenantId,
+			(tx) => scheduleTour(tx, { applicationId: app.id, keyholderPersonId: keyholder }),
+			db,
+		);
+		expect(repeat.status).toBe('tour_scheduled');
+		expect(repeat.version).toBe(first.version);
+	});
+
+	it('a repeat schedule_tour by a NON-claimant while tour_scheduled is still refused', async () => {
+		const tenantId = await newTenant();
+		const [alice, bert] = [await newKeyholder(tenantId), await newKeyholder(tenantId)];
+		const app = await claimed(tenantId, alice);
+		await withTenant(tenantId, (tx) => scheduleTour(tx, { applicationId: app.id, keyholderPersonId: alice }), db);
+
+		await expect(
+			withTenant(tenantId, (tx) => scheduleTour(tx, { applicationId: app.id, keyholderPersonId: bert }), db),
+		).rejects.toThrowError(NotClaimantError);
 	});
 
 	it('scheduling an unclaimed application is an illegal transition', async () => {

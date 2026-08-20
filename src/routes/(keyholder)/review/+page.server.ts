@@ -106,7 +106,10 @@ export function _createClaimAction(seams: ReviewActionSeams = {}) {
 					expectedVersion,
 				}),
 			);
-			return { claimed: true as const, applicationId: result.application.id };
+			// Route symmetry with the decide action's `replayed` (spec §6
+			// duplicate-request convergence, H1): a same-keyholder repeat
+			// still reports success, just not a fresh claim.
+			return { claimed: result.claimed, applicationId: result.application.id, replayed: !result.claimed };
 		} catch (error) {
 			return reviewFailure(error);
 		}
