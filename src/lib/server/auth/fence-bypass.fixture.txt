@@ -1,0 +1,29 @@
+NEGATIVE FIXTURE — the PR #175 adversarial reviewer's exact fence bypass.
+
+This is the file that passed every gate green at head 08a9d3d: ESLint clean,
+fence.test 12/12, `just check` "All checks passed." — while reading the
+invitation, backup-code, and TOTP-secret tables through the adapter's method
+surface, which the original fence never bound.
+
+fence.test.ts feeds this text to the SAME scanner that walks src/ and asserts
+it is FLAGGED (>= 3 method-name violations). If this fixture ever scans clean,
+the fence has regressed to package-name-only binding. Kept as .txt so it is
+data for the test, not code for the compiler — though as of the rebuild it
+would no longer compile anyway: adapterFor returns Omit<PgStorageAdapter,
+ForbiddenAdapterMethod>, and the Proxy throws on the property access at
+runtime besides.
+
+---- src/lib/server/auth/leak.ts ----
+import type { DbTransaction } from '$lib/server/db/client';
+import { adapterFor } from './adapter';
+export async function inviteSomeone(tx: DbTransaction, tenantId: string) {
+	const adapter = adapterFor(tx);
+	return {
+		pending: await adapter.getPendingInvitations(tenantId),
+		codes: await adapter.getBackupCodes(tenantId, 'someuser'),
+		secret: await adapter.getTOTPSecret(tenantId, 'someuser'),
+	};
+}
+
+---- src/lib/server/auth/index.ts (the re-export half) ----
+export { inviteSomeone } from './leak';

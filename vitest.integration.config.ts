@@ -24,6 +24,16 @@ export default defineConfig({
 			$lib: path.resolve(__dirname, 'src/lib'),
 		},
 	},
+	// Mirror of vite.config.ts `ssr.noExternal`: bcryptjs@2.4.3 is UMD-only and
+	// yields no named exports under plain node ESM, so the auth package must be
+	// transformed (CJS interop applied) rather than externalized — here exactly
+	// as in the production server build. `@tummycrypt/tinyland-auth-pg` is
+	// deliberately NOT inlined: it imports drizzle-orm, and transforming it
+	// would give the adapter a second drizzle module instance — the very
+	// two-copies failure the 0.39.3 pin exists to prevent.
+	ssr: {
+		noExternal: ['@tummycrypt/tinyland-auth'],
+	},
 	test: {
 		include: ['src/**/*.integration.test.ts'],
 		environment: 'node',
