@@ -169,24 +169,42 @@ export async function claimApplication(tx: DbTransaction, input: ClaimInput): Pr
 	const tenantId = await requireKeyholder(tx, input.keyholderPersonId);
 
 	const row = await lockApplication(tx, input.applicationId);
-	checkExpectedVersion(row, input.expectedVersion);
 
 	if (row.status === 'claimed' || row.status === 'tour_scheduled') {
 		// Spec §6: "A duplicate request returns the original result/receipt."
-		// Row 4's idempotency key is `…:claim:<keyholder_id>` — a repeat from
-		// the SAME keyholder (double-click, network retry, back-button
-		// resubmit) is by construction a duplicate of their own request, not
-		// another keyholder's conflict (reviewer finding H1, PR #181 review
-		// round 1). Only a genuinely different claimant reaches the conflict
-		// below, which is exactly what `ClaimConflictError`'s copy says.
+		// Row 4's idempotency key is `…:claim:<keyholder_id>` — no version
+		// component — so a repeat from the SAME keyholder (double-click,
+		// network retry, back-button resubmit) is by construction a
+		// duplicate of their own request, not another keyholder's conflict
+		// (reviewer finding H1, PR #181 review round 1).
+		//
+		// CHECKED BEFORE `checkExpectedVersion` ON PURPOSE (review round 2
+		// finding): the shipped `/review` form posts a hidden `expectedVersion`
+		// carrying the PRE-claim version, which is exactly what a double-click
+		// or back-button resubmit re-sends — round 1 put the version gate
+		// first, so those exact scenarios 409'd on staleness before ever
+		// reaching this convergence, making the fix's own rationale dead code
+		// through the real UI (proved identical at the pre-fix commit).
+		// Checking convergence first makes the fix reachable through the form
+		// it was written for, not only through an API caller that omits
+		// `expectedVersion`: a duplicate of one's own already-applied claim
+		// event is not the "stale write" spec §4's `expectedVersion` guard
+		// means to catch, regardless of which version the resubmitted form
+		// remembers.
 		const standing = await liveClaim(tx, tenantId, row.id);
 		if (standing && standing.keyholderPersonId === input.keyholderPersonId) {
 			return { application: row, claim: standing, claimed: false };
 		}
-		// Serialised behind the row lock, the race loser lands here: an
-		// explicit, nameable conflict (S5 acceptance row 1), not a 500.
+		// A genuinely different claimant was never going to win this claim
+		// regardless of which version they presented, so the conflict is
+		// reported as what it is rather than as a version mismatch. Serialised
+		// behind the row lock, the race loser lands here: an explicit,
+		// nameable conflict (S5 acceptance row 1), not a 500 — and the copy
+		// ("Another keyholder has already claimed…") is now always accurate,
+		// since a same-keyholder repeat never reaches it.
 		throw new ClaimConflictError();
 	}
+	checkExpectedVersion(row, input.expectedVersion);
 	if (row.status !== 'email_verified') {
 		// A4's only legal source state (spec §4): unverified applications are
 		// not yet reviewable; terminal ones never again are.
@@ -276,16 +294,21 @@ export async function scheduleTour(tx: DbTransaction, input: ScheduleTourInput):
 	const tenantId = await requireKeyholder(tx, input.keyholderPersonId);
 
 	const row = await lockApplication(tx, input.applicationId);
-	checkExpectedVersion(row, input.expectedVersion);
 	if (row.status === 'tour_scheduled') {
-		// Spec §6 duplicate-request convergence — same family as the H1 claim
-		// edit above: a repeat schedule_tour from the claimant is a duplicate
-		// of their own already-applied transition (row 5's key is
-		// `…:tour:<key>`), not an illegal one. A non-claimant still gets the
-		// ordinary NotClaimantError.
+		// Spec §6 duplicate-request convergence — same family as claim's H1
+		// fix, and CHECKED BEFORE `checkExpectedVersion` for the identical
+		// round-2 reason: the shipped form posts the pre-schedule_tour version
+		// on exactly the double-click/back-button paths this targets, so
+		// checking version first would make this convergence unreachable
+		// through the real UI too. A repeat schedule_tour from the claimant is
+		// a duplicate of their own already-applied transition (row 5's key is
+		// `…:tour:<key>`, no version component), not an illegal one. A
+		// non-claimant still gets the ordinary `NotClaimantError` regardless of
+		// which version they presented.
 		await requireClaimant(tx, tenantId, row.id, input.keyholderPersonId);
 		return row;
 	}
+	checkExpectedVersion(row, input.expectedVersion);
 	if (row.status !== 'claimed') {
 		throw new IllegalTransitionError(row.status, 'schedule_tour');
 	}

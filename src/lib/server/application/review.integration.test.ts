@@ -36,7 +36,7 @@ import {
 import { grantRole, revokeRole } from '../auth/roles';
 import { AuthError } from '../auth/session';
 import { _createClaimAction } from '../../../routes/(keyholder)/review/+page.server';
-import { _createDeclineAction } from '../../../routes/(keyholder)/review/[id]/+page.server';
+import { _createDeclineAction, _createScheduleTourAction } from '../../../routes/(keyholder)/review/[id]/+page.server';
 import { _createWithdrawAction } from '../../../routes/apply/withdraw/+page.server';
 import {
 	ClaimConflictError,
@@ -195,7 +195,8 @@ function reviewEvent(fields: Record<string, string>, personId: string | null, pa
 		locals: { authSession: personId ? { userId: personId } : null },
 		params,
 	} as unknown as Parameters<ReturnType<typeof _createClaimAction>>[0] &
-		Parameters<ReturnType<typeof _createDeclineAction>>[0];
+		Parameters<ReturnType<typeof _createDeclineAction>>[0] &
+		Parameters<ReturnType<typeof _createScheduleTourAction>>[0];
 }
 
 describe('A4 claim — one keyholder at a time, visibly (slices §2.2 row 4; spec §6)', () => {
@@ -280,6 +281,30 @@ describe('A4 claim — one keyholder at a time, visibly (slices §2.2 row 4; spe
 		await expect(
 			withTenant(tenantId, (tx) => claimApplication(tx, { applicationId: app.id, keyholderPersonId: bert }), db),
 		).rejects.toBeInstanceOf(ClaimConflictError);
+	});
+
+	it("RV2: the H1 convergence is reachable through the ROUTE with the shipped form's hidden expectedVersion (review round 2)", async () => {
+		// The real `/review` form posts a hidden `expectedVersion` carrying the
+		// PRE-claim version — exactly what a double-click or back-button
+		// resubmit re-sends. Round 1 checked expectedVersion before the H1
+		// convergence, so this exact path 409'd instead of converging (proved
+		// identical at the pre-fix commit by review round 2). The fix reorders
+		// the checks; this test drives the real route action with the STALE
+		// version the form would actually carry and asserts it now converges.
+		const tenantId = await newTenant();
+		process.env.GFTB_TENANT_ID = tenantId;
+		const keyholder = await newKeyholder(tenantId);
+		const app = await verified(tenantId);
+		const action = _createClaimAction();
+
+		const first = await action(reviewEvent({ applicationId: app.id }, keyholder));
+		expect(first).toMatchObject({ claimed: true });
+		const staleVersion = app.version; // the pre-claim version, as the hidden field would still show
+
+		const repeat = await action(
+			reviewEvent({ applicationId: app.id, expectedVersion: String(staleVersion) }, keyholder),
+		);
+		expect(repeat).toMatchObject({ claimed: false, replayed: true, applicationId: app.id });
 	});
 
 	it('the claim is VISIBLE to other keyholders in the queue (claim semantics)', async () => {
@@ -423,6 +448,26 @@ describe('A5 schedule_tour — state, not automation (slices §2.2 row 5; TIN-34
 		);
 		expect(repeat.status).toBe('tour_scheduled');
 		expect(repeat.version).toBe(first.version);
+	});
+
+	it("RV2: schedule_tour convergence is reachable through the ROUTE with the shipped form's hidden expectedVersion (review round 2)", async () => {
+		// Same reachability gap as claim's H1, same fix: the real detail-page
+		// form posts a hidden expectedVersion carrying the pre-schedule_tour
+		// version. Drive the real route action with that stale value.
+		const tenantId = await newTenant();
+		process.env.GFTB_TENANT_ID = tenantId;
+		const keyholder = await newKeyholder(tenantId);
+		const app = await claimed(tenantId, keyholder);
+		const action = _createScheduleTourAction();
+
+		const first = await action(reviewEvent({ expectedVersion: String(app.version) }, keyholder, { id: app.id }));
+		expect(first).toMatchObject({ tourScheduled: true, status: 'tour_scheduled' });
+
+		// The repeat still carries the STALE (pre-schedule_tour) version, as
+		// the hidden field would on a double-click or back-button resubmit —
+		// before the fix this 409'd (version_conflict); it now converges.
+		const repeat = await action(reviewEvent({ expectedVersion: String(app.version) }, keyholder, { id: app.id }));
+		expect(repeat).toMatchObject({ tourScheduled: true, status: 'tour_scheduled' });
 	});
 
 	it('a repeat schedule_tour by a NON-claimant while tour_scheduled is still refused', async () => {
