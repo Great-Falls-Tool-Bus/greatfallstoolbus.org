@@ -547,6 +547,269 @@ export const applicationDecision = pgTable(
 	(t) => [unique('application_decision_one_per_application').on(t.tenantId, t.applicationId)],
 );
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * Member identity, membership, assent, and the audit spine (TIN-3440 slices
+ * S6/S7; spec §4 identifiers + membership state machine; executable slices
+ * §1.8/§1.9).
+ *
+ * Composite-FK doctrine, inherited from `finance_receipt`: PostgreSQL
+ * evaluates FK checks with the referenced table owner's rights and BYPASSES
+ * row-level security, so every reference to a tenant-scoped row pairs the
+ * tenant column into the FK — a cross-tenant pointer is unrepresentable at
+ * the constraint level.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * A person (spec §4 identifiers): `person_id` is an immutable UUID generated
+ * by the application at A6 approval (slices §2.2 row 6: "provision `person`").
+ *
+ * `auth_user_id` is NULLABLE and foreign-by-name only: membership must
+ * survive auth-adapter replacement (spec §4), so no FK reaches into `auth.*`.
+ * It is set at M1 activation when the auth user is created, and a partial
+ * unique index keeps one person per auth user.
+ *
+ * EMAIL IS DELIBERATELY NOT A COLUMN HERE. The address is a normalized,
+ * verified, MUTABLE identifier with history and never a key (spec §4;
+ * TIN-3440 bullet 1) — it lives in `person_email` rows, of which exactly one
+ * per person is current. `person_id` survives every address change (S6
+ * acceptance row 3).
+ *
+ * `application_id` records provenance: which approved application provisioned
+ * this person. One person per application, by unique constraint.
+ */
+export const person = pgTable(
+	'person',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenant.tenantId),
+		applicationId: uuid('application_id')
+			.notNull()
+			.references(() => application.id),
+		displayName: text('display_name').notNull(),
+		authUserId: uuid('auth_user_id'),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	},
+	(t) => [
+		unique('person_one_per_application').on(t.tenantId, t.applicationId),
+		// Trivially unique given the id PK; exists so composite FKs below can
+		// pair the tenant into the reference (finance_receipt precedent).
+		unique('person_tenant_row_uniq').on(t.tenantId, t.id),
+		uniqueIndex('person_auth_user_uniq')
+			.on(t.tenantId, t.authUserId)
+			.where(sql`${t.authUserId} is not null`),
+	],
+);
+
+/**
+ * Email history (spec §4: "email address: normalized, verified, mutable
+ * identifier with history; never a primary key"). Exactly one row per person
+ * has `superseded_at IS NULL` — the current address; a change supersedes the
+ * old row (one-way, trigger-enforced in migration 0009) and appends a new
+ * one. Rows are never deleted (retention: spec §14 item 4 — Member v0
+ * deletes nothing).
+ */
+export const personEmail = pgTable(
+	'person_email',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenant.tenantId),
+		personId: uuid('person_id').notNull(),
+		email: text('email').notNull(),
+		effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull().defaultNow(),
+		supersededAt: timestamp('superseded_at', { withTimezone: true }),
+	},
+	(t) => [
+		foreignKey({
+			name: 'person_email_person_in_tenant_fk',
+			columns: [t.tenantId, t.personId],
+			foreignColumns: [person.tenantId, person.id],
+		}),
+		// The one current address per person (S6 acceptance row 3's "history"
+		// half depends on supersession being one-way, never overwrite).
+		uniqueIndex('person_email_current_uniq')
+			.on(t.tenantId, t.personId)
+			.where(sql`${t.supersededAt} is null`),
+		index('person_email_lookup').on(t.tenantId, t.email),
+	],
+);
+
+/**
+ * Versioned membership agreement (slices §1.8 ASSUMPTION, drafted scheme —
+ * sitting-2 item 3 mechanics, values land as data ~2026-08-22):
+ * monotonically increasing integer `id` per tenant, immutable `body_sha256`,
+ * `effective_from`; assent stores the integer, never the text. "Current" is
+ * the greatest `effective_from` at or before now (tie: highest id) — a pure
+ * function of append-only rows, so exactly one version is current without any
+ * mutable `is_current` flag to desynchronise. Rows are append-only and
+ * immutable by grant + trigger (migration 0009).
+ *
+ * `body` is stored so the assent page can display the exact text whose digest
+ * the person assents to; version 1's BODY is the initial membership agreement
+ * — operator-approved with the gate-row-4 copy work, SEPARABLE from
+ * contribution copy (ADR 0016 §2.3), and never agent-authored as published.
+ */
+export const agreementVersion = pgTable(
+	'agreement_version',
+	{
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenant.tenantId),
+		id: integer('id').notNull(),
+		bodySha256: text('body_sha256').notNull(),
+		body: text('body').notNull(),
+		effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	},
+	(t) => [
+		primaryKey({ name: 'agreement_version_pkey', columns: [t.tenantId, t.id] }),
+		check('agreement_version_id_positive', sql`${t.id} > 0`),
+	],
+);
+
+/**
+ * The membership aggregate (spec §4 membership state machine; slices §2.2
+ * rows 10–14). `status` is `text` CHECK-constrained in migration 0009 to the
+ * five ratified states: `pending_assent → active ↔ paused → left | removed`,
+ * with BOTH `active → removed` and `paused → removed` (the ratified
+ * `member-lifecycle.mmd` and TIN-3440 "forcibly remove" over the ASCII's
+ * literal shape — slices §1.9 note). `left`/`removed` are terminal;
+ * reinstatement after `removed` is a NEW application, never a transition
+ * (slices §1.9 ASSUMPTION, resolver Jess).
+ *
+ * `version` is the `expectedVersion` optimistic-concurrency counter (spec §4;
+ * REQUIRED on rows 13/14 — leave/remove).
+ *
+ * NO CONTRIBUTION COLUMN, STRUCTURALLY: membership transitions never query
+ * contribution state (spec §5; member-projection-flow.mmd "never changes
+ * membership"), and this table gives them nothing to query.
+ */
+export const membership = pgTable(
+	'membership',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenant.tenantId),
+		personId: uuid('person_id').notNull(),
+		applicationId: uuid('application_id')
+			.notNull()
+			.references(() => application.id),
+		status: text('status').notNull().default('pending_assent'),
+		version: integer('version').notNull().default(1),
+		agreementVersionId: integer('agreement_version_id'),
+		activatedAt: timestamp('activated_at', { withTimezone: true }),
+		endedAt: timestamp('ended_at', { withTimezone: true }),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	},
+	(t) => [
+		foreignKey({
+			name: 'membership_person_in_tenant_fk',
+			columns: [t.tenantId, t.personId],
+			foreignColumns: [person.tenantId, person.id],
+		}),
+		foreignKey({
+			name: 'membership_agreement_in_tenant_fk',
+			columns: [t.tenantId, t.agreementVersionId],
+			foreignColumns: [agreementVersion.tenantId, agreementVersion.id],
+		}),
+		unique('membership_one_per_application').on(t.tenantId, t.applicationId),
+		// Composite-FK anchor, the person/finance_receipt precedent.
+		unique('membership_tenant_row_uniq').on(t.tenantId, t.id),
+		// One NON-terminal membership per person: a removed/left history row
+		// never blocks the new application the reinstatement path requires.
+		uniqueIndex('membership_live_uniq')
+			.on(t.tenantId, t.personId)
+			.where(sql`${t.status} not in ('left', 'removed')`),
+		index('membership_status').on(t.tenantId, t.status),
+	],
+);
+
+/**
+ * The assent record (slices §2.2 row 10): who assented, to WHICH agreement
+ * version (the integer — never the text), for which membership, when. One
+ * assent per membership, immutable and append-only (migration 0009) — the
+ * durable half of "assent is to the current agreement version" that M1's
+ * audit row cites.
+ */
+export const assent = pgTable(
+	'assent',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenant.tenantId),
+		membershipId: uuid('membership_id').notNull(),
+		personId: uuid('person_id').notNull(),
+		agreementVersionId: integer('agreement_version_id').notNull(),
+		assentedAt: timestamp('assented_at', { withTimezone: true }).notNull(),
+	},
+	(t) => [
+		foreignKey({
+			name: 'assent_membership_in_tenant_fk',
+			columns: [t.tenantId, t.membershipId],
+			foreignColumns: [membership.tenantId, membership.id],
+		}),
+		foreignKey({
+			name: 'assent_person_in_tenant_fk',
+			columns: [t.tenantId, t.personId],
+			foreignColumns: [person.tenantId, person.id],
+		}),
+		foreignKey({
+			name: 'assent_agreement_in_tenant_fk',
+			columns: [t.tenantId, t.agreementVersionId],
+			foreignColumns: [agreementVersion.tenantId, agreementVersion.id],
+		}),
+		unique('assent_one_per_membership').on(t.tenantId, t.membershipId),
+	],
+);
+
+/**
+ * The audit spine (TIN-3440 slice S6; spec §6 audit contract): every row
+ * carries actor, aggregate, transition, result, policy/agreement version, and
+ * timestamp — and structurally CANNOT carry tokens, secrets, object URLs, or
+ * free-text personal content, because the shape is CLOSED: there is no
+ * free-text column. `reason_class` is a short classification (validated at
+ * the write seam in `src/lib/server/audit/write.ts`), `token_hash` is the
+ * hash-only slot spec row 3 names ("token hash only, never plaintext"), and
+ * `reauth_at` is row 14's required reauthentication timestamp.
+ *
+ * Rows are append-only and immutable — grant + trigger in migration 0009,
+ * the application_decision doctrine: an audit record that the runtime can
+ * rewrite is not an audit record.
+ */
+export const auditEvent = pgTable(
+	'audit_event',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenant.tenantId),
+		actorType: text('actor_type').notNull(),
+		actorId: uuid('actor_id'),
+		aggregateType: text('aggregate_type').notNull(),
+		aggregateId: uuid('aggregate_id').notNull(),
+		event: text('event').notNull(),
+		fromStatus: text('from_status'),
+		toStatus: text('to_status'),
+		result: text('result').notNull().default('committed'),
+		agreementVersionId: integer('agreement_version_id'),
+		reasonClass: text('reason_class'),
+		reauthAt: timestamp('reauth_at', { withTimezone: true }),
+		tokenHash: text('token_hash'),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	},
+	(t) => [
+		index('audit_event_aggregate').on(t.tenantId, t.aggregateType, t.aggregateId),
+		check('audit_event_actor', sql`${t.actorType} in ('person', 'system', 'public')`),
+		check('audit_event_actor_id_required', sql`${t.actorType} <> 'person' or ${t.actorId} is not null`),
+	],
+);
+
 export type Tenant = typeof tenant.$inferSelect;
 export type NewTenant = typeof tenant.$inferInsert;
 export type OutboxJob = typeof outboxJob.$inferSelect;
@@ -567,3 +830,15 @@ export type ApplicationClaim = typeof applicationClaim.$inferSelect;
 export type NewApplicationClaim = typeof applicationClaim.$inferInsert;
 export type ApplicationDecision = typeof applicationDecision.$inferSelect;
 export type NewApplicationDecision = typeof applicationDecision.$inferInsert;
+export type Person = typeof person.$inferSelect;
+export type NewPerson = typeof person.$inferInsert;
+export type PersonEmail = typeof personEmail.$inferSelect;
+export type NewPersonEmail = typeof personEmail.$inferInsert;
+export type AgreementVersion = typeof agreementVersion.$inferSelect;
+export type NewAgreementVersion = typeof agreementVersion.$inferInsert;
+export type Membership = typeof membership.$inferSelect;
+export type NewMembership = typeof membership.$inferInsert;
+export type Assent = typeof assent.$inferSelect;
+export type NewAssent = typeof assent.$inferInsert;
+export type AuditEvent = typeof auditEvent.$inferSelect;
+export type NewAuditEvent = typeof auditEvent.$inferInsert;
