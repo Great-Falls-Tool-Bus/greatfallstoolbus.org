@@ -47,7 +47,16 @@ export function resolveConnectionString(env: NodeJS.ProcessEnv = process.env): s
  */
 export function getPool(): pg.Pool {
 	if (!pool) {
-		pool = new pg.Pool({ connectionString: resolveConnectionString() });
+		pool = new pg.Pool({
+			connectionString: resolveConnectionString(),
+			// Pin the wire format for timestamps (TIN-3817 S2, PR #175 review):
+			// the vendored auth.* tables are timestamp-without-timezone, and the
+			// auth seam's parser recognises the ISO shape specifically. A role- or
+			// DSN-level DateStyle like 'SQL, DMY' would make every session
+			// timestamp unparseable — the seam fails CLOSED on that, so this pin
+			// is defence in depth for availability, not the safety mechanism.
+			options: '-c datestyle=ISO',
+		});
 	}
 	return pool;
 }

@@ -21,9 +21,16 @@
  * `rls.integration.test.ts` that iterates `pg_class` rather than a promise in a
  * comment.
  *
- * S2 adds `member_role_grant` and the `auth.*` Drizzle bindings; S3 adds the
- * outbox dispatcher over the table declared here. Neither needs to reshape
- * anything in this file.
+ * S2 added `member_role_grant` (below). The `auth.*` tables deliberately have
+ * NO Drizzle bindings in this file, revising S1's earlier note that S2 would
+ * add them: this file is `drizzle-kit generate`'s diff surface, and binding
+ * tables whose DDL lives in the vendored migration `0001_*` would make the
+ * next `generate` re-emit their CREATEs into a new migration that then
+ * collides with 0001 at apply time. The adapter package
+ * (`@tummycrypt/tinyland-auth-pg`) ships its own Drizzle objects for `auth.*`
+ * and is their only query surface; app code reaches them through
+ * `src/lib/server/auth/` and never re-declares them. S3 adds the outbox
+ * dispatcher over the table declared here.
  */
 
 import { sql } from 'drizzle-orm';
@@ -117,7 +124,62 @@ export const outboxJob = pgTable(
 	],
 );
 
+/**
+ * Role grants, orthogonal to membership state (TIN-3817 slice S2).
+ *
+ * ⚠ PENDING RATIFICATION — sitting #2, Item 2 (`meta`
+ * `spec/sitting-2-packet-2026-08-22.md`, staged in meta PR #24). The
+ * executable-slices spec §1.4 drafts the role MODEL (`member` implied by
+ * Active membership; `keyholder` and `finance` as grants; `steward` omitted)
+ * as an AMENDMENT — drafted, not ratified. This table is the MECHANICAL half
+ * the packet assigns to S2: rows, uniqueness, RLS, and grant/revoke access in
+ * `src/lib/server/auth/roles.ts`. It deliberately encodes NO vocabulary:
+ *
+ *   - `role` is `text`, not an enum and not CHECK-constrained. An enum or
+ *     CHECK would ratify a role list by migration, which is exactly the
+ *     decision the sitting owns. Once ratified, the vocabulary lands as an
+ *     app-level constant plus (optionally) a follow-up CHECK migration.
+ *   - No capability mapping lives here or in roles.ts — what a `keyholder`
+ *     may do is S5's to enforce and the sitting's to ratify; what `finance`
+ *     may see is S8's (slices §6.4).
+ *
+ * Column tuple is exactly the drafted shape: `(tenant_id, person_id, role,
+ * granted_by, granted_at, revoked_at)`, plus a surrogate `id` because a
+ * person can be re-granted a role after revocation and history is append-only
+ * — so the natural triple is only unique among LIVE grants (partial unique
+ * index below). Grants are revoked by setting `revoked_at`, never deleted.
+ *
+ * `person_id` and `granted_by` are deliberately NOT foreign keys yet: the
+ * `person` table is S6's (slices §1.8), and inventing a placeholder here
+ * would put its shape in the wrong slice. S6 adds the FKs in its own
+ * migration when `person` exists.
+ */
+export const memberRoleGrant = pgTable(
+	'member_role_grant',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenant.tenantId),
+		personId: uuid('person_id').notNull(),
+		role: text('role').notNull(),
+		grantedBy: uuid('granted_by').notNull(),
+		grantedAt: timestamp('granted_at', { withTimezone: true }).notNull().defaultNow(),
+		revokedAt: timestamp('revoked_at', { withTimezone: true }),
+	},
+	(t) => [
+		// One LIVE grant per (tenant, person, role); revoked rows stay as history.
+		uniqueIndex('member_role_grant_live_uniq')
+			.on(t.tenantId, t.personId, t.role)
+			.where(sql`${t.revokedAt} is null`),
+		// The authorization check's scan: "what live roles does this person hold".
+		index('member_role_grant_person').on(t.tenantId, t.personId),
+	],
+);
+
 export type Tenant = typeof tenant.$inferSelect;
 export type NewTenant = typeof tenant.$inferInsert;
 export type OutboxJob = typeof outboxJob.$inferSelect;
 export type NewOutboxJob = typeof outboxJob.$inferInsert;
+export type MemberRoleGrant = typeof memberRoleGrant.$inferSelect;
+export type NewMemberRoleGrant = typeof memberRoleGrant.$inferInsert;

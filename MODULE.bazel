@@ -12,6 +12,8 @@ Stock module picks (replace per-site as needed):
 - tummycrypt_vite_plugin_a11y      — build-time WCAG scan plugin.
 - tummycrypt_vite_plugin_skeleton_colors — Skeleton-4 color generator.
 - tummycrypt_tinyvectors            — animated vector blob backgrounds.
+- tummycrypt_tinyland_auth          — Member v0 auth core (TIN-3817 S2 pin).
+- tummycrypt_tinyland_auth_pg       — tenant-scoped PG storage adapter (S2 pin).
 
 After cloning from this template:
   1. Update `module(name = ...)` to your_site_underscored.
@@ -43,6 +45,15 @@ bazel_dep(name = "tummycrypt_tinyland_color_utils", version = "0.2.3")
 bazel_dep(name = "tummycrypt_vite_plugin_a11y", version = "0.2.2")
 bazel_dep(name = "tummycrypt_vite_plugin_skeleton_colors", version = "0.2.2")
 bazel_dep(name = "tummycrypt_tinyvectors", version = "0.3.6")
+
+# Member v0 auth spine (TIN-3817 S2). Bzlmod/npm parity is a conformance gate
+# (scripts/check-inhouse-package-parity.py): these two versions must equal the
+# package.json pins EXACTLY. The pins themselves are load-bearing — the PG
+# adapter's peer range accepts nothing newer than auth 0.3.x, and no adapter
+# exists for auth >= 0.4.0 (executable-slices spec §0.7). Do not bump one
+# without the other.
+bazel_dep(name = "tummycrypt_tinyland_auth", version = "0.3.3")
+bazel_dep(name = "tummycrypt_tinyland_auth_pg", version = "0.2.4")
 
 # Node 22.13.1
 node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")
