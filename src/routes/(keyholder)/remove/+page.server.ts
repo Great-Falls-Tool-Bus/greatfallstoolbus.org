@@ -22,6 +22,7 @@ import { withTenant } from '$lib/server/db/tenant';
 import { membership, person } from '$lib/server/db/schema';
 import { AuthError, SESSION_COOKIE, reauthenticate } from '$lib/server/auth';
 import { requireKeyholder } from '$lib/server/application/claim';
+import { InvalidAuditEventError } from '$lib/server/audit/write';
 import {
 	IllegalMembershipTransitionError,
 	MembershipNotFoundError,
@@ -136,6 +137,14 @@ export function _createRemoveAction(seams: RemoveSeams = {}) {
 			if (error instanceof MembershipNotFoundError) return fail(404, { code: 'not_found' });
 			if (error instanceof MembershipVersionConflictError) return fail(409, { code: 'version_conflict' });
 			if (error instanceof IllegalMembershipTransitionError) return fail(409, { code: 'illegal_transition' });
+			if (error instanceof InvalidAuditEventError) {
+				// A content-shaped reason (e.g. a legitimate long slug that still
+				// passed the HTTP-edge non-empty check, or one carrying
+				// URL/address/token-shaped content) belongs to the caller to fix
+				// — 400, not the generic 500 (review round 1 edit 1). Nothing
+				// commits: writeAudit refuses before the transaction's insert.
+				return fail(400, { code: 'invalid_reason', fields: error.fields });
+			}
 			console.error('[remove] action failed:', error instanceof Error ? error.message : error);
 			return fail(500, { code: 'remove_failed' });
 		}

@@ -53,6 +53,8 @@ import {
 } from './activate';
 import { publishAgreementVersion } from './agreement';
 import { OFFBOARD_JOB_KINDS, personRecord } from './offboard';
+import { InvalidAuditEventError } from '../audit/write';
+import { _createLeaveAction } from '../../../routes/(member)/membership/+page.server';
 import {
 	MEMBERSHIP_EVENTS,
 	MEMBERSHIP_STATUSES,
@@ -169,16 +171,20 @@ interface Scenario {
 	personId: string;
 	version: number;
 	sessionId: string | null;
+	/** The tinyland-auth user id backing the session, when one was minted. */
+	authUserId: string | null;
 }
 
 /** Build a membership standing in exactly `state`. */
 async function inState(state: MembershipStatus): Promise<Scenario> {
 	const prov = await provisioned();
 	let sessionId: string | null = null;
+	let authUserId: string | null = null;
 	let version = prov.membership.version;
 	if (state !== 'pending_assent') {
 		const activated = await activate(prov.application.id);
 		sessionId = activated.session.id;
+		authUserId = activated.session.userId;
 		version = activated.membership.version;
 	}
 	if (state === 'paused') {
@@ -222,6 +228,7 @@ async function inState(state: MembershipStatus): Promise<Scenario> {
 		personId: prov.person.id,
 		version,
 		sessionId,
+		authUserId,
 	};
 }
 
@@ -604,5 +611,66 @@ describe('M5 mechanics (slices §2.2 row 14)', () => {
 		const row = await membershipRow(s.membershipId);
 		expect(row.status).toBe('active');
 		expect(await offboardJobs(s.membershipId)).toHaveLength(0);
+	});
+});
+
+describe('InvalidAuditEventError surfaces as 400, not 500 (review round 1 edit 1)', () => {
+	it('removeMembership throws InvalidAuditEventError for a legit-but-token-shaped long reason slug', async () => {
+		const s = await inState('active');
+		// 34 chars of [a-z_] — a real classification a keyholder might type,
+		// but it trips assertReasonClass's 32+-char token-shape heuristic.
+		// This is the exact condition /remove's HTTP-edge catch now maps to
+		// 400 instead of letting fall through to the generic 500.
+		const longLegitSlug = 'code_of_conduct_violation_repeated';
+		expect(longLegitSlug.length).toBeGreaterThanOrEqual(32);
+
+		await expect(
+			withTenant(
+				tenantId,
+				(tx) =>
+					removeMembership(tx, {
+						membershipId: s.membershipId,
+						keyholderPersonId: keyholder,
+						reasonClass: longLegitSlug,
+						reauthAt: new Date(),
+						expectedVersion: s.version,
+					}),
+				db,
+			),
+		).rejects.toBeInstanceOf(InvalidAuditEventError);
+
+		// Nothing committed: writeAudit refuses before the insert.
+		const row = await membershipRow(s.membershipId);
+		expect(row.status).toBe('active');
+		expect(row.version).toBe(s.version);
+	});
+
+	it('the /membership leave action maps the same refusal to 400 invalid_reason, not 500', async () => {
+		const s = await inState('active');
+		const longLegitSlug = 'code_of_conduct_violation_repeated';
+		const action = _createLeaveAction({ env: { ...process.env, GFTB_TENANT_ID: tenantId } });
+
+		const body = new URLSearchParams({
+			membershipId: s.membershipId,
+			reasonClass: longLegitSlug,
+			expectedVersion: String(s.version),
+		});
+		if (!s.authUserId) throw new Error('fixture: expected an activated session');
+		const event = {
+			request: new Request('http://localhost/membership', {
+				method: 'POST',
+				headers: { 'content-type': 'application/x-www-form-urlencoded' },
+				body,
+			}),
+			locals: { authSession: { id: s.sessionId, userId: s.authUserId } },
+		} as unknown as Parameters<ReturnType<typeof _createLeaveAction>>[0];
+
+		const result = await action(event);
+		expect(result).toHaveProperty('status', 400);
+		expect(result).toHaveProperty('data.code', 'invalid_reason');
+
+		const row = await membershipRow(s.membershipId);
+		expect(row.status).toBe('active');
+		expect(row.version).toBe(s.version);
 	});
 });

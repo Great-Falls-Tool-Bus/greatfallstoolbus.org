@@ -22,6 +22,7 @@ import { withTenant } from '$lib/server/db/tenant';
 import type { DbTransaction } from '$lib/server/db/client';
 import { membership } from '$lib/server/db/schema';
 import { AuthError } from '$lib/server/auth';
+import { InvalidAuditEventError } from '$lib/server/audit/write';
 import {
 	IllegalMembershipTransitionError,
 	MembershipNotFoundError,
@@ -45,6 +46,12 @@ function membershipFailure(error: unknown) {
 	if (error instanceof MembershipNotFoundError) return fail(404, { code: 'not_found' });
 	if (error instanceof MembershipVersionConflictError) return fail(409, { code: 'version_conflict' });
 	if (error instanceof IllegalMembershipTransitionError) return fail(409, { code: 'illegal_transition' });
+	if (error instanceof InvalidAuditEventError) {
+		// Same content-shaped-reason edge as /remove (review round 1 edit 1):
+		// a bad reasonClass (pause/leave) surfaces as 400, not the generic
+		// 500. Nothing commits: writeAudit refuses before the insert.
+		return fail(400, { code: 'invalid_reason', fields: error.fields });
+	}
 	console.error('[membership] action failed:', error instanceof Error ? error.message : error);
 	return fail(500, { code: 'membership_action_failed' });
 }
