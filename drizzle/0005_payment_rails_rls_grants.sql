@@ -1,4 +1,4 @@
--- 0004 — payment-rails row-level security and grant narrowing (TIN-3818 scaffold).
+-- 0005 — payment-rails row-level security and grant narrowing (TIN-3818 scaffold).
 --
 -- Hand-written for the same reason 0002 is: drizzle-kit@0.30 cannot emit
 -- FORCE ROW LEVEL SECURITY, and FORCE is the half that matters — without it
@@ -37,18 +37,26 @@ CREATE POLICY "stripe_event_inbox_tenant" ON "stripe_event_inbox"
 -- 0002's ALTER DEFAULT PRIVILEGES hands every new table full DML, which is the
 -- right default and the wrong end state for two of these three tables:
 --
---   finance_receipt      APPEND-ONLY (spec §3.3): "corrections append a
+--   finance_receipt      APPEND-ONLY (slices §3.3): "corrections append a
 --                        reversal/replacement event", enforced BY GRANT rather
 --                        than by convention. The runtime role can INSERT and
 --                        SELECT; there is no UPDATE or DELETE it can issue.
---   stripe_event_inbox   DURABLE (spec §3.2): the raw event is the audit
---                        record. The projection consumer UPDATEs
---                        processed_at / process_attempts / last_error, so
---                        UPDATE stays; DELETE goes.
+--   stripe_event_inbox   DURABLE (slices §3.2): the raw signed event is the
+--                        audit record, so the identity columns — payload,
+--                        event_id, event_type, api_version, livemode,
+--                        received_at — are immutable to the runtime role.
+--                        The projection consumer needs to stamp only its OWN
+--                        bookkeeping, so UPDATE is re-granted column-scoped:
+--                        processed_at / process_attempts / last_error. A
+--                        whole-table UPDATE grant would have let the runtime
+--                        role rewrite payload and livemode (adversarial-review
+--                        finding S3 on PR #174).
 --
 -- contribution_agreement keeps full DML: it is a mutable projection, not a
 -- ledger.
 
 REVOKE UPDATE, DELETE ON "finance_receipt" FROM gftb_app;
 --> statement-breakpoint
-REVOKE DELETE ON "stripe_event_inbox" FROM gftb_app;
+REVOKE UPDATE, DELETE ON "stripe_event_inbox" FROM gftb_app;
+--> statement-breakpoint
+GRANT UPDATE (processed_at, process_attempts, last_error) ON "stripe_event_inbox" TO gftb_app;

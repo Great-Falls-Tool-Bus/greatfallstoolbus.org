@@ -1,6 +1,6 @@
 {
-  "id": "2e63c335-dd5c-453b-b7be-751a6d4aa8ed",
-  "prevId": "88ac724e-8117-4bad-bada-c84106a07275",
+  "id": "45a1cbe1-904f-4c44-b7b5-74daf03101b1",
+  "prevId": "2e63c335-dd5c-453b-b7be-751a6d4aa8ed",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -79,26 +79,26 @@
         "contribution_agreement_tenant_id_tenant_tenant_id_fk": {
           "name": "contribution_agreement_tenant_id_tenant_tenant_id_fk",
           "tableFrom": "contribution_agreement",
-          "tableTo": "tenant",
           "columnsFrom": [
             "tenant_id"
           ],
+          "tableTo": "tenant",
           "columnsTo": [
             "tenant_id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "contribution_one_per_person": {
           "name": "contribution_one_per_person",
-          "nullsNotDistinct": false,
           "columns": [
             "tenant_id",
             "person_id"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -204,39 +204,39 @@
         "finance_receipt_tenant_id_tenant_tenant_id_fk": {
           "name": "finance_receipt_tenant_id_tenant_tenant_id_fk",
           "tableFrom": "finance_receipt",
-          "tableTo": "tenant",
           "columnsFrom": [
             "tenant_id"
           ],
+          "tableTo": "tenant",
           "columnsTo": [
             "tenant_id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "finance_receipt_reverses_id_finance_receipt_id_fk": {
           "name": "finance_receipt_reverses_id_finance_receipt_id_fk",
           "tableFrom": "finance_receipt",
-          "tableTo": "finance_receipt",
           "columnsFrom": [
             "reverses_id"
           ],
+          "tableTo": "finance_receipt",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "finance_receipt_idem_uniq": {
           "name": "finance_receipt_idem_uniq",
-          "nullsNotDistinct": false,
           "columns": [
             "tenant_id",
             "idempotency_key"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -383,37 +383,37 @@
             }
           ],
           "isUnique": false,
-          "where": "\"outbox_job\".\"status\" in ('pending', 'leased')",
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "where": "\"outbox_job\".\"status\" in ('pending', 'leased')",
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "outbox_job_tenant_id_tenant_tenant_id_fk": {
           "name": "outbox_job_tenant_id_tenant_tenant_id_fk",
           "tableFrom": "outbox_job",
-          "tableTo": "tenant",
           "columnsFrom": [
             "tenant_id"
           ],
+          "tableTo": "tenant",
           "columnsTo": [
             "tenant_id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "outbox_job_idem_uniq": {
           "name": "outbox_job_idem_uniq",
-          "nullsNotDistinct": false,
           "columns": [
             "tenant_id",
             "kind",
             "idempotency_key"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -492,15 +492,15 @@
         "stripe_event_inbox_tenant_id_tenant_tenant_id_fk": {
           "name": "stripe_event_inbox_tenant_id_tenant_tenant_id_fk",
           "tableFrom": "stripe_event_inbox",
-          "tableTo": "tenant",
           "columnsFrom": [
             "tenant_id"
           ],
+          "tableTo": "tenant",
           "columnsTo": [
             "tenant_id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -560,9 +560,9 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -601,10 +601,10 @@
     }
   },
   "schemas": {},
+  "views": {},
   "sequences": {},
   "roles": {},
   "policies": {},
-  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},

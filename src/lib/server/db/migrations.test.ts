@@ -68,7 +68,7 @@ describe('the migration tree is checked in', () => {
 		for (const file of [
 			'drizzle/0001_auth_pg_vendored_0_2_4.sql',
 			'drizzle/0002_rls_force_and_runtime_grants.sql',
-			'drizzle/0004_payment_rails_rls_grants.sql',
+			'drizzle/0005_payment_rails_rls_grants.sql',
 		]) {
 			const sql = read(file);
 			// Anchored to the start of a line so the prose explaining the rule is
@@ -91,7 +91,7 @@ describe('the migration tree is checked in', () => {
 		for (const file of [
 			'drizzle/0001_auth_pg_vendored_0_2_4.sql',
 			'drizzle/0002_rls_force_and_runtime_grants.sql',
-			'drizzle/0004_payment_rails_rls_grants.sql',
+			'drizzle/0005_payment_rails_rls_grants.sql',
 		]) {
 			const sql = read(file);
 			const enabled = sql.match(/^ALTER TABLE .* ENABLE ROW LEVEL SECURITY;$/gm) ?? [];
