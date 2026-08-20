@@ -392,7 +392,7 @@ describe('A3 verify_email — tokens on real rows (slices §2.2 row 3; S4 accept
 			(tx) => mintToken(tx, { applicationId: app.id, purpose: 'verify_email' }),
 			db,
 		);
-		const action = _createVerifyAction();
+		const action = _createVerifyAction({ limiter: createRateLimiter({ max: 100, windowMs: 1000 }) });
 
 		const ok = await action(postEvent({ token: minted.token }));
 		expect(ok).toEqual({ verified: true });
@@ -401,6 +401,32 @@ describe('A3 verify_email — tokens on real rows (slices §2.2 row 3; S4 accept
 		const unknown = await action(postEvent({ token: 'never-minted' }));
 		expect(replayed).toHaveProperty('status', 400);
 		expect(JSON.stringify(unknown)).toBe(JSON.stringify(replayed));
+	});
+
+	it('exceeding the rate limit on /apply/verify returns 429 before any token is parsed (edit 2)', async () => {
+		const tenantId = await newTenant();
+		process.env.GFTB_TENANT_ID = tenantId;
+		const { application: app } = await submitted(tenantId);
+		const minted = await withTenant(
+			tenantId,
+			(tx) => mintToken(tx, { applicationId: app.id, purpose: 'verify_email' }),
+			db,
+		);
+		const action = _createVerifyAction({ limiter: createRateLimiter({ max: 1, windowMs: 60_000 }) });
+
+		const ok = await action(postEvent({ token: minted.token }));
+		expect(ok).toEqual({ verified: true });
+
+		// Second call from the same caller: denied before the (garbage) token
+		// is even read — a valid-shaped token and a nonsense one refuse
+		// byte-identically once the caller is over budget.
+		const deniedValidShape = await action(postEvent({ token: minted.token }));
+		const deniedNonsense = await action(postEvent({ token: 'not-a-real-token' }));
+		for (const denied of [deniedValidShape, deniedNonsense]) {
+			expect(denied).toHaveProperty('status', 429);
+			expect(denied).toHaveProperty('data', { code: 'rate_limited' });
+		}
+		expect(JSON.stringify(deniedValidShape)).toBe(JSON.stringify(deniedNonsense));
 	});
 
 	it('log capture across the full submit→mint→consume path: the plaintext appears nowhere', async () => {

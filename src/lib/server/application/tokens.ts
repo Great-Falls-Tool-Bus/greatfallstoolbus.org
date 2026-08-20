@@ -135,7 +135,7 @@ export async function mintToken(tx: DbTransaction, input: MintTokenInput): Promi
 /**
  * Consume a token: look it up BY HASH, decide with `assessTokenRow`, and mark
  * it consumed — one-way, enforced twice more below this function (the
- * column-level grant and the single-use trigger in migration 0004).
+ * column-level grant and the single-use trigger in migration 0007).
  *
  * `SELECT … FOR UPDATE` serialises concurrent replays of the same token: the
  * loser waits, re-reads a consumed row, and is refused — "single-use" holds

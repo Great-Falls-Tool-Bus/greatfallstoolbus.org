@@ -12,29 +12,52 @@
  * tokens all produce the same 400 body (`TokenRejectedError`'s one public
  * message); the plaintext token is never logged and never echoed into
  * markup beyond the form's own hidden field.
+ *
+ * RATE-LIMITED LIKE `/apply` (spec §6: "Public endpoints are rate-limited
+ * and return non-enumerating responses"). 256-bit verify tokens make
+ * enumeration cryptographically hopeless, so this is a DB-load/DoS
+ * conformance edit, not a credential-guessing risk: an unbounded stream of
+ * verify POSTs each buys a database transaction. The same caller-keyed
+ * limiter `/apply` uses is wired here, checked before any parsing, denying
+ * with one constant 429 body.
  */
 
 import { fail, type Actions, type RequestEvent, type ActionFailure } from '@sveltejs/kit';
 import { withTenant } from '$lib/server/db/tenant';
 import { verifyEmail } from '$lib/server/application/intake';
 import { TokenRejectedError } from '$lib/server/application/tokens';
+import { intakeRateLimiter, type RateLimiter } from '$lib/server/application/ratelimit';
 import type { PageServerLoad } from './$types';
 
 export const prerender = false;
 
 const INVALID = { code: 'invalid_token' } as const;
 const UNAVAILABLE = { code: 'intake_unavailable' } as const;
+const RATE_LIMITED = { code: 'rate_limited' } as const;
 
 export interface VerifyActionSeams {
 	env?: NodeJS.ProcessEnv;
+	limiter?: RateLimiter;
 }
 
 export type VerifyActionResult = ActionFailure<{ code: string }> | { verified: true };
 
 export function _createVerifyAction(seams: VerifyActionSeams = {}) {
 	const env = seams.env ?? process.env;
+	const limiter = seams.limiter ?? intakeRateLimiter;
 
 	return async (event: RequestEvent): Promise<VerifyActionResult> => {
+		// Keyed by the caller, before any parsing — same non-enumerating shape
+		// as the /apply action (never sees the token, so it cannot leak
+		// anything about whether a presented token is valid).
+		let clientKey = 'unknown';
+		try {
+			clientKey = event.getClientAddress();
+		} catch {
+			// Adapter contexts without a client address share one bucket.
+		}
+		if (!limiter.check(clientKey).allowed) return fail(429, RATE_LIMITED);
+
 		const tenantId = env.GFTB_TENANT_ID?.trim();
 		if (!tenantId || !env.DATABASE_URL?.trim()) return fail(503, UNAVAILABLE);
 
