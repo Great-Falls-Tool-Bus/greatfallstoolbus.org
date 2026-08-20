@@ -27,10 +27,12 @@
 // applier (`build/migrator.mjs`, built by `just db-migrator-bundle` from
 // src/lib/server/db/migrate.ts) which takes a PostgreSQL advisory lock and
 // applies the checked-in drizzle/ migrations against an immutable hash ledger.
-// `worker` is still declared and FAILS CLOSED; S3 owns the outbox dispatcher
-// and replaces the placeholder below the same way. A placeholder that exited 0
-// would let a Deployment report healthy while doing nothing, so it exits 78
-// instead.
+// `worker` was the last placeholder; TIN-3817 slice S3 filled it in the same
+// way. It dispatches into the bundled outbox worker (`build/worker.mjs`, built
+// by `just worker-bundle` from src/lib/server/worker.ts), which claims
+// transactional-outbox jobs with FOR UPDATE SKIP LOCKED under a lease and
+// retries/dead-letters per spec §3.1. All three roles are now real; a missing
+// bundle is a malformed image (70), never a healthy no-op.
 //
 // No secret value, cluster endpoint, or credential belongs in this file — see
 // AGENTS.md "Repo Role". Runtime references only.
@@ -42,14 +44,23 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 /** Stable process names carried by the platform image. Order is the help order. */
 export const PLATFORM_ROLES = Object.freeze(['web', 'worker', 'migrator']);
 
-/** Roles whose implementation has not landed yet; each names the slice that owns it. */
-const PENDING_ROLES = Object.freeze({
-	worker: 'S3 (TIN-3817) — transactional outbox dispatcher',
-});
+/**
+ * Roles whose implementation has not landed yet; each names the slice that
+ * owns it. Empty since TIN-3817 S3 filled in `worker` — kept (with its help
+ * and fail-closed plumbing below) so a future role addition inherits the
+ * "declared, never silently healthy" contract instead of re-inventing it.
+ */
+const PENDING_ROLES = Object.freeze({});
 
 /** One line per implemented role, so `--help` says what the boundary actually does. */
 const ROLE_STATUS = Object.freeze({
 	web: 'Status: implemented. Serves the adapter-node build output.',
+	worker:
+		'Status: implemented. Claims transactional-outbox jobs in bounded batches\n' +
+		'(FOR UPDATE SKIP LOCKED) under a lease, runs the registered handler per\n' +
+		'kind, retries with jittered backoff, and dead-letters after max_attempts.\n' +
+		'Run `worker --once` for a single cycle; the worker prints its own option\n' +
+		'list once loaded. No job kinds are registered until S7/S9 land.',
 	migrator:
 		'Status: implemented. Applies the checked-in drizzle/ migrations under a\n' +
 		'PostgreSQL advisory lock against the immutable migration hash ledger, then\n' +
@@ -151,6 +162,20 @@ export function resolveMigratorEntrypoint(override) {
 }
 
 /**
+ * Locate the bundled outbox worker (TIN-3817 S3). Same contract as the
+ * migrator bundle: GFTB_WORKER_ENTRYPOINT in the image, the repo-relative
+ * output of `just worker-bundle` outside it, and a BUNDLE (pg and drizzle-orm
+ * inlined) because the production image carries no node_modules.
+ *
+ * @param {string | undefined} override
+ * @returns {URL}
+ */
+export function resolveWorkerEntrypoint(override) {
+	if (override) return pathToFileURL(override);
+	return new URL('../build/worker.mjs', import.meta.url);
+}
+
+/**
  * @param {{
  *   argv1?: string,
  *   args?: string[],
@@ -213,9 +238,33 @@ export async function runPlatformEntrypoint(options = {}) {
 		return await migrator.main(roleArgs);
 	}
 
+	if (role === 'worker') {
+		const href = resolveWorkerEntrypoint(env.GFTB_WORKER_ENTRYPOINT).href;
+		let worker;
+		try {
+			worker = /** @type {{ main?: (args: string[]) => Promise<number> }} */ (await importModule(href));
+		} catch (error) {
+			stderr.write(
+				`platform-entrypoint: worker bundle not loadable at ${href} ` +
+					`(${/** @type {Error} */ (error).message}). Build it with \`just worker-bundle\`.\n`,
+			);
+			return EXIT_MALFORMED;
+		}
+		if (typeof worker.main !== 'function') {
+			stderr.write(`platform-entrypoint: ${href} exports no main(); the worker bundle is malformed.\n`);
+			return EXIT_MALFORMED;
+		}
+		// The worker owns its own exit codes (0 help/--once/graceful shutdown,
+		// 64 usage, 78 database or tenant unavailable) — see
+		// src/lib/server/worker.ts.
+		return await worker.main(roleArgs);
+	}
+
+	// Unreachable while every ROLE_SET member is implemented; keeps the
+	// fail-closed contract for any future declared-only role.
 	stderr.write(
 		`platform-entrypoint: "${role}" is a reserved Member v0 process boundary; ` +
-			`its implementation has not landed yet (${PENDING_ROLES[/** @type {keyof typeof PENDING_ROLES} */ (role)]}).\n`,
+			`its implementation has not landed yet (${PENDING_ROLES[/** @type {keyof typeof PENDING_ROLES} */ (role)] ?? 'no owning slice recorded'}).\n`,
 	);
 	return EXIT_UNAVAILABLE;
 }
