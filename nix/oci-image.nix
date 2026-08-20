@@ -48,6 +48,9 @@
   # a value" error. `-A image` passes both via `--arg`, overriding these defaults.
   appBuild ? throw "nix/oci-image.nix: building the 'image' attr requires --arg appBuild \"$PWD/build\" (the ADAPTER=node output); it is not needed for -A skopeo.",
   appPackageJson ? throw "nix/oci-image.nix: building the 'image' attr requires --arg appPackageJson \"$PWD/package.json\"; it is not needed for -A skopeo.",
+  # The checked-in migration tree (TIN-3817 S1). /bin/migrator hashes these
+  # files' EXACT bytes against the ledger, so they ship with the image.
+  appMigrations ? throw "nix/oci-image.nix: building the 'image' attr requires --arg appMigrations \"$PWD/drizzle\"; it is not needed for -A skopeo.",
   commitSha ? "unknown",
   commitRef ? "unknown",
   created ? "1970-01-01T00:00:00Z",
@@ -58,6 +61,13 @@ let
     mkdir -p "$out/app"
     cp -a ${appBuild} "$out/app/build"
     cp -a ${appPackageJson} "$out/app/package.json"
+    cp -a ${appMigrations} "$out/app/drizzle"
+    test -f "$out/app/build/migrator.mjs" || {
+      echo "nix/oci-image.nix: build/migrator.mjs is missing from appBuild." >&2
+      echo "  /bin/migrator would exit 70 (malformed image) at runtime." >&2
+      echo "  Run 'just db-migrator-bundle' before building the image." >&2
+      exit 1
+    }
   '';
 
   # ONE image, THREE stable process names (spec §6, TIN-3815 S0) — mirrors the
@@ -127,6 +137,9 @@ in
         # The dispatcher lives in the Nix store, so it cannot infer a
         # repo-relative build/. Hand it the absolute in-image path.
         "GFTB_WEB_ENTRYPOINT=/app/build/index.js"
+        # Same reason, for the migrator (TIN-3817 S1).
+        "GFTB_MIGRATOR_ENTRYPOINT=/app/build/migrator.mjs"
+        "GFTB_MIGRATIONS_DIR=/app/drizzle"
         "NODE_OPTIONS=--max-old-space-size=512"
         "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
       ];

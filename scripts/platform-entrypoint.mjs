@@ -22,11 +22,15 @@
 // That is load-bearing: it is the per-entrypoint liveness proof in S0's
 // acceptance rows, and it must not require a database, a queue, or a network.
 //
-// `worker` and `migrator` are declared here and FAIL CLOSED. S1 owns the
-// migrator (advisory-locked, hash-ledgered) and S3 owns the outbox dispatcher
-// worker; both replace the placeholder below WITHOUT changing this image
-// contract. A placeholder that exited 0 would let a Deployment report healthy
-// while doing nothing, so the placeholder exits 78 (EX_UNAVAILABLE) instead.
+// `migrator` was declared and failed closed in S0; TIN-3817 slice S1 filled it
+// in, without changing this image contract. It now dispatches into the bundled
+// applier (`build/migrator.mjs`, built by `just db-migrator-bundle` from
+// src/lib/server/db/migrate.ts) which takes a PostgreSQL advisory lock and
+// applies the checked-in drizzle/ migrations against an immutable hash ledger.
+// `worker` is still declared and FAILS CLOSED; S3 owns the outbox dispatcher
+// and replaces the placeholder below the same way. A placeholder that exited 0
+// would let a Deployment report healthy while doing nothing, so it exits 78
+// instead.
 //
 // No secret value, cluster endpoint, or credential belongs in this file — see
 // AGENTS.md "Repo Role". Runtime references only.
@@ -41,13 +45,34 @@ export const PLATFORM_ROLES = Object.freeze(['web', 'worker', 'migrator']);
 /** Roles whose implementation has not landed yet; each names the slice that owns it. */
 const PENDING_ROLES = Object.freeze({
 	worker: 'S3 (TIN-3817) — transactional outbox dispatcher',
-	migrator: 'S1 (TIN-3817) — advisory-locked migrator against the hash ledger',
+});
+
+/** One line per implemented role, so `--help` says what the boundary actually does. */
+const ROLE_STATUS = Object.freeze({
+	web: 'Status: implemented. Serves the adapter-node build output.',
+	migrator:
+		'Status: implemented. Applies the checked-in drizzle/ migrations under a\n' +
+		'PostgreSQL advisory lock against the immutable migration hash ledger, then\n' +
+		'exits. A no-op is a success. Run `migrator --dry-run` to report without\n' +
+		'applying; the applier prints its own option list once loaded.',
 });
 
 /** sysexits.h EX_USAGE: the caller named no role, or a role that does not exist. */
 export const EXIT_USAGE = 64;
-/** sysexits.h EX_UNAVAILABLE: the role exists but its implementation has not landed. */
+/**
+ * The role exists but cannot proceed: its implementation has not landed
+ * (`worker`), or the database it needs is unreachable/unconfigured
+ * (`migrator`). Published by S0 and inherited unchanged, because the pre-rollout
+ * Job in `great-falls-tool-bus-infra` keys its retry on this value.
+ */
 export const EXIT_UNAVAILABLE = 78;
+/**
+ * sysexits.h EX_SOFTWARE: the image is malformed — a role's bundle is absent.
+ * Deliberately NOT 78: "this image was built wrong" and "the database is not
+ * up yet" call for different operator responses, and an image that cannot ever
+ * work must not look like one waiting on a dependency.
+ */
+export const EXIT_MALFORMED = 70;
 
 const ROLE_SET = new Set(PLATFORM_ROLES);
 
@@ -83,7 +108,7 @@ export function platformRoleHelp(role) {
 		'One image carries all of: ' + PLATFORM_ROLES.join(', ') + '.',
 		pending
 			? `Status: declared, not yet implemented. Owned by ${pending}.`
-			: 'Status: implemented. Serves the adapter-node build output.',
+			: ROLE_STATUS[/** @type {keyof typeof ROLE_STATUS} */ (role)],
 	].join('\n');
 }
 
@@ -101,6 +126,28 @@ export function platformRoleHelp(role) {
 export function resolveWebEntrypoint(override) {
 	if (override) return pathToFileURL(override);
 	return new URL('../build/index.js', import.meta.url);
+}
+
+/**
+ * Locate the bundled migrator (TIN-3817 S1).
+ *
+ * Same shape as the web entrypoint, for the same reason: in the image this
+ * dispatcher lives in the Nix store (or /app/scripts) and cannot infer a
+ * repo-relative layout, so GFTB_MIGRATOR_ENTRYPOINT hands it the absolute path.
+ * Outside the image the repo-relative `build/migrator.mjs` — the output of
+ * `just db-migrator-bundle` — is the natural default.
+ *
+ * The migrator is a BUNDLE rather than the TypeScript source because the
+ * production image deliberately carries no node_modules: the adapter-node
+ * build inlines the web server's dependencies, and the migrator's single
+ * dependency (`pg`) is inlined the same way.
+ *
+ * @param {string | undefined} override
+ * @returns {URL}
+ */
+export function resolveMigratorEntrypoint(override) {
+	if (override) return pathToFileURL(override);
+	return new URL('../build/migrator.mjs', import.meta.url);
 }
 
 /**
@@ -143,6 +190,27 @@ export async function runPlatformEntrypoint(options = {}) {
 	if (role === 'web') {
 		await importModule(resolveWebEntrypoint(env.GFTB_WEB_ENTRYPOINT).href);
 		return 0;
+	}
+
+	if (role === 'migrator') {
+		const href = resolveMigratorEntrypoint(env.GFTB_MIGRATOR_ENTRYPOINT).href;
+		let migrator;
+		try {
+			migrator = /** @type {{ main?: (args: string[]) => Promise<number> }} */ (await importModule(href));
+		} catch (error) {
+			stderr.write(
+				`platform-entrypoint: migrator bundle not loadable at ${href} ` +
+					`(${/** @type {Error} */ (error).message}). Build it with \`just db-migrator-bundle\`.\n`,
+			);
+			return EXIT_MALFORMED;
+		}
+		if (typeof migrator.main !== 'function') {
+			stderr.write(`platform-entrypoint: ${href} exports no main(); the migrator bundle is malformed.\n`);
+			return EXIT_MALFORMED;
+		}
+		// The applier owns its own exit codes (0 no-op/applied, 65 ledger drift,
+		// 78 database unreachable) — see src/lib/server/db/constants.ts.
+		return await migrator.main(roleArgs);
 	}
 
 	stderr.write(

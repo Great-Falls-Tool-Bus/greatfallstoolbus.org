@@ -221,11 +221,26 @@
         # FAST layer: the small, frequently-changing adapter-node bundle at /app.
         # adapter-node bundles the (pure-JS) production deps into build/, so the
         # runtime needs only build/ + package.json + a Node runtime; no node_modules.
+        #
+        # drizzle/ rides along (TIN-3817 S1) because /bin/migrator reads the
+        # checked-in migration SQL and hashes its EXACT bytes against the ledger.
+        # It comes from the flake source tree rather than from APP_BUILD, so the
+        # migrations in the image are the ones in the commit — not whatever
+        # happened to be in a working directory at build time. build/migrator.mjs
+        # (the applier, bundled by `just db-migrator-bundle`) rides inside
+        # APP_BUILD alongside the web server.
         appLayer = n2c.buildLayer {
           copyToRoot = pkgs.runCommand "gftb-app" { } ''
             mkdir -p "$out/app"
             cp -a ${appBuild} "$out/app/build"
             cp -a ${./package.json} "$out/app/package.json"
+            cp -a ${./drizzle} "$out/app/drizzle"
+            test -f "$out/app/build/migrator.mjs" || {
+              echo "flake .#image: build/migrator.mjs is missing from APP_BUILD." >&2
+              echo "  /bin/migrator would exit 70 (malformed image) at runtime." >&2
+              echo "  Run 'just db-migrator-bundle' before importing APP_BUILD." >&2
+              exit 1
+            }
           '';
         };
 
@@ -252,6 +267,10 @@
               # The dispatcher lives in the Nix store, so it cannot infer a
               # repo-relative build/. Hand it the absolute in-image path.
               "GFTB_WEB_ENTRYPOINT=/app/build/index.js"
+              # Same reason, for the migrator (TIN-3817 S1): the applier bundle
+              # and the migration SQL it hashes are both addressed absolutely.
+              "GFTB_MIGRATOR_ENTRYPOINT=/app/build/migrator.mjs"
+              "GFTB_MIGRATIONS_DIR=/app/drizzle"
               "NODE_OPTIONS=--max-old-space-size=512"
               "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
             ];

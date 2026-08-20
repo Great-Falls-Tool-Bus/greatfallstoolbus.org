@@ -1,0 +1,42 @@
+/**
+ * The testcontainers-backed lane (TIN-3817 slice S1).
+ *
+ * Separate from `vitest.config.ts` on purpose. These suites start a real
+ * PostgreSQL 16.15 container, so they need a container daemon, minutes rather
+ * than milliseconds, and no parallelism across files that would fight for
+ * ports. Folding them into `just check` would make the default gate fail on
+ * every machine without Docker — including this repository's ARC pool, which
+ * advertises only `tinyland-nix` and has no dind/buildx runner.
+ *
+ * Entry point: `just test-integration`, which skips loudly rather than
+ * silently when no daemon answers.
+ */
+
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vitest/config';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export default defineConfig({
+	resolve: {
+		alias: {
+			$lib: path.resolve(__dirname, 'src/lib'),
+		},
+	},
+	test: {
+		include: ['src/**/*.integration.test.ts'],
+		environment: 'node',
+		globals: true,
+		// One container per file already; running files in parallel multiplies
+		// image pulls and port pressure without shortening the wall clock much.
+		fileParallelism: false,
+		// A cold `postgres:16.15` pull dominates the first run.
+		testTimeout: 300_000,
+		hookTimeout: 300_000,
+		teardownTimeout: 120_000,
+		// Vacuous green is the failure mode this lane cannot afford: if the glob
+		// ever stops matching, say so instead of reporting success.
+		passWithNoTests: false,
+	},
+});
