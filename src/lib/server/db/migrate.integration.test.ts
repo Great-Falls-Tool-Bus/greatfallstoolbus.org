@@ -80,6 +80,8 @@ describe('applying the checked-in migrations', () => {
 			'auth.sessions',
 			'auth.totp_secrets',
 			'auth.users',
+			'public.application', // S4 (TIN-3440): the application aggregate rides migration 0007
+			'public.application_email_token', // S4 (TIN-3440): hashed single-use tokens, migration 0007
 			'public.contribution_agreement',
 			'public.finance_receipt',
 			'public.member_role_grant', // S2 (TIN-3817): the role-grant table rides migration 0003
