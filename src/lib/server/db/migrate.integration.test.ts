@@ -80,7 +80,10 @@ describe('applying the checked-in migrations', () => {
 			'auth.sessions',
 			'auth.totp_secrets',
 			'auth.users',
+			'public.contribution_agreement',
+			'public.finance_receipt',
 			'public.outbox_job',
+			'public.stripe_event_inbox',
 			'public.tenant',
 		]);
 

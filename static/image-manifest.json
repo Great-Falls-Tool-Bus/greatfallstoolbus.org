@@ -19,6 +19,22 @@
       }
     }
   },
+  "photos/bus-interior": {
+    "type": "raster",
+    "original": "/photos/bus-interior.jpg",
+    "width": 698,
+    "height": 674,
+    "optimized": {
+      "webp": {
+        "thumbnail": "/optimized/photos/bus-interior-thumbnail.webp",
+        "small": "/optimized/photos/bus-interior-small.webp"
+      },
+      "avif": {
+        "thumbnail": "/optimized/photos/bus-interior-thumbnail.avif",
+        "small": "/optimized/photos/bus-interior-small.avif"
+      }
+    }
+  },
   "photos/great-falls-lewiston-1930s": {
     "type": "raster",
     "original": "/photos/great-falls-lewiston-1930s.jpg",
