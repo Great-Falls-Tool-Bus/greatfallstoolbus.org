@@ -241,6 +241,12 @@
               echo "  Run 'just db-migrator-bundle' before importing APP_BUILD." >&2
               exit 1
             }
+            test -f "$out/app/build/worker.mjs" || {
+              echo "flake .#image: build/worker.mjs is missing from APP_BUILD." >&2
+              echo "  /bin/worker would exit 70 (malformed image) at runtime." >&2
+              echo "  Run 'just worker-bundle' before importing APP_BUILD." >&2
+              exit 1
+            }
           '';
         };
 
@@ -271,6 +277,9 @@
               # and the migration SQL it hashes are both addressed absolutely.
               "GFTB_MIGRATOR_ENTRYPOINT=/app/build/migrator.mjs"
               "GFTB_MIGRATIONS_DIR=/app/drizzle"
+              # Same reason, for the worker (TIN-3817 S3). DATABASE_URL and
+              # GFTB_TENANT_ID stay runtime NAMES owned by the apply plane.
+              "GFTB_WORKER_ENTRYPOINT=/app/build/worker.mjs"
               "NODE_OPTIONS=--max-old-space-size=512"
               "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
             ];

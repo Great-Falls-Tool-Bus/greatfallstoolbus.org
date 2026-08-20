@@ -142,11 +142,12 @@ container-image-publish: platform-entrypoints-check
     # recipes set it — local / adapter-static builds leave it unset and the line
     # degrades to nothing.
     ADAPTER=node PUBLIC_ARCHIVE_LIVE=true PUBLIC_BUILD_SHA="${BUILD_COMMIT_SHA}" pnpm run build
-    # 1b. The /bin/migrator payload (TIN-3817 S1). It lands INSIDE build/ so it
-    #     rides the same APP_BUILD import as the web server; the flake refuses to
-    #     assemble an image without it rather than shipping a migrator that
-    #     exits 70.
+    # 1b. The /bin/migrator payload (TIN-3817 S1) and the /bin/worker payload
+    #     (TIN-3817 S3). Both land INSIDE build/ so they ride the same APP_BUILD
+    #     import as the web server; the flake refuses to assemble an image
+    #     without either rather than shipping a role that exits 70.
     just db-migrator-bundle
+    just worker-bundle
     export APP_BUILD="$PWD/build"
     # 2. Build the nix2container image and push it to GHCR through the n2c-patched
     #    skopeo. copyToRegistry derives docker://${IMAGE_REF}:${tag} from the image
@@ -187,8 +188,10 @@ container-image-build: platform-entrypoints-check
     # PUBLIC_BUILD_SHA bakes the build commit for the footer "built from <sha>"
     # provenance link (src/lib/build-info.ts).
     ADAPTER=node PUBLIC_ARCHIVE_LIVE=true PUBLIC_BUILD_SHA="${BUILD_COMMIT_SHA}" pnpm run build
-    # The /bin/migrator payload (TIN-3817 S1); see container-image-publish.
+    # The /bin/migrator (TIN-3817 S1) and /bin/worker (TIN-3817 S3) payloads;
+    # see container-image-publish.
     just db-migrator-bundle
+    just worker-bundle
     export APP_BUILD="$PWD/build"
     nix run --impure .#image.copyTo -- docker-archive:greatfallstoolbus-oci.tar
     echo "wrote greatfallstoolbus-oci.tar"
@@ -283,6 +286,22 @@ container-image-smoke:
     else
         echo "  ✗ migrator without a DSN exited ${migrator_code}, expected 78" >&2
         [ "$migrator_code" = "70" ] && echo "    70 means build/migrator.mjs is absent from the image." >&2
+        failed=1
+    fi
+
+    # TIN-3817 S3: `worker` is the real outbox dispatcher now — same proof shape
+    # as the migrator row above. No DATABASE_URL is supplied, so 78 is the
+    # CORRECT answer: 0 would mean a Deployment reported healthy while doing
+    # nothing, and 70 would mean build/worker.mjs never made it into the image.
+    set +e
+    "$runtime" run --rm --entrypoint worker "$ref" >/dev/null 2>&1
+    worker_code=$?
+    set -e
+    if [ "$worker_code" = "78" ]; then
+        echo "  ✓ worker without a DSN exits 78 (declared unavailable, not silently healthy)"
+    else
+        echo "  ✗ worker without a DSN exited ${worker_code}, expected 78" >&2
+        [ "$worker_code" = "70" ] && echo "    70 means build/worker.mjs is absent from the image." >&2
         failed=1
     fi
 
@@ -381,6 +400,18 @@ db-migrator-bundle:
         --tsconfig-raw='{}' \
         --banner:js="import { createRequire as __gftbCreateRequire } from 'node:module'; const require = __gftbCreateRequire(import.meta.url);"
     @echo "wrote build/migrator.mjs (the /bin/migrator payload)"
+
+# Bundle the outbox worker for the platform image (TIN-3817 S3): one file, no
+# node_modules — same contract as db-migrator-bundle, same createRequire banner
+# (pg is CommonJS), with drizzle-orm inlined alongside it.
+worker-bundle:
+    cd {{ root }} && pnpm exec esbuild src/lib/server/worker.ts \
+        --bundle --platform=node --format=esm --target=node22 \
+        --outfile=build/worker.mjs \
+        --external:pg-native --external:cloudflare:sockets \
+        --tsconfig-raw='{}' \
+        --banner:js="import { createRequire as __gftbCreateRequire } from 'node:module'; const require = __gftbCreateRequire(import.meta.url);"
+    @echo "wrote build/worker.mjs (the /bin/worker payload)"
 
 # PostgreSQL suite: RLS, FORCE, advisory lock, ledger drift, runtime-role grants.
 #
