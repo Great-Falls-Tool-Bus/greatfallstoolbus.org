@@ -68,6 +68,12 @@ let
       echo "  Run 'just db-migrator-bundle' before building the image." >&2
       exit 1
     }
+    test -f "$out/app/build/worker.mjs" || {
+      echo "nix/oci-image.nix: build/worker.mjs is missing from appBuild." >&2
+      echo "  /bin/worker would exit 70 (malformed image) at runtime." >&2
+      echo "  Run 'just worker-bundle' before building the image." >&2
+      exit 1
+    }
   '';
 
   # ONE image, THREE stable process names (spec §6, TIN-3815 S0) — mirrors the
@@ -140,6 +146,8 @@ in
         # Same reason, for the migrator (TIN-3817 S1).
         "GFTB_MIGRATOR_ENTRYPOINT=/app/build/migrator.mjs"
         "GFTB_MIGRATIONS_DIR=/app/drizzle"
+        # Same reason, for the worker (TIN-3817 S3).
+        "GFTB_WORKER_ENTRYPOINT=/app/build/worker.mjs"
         "NODE_OPTIONS=--max-old-space-size=512"
         "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
       ];
