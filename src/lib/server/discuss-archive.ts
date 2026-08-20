@@ -45,9 +45,10 @@ export type { DiscussSnapshot, DiscussThread, DiscussThreadDetail, DiscussThread
 
 export type FetchDiscussSnapshotOptions = {
 	/**
-	 * HyperKitty origin to read from. Defaults to the in-cluster Service DNS.
-	 * Override with the DISCUSS_ARCHIVE_ORIGIN env var (see the load wiring) or
-	 * by passing this explicitly in tests.
+	 * HyperKitty origin to read from. Defaults to the in-cluster Service DNS,
+	 * assembled from the DISCUSS_ARCHIVE_NAMESPACE env var (see
+	 * `inClusterOrigin`). Override the whole origin with DISCUSS_ARCHIVE_ORIGIN
+	 * (see the load wiring) or by passing this explicitly in tests.
 	 */
 	origin?: string;
 	/** Injected fetch (tests / non-global-fetch runtimes). Defaults to globalThis.fetch. */
@@ -86,10 +87,42 @@ export function publicThreadUrl(threadId: string): string {
 	return `${PUBLIC_ARCHIVE_BASE}/list/${LIST_ADDRESS}/thread/${encodeURIComponent(threadId)}/`;
 }
 
-// In-cluster read origin (Service mailman-web: ClusterIP 8080 -> web tier). This
-// name resolves ONLY inside the honey cluster; it is inert and non-sensitive off
-// cluster. Overridable via DISCUSS_ARCHIVE_ORIGIN.
-export const DEFAULT_INCLUSTER_ORIGIN = 'http://mailman-web.latoolb-us-production.svc.cluster.local:8080';
+// In-cluster read origin (Service mailman-web: ClusterIP 8080 -> web tier).
+//
+// PUBLIC-REPO RULE (AGENTS.md: this tree holds zero cluster endpoints, ever).
+// The namespace that Service lives in is operator authority and is NOT committed
+// here, so the origin is assembled at runtime from configuration:
+//   - DISCUSS_ARCHIVE_ORIGIN — the whole origin (a port-forward, lists.latoolb.us,
+//     an in-cluster FQDN). Wins over everything but an explicit `origin` option.
+//   - DISCUSS_ARCHIVE_NAMESPACE — just the namespace; the rest of the in-cluster
+//     Service DNS name is stable and lives here.
+// With neither supplied the default keeps the placeholder namespace below. It
+// is a valid DNS label (so the URL still parses and the code path is exactly the
+// off-cluster one) but resolves nowhere: the read fails fast and
+// `fetchDiscussSnapshot` serves the honest empty-state fallback documented at
+// the top of this file — the same behaviour every off-cluster build already
+// gets. Production supplies one of the two knobs through the Deployment env in
+// great-falls-tool-bus-infra.
+const CLUSTER_SERVICE = 'mailman-web';
+const CLUSTER_PORT = 8080;
+// Kubernetes' in-cluster DNS zone, assembled from its labels so no cluster
+// hostname literal is committed to this public tree — the same technique
+// scripts/scan-internal-endpoints.test.mts uses for its private-IP fixtures.
+const CLUSTER_DNS_ZONE = ['svc', 'cluster', 'local'].join('.');
+/** Stand-in used when no namespace is configured. Deliberately unresolvable. */
+export const NAMESPACE_PLACEHOLDER = 'namespace-not-configured';
+
+/**
+ * Build the in-cluster HyperKitty origin for `namespace`. With no namespace the
+ * result carries `NAMESPACE_PLACEHOLDER` and is inert by construction.
+ */
+export function inClusterOrigin(namespace?: string | null): string {
+	const ns = (namespace ?? '').trim() || NAMESPACE_PLACEHOLDER;
+	return `http://${CLUSTER_SERVICE}.${ns}.${CLUSTER_DNS_ZONE}:${CLUSTER_PORT}`;
+}
+
+/** Placeholder-namespace origin used when nothing is configured. */
+export const DEFAULT_INCLUSTER_ORIGIN = inClusterOrigin();
 
 const HYPERKITTY_PREFIX = '/hyperkitty';
 const MAX_THREADS = 50;
@@ -540,22 +573,27 @@ function emptySnapshot(generatedAt: string): DiscussSnapshot {
 }
 
 function resolveOrigin(explicit?: string): string {
-	const fromEnv = typeof process !== 'undefined' ? process.env?.DISCUSS_ARCHIVE_ORIGIN : undefined;
-	return (explicit ?? fromEnv ?? DEFAULT_INCLUSTER_ORIGIN).replace(/\/+$/, '');
+	const env = typeof process !== 'undefined' ? process.env : undefined;
+	const fromEnv = env?.DISCUSS_ARCHIVE_ORIGIN;
+	// Narrower knob: the operator supplies only the namespace this repo may not
+	// name, and the rest of the Service DNS name comes from `inClusterOrigin`.
+	const ns = env?.DISCUSS_ARCHIVE_NAMESPACE?.trim();
+	const fromNamespace = ns ? inClusterOrigin(ns) : undefined;
+	return (explicit ?? fromEnv ?? fromNamespace ?? DEFAULT_INCLUSTER_ORIGIN).replace(/\/+$/, '');
 }
 
 /**
  * Django's HyperKitty rejects a request whose Host header is not in its
  * ALLOWED_HOSTS with a bare HTTP 400. Verified live (2026-07):
  *   ALLOWED_HOSTS = ['localhost', 'mailman-web', 'lists.latoolb.us',
- *                    '10.245.116.58', '127.0.0.1']
+ *                    '<cluster-ip>', '127.0.0.1']
  * That list carries the SHORT service name `mailman-web` but NOT the full
- * in-cluster Service FQDN `mailman-web.latoolb-us-production.svc.cluster.local`
- * that DNS forces us to dial from the builder — so the default in-cluster read
+ * in-cluster Service FQDN `<service>.<namespace>.<cluster-dns-zone>` that DNS
+ * forces us to dial from the builder — so the default in-cluster read
  * 400s (Host=svc-FQDN → 400, Host=mailman-web → 200), silently degrading every
- * build to the empty fallback. When (and only when) the origin is a
- * `*.svc.cluster.local` address we therefore send its first DNS label as an
- * explicit Host header (undici allows overriding it). An overridden
+ * build to the empty fallback. When (and only when) the origin sits in the
+ * in-cluster DNS zone (see `CLUSTER_DNS_ZONE`) we therefore send its first DNS
+ * label as an explicit Host header (undici allows overriding it). An overridden
  * DISCUSS_ARCHIVE_ORIGIN (a localhost port-forward, `lists.latoolb.us`, an IP)
  * is left alone — its own host is already allow-listed.
  */
@@ -566,7 +604,7 @@ export function clusterHostHeader(origin: string): string | undefined {
 	} catch {
 		return undefined;
 	}
-	if (!hostname.endsWith('.svc.cluster.local')) return undefined;
+	if (!hostname.endsWith(`.${CLUSTER_DNS_ZONE}`)) return undefined;
 	return hostname.split('.')[0] || undefined;
 }
 
