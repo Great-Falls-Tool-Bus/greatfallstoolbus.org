@@ -1,12 +1,12 @@
 /**
- * Cash and check receipts — the first-class rails (TIN-3818; ADR 0016 §3.1,
- * spec §5 cash/check path, slices §3.3).
+ * Cash and check receipts — the first-class rails (TIN-3818; ADR 0016 §3
+ * Card C, spec §5 cash/check path, slices §3.3).
  *
  * Cash and check are RAILS, equal to card in every membership consequence.
  * They are not a Stripe fallback and they never fabricate a Stripe object:
  * an integration test holds a throwing Stripe stub while this module runs.
  *
- * `finance_receipt` is APPEND-ONLY BY GRANT (migration 0004 revokes UPDATE and
+ * `finance_receipt` is APPEND-ONLY BY GRANT (migration 0005 revokes UPDATE and
  * DELETE from the runtime role), so the correction path here can only ever
  * append: a reversal row pointing at the original via `reverses_id`, then a
  * fresh receipt when a corrected figure exists.
@@ -15,7 +15,10 @@
  * structural: `unique (tenant_id, idempotency_key)` plus
  * `on conflict do nothing` means the second delivery of one recording returns
  * the original receipt rather than minting a sibling (spec §6 request
- * contract).
+ * contract) — but ONLY when it really is the same recording. A reused key
+ * carrying a DIFFERENT payload is a conflict, not a duplicate, and throws
+ * `IdempotencyConflictError` instead of reporting success while silently
+ * dropping the new receipt (adversarial-review finding S5 on PR #174).
  */
 
 import { and, eq } from 'drizzle-orm';
@@ -23,6 +26,14 @@ import type { DbTransaction } from '../db/client';
 import { contributionAgreement, financeReceipt, type FinanceReceipt } from '../db/schema';
 
 export class ReceiptValidationError extends Error {}
+
+/**
+ * A reused Idempotency-Key whose payload does not match the original request.
+ * 409-shaped: the caller must pick a fresh key (or stop, if the reuse was the
+ * bug). Returning the original here would report "recorded" for money that
+ * was never recorded (finding S5).
+ */
+export class IdempotencyConflictError extends Error {}
 
 const CHECK_REF_RE = /^\d{1,4}$/;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -98,6 +109,22 @@ export async function recordCashCheckReceipt(
 ): Promise<RecordReceiptResult> {
 	validate(input);
 
+	if (input.reversesId) {
+		// Resolve the reversal target INSIDE the tenant before writing. The
+		// composite FK (tenant_id, reverses_id) → (tenant_id, id) already makes a
+		// cross-tenant pointer unrepresentable at the constraint level — FK checks
+		// bypass RLS, which is why the tenant column is paired in (finding S4) —
+		// but resolving here turns the constraint violation into a named error.
+		const [target] = await tx
+			.select({ id: financeReceipt.id })
+			.from(financeReceipt)
+			.where(and(eq(financeReceipt.tenantId, input.tenantId), eq(financeReceipt.id, input.reversesId)))
+			.limit(1);
+		if (!target) {
+			throw new ReceiptValidationError(`reversesId ${input.reversesId} does not name a receipt in this tenant`);
+		}
+	}
+
 	const inserted = await tx
 		.insert(financeReceipt)
 		.values({
@@ -125,6 +152,25 @@ export async function recordCashCheckReceipt(
 			.limit(1);
 		if (!original) {
 			throw new Error('finance_receipt idempotency conflict with no visible original — RLS misrouting?');
+		}
+		// "A duplicate request returns the original result" (spec §6) holds only
+		// for an ACTUAL duplicate. A reused key carrying different money facts is
+		// a conflict (finding S5): field-by-field comparison against the original
+		// row — the row itself is the fingerprint, no extra column needed.
+		const mismatches: string[] = [];
+		if (original.personId !== input.personId) mismatches.push('personId');
+		if (original.rail !== input.rail) mismatches.push('rail');
+		if (original.amountCents !== input.amountCents) mismatches.push('amountCents');
+		if (original.receivedOn !== input.receivedOn) mismatches.push('receivedOn');
+		if (original.cadence !== input.cadence) mismatches.push('cadence');
+		if ((original.note ?? null) !== (input.note ?? null)) mismatches.push('note');
+		if ((original.checkRefLast4 ?? null) !== (input.checkRefLast4 ?? null)) mismatches.push('checkRefLast4');
+		if ((original.reversesId ?? null) !== (input.reversesId ?? null)) mismatches.push('reversesId');
+		if (mismatches.length > 0) {
+			throw new IdempotencyConflictError(
+				`Idempotency-Key ${JSON.stringify(input.idempotencyKey)} was already used for a different ` +
+					`receipt (differs in: ${mismatches.join(', ')}). Nothing was recorded; use a fresh key.`,
+			);
 		}
 		return { receipt: original, deduplicated: true };
 	}
@@ -188,4 +234,20 @@ export async function listReceipts(tx: DbTransaction, personId: string): Promise
 		.from(financeReceipt)
 		.where(eq(financeReceipt.personId, personId))
 		.orderBy(financeReceipt.createdAt);
+}
+
+/**
+ * Reversal-aware net of a receipt trail (finding S6). Amounts are ALWAYS
+ * positive (`amount_cents > 0`), so a naive `SUM(amount_cents)` double-counts
+ * every corrected receipt: a $100 entry corrected down to $10 sums to $210.
+ * The `reverses_id` pointer is the direction carrier — a reversal row negates
+ * exactly its target — so the net is: every row that is neither a reversal
+ * marker nor a reversed original. Reporting must use this (or reproduce it in
+ * SQL) — never a bare SUM.
+ */
+export function netAmountCents(receipts: Pick<FinanceReceipt, 'id' | 'amountCents' | 'reversesId'>[]): number {
+	const reversed = new Set(receipts.map((r) => r.reversesId).filter((id): id is string => id !== null));
+	return receipts
+		.filter((r) => r.reversesId === null && !reversed.has(r.id))
+		.reduce((sum, r) => sum + r.amountCents, 0);
 }

@@ -4,10 +4,17 @@
  * "The Stripe client factory returns a throwing stub absent the operator
  * decision record" — narrowed for this TEST-MODE-ONLY slice to: absent
  * test-mode keys, every gateway method throws `StripeDisabledError` BEFORE any
- * network I/O. With keys present, the factory can only ever have been handed a
- * `StripeTestSecretKey` (the branded type `config.ts` mints exclusively for
- * `sk_test_`-prefixed values), so a live processor call is not constructible
- * from this repository's code.
+ * network I/O.
+ *
+ * BRANDED TYPES ERASE, SO THE FACTORY RE-CHECKS AT RUNTIME (adversarial-review
+ * finding B3 on PR #174). `StripeTestSecretKey` proves the value passed
+ * through `readStripeConfig` only to code that stays inside the type system;
+ * an `as` cast, a deserialized config, or any future caller bypasses it. The
+ * construction boundary below therefore re-validates the whole-string
+ * test-mode shape itself — and it does so BY CONSULTING THE LIVE GATE
+ * (finding B4): a non-test key is admitted only when `liveGateOpen()` is
+ * true, which nothing in this repository can make happen. That makes the
+ * frozen gate constant the single deciding input, not decoration.
  *
  * App code depends on the narrow `StripeGateway` interface, never on the SDK
  * class — that is what lets the fixture replay gateway (`./fixtures.ts`) stand
@@ -16,7 +23,14 @@
  */
 
 import Stripe from 'stripe';
-import { SECRET_KEY_TEST_PREFIX, type StripeRuntimeConfig, type StripeWebhookSecret } from './config';
+import {
+	SECRET_KEY_SHAPE,
+	StripeConfigError,
+	WEBHOOK_SECRET_SHAPE,
+	type StripeRuntimeConfig,
+	type StripeWebhookSecret,
+} from './config';
+import { liveGateOpen, LIVE_STRIPE_GATE } from './gate';
 
 /** Thrown by the keyless stub. Reaching this in production means checkout was offered without keys. */
 export class StripeDisabledError extends Error {
@@ -70,8 +84,17 @@ export function createStripeGateway(config: StripeRuntimeConfig): StripeGateway 
 	if (!config.configured) {
 		return createDisabledGateway(config.reason);
 	}
-	// `config.secretKey` is a StripeTestSecretKey: the only constructor for that
-	// type is `readStripeConfig`, which throws on any non-`sk_test_` value.
+	// Runtime re-check of what the brand only promises at compile time: with
+	// the gate closed, ONLY a whole-string sk_test_ key can construct a client.
+	// `liveGateOpen()` is consulted first so the gate is load-bearing — were the
+	// operator's row-7 decision ever wired in and true, this refusal (and only
+	// this refusal) would stand down.
+	if (!liveGateOpen() && !SECRET_KEY_SHAPE.test(config.secretKey)) {
+		throw new StripeConfigError(
+			`refusing to construct a Stripe client: the secret key is not whole-string test-mode ` +
+				`shaped and the live gate is closed (${LIVE_STRIPE_GATE.reason})`,
+		);
+	}
 	const stripe = new Stripe(config.secretKey, {
 		// The SDK's pinned API version (its type default). Not overridden here:
 		// a hand-pinned string drifts, and fixtures record their own api_version.
@@ -105,8 +128,13 @@ export function createStripeGateway(config: StripeRuntimeConfig): StripeGateway 
  * hangs off the class; its key is a synthetic test-prefixed placeholder that
  * can never be used, and is assembled at runtime so no key-shaped literal
  * exists in this public repository.
+ *
+ * The secret's shape is re-checked at runtime for the same reason the factory
+ * re-checks the key (B3): the brand proves provenance only inside the type
+ * system, and a verifier fed a non-`whsec_` string would otherwise happily
+ * HMAC with it.
  */
-const offlineVerifier = new Stripe(`${SECRET_KEY_TEST_PREFIX}offline-signature-verifier-no-network`);
+const offlineVerifier = new Stripe('sk_test_' + 'offlinesignatureverifiernonetwork');
 
 export type StripeWebhookEvent = Stripe.Event;
 
@@ -115,10 +143,8 @@ export function verifyWebhookSignature(
 	signatureHeader: string,
 	webhookSecret: StripeWebhookSecret,
 ): StripeWebhookEvent {
+	if (!WEBHOOK_SECRET_SHAPE.test(webhookSecret)) {
+		throw new StripeConfigError('refusing to verify: the webhook secret is not a whole-string whsec_ value');
+	}
 	return offlineVerifier.webhooks.constructEvent(rawBody, signatureHeader, webhookSecret);
-}
-
-/** Test-only: produce a valid `Stripe-Signature` header for a payload. Same SDK code Stripe documents for offline tests. */
-export function signPayloadForTest(payload: string, webhookSecret: string): string {
-	return offlineVerifier.webhooks.generateTestHeaderString({ payload, secret: webhookSecret });
 }

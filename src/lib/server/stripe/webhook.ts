@@ -8,8 +8,10 @@
  *      with `request.arrayBuffer()` — no framework body parser has touched it,
  *      because the signature is over the exact bytes Stripe signed.
  *   2. Verify the official signature. Invalid/missing → 400, nothing persisted.
- *   3. Reject `livemode: true` → 400, nothing persisted. Independent of the
- *      client-factory refusal (gate.ts explains the two-refusal design).
+ *   3. Reject anything not provably test-mode UNLESS the live gate is open
+ *      (slices §3.2 step 3) → 400, nothing persisted. Missing `livemode`
+ *      fails closed. Independent of the client-factory refusal (gate.ts
+ *      explains the two-refusal design).
  *   4. One transaction: insert raw event (dedupe on the PK) + enqueue the
  *      projection job. Commit.
  *   5. 2xx. A duplicate delivery also 2xxes — Stripe's redelivery contract is
@@ -22,6 +24,7 @@
 import { withTenant } from '../db/tenant';
 import { verifyWebhookSignature, type StripeWebhookEvent } from './client';
 import type { StripeWebhookSecret } from './config';
+import { testModeOnly } from './gate';
 import { ingestStripeEvent, type IngestResult } from './inbox';
 
 export interface WebhookRequest {
@@ -57,8 +60,11 @@ export async function handleStripeWebhook(request: WebhookRequest, deps: Webhook
 		return { status: 400, body: { received: false, error: 'signature verification failed' } };
 	}
 
-	if (event.livemode) {
-		// Second refusal of the pair (gate.ts). 4xx and no state change (slices §1.11).
+	if (!testModeOnly(event.livemode)) {
+		// Second refusal of the pair, and it CONSULTS THE GATE (gate.ts, findings
+		// B4/S1): only a literal `livemode: false` passes while the gate is
+		// closed — a missing or malformed field is treated as live, never as
+		// test. 4xx and no state change (slices §1.11).
 		return { status: 400, body: { received: false, error: 'live-mode events are rejected: the live gate is closed' } };
 	}
 

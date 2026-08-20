@@ -33,7 +33,7 @@ describe.runIf(Boolean(testKey))('live test-mode row (STRIPE_TEST_KEY present)',
 			[SECRET_KEY_ENV]: testKey,
 			// The webhook secret is not exercised by session creation; a
 			// runtime-assembled placeholder satisfies the all-or-nothing config.
-			[WEBHOOK_SECRET_ENV]: 'whsec_' + 'gated_live_row_placeholder',
+			[WEBHOOK_SECRET_ENV]: 'whsec_' + 'gatedliverowplaceholder',
 		});
 		const gateway = createStripeGateway(config);
 		const outcome = await createContributionCheckout(gateway, {

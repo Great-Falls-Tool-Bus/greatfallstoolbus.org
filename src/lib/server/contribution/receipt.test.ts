@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { DbTransaction } from '../db/client';
-import { ReceiptValidationError, recordCashCheckReceipt } from './receipt';
+import { netAmountCents, ReceiptValidationError, recordCashCheckReceipt } from './receipt';
 
 const untouchableTx = new Proxy({} as DbTransaction, {
 	get(_target, property) {
@@ -68,5 +68,34 @@ describe('recordCashCheckReceipt validation', () => {
 				ReceiptValidationError,
 			);
 		}
+	});
+});
+
+describe('netAmountCents — the reversal-aware sum (S6)', () => {
+	it('nets the reviewer example: $100 corrected down to $10 is $10, never $210', () => {
+		const trail = [
+			{ id: 'a', amountCents: 10_000, reversesId: null },
+			{ id: 'b', amountCents: 10_000, reversesId: 'a' },
+			{ id: 'c', amountCents: 1_000, reversesId: null },
+		];
+		const naive = trail.reduce((sum, r) => sum + r.amountCents, 0);
+		expect(naive).toBe(21_000); // what a bare SUM(amount_cents) misreports
+		expect(netAmountCents(trail)).toBe(1_000);
+	});
+
+	it('sums an uncorrected trail plainly and an all-reversed trail to zero', () => {
+		expect(
+			netAmountCents([
+				{ id: 'a', amountCents: 500, reversesId: null },
+				{ id: 'b', amountCents: 2_000, reversesId: null },
+			]),
+		).toBe(2_500);
+		expect(
+			netAmountCents([
+				{ id: 'a', amountCents: 500, reversesId: null },
+				{ id: 'b', amountCents: 500, reversesId: 'a' },
+			]),
+		).toBe(0);
+		expect(netAmountCents([])).toBe(0);
 	});
 });

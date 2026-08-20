@@ -31,6 +31,7 @@ import {
 	boolean,
 	check,
 	date,
+	foreignKey,
 	index,
 	integer,
 	jsonb,
@@ -42,7 +43,6 @@ import {
 	unique,
 	uniqueIndex,
 	uuid,
-	type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 
 /**
@@ -125,11 +125,13 @@ export const outboxJob = pgTable(
 /* ────────────────────────────────────────────────────────────────────────────
  * Payment rails (TIN-3818 scaffold: slices S8/S9 shapes, test-mode only).
  *
- * Cash and check are RAILS, not a Stripe fallback (spec §3.3): they have their
- * own append-only receipt table and never fabricate a Stripe object. Stripe is
- * TEST-MODE ONLY by construction — the seven-row live gate (spec §5, ratified
- * as ADR 0016 §3) stays CLOSED; `ENABLE-LIVE-STRIPE` is Jess-only and out of
- * scope for this slice.
+ * Cash and check are RAILS, not a Stripe fallback (slices §3.3): they have
+ * their own append-only receipt table and never fabricate a Stripe object.
+ * Stripe is TEST-MODE ONLY by construction — the seven-row live gate (spec §5;
+ * its FORM is PROPOSED for ratification in ADR 0016 §5.1, unsigned — the
+ * 2026-08-18 Card C ruling in §3 decided only the §11 fallback question)
+ * stays CLOSED; `ENABLE-LIVE-STRIPE` is Jess-only and out of scope for this
+ * slice.
  *
  * `person_id` is a plain uuid, not a foreign key: S4 owns the person/
  * application tables and has not landed. Adding the FK when S4 merges is a
@@ -151,7 +153,7 @@ export const contributionState = pgEnum('contribution_state', [
 ]);
 
 /**
- * One contribution agreement per person (spec §3.3). The sensitive columns —
+ * One contribution agreement per person (slices §3.3). The sensitive columns —
  * rail, cadence, amount — are finance-only; the keyholder serializer in
  * `$lib/server/contribution/visibility.ts` returns the closed
  * `{offered, helpRequested}` shape and a structural test pins it.
@@ -180,21 +182,38 @@ export const contributionAgreement = pgTable(
 );
 
 /**
- * The operator-entered cash/check receipt (spec §5 cash/check path, §3.3).
+ * The operator-entered cash/check receipt (spec §5 cash/check path, slices
+ * §3.3).
  *
- * APPEND-ONLY BY GRANT, not by convention: migration 0004 revokes UPDATE and
+ * APPEND-ONLY BY GRANT, not by convention: migration 0005 revokes UPDATE and
  * DELETE on this table from the runtime role, so a correction can only be a
- * new row whose `reverses_id` points at the original (and a replacement row
+ * new row whose `reverses_id` points at the original (and a fresh receipt
  * following it when the corrected figure differs).
  *
- * `idempotency_key` is an ADDITION to the spec §3.3 DDL: spec §6 requires
+ * `idempotency_key` is an ADDITION to the slices §3.3 DDL: spec §6 requires
  * every mutation to accept an `Idempotency-Key` and S8's acceptance row
  * requires "recording a receipt twice with one Idempotency-Key yields one
  * receipt"; a unique key on the table is the structural way to satisfy both.
- * Flagged in the PR body for the S8 reviewer.
+ * Flagged in the PR body for the S8 reviewer. A second flagged gap for that
+ * reviewer: slices §3.3 prose also describes "a `replaces` row following it
+ * if the corrected figure differs", and no `replaces_id` column exists here —
+ * the replacement is an ordinary receipt, linked only by narrative order.
+ * Whether the S8 reviewer wants an explicit `replaces_id` is their call.
+ *
+ * `reverses_id` is a COMPOSITE self-reference on `(tenant_id, id)`, not a bare
+ * FK on `id`: PostgreSQL evaluates FK checks with the referenced table owner's
+ * rights and BYPASSES row-level security, so a single-column FK would accept a
+ * reversal pointing at another tenant's receipt. Pairing the tenant column
+ * into the FK makes a cross-tenant pointer unrepresentable at the constraint
+ * level; the write path re-checks in-tenant anyway (receipt.ts).
+ *
+ * Reporting note: a naive `SUM(amount_cents)` DOUBLE-COUNTS corrected
+ * receipts, because amounts are always positive (`> 0` check) and a reversal
+ * is a marker row, not a negative amount. Every sum over this table must be
+ * reversal-aware — use `netAmountCents` in `$lib/server/contribution/receipt`.
  *
  * `check_ref_last4` stores at most the last four digits of a check reference,
- * never routing or account numbers (spec §1.10 ASSUMPTION, resolver Jess).
+ * never routing or account numbers (slices §1.10 ASSUMPTION, resolver Jess).
  */
 export const financeReceipt = pgTable(
 	'finance_receipt',
@@ -211,12 +230,20 @@ export const financeReceipt = pgTable(
 		recordedBy: uuid('recorded_by').notNull(),
 		note: text('note'),
 		checkRefLast4: text('check_ref_last4'),
-		reversesId: uuid('reverses_id').references((): AnyPgColumn => financeReceipt.id),
+		reversesId: uuid('reverses_id'),
 		idempotencyKey: text('idempotency_key').notNull(),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 	},
 	(t) => [
 		unique('finance_receipt_idem_uniq').on(t.tenantId, t.idempotencyKey),
+		// (tenant_id, id) is trivially unique given the id PK; it exists so the
+		// composite FK below can pair the tenant into the reference.
+		unique('finance_receipt_tenant_row_uniq').on(t.tenantId, t.id),
+		foreignKey({
+			name: 'finance_receipt_reverses_in_tenant_fk',
+			columns: [t.tenantId, t.reversesId],
+			foreignColumns: [t.tenantId, t.id],
+		}),
 		check('finance_receipt_rail', sql`${t.rail} in ('cash', 'check')`),
 		check('finance_receipt_amount_positive', sql`${t.amountCents} > 0`),
 		check('finance_receipt_cadence', sql`${t.cadence} in ('monthly', 'annual', 'one_time')`),
@@ -224,7 +251,7 @@ export const financeReceipt = pgTable(
 );
 
 /**
- * The durable Stripe webhook inbox (spec §3.2, DDL verbatim).
+ * The durable Stripe webhook inbox (slices §3.2 DDL).
  *
  * The composite primary key IS the idempotency mechanism: the webhook handler
  * inserts `on conflict do nothing`, so duplicate and concurrent redeliveries

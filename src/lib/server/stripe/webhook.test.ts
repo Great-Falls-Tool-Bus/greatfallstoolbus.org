@@ -5,12 +5,11 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { signPayloadForTest } from './client';
 import type { StripeWebhookSecret } from './config';
-import { readFixtureEventRaw } from './fixtures';
+import { readFixtureEventRaw, signPayloadForTest } from './fixtures';
 import { handleStripeWebhook } from './webhook';
 
-const WHSEC = ('whsec_' + 'unit_webhook_secret_0001') as StripeWebhookSecret;
+const WHSEC = ('whsec_' + 'unitwebhooksecret0001') as StripeWebhookSecret;
 const TENANT = '22222222-2222-4222-8222-222222222222';
 
 function persistSpy() {
@@ -70,6 +69,21 @@ describe('handleStripeWebhook', () => {
 		);
 		expect(response.status).toBe(400);
 		expect(response.body.error).toContain('live');
+		expect(persisted).toEqual([]);
+	});
+
+	it('400s a correctly-signed event with NO livemode field — missing fails closed, not open (S1)', async () => {
+		// Re-built body without the top-level field, signed over exactly these
+		// bytes — the ONLY thing wrong with the delivery is the absent livemode.
+		const parsed = JSON.parse(readFixtureEventRaw('03-invoice-paid.json')) as Record<string, unknown>;
+		delete parsed.livemode;
+		const stripped = JSON.stringify(parsed);
+		const { persisted, persist } = persistSpy();
+		const response = await handleStripeWebhook(
+			{ rawBody: stripped, signatureHeader: signPayloadForTest(stripped, WHSEC) },
+			{ webhookSecret: WHSEC, tenantId: TENANT, persist },
+		);
+		expect(response.status).toBe(400);
 		expect(persisted).toEqual([]);
 	});
 

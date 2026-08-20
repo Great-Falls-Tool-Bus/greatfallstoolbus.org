@@ -9,18 +9,34 @@
  * outbox jobs and call `projectStripeEvent` with the job's transaction — the
  * signature already takes the `withTenant` handle for exactly that seam.
  *
- * ORDER-AMBIGUOUS EVENTS RETRIEVE THE TRUTH. Stripe does not guarantee
- * delivery order, so `customer.subscription.updated` and both invoice events
- * NEVER trust their payload's snapshot: they call
- * `gateway.retrieveSubscription` and project from current object state
- * (spec §5: "When event order is ambiguous, retrieve current Stripe object
- * state before projecting."). The stored event stays as the audit record; the
- * retrieved object is the truth. Under fixtures the gateway is the replay
- * implementation, so this path is exercised keyless too.
+ * EVERY SUBSCRIPTION-LIFECYCLE EVENT RETRIEVES THE TRUTH. Stripe does not
+ * guarantee delivery order, and a payload snapshot is stale the moment a later
+ * event exists — so `checkout.session.completed`,
+ * `customer.subscription.created`, `customer.subscription.updated`, and both
+ * invoice events ALL call `gateway.retrieveSubscription` and project from
+ * current object state (spec §5: "When event order is ambiguous, retrieve
+ * current Stripe object state before projecting."). Only
+ * `customer.subscription.deleted` projects from its payload, because deletion
+ * is terminal and cannot be staler than any other state. This is what makes
+ * reverse-order delivery CONVERGE instead of resurrecting a cancelled
+ * contribution: a late or redelivered checkout event retrieves a `canceled`
+ * subscription and projects `cancelled`, not `stripe_active`
+ * (adversarial-review finding B2 on PR #174). The stored event stays as the
+ * audit record; the retrieved object is the truth. Under fixtures the gateway
+ * is the replay implementation, so this path is exercised keyless too.
+ *
+ * FAILURE FORENSICS COMMIT SEPARATELY (finding S2). The projection write and
+ * the success stamp share the caller's transaction, so they are atomic. The
+ * FAILURE stamp cannot live in that transaction — the rethrow that dead-letters
+ * the job also rolls the transaction back, which would erase the stamp — so
+ * `projectStripeEvent` takes a `failureStampDb` and writes
+ * `process_attempts`/`last_error` through a fresh connection that commits
+ * independently of the doomed transaction.
  */
 
 import { and, eq, sql } from 'drizzle-orm';
-import type { DbTransaction } from '../db/client';
+import type { Db, DbTransaction } from '../db/client';
+import { withTenant } from '../db/tenant';
 import { stripeEventInbox, type ContributionAgreement } from '../db/schema';
 import { setAgreementState } from '../contribution/agreement';
 import type { StripeGateway, StripeWebhookEvent } from './client';
@@ -77,32 +93,30 @@ export async function projectionForEvent(
 	const object = event.data?.object as EventObject | undefined;
 
 	switch (event.type) {
-		case 'checkout.session.completed': {
-			// The session carries our own reference; the subscription it created is
-			// live, so the agreement advances. A success-page redirect never does
-			// this — the webhook is the only writer (spec §5).
-			const personId = personIdFrom(object);
-			if (!personId) return { action: 'skipped', detail: 'checkout session carries no gftb_person_id' };
-			return { action: 'projected', state: 'stripe_active', personId, detail: 'checkout completed' };
-		}
-		case 'customer.subscription.created':
 		case 'customer.subscription.deleted': {
-			// Terminal/creation events are self-describing; deleted is terminal
-			// regardless of any staler snapshot still in flight.
+			// The ONE payload-trusting case: deletion is terminal, so no staler
+			// snapshot can contradict it and no retrieve can improve on it.
 			const personId = personIdFrom(object);
 			if (!personId) return { action: 'skipped', detail: `${event.type} carries no gftb_person_id` };
-			const state =
-				event.type === 'customer.subscription.deleted' ? 'cancelled' : stateForSubscriptionStatus(object?.status ?? '');
-			return { action: 'projected', state, personId, detail: event.type };
+			return { action: 'projected', state: 'cancelled', personId, detail: event.type };
 		}
+		case 'checkout.session.completed':
+		case 'customer.subscription.created':
 		case 'customer.subscription.updated':
 		case 'invoice.paid':
 		case 'invoice.payment_failed': {
-			// Order-ambiguous: retrieve current object state, never trust the payload snapshot.
-			const subscriptionId = event.type === 'customer.subscription.updated' ? object?.id : object?.subscription;
+			// Every other lifecycle event is order-ambiguous by construction — a
+			// redelivered or late copy may describe a subscription that has since
+			// failed or been cancelled. Retrieve current object state; never trust
+			// the payload snapshot (spec §5, finding B2 — the payload path could
+			// resurrect a cancelled contribution).
+			const subscriptionId =
+				event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created'
+					? object?.id
+					: object?.subscription;
 			if (!subscriptionId) return { action: 'skipped', detail: `${event.type} names no subscription` };
 			const current = await gateway.retrieveSubscription(subscriptionId);
-			const personId = current.metadata.gftb_person_id;
+			const personId = current.metadata.gftb_person_id ?? personIdFrom(object);
 			if (!personId) return { action: 'skipped', detail: 'retrieved subscription carries no gftb_person_id' };
 			return {
 				action: 'projected',
@@ -124,7 +138,19 @@ export async function projectionForEvent(
  */
 export async function projectStripeEvent(
 	tx: DbTransaction,
-	input: { tenantId: string; eventId: string; gateway: StripeGateway },
+	input: {
+		tenantId: string;
+		eventId: string;
+		gateway: StripeGateway;
+		/**
+		 * Connection for the FAILURE stamp only (finding S2): the stamp must
+		 * outlive this function's rethrow, and the caller's transaction will be
+		 * rolled back by exactly that rethrow. Without it a failure still
+		 * dead-letters correctly but leaves no `last_error` forensics on the
+		 * inbox row.
+		 */
+		failureStampDb?: Db;
+	},
 ): Promise<ProjectionOutcome> {
 	const [row] = await tx
 		.select()
@@ -141,9 +167,17 @@ export async function projectStripeEvent(
 
 	const event = row.payload as unknown as StripeWebhookEvent;
 	try {
-		const outcome = await projectionForEvent(event, input.gateway);
+		let outcome = await projectionForEvent(event, input.gateway);
 		if (outcome.action === 'projected' && outcome.state && outcome.personId) {
-			await setAgreementState(tx, outcome.personId, outcome.state);
+			const updated = await setAgreementState(tx, outcome.personId, outcome.state);
+			if (!updated) {
+				// An UPDATE that matched zero rows is not a projection — say so
+				// instead of reporting 'projected' for a person with no agreement.
+				outcome = {
+					action: 'skipped',
+					detail: `no contribution agreement exists for person ${outcome.personId}; nothing to project`,
+				};
+			}
 		}
 		await tx
 			.update(stripeEventInbox)
@@ -155,13 +189,23 @@ export async function projectStripeEvent(
 			.where(and(eq(stripeEventInbox.tenantId, input.tenantId), eq(stripeEventInbox.eventId, input.eventId)));
 		return outcome;
 	} catch (error) {
-		await tx
-			.update(stripeEventInbox)
-			.set({
-				processAttempts: sql`${stripeEventInbox.processAttempts} + 1`,
-				lastError: (error as Error).message,
-			})
-			.where(and(eq(stripeEventInbox.tenantId, input.tenantId), eq(stripeEventInbox.eventId, input.eventId)));
+		// The rethrow below rolls the caller's transaction back, so stamping
+		// through `tx` would be dead code (finding S2). Stamp through a fresh
+		// connection that commits on its own.
+		if (input.failureStampDb) {
+			await withTenant(
+				input.tenantId,
+				(stampTx) =>
+					stampTx
+						.update(stripeEventInbox)
+						.set({
+							processAttempts: sql`${stripeEventInbox.processAttempts} + 1`,
+							lastError: (error as Error).message,
+						})
+						.where(and(eq(stripeEventInbox.tenantId, input.tenantId), eq(stripeEventInbox.eventId, input.eventId))),
+				input.failureStampDb,
+			);
+		}
 		throw error;
 	}
 }

@@ -63,6 +63,18 @@ describe('readStripeConfig', () => {
 		).toThrow(StripeConfigError);
 	});
 
+	it('REFUSES newline smuggling, bare prefixes, and any non-[A-Za-z0-9] body — whole-string shapes only (B3)', () => {
+		const smuggled = SK_TEST + '\n' + SK_LIVE;
+		for (const bad of [smuggled, 'sk_' + 'test_', 'sk_' + 'test_' + 'has space', 'sk_' + 'test_' + 'nul\0body']) {
+			expect(() => readStripeConfig({ [SECRET_KEY_ENV]: bad, [WEBHOOK_SECRET_ENV]: WHSEC })).toThrow(StripeConfigError);
+		}
+		for (const bad of ['whsec_', 'whsec_ok\nwhsec_evil', 'whsec_has space']) {
+			expect(() => readStripeConfig({ [SECRET_KEY_ENV]: SK_TEST, [WEBHOOK_SECRET_ENV]: bad })).toThrow(
+				StripeConfigError,
+			);
+		}
+	});
+
 	it('REFUSES a malformed webhook secret', () => {
 		expect(() => readStripeConfig({ [SECRET_KEY_ENV]: SK_TEST, [WEBHOOK_SECRET_ENV]: 'wrong' })).toThrow(
 			StripeConfigError,

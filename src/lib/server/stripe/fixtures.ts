@@ -18,9 +18,24 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import Stripe from 'stripe';
 import type { StripeGateway, StripeWebhookEvent, SubscriptionSummary } from './client';
 
 export const FIXTURES_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
+
+/**
+ * TEST-ONLY: mint a valid `Stripe-Signature` header for a payload — the same
+ * SDK helper Stripe documents for offline webhook tests. It lives HERE, in
+ * the fixture/test-support module, not in the production `client.ts`, so the
+ * production surface exports no signature-minting capability
+ * (adversarial-review note on PR #174). The SDK instance's key is a synthetic
+ * placeholder assembled at runtime; the helper never touches the network.
+ */
+const testSigner = new Stripe('sk_test_' + 'fixturesignernonetwork');
+
+export function signPayloadForTest(payload: string, webhookSecret: string): string {
+	return testSigner.webhooks.generateTestHeaderString({ payload, secret: webhookSecret });
+}
 
 /** The cast of the recorded lifecycle. One person, one customer, one subscription. */
 export const FIXTURE = Object.freeze({

@@ -1,13 +1,18 @@
 /**
  * Stripe runtime configuration — TEST MODE BY CONSTRUCTION (TIN-3818;
- * ADR 0016 §3 Card C, spec §5 production activation gate).
+ * spec §5 production activation gate; the seven-row gate FORM is PROPOSED in
+ * ADR 0016 §5.1, unsigned — §3 records only the 2026-08-18 fallback ruling).
  *
  * This module is the first of the two independent refusals slices §1.11
  * requires: the configuration TYPE cannot carry a live key. A value that does
- * not start with the test-mode prefix is a thrown `StripeConfigError`, not a
- * warning — `sk_live_…`, a restricted `rk_…`, or anything else fails CLOSED
- * before a client exists to call anything. (The second refusal is the webhook
- * route rejecting `livemode: true` events; see `./gate.ts`.)
+ * not MATCH the full test-mode shape — anchored, whole-string, no whitespace
+ * or control characters to smuggle a second key behind a valid prefix — is a
+ * thrown `StripeConfigError`, not a warning: `sk_live_…`, a restricted
+ * `rk_…`, `sk_test_ok\nsk_live_…`, or anything else fails CLOSED before a
+ * client exists to call anything. Because branded types erase at runtime,
+ * `client.ts` re-validates the same shapes at the construction boundary.
+ * (The second refusal is the webhook path rejecting `livemode: true` events
+ * whenever the live gate is closed; see `./gate.ts`.)
  *
  * NAMES ONLY, NEVER VALUES (ADR 0014 §0.2 — this repository is public):
  *
@@ -29,6 +34,18 @@
 export const SECRET_KEY_TEST_PREFIX = 'sk_test_';
 export const PUBLISHABLE_KEY_TEST_PREFIX = 'pk_test_';
 export const WEBHOOK_SECRET_PREFIX = 'whsec_';
+
+/**
+ * Full-shape anchors, not `startsWith`: a prefix check accepts
+ * `sk_test_ok\nsk_live_REAL` and a bare `sk_test_` with no body
+ * (adversarial-review finding B3 on PR #174). `^…$` with an explicit
+ * character class closes both — nothing outside `[A-Za-z0-9]` can ride in a
+ * validated value, so newline/NUL smuggling and empty bodies are
+ * unrepresentable.
+ */
+export const SECRET_KEY_SHAPE = /^sk_test_[A-Za-z0-9]+$/;
+export const PUBLISHABLE_KEY_SHAPE = /^pk_test_[A-Za-z0-9]+$/;
+export const WEBHOOK_SECRET_SHAPE = /^whsec_[A-Za-z0-9]+$/;
 
 export const SECRET_KEY_ENV = 'STRIPE_SECRET_KEY';
 export const PUBLISHABLE_KEY_ENV = 'STRIPE_PUBLISHABLE_KEY';
@@ -54,14 +71,16 @@ export interface StripeTestModeConfig {
 export type StripeRuntimeConfig =
 	{ readonly configured: false; readonly reason: string } | ({ readonly configured: true } & StripeTestModeConfig);
 
-function requirePrefix(name: string, value: string, prefix: string): string {
-	if (!value.startsWith(prefix)) {
+function requireShape(name: string, value: string, prefix: string, shape: RegExp): string {
+	if (!shape.test(value)) {
 		// Deliberately does NOT include the value, its prefix, or its length:
-		// a live secret must not leak through an error message or a log line.
+		// a misdirected secret must not leak through an error message or a log
+		// line.
 		throw new StripeConfigError(
-			`${name} is set but does not carry the ${prefix} prefix. ` +
-				`This deployment is test-mode only by construction (ADR 0016 §3; the seven-row ` +
-				`live gate is CLOSED and ENABLE-LIVE-STRIPE is operator-only). Refusing to start a client.`,
+			`${name} is set but is not a whole-string ${prefix} value. ` +
+				`This deployment is test-mode only by construction (spec §5 gate, all rows CLOSED; ` +
+				`the gate form is PROPOSED in ADR 0016 §5.1 and ENABLE-LIVE-STRIPE is operator-only). ` +
+				`Refusing to start a client.`,
 		);
 	}
 	return value;
@@ -96,14 +115,20 @@ export function readStripeConfig(env: NodeJS.ProcessEnv = process.env): StripeRu
 
 	const config: StripeTestModeConfig = {
 		mode: 'test',
-		secretKey: requirePrefix(SECRET_KEY_ENV, secret, SECRET_KEY_TEST_PREFIX) as StripeTestSecretKey,
-		webhookSecret: requirePrefix(WEBHOOK_SECRET_ENV, webhook, WEBHOOK_SECRET_PREFIX) as StripeWebhookSecret,
+		secretKey: requireShape(SECRET_KEY_ENV, secret, SECRET_KEY_TEST_PREFIX, SECRET_KEY_SHAPE) as StripeTestSecretKey,
+		webhookSecret: requireShape(
+			WEBHOOK_SECRET_ENV,
+			webhook,
+			WEBHOOK_SECRET_PREFIX,
+			WEBHOOK_SECRET_SHAPE,
+		) as StripeWebhookSecret,
 		...(publishable
 			? {
-					publishableKey: requirePrefix(
+					publishableKey: requireShape(
 						PUBLISHABLE_KEY_ENV,
 						publishable,
 						PUBLISHABLE_KEY_TEST_PREFIX,
+						PUBLISHABLE_KEY_SHAPE,
 					) as StripeTestPublishableKey,
 				}
 			: {}),
