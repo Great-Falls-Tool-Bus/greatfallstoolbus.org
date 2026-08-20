@@ -42,7 +42,8 @@
 		"@tummycrypt/tinyvectors": "https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.6.tar.gz",
 		"drizzle-orm": "0.39.3",
 		"effect": "^3.21.4",
-		"pg": "^8.20.0"
+		"pg": "^8.20.0",
+		"stripe": "^22.5.0"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.61.1",
