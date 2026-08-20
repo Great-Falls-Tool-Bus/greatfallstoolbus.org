@@ -184,6 +184,10 @@ describe('the vendored auth.* tables are protected and single-ledgered (spec §1
 			'0001_auth_pg_vendored_0_2_4',
 			'0002_rls_force_and_runtime_grants',
 			'0003_member_role_grant',
+			// TIN-3818 rails, renumbered idx 4–6 by the journal settle (TIN-3817):
+			'0004_payment_rails_testmode',
+			'0005_payment_rails_rls_grants',
+			'0006_payment_rails_reversal_tenant_fk',
 		]);
 		expect(rows.some((r) => r.tag.includes('lush_carmella'))).toBe(false);
 	});
