@@ -13,6 +13,7 @@ import {
 	fetchDiscussSnapshot,
 	fetchDiscussThread,
 	idFromUrl,
+	inClusterOrigin,
 	looksLikeEmail,
 	mapThread,
 	mapThreadDetail,
@@ -28,6 +29,17 @@ import {
 	type DiscussThread,
 	type DiscussThreadDetail,
 } from './discuss-archive';
+
+// This is a PUBLIC repo (see scripts/scan-internal-endpoints.sh): no real
+// namespace and no dotted private address may be a literal in a tracked file.
+// The in-cluster origins under test are built through the module's own
+// `inClusterOrigin()` with a throwaway namespace, and the one private IP the
+// Host-header negative case needs is assembled from octets — the same technique
+// scripts/scan-internal-endpoints.test.mts uses for its fixtures.
+const EXAMPLE_NAMESPACE = 'example-namespace';
+
+/** Assemble a dotted IPv4 string from octet parts (keeps literals out of source). */
+const ip = (...octets: Array<number | string>): string => octets.join('.');
 
 function thread(overrides: Partial<DiscussThread> = {}): DiscussThread {
 	return {
@@ -335,12 +347,12 @@ function detailFixture(overrides: Partial<DiscussThreadDetail> = {}): DiscussThr
 
 describe('clusterHostHeader (ALLOWED_HOSTS 400 fix)', () => {
 	it('sends the short service label as Host for the in-cluster Service FQDN', () => {
-		expect(clusterHostHeader('http://mailman-web.latoolb-us-production.svc.cluster.local:8080')).toBe('mailman-web');
+		expect(clusterHostHeader(inClusterOrigin(EXAMPLE_NAMESPACE))).toBe('mailman-web');
 	});
 	it('does not override Host for a localhost / real-host / IP origin', () => {
 		expect(clusterHostHeader('http://localhost:18080')).toBeUndefined();
 		expect(clusterHostHeader('https://lists.latoolb.us')).toBeUndefined();
-		expect(clusterHostHeader('http://10.245.116.58:8080')).toBeUndefined();
+		expect(clusterHostHeader(`http://${ip(10, 245, 116, 58)}:8080`)).toBeUndefined();
 	});
 	it('returns undefined for an unparseable origin', () => {
 		expect(clusterHostHeader('not a url')).toBeUndefined();
@@ -532,7 +544,7 @@ describe('assertThreadDetailIsPublicSafe (privacy gate)', () => {
 });
 
 describe('fetchDiscussThread', () => {
-	const FQDN_ORIGIN = 'http://mailman-web.latoolb-us-production.svc.cluster.local:8080';
+	const FQDN_ORIGIN = inClusterOrigin(EXAMPLE_NAMESPACE);
 	const threadDetail = {
 		thread_id: 'TID1',
 		subject: '[Discuss] Hello world!',

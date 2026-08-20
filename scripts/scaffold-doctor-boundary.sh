@@ -101,7 +101,17 @@ if [ -f flake.nix ]; then
 fi
 
 # Workflows must not directly mutate Cloudflare (DNS/Access/Tunnel)
-if compgen -G ".github/workflows/*.yml" >/dev/null; then
+#
+# Glob into an array under `nullglob` rather than `compgen -G`: the Nix devshell
+# bash is built without the programmable-completion builtins, so `compgen` there
+# is "command not found" and this whole row silently no-op'd (TIN-3898).
+workflow_files=()
+if [ -d .github/workflows ]; then
+  shopt -s nullglob
+  workflow_files=(.github/workflows/*.yml)
+  shopt -u nullglob
+fi
+if [ "${#workflow_files[@]}" -gt 0 ]; then
   if grep -rlE '(api\.cloudflare\.com/client/v4/(zones|accounts).*/(dns_records|access|tunnels))' .github/workflows/ 2>/dev/null | head -1 >/dev/null; then
     check_fail "a workflow appears to call Cloudflare mutation endpoints directly — go through blahaj"
   else
