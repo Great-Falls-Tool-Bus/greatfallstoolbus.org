@@ -1,13 +1,14 @@
 // Contract tests for the platform process dispatcher (TIN-3815 slice S0,
-// extended by TIN-3817 slice S1).
+// extended by TIN-3817 slices S1 and S3).
 //
 // These lock the IMAGE CONTRACT, not an implementation detail: three stable
 // role names, `--help` answering 0 for each of them without side effects, and
 // an unimplemented role failing CLOSED rather than reporting healthy.
 //
-// S1 landed the migrator, so the rows that asserted `migrator` fails closed now
-// assert it DISPATCHES — the contract they were protecting (never exit 0 while
-// doing nothing) is unchanged and still asserted for `worker`.
+// S1 landed the migrator and S3 landed the worker, so the rows that asserted
+// those roles fail closed now assert they DISPATCH — the contract they were
+// protecting (never exit 0 while doing nothing) is unchanged: a missing bundle
+// is a malformed image (70), never a healthy no-op.
 
 import { describe, expect, it } from 'vitest';
 
@@ -21,6 +22,7 @@ import {
 	resolveMigratorEntrypoint,
 	resolvePlatformRole,
 	resolveWebEntrypoint,
+	resolveWorkerEntrypoint,
 	runPlatformEntrypoint,
 	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 	// @ts-ignore -- plain .mjs dispatcher, deliberately not compiled for the image
@@ -77,13 +79,14 @@ describe('--help', () => {
 		expect(stderr.text()).toBe('');
 	});
 
-	it('marks the not-yet-implemented roles as declared-only in help text', () => {
-		expect(platformRoleHelp('worker')).toContain('not yet implemented');
+	it('describes every role as implemented — a "declared only" line on a shipped role is a lie an operator acts on', () => {
 		expect(platformRoleHelp('web')).not.toContain('not yet implemented');
-		// TIN-3817 S1: the migrator is real now, and its help must say so —
-		// a "declared only" line on a shipped role is a lie an operator acts on.
+		// TIN-3817 S1: the migrator is real.
 		expect(platformRoleHelp('migrator')).not.toContain('not yet implemented');
 		expect(platformRoleHelp('migrator')).toContain('advisory lock');
+		// TIN-3817 S3: the worker is real.
+		expect(platformRoleHelp('worker')).not.toContain('not yet implemented');
+		expect(platformRoleHelp('worker')).toContain('SKIP LOCKED');
 	});
 });
 
@@ -105,21 +108,74 @@ describe('role dispatch', () => {
 		expect(loaded).toEqual(['file:///app/build/index.js']);
 	});
 
-	it.each(['worker'])('fails closed for %s rather than reporting healthy', async (role: string) => {
-		const stderr = capture();
+	it('runs the bundled outbox worker and returns ITS exit code', async () => {
+		const seen: { href?: string; args?: string[] } = {};
 		const code = await runPlatformEntrypoint({
-			argv1: `/bin/${role}`,
-			args: [],
-			env: {},
+			argv1: '/bin/worker',
+			args: ['--once'],
+			env: { GFTB_WORKER_ENTRYPOINT: '/app/build/worker.mjs' },
 			stdout: capture(),
-			stderr,
-			importModule: async () => {
-				throw new Error('placeholder roles must not load anything');
+			stderr: capture(),
+			importModule: async (href: string) => {
+				seen.href = href;
+				return {
+					main: async (args: string[]) => {
+						seen.args = args;
+						return 0;
+					},
+				};
 			},
 		});
 
+		expect(code).toBe(0);
+		expect(seen.href).toBe('file:///app/build/worker.mjs');
+		expect(seen.args).toEqual(['--once']);
+	});
+
+	it('passes the worker exit code through unchanged, including 78 for an unconfigured database', async () => {
+		const code = await runPlatformEntrypoint({
+			argv1: '/bin/worker',
+			args: [],
+			env: { GFTB_WORKER_ENTRYPOINT: '/app/build/worker.mjs' },
+			stdout: capture(),
+			stderr: capture(),
+			importModule: async () => ({ main: async () => EXIT_UNAVAILABLE }),
+		});
+
 		expect(code).toBe(EXIT_UNAVAILABLE);
-		expect(stderr.text()).toContain('has not landed yet');
+	});
+
+	it('reports a missing worker bundle as a malformed image, not as an unavailable database', async () => {
+		const stderr = capture();
+		const code = await runPlatformEntrypoint({
+			argv1: '/bin/worker',
+			args: [],
+			env: { GFTB_WORKER_ENTRYPOINT: '/app/build/worker.mjs' },
+			stdout: capture(),
+			stderr,
+			importModule: async () => {
+				throw new Error('ERR_MODULE_NOT_FOUND');
+			},
+		});
+
+		expect(code).toBe(EXIT_MALFORMED);
+		expect(code).not.toBe(EXIT_UNAVAILABLE);
+		expect(stderr.text()).toContain('just worker-bundle');
+	});
+
+	it('reports a worker bundle with no main() as malformed', async () => {
+		const stderr = capture();
+		const code = await runPlatformEntrypoint({
+			argv1: '/bin/worker',
+			args: [],
+			env: { GFTB_WORKER_ENTRYPOINT: '/app/build/worker.mjs' },
+			stdout: capture(),
+			stderr,
+			importModule: async () => ({}),
+		});
+
+		expect(code).toBe(EXIT_MALFORMED);
+		expect(stderr.text()).toContain('exports no main()');
 	});
 
 	it('runs the bundled applier for migrator and returns ITS exit code', async () => {
@@ -206,6 +262,16 @@ describe('migrator entrypoint resolution', () => {
 
 	it('defaults to the repo-relative bundle', () => {
 		expect(resolveMigratorEntrypoint(undefined).href).toMatch(/\/build\/migrator\.mjs$/);
+	});
+});
+
+describe('worker entrypoint resolution', () => {
+	it('prefers the absolute override the image supplies', () => {
+		expect(resolveWorkerEntrypoint('/app/build/worker.mjs').href).toBe('file:///app/build/worker.mjs');
+	});
+
+	it('defaults to the repo-relative bundle', () => {
+		expect(resolveWorkerEntrypoint(undefined).href).toMatch(/\/build\/worker\.mjs$/);
 	});
 });
 

@@ -38,6 +38,8 @@
 		"@fontsource/inter": "^5.2.8",
 		"@lucide/svelte": "^1.23.0",
 		"@sveltejs/adapter-node": "^5.5.7",
+		"@tummycrypt/tinyland-auth": "0.3.3",
+		"@tummycrypt/tinyland-auth-pg": "0.2.4",
 		"@tummycrypt/tinyland-color-utils": "0.2.3",
 		"@tummycrypt/tinyvectors": "https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.6.tar.gz",
 		"drizzle-orm": "0.39.3",

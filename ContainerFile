@@ -3,9 +3,9 @@
 # ONE immutable image, THREE stable process names: `web`, `worker`, and
 # `migrator` (spec §6). They are installed as links onto the single dispatcher
 # scripts/platform-entrypoint.mjs, so a Deployment or Job picks a process
-# boundary by executable name. `migrator` was filled in by TIN-3817 S1 and now
-# runs the real applier; `worker` is still declared and FAILS CLOSED until S3
-# lands the outbox dispatcher, without changing this image contract.
+# boundary by executable name. `migrator` was filled in by TIN-3817 S1 (the
+# real applier) and `worker` by TIN-3817 S3 (the transactional-outbox
+# dispatcher) — the image contract S0 declared is unchanged.
 #
 # ADAPTER SELECTION (ADR 0010 Amendment 1 item 2). This image is built with
 # ADAPTER=node so svelte.config.js selects @sveltejs/adapter-node. The default
@@ -93,6 +93,16 @@ RUN pnpm exec esbuild src/lib/server/db/migrate.ts \
       --tsconfig-raw='{}' \
       --banner:js="import { createRequire as __gftbCreateRequire } from 'node:module'; const require = __gftbCreateRequire(import.meta.url);"
 
+# The worker payload (TIN-3817 S3). Mirrors `just worker-bundle`: same one-file
+# contract and the same createRequire banner, with drizzle-orm inlined
+# alongside pg.
+RUN pnpm exec esbuild src/lib/server/worker.ts \
+      --bundle --platform=node --format=esm --target=node22 \
+      --outfile=build/worker.mjs \
+      --external:pg-native --external:cloudflare:sockets \
+      --tsconfig-raw='{}' \
+      --banner:js="import { createRequire as __gftbCreateRequire } from 'node:module'; const require = __gftbCreateRequire(import.meta.url);"
+
 # --- production ------------------------------------------------------------
 FROM pnpm-base AS production
 ARG BUILD_COMMIT_SHA=unknown
@@ -145,6 +155,9 @@ ENV GFTB_WEB_ENTRYPOINT=/app/build/index.js
 # Same reason, for the migrator (TIN-3817 S1).
 ENV GFTB_MIGRATOR_ENTRYPOINT=/app/build/migrator.mjs
 ENV GFTB_MIGRATIONS_DIR=/app/drizzle
+# Same reason, for the worker (TIN-3817 S3). DATABASE_URL and GFTB_TENANT_ID
+# are runtime NAMES supplied by great-falls-tool-bus-infra — never values here.
+ENV GFTB_WORKER_ENTRYPOINT=/app/build/worker.mjs
 
 # adapter-node serves the site at `/`; the readiness probe hits `/`.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

@@ -5,7 +5,42 @@
 # `pnpm run build`; Bazel exists for module-graph integrity proofs.
 
 common --enable_bzlmod
-common --registry=https://raw.githubusercontent.com/tinyland-inc/bazel-registry/main/
+# Supply-chain hardening: pin tinyland-inc/bazel-registry to an immutable
+# commit SHA instead of the mutable `main` ref so module metadata
+# (MODULE.bazel + source.json) cannot silently change under us. Bump the SHA
+# deliberately, in its own commit, with the refresh one-liner:
+#   sed -i '' "s|bazel-registry/[0-9a-f]\{40\}|bazel-registry/$(gh api repos/tinyland-inc/bazel-registry/commits/main --jq .sha)|" .bazelrc
+#   bazelisk mod graph   # regenerates MODULE.bazel.lock
+# The registry README states the rule this repo follows: "A SHA bump must
+# land alongside a `MODULE.bazel.lock` refresh in the same commit." Bumping
+# the SHA without re-committing the regenerated lock is a broken change.
+#
+# NOTE (TIN-3857): the SHA pinned below is origin/main of
+# tinyland-inc/bazel-registry taken AFTER the .bazelversion 8.2.1 convergence
+# PR merged, and that commit records .bazelversion 8.2.1 -- so the pinned
+# registry commit agrees with the estate-bazelversion line below. Every future
+# SHA bump repeats the same discipline: bump with the refresh one-liner above,
+# regenerate MODULE.bazel.lock in the SAME commit (a re-pin rewrites every
+# registry URL key in it, 161 keys), and re-read the registry's .bazelversion
+# at the new commit to confirm it still records the estate value below.
+#
+# estate-bazelversion: 8.2.1
+#   The estate-wide Bazel version. It is the value recorded by the registry's
+#   own .bazelversion at the commit pinned below, read at that commit when
+#   this pin was taken. scripts/scaffold-doctor-boundary.sh asserts root
+#   .bazelversion equals this value (offline). See "LIMITS" in that script:
+#   it proves this repo has not drifted from the value recorded here, NOT that
+#   the pinned registry commit still records the same value. Only re-reading
+#   the registry at the pinned SHA proves that, which is why it is a step of
+#   the re-pin procedure above rather than a check this repo can run offline.
+#
+# The estate-wide Bazel version SSOT, the two-registry chain, and this pin
+# convention are specified in that registry's own docs, not here (this link
+# tracks the registry's default branch and does not need re-pinning):
+#   https://github.com/tinyland-inc/bazel-registry/blob/main/docs/bazel-adoption-v0.md
+common --registry=https://raw.githubusercontent.com/tinyland-inc/bazel-registry/f23d69758dd20633b2ceb7767545d8925a317825
+# bcr stays as a secondary registry; the Tinyland registry stays first so
+# in-house Bazel modules resolve before falling through to bcr.bazel.build.
 common --registry=https://bcr.bazel.build
 
 # Build performance

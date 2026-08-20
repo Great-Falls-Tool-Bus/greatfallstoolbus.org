@@ -82,6 +82,7 @@ describe('applying the checked-in migrations', () => {
 			'auth.users',
 			'public.contribution_agreement',
 			'public.finance_receipt',
+			'public.member_role_grant', // S2 (TIN-3817): the role-grant table rides migration 0003
 			'public.outbox_job',
 			'public.stripe_event_inbox',
 			'public.tenant',
