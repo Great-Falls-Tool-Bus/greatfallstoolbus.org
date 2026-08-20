@@ -56,17 +56,33 @@ export default ts.config(
 			'svelte/no-navigation-without-resolve': 'off',
 		},
 	},
+	// ── Import fences ─────────────────────────────────────────────────────────
+	// Two lint-enforced boundaries, one rule name. ESLint flat config REPLACES a
+	// rule's options wholesale when a later object re-configures it for the same
+	// file, so each scope below carries the COMPLETE `no-restricted-imports`
+	// options it needs — do not add a new object that re-declares this rule for
+	// an overlapping scope, extend the matching one.
+	//
+	// Fence 1 — the pool (TIN-3817 S1, spec §1.3: "Direct pool access outside
+	// `withTenant` is a lint-enforced error"). `withTenant` is the only place
+	// that sets the app.tenant_id GUC; a query issued on the raw pool runs with
+	// the GUC unset, and under FORCE ROW LEVEL SECURITY that reads as an empty
+	// database rather than as an error — the quietest possible bug.
+	// `src/lib/server/db/**` is exempt: it is the module that OWNS the pool.
+	//
+	// Fence 2 — the auth packages (TIN-3817 S2, spec §1.4). The pinned
+	// `@tummycrypt/tinyland-auth@0.3.3` still ships TOTP and the ungated
+	// fail-open InvitationService that spec §4 forbids for Member v0; the pin
+	// is NOT the safety mechanism, this fence is (spec §0.7). So the packages
+	// have one door — `src/lib/server/auth/**` — and even inside the door the
+	// forbidden subpaths and export names stay banned. `fence.test.ts`
+	// re-asserts all of it by scanning the tree, so deleting a line here fails
+	// a test rather than silently widening the surface.
 	{
-		// Tenant isolation is lint-enforced, not conventional (TIN-3817 S1,
-		// spec §1.3: "Direct pool access outside `withTenant` is a lint-enforced
-		// error"). `withTenant` is the only place that sets the app.tenant_id GUC;
-		// a query issued on the raw pool runs with the GUC unset, and under FORCE
-		// ROW LEVEL SECURITY that reads as an empty database rather than as an
-		// error — the quietest possible bug.
-		//
-		// `src/lib/server/db/**` is exempt: it is the module that OWNS the pool.
+		// Everything outside both fence-owning modules: no pool, no auth
+		// packages, no internal adapter seam.
 		files: ['src/**/*.ts', 'src/**/*.svelte', 'src/**/*.svelte.ts'],
-		ignores: ['src/lib/server/db/**'],
+		ignores: ['src/lib/server/db/**', 'src/lib/server/auth/**'],
 		rules: {
 			'no-restricted-imports': [
 				'error',
@@ -86,6 +102,103 @@ export default ts.config(
 							group: ['**/server/db/client', '../client', './client'],
 							importNames: ['getPool', 'getDb', 'createDb'],
 							message: 'Do not reach for the pool directly. Use withTenant(tenantId, fn) from $lib/server/db/tenant.',
+						},
+						{
+							group: [
+								'@tummycrypt/tinyland-auth',
+								'@tummycrypt/tinyland-auth/*',
+								'@tummycrypt/tinyland-auth-pg',
+								'@tummycrypt/tinyland-auth-pg/*',
+							],
+							message:
+								'The auth packages have one door: import from $lib/server/auth. It withholds the TOTP and ' +
+								'invitation surfaces spec §4 forbids at the pinned 0.3.3 (see src/lib/server/auth/index.ts).',
+						},
+						{
+							group: ['**/server/auth/adapter', '$lib/server/auth/adapter'],
+							message:
+								'The adapter seam is module-internal. Import the typed functions from $lib/server/auth; ' +
+								'they construct the adapter per unit of work over the withTenant transaction handle (Fix A).',
+						},
+					],
+				},
+			],
+		},
+	},
+	{
+		// The pool-owning module may touch its own client, but the auth
+		// packages stay behind their door even here.
+		files: ['src/lib/server/db/**/*.ts'],
+		rules: {
+			'no-restricted-imports': [
+				'error',
+				{
+					patterns: [
+						{
+							group: [
+								'@tummycrypt/tinyland-auth',
+								'@tummycrypt/tinyland-auth/*',
+								'@tummycrypt/tinyland-auth-pg',
+								'@tummycrypt/tinyland-auth-pg/*',
+							],
+							message: 'The auth packages have one door: import from $lib/server/auth.',
+						},
+					],
+				},
+			],
+		},
+	},
+	{
+		// Inside the door: the pool fence still binds (auth code goes through
+		// the withTenant tx handle like everything else), and the surfaces spec
+		// §4 forbids stay unreachable even for the module that wraps the rest.
+		files: ['src/lib/server/auth/**/*.ts'],
+		rules: {
+			'no-restricted-imports': [
+				'error',
+				{
+					paths: [
+						{
+							name: '$lib/server/db/client',
+							importNames: ['getPool', 'getDb', 'createDb'],
+							message:
+								'Do not reach for the pool directly. Use withTenant(tenantId, fn) from $lib/server/db/tenant, ' +
+								'which sets app.tenant_id inside the transaction and hands you the tx handle to pass on ' +
+								'(including to createPgStorageAdapter({ db: tx })).',
+						},
+						{
+							name: '@tummycrypt/tinyland-auth',
+							importNames: [
+								'TOTPService',
+								'createTOTPService',
+								'InvitationService',
+								'createInvitationService',
+								'BootstrapService',
+								'createBootstrapService',
+								'generateTOTPSecret',
+								'generateTOTPUri',
+								'generateTOTPQRCode',
+								'generateTOTPToken',
+								'getTOTPTimeRemaining',
+								'generateTempPassword',
+								'generateBackupCodes',
+								'createBackupCodeSet',
+								'verifyBackupCode',
+							],
+							message:
+								'Forbidden for Member v0 (spec §4): TOTP, invitations, backup codes, and bootstrap are not ' +
+								'part of the auth spine, and 0.3.3 ships them ungated — the fence is here, not in the version pin.',
+						},
+					],
+					patterns: [
+						{
+							group: ['**/server/db/client', '../db/client'],
+							importNames: ['getPool', 'getDb', 'createDb'],
+							message: 'Do not reach for the pool directly. Use withTenant(tenantId, fn) from $lib/server/db/tenant.',
+						},
+						{
+							group: ['@tummycrypt/tinyland-auth/totp', '@tummycrypt/tinyland-auth/cred-gen'],
+							message: 'Forbidden subpath for Member v0 (spec §4): no TOTP, no credential generation.',
 						},
 					],
 				},

@@ -80,6 +80,7 @@ describe('applying the checked-in migrations', () => {
 			'auth.sessions',
 			'auth.totp_secrets',
 			'auth.users',
+			'public.member_role_grant', // S2 (TIN-3817): the role-grant table rides migration 0003
 			'public.outbox_job',
 			'public.tenant',
 		]);
