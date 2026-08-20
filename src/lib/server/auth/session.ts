@@ -36,8 +36,38 @@ import {
 	type SessionMetadata,
 } from '@tummycrypt/tinyland-auth';
 import type { TenantScoped } from '@tummycrypt/tinyland-auth-pg';
+import { sql } from 'drizzle-orm';
 import type { DbTransaction } from '$lib/server/db/client';
 import { adapterFor, parseDbInstant, toUtcIso } from './adapter';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Serialise credential operations on one user row (PR #175 review, the
+ * reset-vs-login race). `authenticate`/`reauthenticate` verify a password
+ * hash and then mint a session; `setPassword` rewrites the hash and then
+ * revokes sessions. Without a lock those interleave under READ COMMITTED so
+ * a login racing a reset can verify the OLD hash yet insert its session
+ * AFTER the reset's revocation scan — a session the reset was performed to
+ * kill, alive for its full TTL. `SELECT … FOR UPDATE` on the user row makes
+ * the interleavings serial: the login either commits before the reset (and
+ * its session is caught by the reset's DELETE) or waits and sees the new
+ * hash (and refuses). RLS still applies — a cross-tenant caller locks
+ * nothing and reads nothing.
+ */
+async function lockUserRow(
+	tx: DbTransaction,
+	tenantId: string,
+	column: 'id' | 'handle',
+	value: string,
+): Promise<boolean> {
+	const rows = await tx.execute(
+		column === 'id'
+			? sql`select id from "auth"."users" where tenant_id = ${tenantId} and id = ${value} for update`
+			: sql`select id from "auth"."users" where tenant_id = ${tenantId} and handle = ${value.toLowerCase()} for update`,
+	);
+	return rows.rows.length > 0;
+}
 
 /** Cookie carrying the session id. HttpOnly/Secure/SameSite set at write time. */
 export const SESSION_COOKIE = 'gftb_session';
@@ -157,6 +187,11 @@ export async function authenticate(
 	input: AuthenticateInput,
 ): Promise<{ user: AuthUser; session: AuthSession }> {
 	const adapter = adapterFor(tx);
+	// Lock first: a concurrent setPassword now either completes before this
+	// read (we see the new hash and refuse) or waits until this transaction —
+	// session insert included — commits, so its revocation sweep catches the
+	// session we are about to mint. See lockUserRow.
+	await lockUserRow(tx, tenantId, 'handle', input.handle);
 	const user = await adapter.getUserByHandle(tenantId, input.handle);
 	const refusal = new AuthError(401, 'bad_credentials', 'Unknown handle or wrong password.');
 	if (!user || !user.isActive) throw refusal;
@@ -179,11 +214,28 @@ export async function validateSession(
 	tenantId: string,
 	sessionId: string,
 ): Promise<AuthSession | null> {
+	// A cookie is attacker-controlled text. A non-UUID id must be an ordinary
+	// `null` — not a DatabaseError from the uuid cast, which would 500 the
+	// route AND abort the transaction the caller is sharing with its action
+	// (PR #175 review, LOW-MEDIUM). Same precedent as assertTenantId, inverted:
+	// tenant ids are trusted config and fail fast; session ids are wire input
+	// and fail soft.
+	if (!UUID_RE.test(sessionId)) return null;
 	const adapter = adapterFor(tx);
 	const session = await adapter.getSession(tenantId, sessionId);
 	if (!session) return null;
 	const normalized = normalizeSessionInstants(session);
-	if (parseDbInstant(normalized.expiresAt).getTime() <= Date.now()) {
+	const expiry = parseDbInstant(normalized.expiresAt).getTime();
+	// FAIL CLOSED on an unparseable expiry (PR #175 review, MEDIUM): NaN
+	// compares false against everything, so `NaN <= now` alone would mean
+	// "never expires" — under a role/DSN DateStyle like 'SQL, DMY' a session
+	// expired ten years ago would validate. Unparseable ⇒ treated as not
+	// live. Deliberately WITHOUT the delete: destroying rows because a
+	// session-level setting confused a parser would let a config slip erase
+	// every session; refusing to honor them is closed enough, and the pool
+	// pins DateStyle=ISO as defence in depth (db/client.ts).
+	if (Number.isNaN(expiry)) return null;
+	if (expiry <= Date.now()) {
 		await adapter.deleteSession(tenantId, sessionId);
 		return null;
 	}
@@ -228,6 +280,14 @@ export async function setPassword(
 ): Promise<{ user: AuthUser; revokedSessions: number }> {
 	assertUsablePassword(newPassword);
 	const adapter = adapterFor(tx);
+	// Lock + existence check in one step. Absent (or RLS-filtered — a
+	// cross-tenant id reads identically, on purpose) refuses with an
+	// AuthError that does NOT echo the id, instead of the package's bare
+	// `Error: User <uuid> not found` (PR #175 review nit).
+	const exists = await lockUserRow(tx, tenantId, 'id', userId);
+	if (!exists) {
+		throw new AuthError(400, 'unknown_user', 'No such user in this tenant.');
+	}
 	const passwordHash = await hashPassword(newPassword, hashOptions);
 	const user = await adapter.updateUser(tenantId, userId, {
 		passwordHash,

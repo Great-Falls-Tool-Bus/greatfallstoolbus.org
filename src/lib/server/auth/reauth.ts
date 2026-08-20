@@ -24,6 +24,7 @@
  */
 
 import { verifyPassword, type SessionMetadata } from '@tummycrypt/tinyland-auth';
+import { sql } from 'drizzle-orm';
 import type { DbTransaction } from '$lib/server/db/client';
 import { adapterFor, parseDbInstant } from './adapter';
 import { AuthError, normalizeSessionInstants, type AuthSession } from './session';
@@ -68,9 +69,16 @@ export function requireFreshReauth(session: AuthSession, options: ReauthOptions 
 
 /**
  * Verify the password of the user behind `session` and rotate it. Returns the
- * fresh session; the presented one is dead either way once this commits. A
- * wrong password refuses WITHOUT rotating, so an attacker holding a stolen
- * session id cannot use failed reauth attempts to log the real user out.
+ * fresh session; the presented one is dead once this commits. A wrong
+ * password refuses WITHOUT rotating, so an attacker holding a stolen session
+ * id cannot use failed reauth attempts to log the real user out.
+ *
+ * ROTATION REQUIRES A LIVE SESSION (PR #175 review: a revoked session object
+ * must not be tradeable for a live one). Reauth is inherently a two-request
+ * flow — 401 `reauth_required`, then a POST carrying the password — so "the
+ * caller validated it earlier" is a cross-request assumption this function
+ * cannot inherit. `deleteSession`'s boolean is the liveness check: deleting
+ * the already-dead reports false, and false means 401, not a fresh session.
  */
 export async function reauthenticate(
 	tx: DbTransaction,
@@ -80,6 +88,13 @@ export async function reauthenticate(
 	metadata?: SessionMetadata,
 ): Promise<AuthSession> {
 	const adapter = adapterFor(tx);
+	// Serialise against setPassword the same way authenticate does — a reauth
+	// racing a reset must either see the new hash (refuse) or commit before
+	// the reset's revocation sweep (be revoked by it). See lockUserRow in
+	// ./session.
+	await tx.execute(
+		sql`select id from "auth"."users" where tenant_id = ${tenantId} and id = ${session.userId} for update`,
+	);
 	const user = await adapter.getUser(tenantId, session.userId);
 	if (!user || !user.isActive) {
 		throw new AuthError(401, 'no_session', 'Not authenticated.');
@@ -88,6 +103,9 @@ export async function reauthenticate(
 	if (!ok) {
 		throw new AuthError(401, 'bad_credentials', 'Wrong password.');
 	}
-	await adapter.deleteSession(tenantId, session.id);
+	const wasLive = await adapter.deleteSession(tenantId, session.id);
+	if (!wasLive) {
+		throw new AuthError(401, 'no_session', 'Not authenticated.');
+	}
 	return normalizeSessionInstants(await adapter.createSession(tenantId, user.id, user, metadata));
 }

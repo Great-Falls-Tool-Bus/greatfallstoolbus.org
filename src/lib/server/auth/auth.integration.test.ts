@@ -18,11 +18,13 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { closeDb } from '$lib/server/db/client';
 import { withTenant } from '$lib/server/db/tenant';
 import {
 	MIGRATIONS_DIR,
+	asTenant,
 	credentialRuntimeRole,
 	query,
 	seedTenant,
@@ -254,6 +256,96 @@ describe('sessions: revocation on password reset (spec §1.4)', () => {
 		expect(await withTenant(tenantA, (tx) => validateSession(tx, tenantA, dropped.session.id))).toBeNull();
 		expect(await withTenant(tenantA, (tx) => validateSession(tx, tenantA, kept.session.id))).not.toBeNull();
 	});
+
+	it('a login racing a password reset never leaves an old-password session alive (PR #175 review)', async () => {
+		// The reviewer's race: under READ COMMITTED an unlocked login verifies
+		// the OLD hash and inserts its session AFTER the reset's revocation
+		// sweep. authenticate/setPassword now serialise on the user row
+		// (SELECT … FOR UPDATE), so whatever the interleaving, the invariant
+		// below must hold. A handful of iterations to actually exercise both
+		// orderings; the invariant is checked on every one.
+		for (let round = 0; round < 4; round++) {
+			const handle = `race${round}-${randomUUID().slice(0, 8)}`;
+			const user = await withTenant(tenantA, (tx) =>
+				createUserWithPassword(tx, tenantA, { handle, email: `${handle}@example.org`, password: PASSWORD }, FAST_HASH),
+			);
+			const newPassword = `rotated ${randomUUID()}`;
+
+			const [login, reset] = await Promise.allSettled([
+				withTenant(tenantA, (tx) => authenticate(tx, tenantA, { handle, password: PASSWORD })),
+				withTenant(tenantA, (tx) => setPassword(tx, tenantA, user.id, newPassword, FAST_HASH)),
+			]);
+
+			expect(reset.status).toBe('fulfilled');
+			if (login.status === 'fulfilled') {
+				// The login won the serialisation — the reset's sweep must have
+				// caught its session.
+				expect(await withTenant(tenantA, (tx) => validateSession(tx, tenantA, login.value.session.id))).toBeNull();
+			} else {
+				// The login lost — it must have refused on the NEW hash, cleanly.
+				expect(login.reason).toBeInstanceOf(AuthError);
+			}
+			// Either way the old password is dead:
+			await expect(
+				withTenant(tenantA, (tx) => authenticate(tx, tenantA, { handle, password: PASSWORD })),
+			).rejects.toMatchObject({ code: 'bad_credentials' });
+		}
+	});
+
+	it('setPassword for an unknown or cross-tenant user refuses with an AuthError that echoes no id (PR #175 nit)', async () => {
+		const handle = `xtenant-${randomUUID().slice(0, 8)}`;
+		const user = await withTenant(tenantA, (tx) =>
+			createUserWithPassword(tx, tenantA, { handle, email: `${handle}@example.org`, password: PASSWORD }, FAST_HASH),
+		);
+		const attempt = await withTenant(tenantB, (tx) =>
+			setPassword(tx, tenantB, user.id, 'hijacked', FAST_HASH).catch((e: unknown) => e),
+		);
+		expect(attempt).toBeInstanceOf(AuthError);
+		expect((attempt as AuthError).message).not.toContain(user.id);
+		// Fails closed: the original password still authenticates.
+		expect(
+			(await withTenant(tenantA, (tx) => authenticate(tx, tenantA, { handle, password: PASSWORD }))).session.id,
+		).toBeTruthy();
+	});
+
+	it('a cookie-shaped non-UUID session id is a 401, not a DatabaseError, and does not abort the tx (PR #175 review)', async () => {
+		await withTenant(tenantA, async (tx) => {
+			expect(await validateSession(tx, tenantA, 'not-a-uuid-at-all')).toBeNull();
+			let refusal: unknown;
+			try {
+				await requireSession(tx, tenantA, "'; drop--");
+			} catch (error) {
+				refusal = error;
+			}
+			expect(refusal).toBeInstanceOf(AuthError);
+			expect((refusal as AuthError).status).toBe(401);
+			// §6 wants authorization in the same unit of work as the action — so
+			// the refusal must leave THIS transaction usable, not aborted:
+			const alive = await tx.execute(sql.raw('select 1 as ok'));
+			expect(alive.rows[0]).toEqual({ ok: 1 });
+		});
+	});
+
+	it('an unparseable expiry FAILS CLOSED — and does not destroy the session (PR #175 review, MEDIUM)', async () => {
+		const handle = `dmy-${randomUUID().slice(0, 8)}`;
+		await withTenant(tenantA, (tx) =>
+			createUserWithPassword(tx, tenantA, { handle, email: `${handle}@example.org`, password: PASSWORD }, FAST_HASH),
+		);
+		const { session } = await withTenant(tenantA, (tx) => authenticate(tx, tenantA, { handle, password: PASSWORD }));
+
+		// The reviewer's repro, transaction-scoped: DateStyle 'SQL, DMY' makes
+		// the naive timestamp text unparseable to the seam. SET LOCAL overrides
+		// the pool's datestyle=ISO pin for exactly this transaction.
+		const underDmy = await withTenant(tenantA, async (tx) => {
+			await tx.execute(sql.raw(`set local datestyle to 'SQL, DMY'`));
+			return validateSession(tx, tenantA, session.id);
+		});
+		expect(underDmy).toBeNull(); // closed: an expiry we cannot read is not proof of life
+
+		// …and NOT deleted as collateral: with sane formatting the session is
+		// still the live session it always was.
+		expect(await withTenant(tenantA, (tx) => validateSession(tx, tenantA, session.id))).not.toBeNull();
+	});
 });
 
 describe('fresh reauthentication (spec §1.4; TIN-3440)', () => {
@@ -309,6 +401,30 @@ describe('fresh reauthentication (spec §1.4; TIN-3440)', () => {
 		).rejects.toMatchObject({ status: 401, code: 'bad_credentials' });
 
 		expect(await withTenant(tenantA, (tx) => validateSession(tx, tenantA, session.id))).not.toBeNull();
+	});
+
+	it('a REVOKED session cannot be traded for a live one, even with the right password (PR #175 review)', async () => {
+		const handle = `deadswap-${randomUUID().slice(0, 8)}`;
+		const user = await withTenant(tenantA, (tx) =>
+			createUserWithPassword(tx, tenantA, { handle, email: `${handle}@example.org`, password: PASSWORD }, FAST_HASH),
+		);
+		const { session } = await withTenant(tenantA, (tx) => authenticate(tx, tenantA, { handle, password: PASSWORD }));
+
+		// Revoke, then present the (now dead) session OBJECT with the CORRECT
+		// password — the reviewer's exact trade attempt.
+		expect(await withTenant(tenantA, (tx) => revokeSession(tx, tenantA, session.id))).toBe(true);
+		await expect(withTenant(tenantA, (tx) => reauthenticate(tx, tenantA, session, PASSWORD))).rejects.toMatchObject({
+			status: 401,
+			code: 'no_session',
+		});
+
+		// And nothing was minted in the refusal:
+		const remaining = await withTenant(tenantA, (tx) =>
+			tx.execute(
+				sql`select count(*)::int as n from "auth"."sessions" where tenant_id = ${tenantA} and user_id = ${user.id}`,
+			),
+		);
+		expect(remaining.rows[0]).toEqual({ n: 0 });
 	});
 });
 
@@ -372,15 +488,79 @@ describe('member_role_grant mechanics (vocabulary PENDING sitting #2 Item 2)', (
 		expect(rows[0].with_check).toContain('tenant_id');
 	});
 
-	it("the runtime role's default DML privileges reached the S2 table (0002's forward grant worked)", async () => {
-		// Every row in this file already ran as gftb_app, but say it explicitly:
-		// the runtime role can write and read the S2 table and CANNOT alter it.
-		const rows = await query<{ privilege_type: string }>(
+	it('the runtime role holds exactly the grants revocation needs — and nothing that could rewrite history', async () => {
+		// PR #175 review (LOW): "append-only" was convention — gftb_app held
+		// blanket UPDATE and DELETE. After 0003's hardening block it holds
+		// INSERT, SELECT, and UPDATE on revoked_at ALONE.
+		const rows = await query<{ d: boolean; u: boolean; i: boolean; s: boolean; ru: boolean; rr: boolean }>(
 			db.migratorDsn,
-			`select privilege_type from information_schema.role_table_grants
-			  where grantee = 'gftb_app' and table_name = 'member_role_grant'
-			  order by privilege_type`,
+			`select has_table_privilege('gftb_app', 'member_role_grant', 'DELETE') as d,
+			        has_table_privilege('gftb_app', 'member_role_grant', 'UPDATE') as u,
+			        has_table_privilege('gftb_app', 'member_role_grant', 'INSERT') as i,
+			        has_table_privilege('gftb_app', 'member_role_grant', 'SELECT') as s,
+			        has_column_privilege('gftb_app', 'member_role_grant', 'revoked_at', 'UPDATE') as ru,
+			        has_column_privilege('gftb_app', 'member_role_grant', 'role', 'UPDATE') as rr`,
 		);
-		expect(rows.map((r) => r.privilege_type)).toEqual(['DELETE', 'INSERT', 'SELECT', 'UPDATE']);
+		expect(rows[0]).toEqual({ d: false, u: false, i: true, s: true, ru: true, rr: false });
+	});
+
+	it('append-only is enforced by the database, not by roles.ts (PR #175 review)', async () => {
+		const personId = randomUUID();
+		const granted = await withTenant(tenantA, (tx) =>
+			grantRole(tx, tenantA, { personId, role: ROLE, grantedBy: randomUUID() }),
+		);
+
+		// The runtime role cannot DELETE a grant…
+		await expect(
+			withTenant(tenantA, (tx) => tx.execute(sql.raw(`delete from member_role_grant where id = '${granted.id}'`))),
+		).rejects.toThrow(/permission denied/i);
+		// …or rewrite its role (column-level UPDATE grant covers revoked_at only):
+		await expect(
+			withTenant(tenantA, (tx) =>
+				tx.execute(sql.raw(`update member_role_grant set role = 'rewritten' where id = '${granted.id}'`)),
+			),
+		).rejects.toThrow(/permission denied/i);
+
+		// The trigger binds the TABLE OWNER too — grants alone never could. The
+		// owner is under FORCE RLS like everyone else, so it must present the
+		// tenant GUC to even reach its rows (asTenant); the trigger then refuses.
+		await expect(
+			asTenant(db.migratorDsn, tenantA, (client) =>
+				client.query('delete from member_role_grant where id = $1', [granted.id]),
+			),
+		).rejects.toThrow(/append-only/i);
+		await expect(
+			asTenant(db.migratorDsn, tenantA, (client) =>
+				client.query(`update member_role_grant set role = 'rewritten' where id = $1`, [granted.id]),
+			),
+		).rejects.toThrow(/only set revoked_at/i);
+
+		// Revocation itself still works for the runtime role…
+		const revoked = await withTenant(tenantA, (tx) => revokeRole(tx, tenantA, personId, ROLE));
+		expect(revoked?.id).toBe(granted.id);
+		// …is one-way (un-revoke refused)…
+		await expect(
+			withTenant(tenantA, (tx) =>
+				tx.execute(sql.raw(`update member_role_grant set revoked_at = null where id = '${granted.id}'`)),
+			),
+		).rejects.toThrow(/immutable/i);
+		// …and a revoked row is frozen even for the owner:
+		await expect(
+			asTenant(db.migratorDsn, tenantA, (client) =>
+				client.query('update member_role_grant set revoked_at = now() where id = $1', [granted.id]),
+			),
+		).rejects.toThrow(/immutable/i);
+	});
+
+	it('two CONCURRENT grants of one live triple converge on one row (PR #175 review nit)', async () => {
+		const personId = randomUUID();
+		const grantedBy = randomUUID();
+		const [a, b] = await Promise.all([
+			withTenant(tenantA, (tx) => grantRole(tx, tenantA, { personId, role: ROLE, grantedBy })),
+			withTenant(tenantA, (tx) => grantRole(tx, tenantA, { personId, role: ROLE, grantedBy })),
+		]);
+		expect(a.id).toBe(b.id);
+		const live = await withTenant(tenantA, (tx) => activeRoles(tx, tenantA, personId));
+		expect(live).toHaveLength(1);
 	});
 });

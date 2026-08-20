@@ -33,6 +33,7 @@
 
 import { createPgStorageAdapter, type Database, type PgStorageAdapter } from '@tummycrypt/tinyland-auth-pg';
 import type { DbTransaction } from '$lib/server/db/client';
+import { FORBIDDEN_ADAPTER_METHODS, type ForbiddenAdapterMethod } from './fence';
 
 /**
  * NAIVE TIMESTAMPS IN THE `auth.*` TABLES ARE UTC — a contract this module
@@ -82,7 +83,15 @@ export function toUtcIso(value: string | Date): string {
  * Session TTL handed to every adapter construction, stated rather than
  * inherited so the number is visible in this repository (it matches the
  * package default). Not a ratified figure; a future sitting can move it
- * without a migration.
+ * without a migration — it only affects newly created rows.
+ *
+ * SEMANTICS, PRECISELY (PR #175 review, LOW): this is a PER-SESSION-ROW
+ * lifetime, which composes with reauth rotation into a SLIDING WINDOW, not a
+ * maximum session age — every reauthentication mints a fresh row with a
+ * fresh 7 days, so a user who performs a sensitive action weekly never
+ * re-logs-in. Related: an ordinary login IS fresh reauth for the first
+ * REAUTH_WINDOW_MS. Both are defensible and standard; both are POLICY calls
+ * flagged to sitting #2 alongside the reauth window, not ratified here.
  */
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -109,15 +118,44 @@ type _TxCarriesTheAdapterSurface = Satisfies<
 >;
 
 /**
+ * The adapter as this repository is allowed to see it: the forbidden method
+ * surface removed at the TYPE level, so a call site fails `just typecheck` —
+ * the adversarial review's exact bypass (`adapterFor(tx).getPendingInvitations`)
+ * is now a compile error before it is anything else.
+ */
+export type FencedAdapter = Omit<PgStorageAdapter, ForbiddenAdapterMethod>;
+
+/**
  * Construct the tenant-scoped storage adapter over the transaction handle
  * `withTenant` provided. One adapter per unit of work, by design — see the
  * module comment. The GUC pinned inside `tx` is the belt; the `tenantId`
  * every adapter method takes as its first argument is the suspenders.
+ *
+ * THE RETURNED ADAPTER IS FENCED AT RUNTIME, not only in types. The Proxy
+ * throws on ANY access to a forbidden method name — including
+ * `(adapter as never)['getTOTPSecret']`, a renamed alias, or a dynamic
+ * string, none of which a static scan or a type can see. This is the layer
+ * that makes the §0.7 fence bind the reachable surface rather than the
+ * import graph (PR #175 adversarial review, HIGH finding).
  */
-export function adapterFor(tx: DbTransaction): PgStorageAdapter {
+export function adapterFor(tx: DbTransaction): FencedAdapter {
 	// _TxCarriesTheAdapterSurface (above) is the typed license for this cast.
-	return createPgStorageAdapter({
+	const adapter = createPgStorageAdapter({
 		db: tx as unknown as Database,
 		sessionMaxAge: SESSION_TTL_MS,
 	});
+	return new Proxy(adapter, {
+		get(target, property, receiver) {
+			if (typeof property === 'string' && (FORBIDDEN_ADAPTER_METHODS as readonly string[]).includes(property)) {
+				throw new Error(
+					`auth fence: PgStorageAdapter.${property} is forbidden for Member v0 ` +
+						'(spec §4; executable-slices §0.7 — the fence, not the version pin, is the safety mechanism)',
+				);
+			}
+			const value = Reflect.get(target, property, receiver);
+			// Bind methods to the real adapter so its own `this.db` lookups do not
+			// re-enter this trap.
+			return typeof value === 'function' ? value.bind(target) : value;
+		},
+	}) as FencedAdapter;
 }

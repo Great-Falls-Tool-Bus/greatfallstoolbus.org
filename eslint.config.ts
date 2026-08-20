@@ -4,6 +4,28 @@ import svelte from 'eslint-plugin-svelte';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 
+// Shared `no-restricted-syntax` entries. Flat config REPLACES a rule's options
+// wholesale when a later object re-configures it for the same file, so every
+// scoped block that adds a syntax restriction must re-state the global
+// `$derived` rule too — these constants keep the copies identical.
+const derivedThunkRestriction = {
+	selector: "CallExpression[callee.type='Identifier'][callee.name='$derived'] > ArrowFunctionExpression",
+	message:
+		'Do not pass an arrow-function thunk to $derived(...). Use $derived(expr) for an expression, or $derived.by(() => …) for a multi-statement derivation.',
+};
+
+// `no-restricted-imports` does not see dynamic `import()` — proved by the
+// PR #175 adversarial review (`await import('@tummycrypt/tinyland-auth')`
+// linted clean). This selector closes that hole for string-literal
+// specifiers; a computed specifier is caught at runtime by the adapter
+// fence's Proxy (src/lib/server/auth/adapter.ts).
+const dynamicAuthImportRestriction = {
+	selector: 'ImportExpression > Literal[value=/@tummycrypt\\u002ftinyland-auth/]',
+	message:
+		'Dynamic import of the auth packages is banned everywhere — the door (src/lib/server/auth) uses ' +
+		'static imports, and everything else imports $lib/server/auth.',
+};
+
 export default ts.config(
 	js.configs.recommended,
 	...ts.configs.recommended,
@@ -41,14 +63,7 @@ export default ts.config(
 			// `$derived.by(...)` has a MemberExpression callee, so the selector
 			// (Identifier callee named `$derived` with a direct arrow argument)
 			// leaves it untouched.
-			'no-restricted-syntax': [
-				'error',
-				{
-					selector: "CallExpression[callee.type='Identifier'][callee.name='$derived'] > ArrowFunctionExpression",
-					message:
-						'Do not pass an arrow-function thunk to $derived(...). Use $derived(expr) for an expression, or $derived.by(() => …) for a multi-statement derivation.',
-				},
-			],
+			'no-restricted-syntax': ['error', derivedThunkRestriction],
 			// Svelte 5 / Skeleton 4 adjustments
 			'svelte/no-at-html-tags': 'warn',
 			'svelte/no-dom-manipulating': 'off',
@@ -70,14 +85,19 @@ export default ts.config(
 	// database rather than as an error — the quietest possible bug.
 	// `src/lib/server/db/**` is exempt: it is the module that OWNS the pool.
 	//
-	// Fence 2 — the auth packages (TIN-3817 S2, spec §1.4). The pinned
-	// `@tummycrypt/tinyland-auth@0.3.3` still ships TOTP and the ungated
-	// fail-open InvitationService that spec §4 forbids for Member v0; the pin
-	// is NOT the safety mechanism, this fence is (spec §0.7). So the packages
-	// have one door — `src/lib/server/auth/**` — and even inside the door the
-	// forbidden subpaths and export names stay banned. `fence.test.ts`
-	// re-asserts all of it by scanning the tree, so deleting a line here fails
-	// a test rather than silently widening the surface.
+	// Fence 2 — the auth packages (TIN-3817 S2, spec §1.4; REBUILT after the
+	// PR #175 adversarial review). The pinned `@tummycrypt/tinyland-auth@0.3.3`
+	// still ships TOTP and the ungated fail-open InvitationService that spec §4
+	// forbids for Member v0; the pin is NOT the safety mechanism, this fence is
+	// (spec §0.7). The packages have one door — `src/lib/server/auth/**`, and
+	// from outside only its INDEX — and even inside the door the forbidden
+	// names and subpaths stay banned. Lint is one of FOUR layers and not the
+	// binding one: the manifest (`src/lib/server/auth/fence.ts`) also drives a
+	// runtime Proxy over the adapter's forbidden METHODS, a compile-time
+	// Omit<> of the same, and `fence.test.ts`'s tree scan + door export
+	// allow-list + the committed reviewer bypass as a negative fixture —
+	// deleting a line here fails a test rather than silently widening the
+	// surface.
 	{
 		// Everything outside both fence-owning modules: no pool, no auth
 		// packages, no internal adapter seam.
@@ -115,14 +135,19 @@ export default ts.config(
 								'invitation surfaces spec §4 forbids at the pinned 0.3.3 (see src/lib/server/auth/index.ts).',
 						},
 						{
-							group: ['**/server/auth/adapter', '$lib/server/auth/adapter'],
+							// The whole door interior is internal: outside code imports
+							// $lib/server/auth (the index) and NOTHING deeper, so the
+							// export allow-list in fence.ts is the door's entire surface
+							// (PR #175 review — deep imports bypassed the index).
+							group: ['**/server/auth/*', '$lib/server/auth/*'],
 							message:
-								'The adapter seam is module-internal. Import the typed functions from $lib/server/auth; ' +
-								'they construct the adapter per unit of work over the withTenant transaction handle (Fix A).',
+								'The door has one surface: import from $lib/server/auth (the index). Its export list is ' +
+								'the committed allow-list in src/lib/server/auth/fence.ts.',
 						},
 					],
 				},
 			],
+			'no-restricted-syntax': ['error', derivedThunkRestriction, dynamicAuthImportRestriction],
 		},
 	},
 	{
@@ -143,9 +168,14 @@ export default ts.config(
 							],
 							message: 'The auth packages have one door: import from $lib/server/auth.',
 						},
+						{
+							group: ['**/server/auth/*', '$lib/server/auth/*'],
+							message: 'The door has one surface: import from $lib/server/auth (the index).',
+						},
 					],
 				},
 			],
+			'no-restricted-syntax': ['error', derivedThunkRestriction, dynamicAuthImportRestriction],
 		},
 	},
 	{
@@ -189,6 +219,19 @@ export default ts.config(
 								'Forbidden for Member v0 (spec §4): TOTP, invitations, backup codes, and bootstrap are not ' +
 								'part of the auth spine, and 0.3.3 ships them ungated — the fence is here, not in the version pin.',
 						},
+						{
+							// PR #175 review: the -pg package was unfenced inside the door.
+							// The pool-owning constructors are the exact §1.3 B3 hazard (an
+							// adapter with its OWN pool never sees the GUC — silent auth
+							// outage under FORCE RLS), and bootstrapUsers writes users
+							// outside the spine — and resolves the EXTERNAL, bcrypt-broken
+							// copy of tinyland-auth besides.
+							name: '@tummycrypt/tinyland-auth-pg',
+							importNames: ['createNodePgStorageAdapter', 'NodePgStorageAdapter', 'bootstrapUsers'],
+							message:
+								'Forbidden for Member v0: pool-owning adapter constructors bypass the withTenant GUC ' +
+								'(§1.3 B3), and bootstrapUsers is outside the auth spine. Construct via adapterFor(tx) only.',
+						},
 					],
 					patterns: [
 						{
@@ -197,12 +240,17 @@ export default ts.config(
 							message: 'Do not reach for the pool directly. Use withTenant(tenantId, fn) from $lib/server/db/tenant.',
 						},
 						{
-							group: ['@tummycrypt/tinyland-auth/totp', '@tummycrypt/tinyland-auth/cred-gen'],
-							message: 'Forbidden subpath for Member v0 (spec §4): no TOTP, no credential generation.',
+							group: [
+								'@tummycrypt/tinyland-auth/totp',
+								'@tummycrypt/tinyland-auth/cred-gen',
+								'@tummycrypt/tinyland-auth-pg/bootstrap-users',
+							],
+							message: 'Forbidden subpath for Member v0 (spec §4): no TOTP, no credential generation, no bootstrap.',
 						},
 					],
 				},
 			],
+			'no-restricted-syntax': ['error', derivedThunkRestriction, dynamicAuthImportRestriction],
 		},
 	},
 	{

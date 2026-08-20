@@ -41,3 +41,55 @@ ALTER TABLE "member_role_grant" FORCE ROW LEVEL SECURITY;
 CREATE POLICY "member_role_grant_tenant" ON "member_role_grant"
 	USING      (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
 	WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+--> statement-breakpoint
+
+-- ─── Hand-written half 2: append-only enforced by the database (S2 review) ───
+--
+-- Adversarial review on PR #175 proved the file's "append-only, never
+-- deleted" comments were convention only: gftb_app held blanket UPDATE and
+-- DELETE, so a compromised runtime could rewrite `role`/`granted_by` or erase
+-- revocation history — precisely the audit trail S5 will hang keyholder
+-- authorization on. Enforced here, before S5 exists, on the finance_receipt
+-- doctrine (spec §3.3: "enforced by grant rather than by convention"):
+--
+--   grants  gftb_app loses DELETE and table-level UPDATE; it keeps INSERT,
+--           SELECT, and a COLUMN-level UPDATE on revoked_at — the one write
+--           revocation needs.
+--   trigger binds EVERY role, table owner included (grants do not): no
+--           deletes, revocation is one-way (revoked_at NULL -> NOT NULL,
+--           once), and every other column is immutable.
+--
+-- This block constrains ROW LIFECYCLE only. The role VOCABULARY stays
+-- unratified (sitting #2 Item 2) and is deliberately not constrained here.
+
+REVOKE UPDATE, DELETE ON "member_role_grant" FROM gftb_app;
+--> statement-breakpoint
+GRANT UPDATE ("revoked_at") ON "member_role_grant" TO gftb_app;
+--> statement-breakpoint
+CREATE FUNCTION member_role_grant_append_only() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		RAISE EXCEPTION 'member_role_grant is append-only: grants are revoked (revoked_at), never deleted';
+	END IF;
+	IF OLD.revoked_at IS NOT NULL THEN
+		RAISE EXCEPTION 'member_role_grant is append-only: a revoked grant is immutable; re-grant with a new row';
+	END IF;
+	IF NEW.revoked_at IS NULL THEN
+		RAISE EXCEPTION 'member_role_grant: an update may only set revoked_at (revocation is one-way)';
+	END IF;
+	IF NEW.id IS DISTINCT FROM OLD.id
+		OR NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
+		OR NEW.person_id IS DISTINCT FROM OLD.person_id
+		OR NEW.role IS DISTINCT FROM OLD.role
+		OR NEW.granted_by IS DISTINCT FROM OLD.granted_by
+		OR NEW.granted_at IS DISTINCT FROM OLD.granted_at THEN
+		RAISE EXCEPTION 'member_role_grant: grant fields are immutable; only revoked_at may change';
+	END IF;
+	RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER member_role_grant_append_only
+	BEFORE UPDATE OR DELETE ON "member_role_grant"
+	FOR EACH ROW EXECUTE FUNCTION member_role_grant_append_only();

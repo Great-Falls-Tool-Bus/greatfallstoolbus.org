@@ -23,11 +23,21 @@
  * History is append-only: revocation sets `revoked_at`, never deletes, and a
  * re-grant after revocation is a NEW row (the partial unique index constrains
  * live grants only).
+ *
+ * APPEND-ONLY IS ENFORCED IN THE DATABASE, not by this file's discipline
+ * (PR #175 adversarial review proved the earlier claim was convention: the
+ * runtime role held blanket UPDATE/DELETE). Migration 0003's hardening block
+ * revokes DELETE and table-level UPDATE from `gftb_app`, grants UPDATE on
+ * `revoked_at` alone, and installs a trigger that binds EVERY role — table
+ * owner included — to: no deletes, revocation one-way (NULL → NOT NULL,
+ * once), all other columns immutable. S5 can hang keyholder authorization on
+ * these rows knowing the audit trail cannot be rewritten from the runtime.
  */
 
 import { and, eq, isNull } from 'drizzle-orm';
 import type { DbTransaction } from '$lib/server/db/client';
 import { memberRoleGrant, type MemberRoleGrant } from '$lib/server/db/schema';
+import { AuthError } from './session';
 
 export interface GrantInput {
 	personId: string;
@@ -39,8 +49,27 @@ export interface GrantInput {
  * Grant `role` to `personId`. Idempotent on a live grant: granting what is
  * already held returns the existing row instead of erroring, so a retried
  * request converges rather than 500s.
+ *
+ * CONVERGENT UNDER CONCURRENCY, not merely under retry (PR #175 review nit:
+ * the original check-then-insert raised a unique violation when two grants
+ * raced). `ON CONFLICT DO NOTHING` makes the loser's insert a no-op against
+ * the partial live-grant index; the follow-up select then reads the winner's
+ * committed row. Insert-first also removes the TOCTOU window the read-first
+ * version had.
  */
 export async function grantRole(tx: DbTransaction, tenantId: string, input: GrantInput): Promise<MemberRoleGrant> {
+	const inserted = await tx
+		.insert(memberRoleGrant)
+		.values({
+			tenantId,
+			personId: input.personId,
+			role: input.role,
+			grantedBy: input.grantedBy,
+		})
+		.onConflictDoNothing()
+		.returning();
+	if (inserted[0]) return inserted[0];
+
 	const existing = await tx
 		.select()
 		.from(memberRoleGrant)
@@ -55,16 +84,9 @@ export async function grantRole(tx: DbTransaction, tenantId: string, input: Gran
 		.limit(1);
 	if (existing[0]) return existing[0];
 
-	const inserted = await tx
-		.insert(memberRoleGrant)
-		.values({
-			tenantId,
-			personId: input.personId,
-			role: input.role,
-			grantedBy: input.grantedBy,
-		})
-		.returning();
-	return inserted[0];
+	// A conflict was reported yet no live grant is readable: the winner was
+	// revoked (or filtered) between our two statements. Retryable, and said so.
+	throw new AuthError(409, 'grant_conflict', 'Concurrent grant change; retry the grant.');
 }
 
 /**
