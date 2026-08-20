@@ -446,3 +446,39 @@ prior artifact). Both lanes are designed in
   `tinyland-inc/site.scaffold` tag this clone was spawned from. Sister
   spokes that have not bumped past their original tag are not required
   to track schema changes until they explicitly upgrade.
+
+## GFTB SSOT grounding (binding; added 2026-08-20 after a 4-day drift incident)
+
+Every agent lane touching this repo MUST ground in these authorities and cite
+the specific section/ticket/file for every substantive change (PR bodies carry
+an Authority citations table; reviews check citation-conformance FIRST).
+Decisions are **decided-by-default** — search these sources before ever
+writing "open question" or "needs ratification".
+
+1. **meta repo** (`Great-Falls-Tool-Bus/meta` @ origin/main — ALWAYS fetch;
+   stale local checkouts caused false not-founds):
+   `spec/launch-member-v0-system-2026-08-16.md` (THE contract — §4
+   application lifecycle, §5 contribution, §8 tool custody: 6 entities, 5×5
+   states, partial-unique one-active-loan, 5-step checkout/return, 7-step
+   media pipeline with PG `bytea` encrypted media through 09-20 and
+   `MediaBlobStore` gated on the 09-27 TIN-3848 decision), `spec/
+   member-v0-executable-slices-2026-08-18.md` (S0–S9; NO inventory slice —
+   pilot decomposition is new work after Member v0), `decisions/0014` (§1
+   split: this repo becomes private `gftb-platform`, the member+inventory
+   app; §7 inventory pilot ≈ten sewing assets, no automatic charges ever),
+   `decisions/0015`, `diagrams/launch-member-v0/*.mmd` (the five-diagram
+   ontology — inventory-custody-flow is the tool-flow authority).
+2. **Linear** (read descriptions AND comment threads): initiative "Great
+   Falls Tool Bus — Launch"; doc "GFTB launch operating map". Milestones:
+   08-16 apex (TIN-2366/2401/3437/3816) · 08-30 Member v0
+   (TIN-3815/3817/3440/3818) · 09-10 hardening (TIN-3481/3813) · 09-15
+   rehearsal (TIN-3814 — the custody rehearsal spec) · 09-20 custody pilot
+   (TIN-3847, binary lending-ready) · 09-27 reliability (TIN-3848, storage
+   graduation). Custody-adjacent: TIN-3498 (stack-card ruling, blocks
+   TIN-3502 whose `cells.ts:113` denylist defect is live). SLA labels
+   `sla:same-day`/`sla:1-business-day`/`sla:weekly`; WIP=1 in-project.
+3. Vocabulary is binding: **application** (not enrollment); **operator
+   mapping at pilot intake** (not ingest/catalog); `steward` deliberately
+   absent — never reintroduce. Maine/TIN-3905 is operator-only (zero agent
+   resources). The bus is permanently parked. Membership state never changes
+   on payment events; no path ever automatically charges a member.
