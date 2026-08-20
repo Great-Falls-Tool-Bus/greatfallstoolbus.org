@@ -53,9 +53,18 @@ export interface AssentSeams {
 	env?: NodeJS.ProcessEnv;
 }
 
-/** Minimal password rule — mechanics only; the member-facing password POLICY
- * copy is not ratified (S2's recorded posture, carried forward). */
-export const MIN_PASSWORD_LENGTH = 12;
+/**
+ * Minimal password rule — mechanics only; the member-facing password POLICY
+ * copy is not ratified (S2's recorded posture, carried forward).
+ *
+ * NOT exported (review round 2, THE BLOCKER): SvelteKit's route-export
+ * contract only permits `load, prerender, csr, ssr, trailingSlash, config,
+ * actions, entries`, or names prefixed `_`. `svelte-kit`'s `analyse` build
+ * pass — which `just check`'s `svelte-check`/`tsc` never runs — rejects any
+ * other export and fails `just build` outright. Referenced only inside this
+ * file (grep-verified), so file-private is both correct and sufficient.
+ */
+const MIN_PASSWORD_LENGTH = 12;
 
 export function _createAssentLoad(seams: AssentSeams = {}) {
 	const env = seams.env ?? process.env;

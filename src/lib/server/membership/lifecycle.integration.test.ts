@@ -35,7 +35,7 @@ import {
 	type PgFixture,
 } from '../db/integration-support';
 import { grantRole } from '../auth/roles';
-import { validateSession } from '../auth';
+import { authenticate, createUserWithPassword, validateSession } from '../auth';
 import { KEYHOLDER_ROLE, claimApplication, scheduleTour } from '../application/claim';
 import { submitApplication, validateSubmission, verifyEmail } from '../application/intake';
 import { mintToken } from '../application/tokens';
@@ -54,7 +54,8 @@ import {
 import { publishAgreementVersion } from './agreement';
 import { OFFBOARD_JOB_KINDS, personRecord } from './offboard';
 import { InvalidAuditEventError } from '../audit/write';
-import { _createLeaveAction } from '../../../routes/(member)/membership/+page.server';
+import { _createLeaveAction, _createPauseAction } from '../../../routes/(member)/membership/+page.server';
+import { _createRemoveAction } from '../../../routes/(keyholder)/remove/+page.server';
 import {
 	MEMBERSHIP_EVENTS,
 	MEMBERSHIP_STATUSES,
@@ -672,5 +673,154 @@ describe('InvalidAuditEventError surfaces as 400, not 500 (review round 1 edit 1
 		const row = await membershipRow(s.membershipId);
 		expect(row.status).toBe('active');
 		expect(row.version).toBe(s.version);
+	});
+});
+
+/* ═══════════ REVIEW ROUND 2 — hostile re-verify of S6 edit 1 ═══════════
+ * The round-1 edit catches InvalidAuditEventError at BOTH /remove and
+ * /membership. The shipped rows only cover the lib seam and /membership's
+ * leave action — `_createRemoveAction` has no test anywhere in the stack.
+ * These rows drive the real /remove route with the round-1 repro verbatim.
+ * Adopted verbatim from the review (PR #182, round 2) as a permanent test.
+ */
+
+describe('RV2 — /remove route maps InvalidAuditEventError to 400 (round-1 edit 1, uncovered half)', () => {
+	const LONG_LEGIT_SLUG = 'code_of_conduct_violation_repeated'; // 34 chars of [a-z_]
+	const KH_PASSWORD = 'keyholder-fixture-password';
+
+	/** A keyholder who is a REAL auth user (resolveReviewer maps userId→personId). */
+	async function keyholderSession() {
+		const handle = `kh-${randomUUID().slice(0, 8)}@example.org`;
+		const user = await withTenant(
+			tenantId,
+			(tx) =>
+				createUserWithPassword(
+					tx,
+					tenantId,
+					{ handle, email: handle, displayName: 'Kim Keyholder', password: KH_PASSWORD },
+					FAST_HASH,
+				),
+			db,
+		);
+		await withTenant(
+			tenantId,
+			(tx) => grantRole(tx, tenantId, { personId: user.id, role: KEYHOLDER_ROLE, grantedBy: randomUUID() }),
+			db,
+		);
+		const session = await withTenant(
+			tenantId,
+			(tx) => authenticate(tx, tenantId, { handle, password: KH_PASSWORD }),
+			db,
+		);
+		return { userId: user.id, session: session.session };
+	}
+
+	function removeEvent(fields: Record<string, string>, session: { id: string; userId: string }) {
+		const setCookies: unknown[] = [];
+		return {
+			event: {
+				request: new Request('http://localhost/remove', {
+					method: 'POST',
+					headers: { 'content-type': 'application/x-www-form-urlencoded' },
+					body: new URLSearchParams(fields),
+				}),
+				locals: { authSession: session },
+				cookies: { set: (...a: unknown[]) => setCookies.push(a) },
+				params: {},
+			} as unknown as Parameters<ReturnType<typeof _createRemoveAction>>[0],
+			setCookies,
+		};
+	}
+
+	it('THE REPRO: the long legit slug 400s invalid_reason at /remove, nothing commits', async () => {
+		const kh = await keyholderSession();
+		const s = await inState('active');
+		const action = _createRemoveAction({ env: { ...process.env, GFTB_TENANT_ID: tenantId } });
+
+		const { event } = removeEvent(
+			{
+				membershipId: s.membershipId,
+				reasonClass: LONG_LEGIT_SLUG,
+				password: KH_PASSWORD,
+				expectedVersion: String(s.version),
+			},
+			kh.session,
+		);
+		const result = await action(event);
+
+		expect(result).toHaveProperty('status', 400);
+		expect(result).toHaveProperty('data.code', 'invalid_reason');
+
+		const row = await membershipRow(s.membershipId);
+		expect(row.status).toBe('active');
+		expect(row.version).toBe(s.version);
+		expect(await offboardJobs(s.membershipId)).toHaveLength(0);
+	});
+
+	it('the refused reauth ROLLS BACK: the keyholder is not silently logged out by a bad reason', async () => {
+		const kh = await keyholderSession();
+		const s = await inState('active');
+		const action = _createRemoveAction({ env: { ...process.env, GFTB_TENANT_ID: tenantId } });
+
+		const { event, setCookies } = removeEvent(
+			{
+				membershipId: s.membershipId,
+				reasonClass: LONG_LEGIT_SLUG,
+				password: KH_PASSWORD,
+				expectedVersion: String(s.version),
+			},
+			kh.session,
+		);
+		expect(await action(event)).toHaveProperty('status', 400);
+		// No cookie rotation was written…
+		expect(setCookies).toHaveLength(0);
+		// …and the PRESENTED session is still live: `reauthenticate` deleted it
+		// inside the transaction that then rolled back.
+		const still = await withTenant(tenantId, (tx) => validateSession(tx, tenantId, kh.session.id), db);
+		expect(still?.id).toBe(kh.session.id);
+	});
+
+	it('control: an ordinary short reason still removes through the same route (400 is not blanket)', async () => {
+		const kh = await keyholderSession();
+		const s = await inState('active');
+		const action = _createRemoveAction({ env: { ...process.env, GFTB_TENANT_ID: tenantId } });
+
+		const { event, setCookies } = removeEvent(
+			{
+				membershipId: s.membershipId,
+				reasonClass: 'conduct',
+				password: KH_PASSWORD,
+				expectedVersion: String(s.version),
+			},
+			kh.session,
+		);
+		const ok = await action(event);
+		expect(ok).toMatchObject({ removed: true, replayed: false });
+		expect((await membershipRow(s.membershipId)).status).toBe('removed');
+		expect(await offboardJobs(s.membershipId)).toHaveLength(3);
+		expect(setCookies).toHaveLength(1);
+	});
+
+	it('the /membership PAUSE action maps it too, not only leave', async () => {
+		const s = await inState('active');
+		const pause = _createPauseAction({ env: { ...process.env, GFTB_TENANT_ID: tenantId } });
+		const event = {
+			request: new Request('http://localhost/membership', {
+				method: 'POST',
+				headers: { 'content-type': 'application/x-www-form-urlencoded' },
+				body: new URLSearchParams({
+					membershipId: s.membershipId,
+					reasonClass: LONG_LEGIT_SLUG,
+					expectedVersion: String(s.version),
+				}),
+			}),
+			locals: { authSession: { id: s.sessionId, userId: s.authUserId } },
+		} as unknown as Parameters<ReturnType<typeof _createPauseAction>>[0];
+
+		const result = await pause(event);
+		// Whatever the shape, it must not be a 500.
+		expect((result as { status?: number }).status).not.toBe(500);
+		const row = await membershipRow(s.membershipId);
+		expect(row.status).toBe('active');
 	});
 });
