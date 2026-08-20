@@ -30,27 +30,44 @@ export type OutboxStatus = 'pending' | 'leased' | 'done' | 'dead';
  * Batch size for one claim (spec §3.1: "bounded batches"). ASSUMPTION recorded
  * in the spec, awaiting ratification sitting #2. Resolver: Jess. Per-call
  * overridable, which is what makes it cheap to change.
+ *
+ * NOT independent of {@link DEFAULT_LEASE_SECONDS}. The claim writes one lease
+ * for the whole batch, and the dispatcher then RENEWS that lease per job
+ * immediately before running its handler (PR #173 review, HIGH-1) — so the
+ * invariant a deployment must hold is `leaseSeconds > p99(one handler)`, not
+ * `leaseSeconds > batchSize × p99(handler)`. A handler slower than the lease
+ * still loses its row to reclaim mid-flight, and at-least-once (not
+ * exactly-once) is what the queue promises in that case.
  */
 export const DEFAULT_BATCH_SIZE = 32;
 
 /**
  * Lease duration in seconds (spec §3.1 ASSUMPTION: 60s). A worker that dies
  * mid-job strands its rows for at most this long before the stale-lease
- * reclaim in the claim query re-admits them. Resolver: Jess.
+ * reclaim in the claim query re-admits them. Renewed per job before each
+ * handler runs, so this bounds ONE handler's protected window, not a whole
+ * batch's — see the invariant note on {@link DEFAULT_BATCH_SIZE}.
+ * Resolver: Jess.
  */
 export const DEFAULT_LEASE_SECONDS = 60;
 
 /**
  * Retry backoff envelope: exponential with FULL jitter (spec §3.1 requires the
  * jitter — offboarding fans out three jobs at the same instant, and without
- * jitter they retry in lockstep forever). The base/cap pair below bounds the
- * cumulative un-jittered retry window at roughly 4 hours for the default
- * `max_attempts = 8`; the spec's "roughly a day before an operator is asked to
- * look" figure rides on dead rows being operator-visible, and these two
- * numbers sit under the same recorded ASSUMPTION umbrella as `max_attempts`
- * and the lease (resolver: Jess). Per-worker overridable.
+ * jitter they retry in lockstep forever).
+ *
+ * Base 5 minutes, cap 6 hours (PR #173 review, LOW-2): the expected cumulative
+ * window across attempts 1–7 is ≈8–11 h, which keeps `max_attempts = 8`'s
+ * "roughly a day of jittered retry before an operator is asked to look"
+ * (spec §3.1) at the right order of magnitude — the previous 60 s base gave an
+ * expected ≈2.1 h, an afternoon. Two honest caveats, both spec-conformant:
+ * full jitter has NO FLOOR, so an unlucky draw sequence can burn all eight
+ * attempts in seconds; and the "day" figure is an expectation, not a bound.
+ * Both numbers sit under the same recorded ASSUMPTION umbrella as
+ * `max_attempts`, the lease, and the batch (resolver: Jess, sitting #2).
+ * Per-worker overridable.
  */
-export const DEFAULT_BACKOFF_BASE_MS = 60_000;
+export const DEFAULT_BACKOFF_BASE_MS = 5 * 60_000;
 
 /** Backoff ceiling — see {@link DEFAULT_BACKOFF_BASE_MS}. */
 export const DEFAULT_BACKOFF_CAP_MS = 6 * 60 * 60 * 1000;
@@ -58,6 +75,13 @@ export const DEFAULT_BACKOFF_CAP_MS = 6 * 60 * 60 * 1000;
 /**
  * `last_error` is an operator surface, not a log sink: keep it to one bounded
  * chunk so a looping stack trace cannot bloat the row it is meant to explain.
+ *
+ * Like `payload`, `last_error` must never carry a secret or token — this
+ * repository is public and the column is durable and operator-visible.
+ * `describeFailure` redacts URL userinfo, bearer tokens, and key=value
+ * credential shapes before writing (PR #173 review, LOW-3), but redaction is a
+ * backstop: handlers that talk to external systems (S7/S9) must not put raw
+ * client errors carrying credentials into thrown messages in the first place.
  */
 export const MAX_LAST_ERROR_LENGTH = 2_000;
 
@@ -94,6 +118,13 @@ export interface EnqueueResult {
 	 * False when the unique key already existed and the EXISTING row is being
 	 * returned — the idempotent re-enqueue path. The original payload wins;
 	 * a differing payload on a duplicate key is NOT written.
+	 *
+	 * A standing row in `'dead'` is NOT silently absorbed: `enqueue` throws
+	 * `DeadIdempotencyKeyError` instead, because "the caller believes the job
+	 * is queued and nothing will ever run it" is the shape a real incident
+	 * takes (PR #173 review, MEDIUM-2). Whether re-enqueue should instead
+	 * resurrect the dead row (an audited operator action per spec §3.1) is a
+	 * spec-level question flagged for sitting #2; resolver: Jess.
 	 */
 	enqueued: boolean;
 }
@@ -101,6 +132,15 @@ export interface EnqueueResult {
 /**
  * One claimed row, as the dispatcher sees it: the §3.1 field list with the
  * lease the claim just wrote.
+ *
+ * `leaseOwner` carries `<worker>#<uuid>` — the worker identity for
+ * OBSERVABILITY, plus per-claim entropy that is the actual completion/release
+ * guard (PR #173 review, HIGH-2). Guarding on the raw worker name collapses
+ * when an operator sets `GFTB_WORKER_ID` once at Deployment level and every
+ * replica shares it; the per-claim token cannot be flattened by configuration.
+ * A dedicated `lease_token uuid` column is the cleaner long-term shape, but a
+ * new S3 migration would join the `0003` journal collision already pending
+ * between S2 and PR #174 — the composed value is the fence-respecting form.
  */
 export interface ClaimedJob {
 	id: string;
@@ -119,6 +159,8 @@ export interface ClaimedJob {
 	lastError: string | null;
 	createdAt: Date;
 	updatedAt: Date;
+	/** The exact `lease_owner` value this claim wrote — pass to complete/release/renew. */
+	leaseToken: string;
 }
 
 /**

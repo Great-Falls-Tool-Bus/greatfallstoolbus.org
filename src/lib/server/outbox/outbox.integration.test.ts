@@ -15,6 +15,14 @@
  *   permanently failing projection leaves the   committed state is never
  *     committed domain row untouched            rolled back by the queue
  *
+ * Plus the PR #173 adversarial review's executed hostile scenarios, committed
+ * here so they cannot regress: per-job lease renewal under the reviewer's
+ * batch-3/1s-lease/900ms-handler race (HIGH-1); the shared-GFTB_WORKER_ID
+ * zombie (HIGH-2); a completion-transaction blip on a succeeded effect
+ * (MEDIUM-1); re-enqueue against a dead key (MEDIUM-2); a ghost tenant at the
+ * worker boundary (MEDIUM-3); the READ COMMITTED assertion (LOW-1); and
+ * shutdown between jobs (LOW-4).
+ *
  * Every test runs in its OWN tenant, so row-level security isolates each row's
  * world and no test can claim another's jobs — which is itself a standing
  * assertion that the dispatcher cannot cross tenants.
@@ -46,10 +54,11 @@ import {
 	type PgFixture,
 } from '../db/integration-support';
 import { runMigrator } from '../db/migrate';
-import { claimBatch, completeJob, dispatchOnce } from './dispatch';
-import { enqueue } from './enqueue';
+import { claimBatch, completeJob, dispatchOnce, releaseJob } from './dispatch';
+import { DeadIdempotencyKeyError, enqueue } from './enqueue';
 import { EMPTY_REGISTRY, createHandlerRegistry } from './handlers';
-import type { ClaimedJob, OutboxHandler } from './schema';
+import type { ClaimedJob, DbTransaction, OutboxHandler } from './schema';
+import { WORKER_EXIT, runWorker } from '../worker';
 
 let fixture: PgFixture;
 let pool: pg.Pool;
@@ -309,6 +318,20 @@ describe('claim: bounded batches, FOR UPDATE SKIP LOCKED, lease-based', () => {
 		expect(plan).toContain('outbox_job_claimable');
 	});
 
+	it('refuses a non-READ COMMITTED transaction rather than raising 40001 mid-claim (review LOW-1)', async () => {
+		// SKIP LOCKED skips under READ COMMITTED but raises serialization
+		// failures under stricter isolation. withTenant does not pin a level
+		// (S1's file, not this slice's to edit), so claimBatch asserts it.
+		const tenantId = await newTenant();
+		await expect(
+			db.transaction(async (tx) => {
+				await tx.execute(sql`set transaction isolation level repeatable read`);
+				await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+				return claimBatch(tx, { worker: 'iso-probe' });
+			}),
+		).rejects.toThrow(/READ COMMITTED/);
+	});
+
 	it('does not claim a job whose available_at is in the future', async () => {
 		const tenantId = await newTenant();
 		await withTenant(
@@ -404,31 +427,249 @@ describe('stale-lease reclaim: a dead worker’s row is recovered, the receipt s
 		expect(row.status).toBe('done');
 	});
 
-	it('a zombie of the dead worker cannot complete a row that was reclaimed from it', async () => {
+	it('a zombie cannot complete or release a reclaimed row EVEN when every replica shares one GFTB_WORKER_ID (review HIGH-2)', async () => {
 		const tenantId = await newTenant();
 		await withTenant(tenantId, (tx) => enqueue(tx, jobInput({ kind: 'fixture.zombie' })), db);
 
+		// Both replicas run with the SAME Deployment-level identity — the exact
+		// configuration the review demonstrated collapsing a worker-name guard
+		// (a shared name made the zombie's completeJob return true on a row the
+		// reclaimer was mid-flight on).
 		const [asDoomed] = await withTenant(
 			tenantId,
-			(tx) => claimBatch(tx, { worker: 'zombie', batchSize: 1, leaseSeconds: 1 }),
+			(tx) => claimBatch(tx, { worker: 'gftb-worker', batchSize: 1, leaseSeconds: 1 }),
 			db,
 		);
 		await sleep(1_200);
-		const [asRescuer] = await withTenant(tenantId, (tx) => claimBatch(tx, { worker: 'rescuer', batchSize: 1 }), db);
+		const [asRescuer] = await withTenant(tenantId, (tx) => claimBatch(tx, { worker: 'gftb-worker', batchSize: 1 }), db);
 		expect(asRescuer.id).toBe(asDoomed.id);
+		expect(asRescuer.leaseToken).not.toBe(asDoomed.leaseToken);
 
-		// The zombie wakes up and reports success — the lease-owner guard makes
-		// its write match zero rows instead of stomping the rescuer's claim.
+		// The zombie wakes up and reports success — the per-claim token guard
+		// makes its write match zero rows instead of stomping the rescuer's claim.
 		const zombieCompleted = await withTenant(
 			tenantId,
-			(tx) => completeJob(tx, { id: asDoomed.id, worker: 'zombie' }),
+			(tx) => completeJob(tx, { id: asDoomed.id, token: asDoomed.leaseToken }),
 			db,
 		);
 		expect(zombieCompleted).toBe(false);
 
+		// And its releaseJob is equally inert, so the rescuer's own failure can
+		// never be swallowed by a zombie's earlier lease.
+		const zombieReleased = await withTenant(
+			tenantId,
+			(tx) =>
+				releaseJob(tx, {
+					id: asDoomed.id,
+					token: asDoomed.leaseToken,
+					lastError: 'zombie says it failed',
+					backoffMs: 0,
+				}),
+			db,
+		);
+		expect(zombieReleased).toBeNull();
+
 		const [row] = await outboxRows(tenantId);
 		expect(row.status).toBe('leased');
-		expect(row.lease_owner).toBe('rescuer');
+		expect(row.lease_owner).toBe(asRescuer.leaseToken);
+		expect(row.last_error).toBeNull();
+	});
+});
+
+describe('the lease covers the execution, not just the claim (review HIGH-1)', () => {
+	it('reviewer scenario — batch 3, 1s lease, 900ms handlers, second worker at 1.4s: every job executes exactly once', async () => {
+		const tenantId = await newTenant();
+		for (let i = 0; i < 3; i += 1) {
+			await withTenant(tenantId, (tx) => enqueue(tx, jobInput({ kind: 'fixture.slow' })), db);
+		}
+
+		const runsPerJob = new Map<string, number>();
+		const inFlight = new Set<string>();
+		let overlapped = false;
+		const handler: OutboxHandler = async (job) => {
+			if (inFlight.has(job.id)) overlapped = true;
+			inFlight.add(job.id);
+			runsPerJob.set(job.id, (runsPerJob.get(job.id) ?? 0) + 1);
+			await sleep(900);
+			inFlight.delete(job.id);
+		};
+		const registry = createHandlerRegistry({ 'fixture.slow': handler });
+
+		// The review's failing run: worker A claimed all 3 under ONE 1s lease,
+		// and worker B (arriving at 1.4s) re-claimed and re-ran jobs A was still
+		// working through — 2 of 3 jobs executed concurrently by both, A ending
+		// { claimed: 3, done: 1, lost: 2 }. Per-job renewal makes each job start
+		// with a fresh full lease or be skipped as lost — never run twice.
+		const workerA = dispatchOnce({ tenantId, worker: 'lease-a', registry, db, batchSize: 3, leaseSeconds: 1 });
+		const workerB = (async () => {
+			await sleep(1_400);
+			return dispatchOnce({ tenantId, worker: 'lease-b', registry, db, batchSize: 3, leaseSeconds: 1 });
+		})();
+		const [a, b] = await Promise.all([workerA, workerB]);
+
+		expect(overlapped).toBe(false);
+		expect([...runsPerJob.values()]).toEqual([1, 1, 1]);
+		expect(a.done + b.done).toBe(3);
+		expect(a.lost).toBe(a.claimed - a.done);
+		expect(b.lost).toBe(b.claimed - b.done);
+		const rows = await outboxRows(tenantId);
+		expect(rows.map((row) => row.status)).toEqual(['done', 'done', 'done']);
+	}, 20_000);
+
+	it('shutdown between jobs stops the cycle; the remainder is lost to lease expiry, never executed (review LOW-4)', async () => {
+		const tenantId = await newTenant();
+		for (let i = 0; i < 3; i += 1) {
+			await withTenant(tenantId, (tx) => enqueue(tx, jobInput({ kind: 'fixture.abort' })), db);
+		}
+		const controller = new AbortController();
+		let runs = 0;
+		const registry = createHandlerRegistry({
+			'fixture.abort': async () => {
+				runs += 1;
+				controller.abort(); // SIGTERM lands mid-first-handler
+			},
+		});
+
+		const summary = await dispatchOnce({
+			tenantId,
+			worker: 'shutdown-worker',
+			registry,
+			db,
+			signal: controller.signal,
+		});
+
+		// The in-flight job finishes and records; the un-run remainder is not
+		// started — it stays leased and lease expiry re-admits it later.
+		expect(runs).toBe(1);
+		expect(summary).toMatchObject({ claimed: 3, done: 1, retried: 0, dead: 0, lost: 2 });
+		const rows = await outboxRows(tenantId);
+		expect(rows.filter((row) => row.status === 'done')).toHaveLength(1);
+		expect(rows.filter((row) => row.status === 'leased')).toHaveLength(2);
+	});
+});
+
+describe('completion failure is not handler failure (review MEDIUM-1)', () => {
+	it('a completion-transaction blip is lost — a succeeded effect can never dead-letter', async () => {
+		const tenantId = await newTenant();
+		await withTenant(tenantId, (tx) => enqueue(tx, jobInput({ kind: 'fixture.blip', maxAttempts: 1 })), db);
+		let handlerRuns = 0;
+		const registry = createHandlerRegistry({
+			'fixture.blip': async () => {
+				handlerRuns += 1;
+			},
+		});
+
+		// Fail exactly the cycle's THIRD transaction — claim (1), per-job
+		// renewal (2), completion (3) — reproducing the review's injected
+		// connection failure on the completion commit only.
+		let txCount = 0;
+		const flaky = new Proxy(db, {
+			get(target, prop) {
+				if (prop === 'transaction') {
+					return (fn: (tx: DbTransaction) => Promise<unknown>) => {
+						txCount += 1;
+						if (txCount === 3) return Promise.reject(new Error('connection terminated unexpectedly'));
+						return target.transaction(fn);
+					};
+				}
+				return Reflect.get(target, prop, target);
+			},
+		}) as Db;
+
+		const bookkeeping: unknown[] = [];
+		const summary = await dispatchOnce({
+			tenantId,
+			worker: 'blip-worker',
+			registry,
+			db: flaky,
+			onBookkeepingError: (_job, error) => bookkeeping.push(error),
+		});
+
+		expect(handlerRuns).toBe(1);
+		expect(summary).toMatchObject({ claimed: 1, done: 0, retried: 0, dead: 0, lost: 1 });
+		expect(bookkeeping).toHaveLength(1);
+
+		// The review's failing shape was attempts=1 / status='dead' /
+		// last_error='connection terminated…' on a job whose effect SUCCEEDED —
+		// with max_attempts=1, a lie in the dead-letter queue. The truth now:
+		// the blip never touches the row; lease expiry re-admits it and the
+		// consumer's receipt absorbs the repeat.
+		const [row] = await outboxRows(tenantId);
+		expect(row.attempts).toBe(0);
+		expect(row.status).toBe('leased');
+		expect(row.last_error).toBeNull();
+	});
+});
+
+describe('a dead key refuses re-enqueue loudly (review MEDIUM-2)', () => {
+	it('throws DeadIdempotencyKeyError and rolls the caller’s domain write back with it', async () => {
+		const tenantId = await newTenant();
+		const key = randomUUID();
+		await withTenant(
+			tenantId,
+			(tx) => enqueue(tx, jobInput({ kind: 'fixture.dead-key', idempotencyKey: key, maxAttempts: 1 })),
+			db,
+		);
+		const burned = await dispatchOnce({
+			tenantId,
+			worker: 'burner',
+			registry: EMPTY_REGISTRY,
+			db,
+			backoffMs: () => 0,
+		});
+		expect(burned.dead).toBe(1);
+
+		// The review's silent shape: { enqueued: false, status: 'dead' }, new
+		// payload dropped on the floor, caller told "queued". Now: loud, and the
+		// domain write in the same transaction rolls back with it.
+		const before = await displayName(tenantId);
+		await expect(
+			withTenant(
+				tenantId,
+				async (tx) => {
+					await tx.execute(sql`update tenant set display_name = 'must-roll-back'`);
+					await enqueue(tx, jobInput({ kind: 'fixture.dead-key', idempotencyKey: key }));
+				},
+				db,
+			),
+		).rejects.toThrow(DeadIdempotencyKeyError);
+
+		expect(await displayName(tenantId)).toBe(before);
+		expect(await outboxRows(tenantId)).toHaveLength(1);
+	});
+});
+
+describe('the worker boundary fails closed on an unknown tenant (review MEDIUM-3)', () => {
+	it('a ghost tenant id exits 78 naming the tenant; a real one dispatches', async () => {
+		// The review executed this at the bundled boundary: a random-but-valid
+		// UUID produced `claimed=0 … exit 0` — a worker indistinguishable from a
+		// healthy idle one, forever. This runs the SAME runWorker path (real
+		// probe, real database, gftb_app credentials) in-process.
+		const previous = process.env.DATABASE_URL;
+		process.env.DATABASE_URL = fixture.runtimeDsn;
+		try {
+			const stderr: string[] = [];
+			const ghost = randomUUID();
+			const code = await runWorker({
+				args: ['--once', '--tenant', ghost],
+				io: { stdout: { write: () => undefined }, stderr: { write: (chunk: string) => stderr.push(chunk) } },
+			});
+			expect(code).toBe(WORKER_EXIT.UNAVAILABLE);
+			expect(stderr.join('')).toContain(ghost);
+			expect(stderr.join('')).toContain('does not exist');
+
+			const tenantId = await newTenant();
+			const stdout: string[] = [];
+			const ok = await runWorker({
+				args: ['--once', '--tenant', tenantId],
+				io: { stdout: { write: (chunk: string) => stdout.push(chunk) }, stderr: { write: () => undefined } },
+			});
+			expect(ok).toBe(WORKER_EXIT.OK);
+			expect(stdout.join('')).toContain('claimed=0');
+		} finally {
+			if (previous === undefined) delete process.env.DATABASE_URL;
+			else process.env.DATABASE_URL = previous;
+		}
 	});
 });
 

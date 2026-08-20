@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { DbTransaction } from '../db/client';
-import { describeFailure, fullJitterBackoffMs } from './dispatch';
+import { describeFailure, fullJitterBackoffMs, redactSecrets, runWorkerLoop } from './dispatch';
 import { enqueue } from './enqueue';
 import { EMPTY_REGISTRY, UnknownJobKindError, createHandlerRegistry } from './handlers';
 import { DEFAULT_BACKOFF_BASE_MS, DEFAULT_BACKOFF_CAP_MS, MAX_LAST_ERROR_LENGTH, type ClaimedJob } from './schema';
@@ -76,6 +76,35 @@ describe('describeFailure', () => {
 	it('bounds last_error so a looping stack trace cannot bloat the row', () => {
 		const text = describeFailure(new Error('x'.repeat(MAX_LAST_ERROR_LENGTH * 2)));
 		expect(text.length).toBe(MAX_LAST_ERROR_LENGTH);
+	});
+
+	// last_error carries payload's "never a secret" contract; redaction is the
+	// backstop for third-party client errors (PR #173 review, LOW-3).
+	it('redacts URL userinfo the way a pg/HTTP client error embeds it', () => {
+		const text = describeFailure(new Error('connect failed: postgres://gftb_app:hunter2@db.example.com:5432/gftb'));
+		expect(text).not.toContain('hunter2');
+		expect(text).toContain('//***:***@db.example.com');
+	});
+
+	it('redacts bearer tokens', () => {
+		expect(redactSecrets('401 from upstream: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig rejected')).not.toContain(
+			'eyJhbGciOiJIUzI1NiJ9',
+		);
+	});
+
+	it('redacts credential-shaped key=value pairs', () => {
+		// The value is deliberately NOT shaped like any real vendor token —
+		// this repository is public and gitleaks scans the test file too.
+		const text = redactSecrets('request failed: api_key=fake0credential0value status=402');
+		expect(text).not.toContain('fake0credential0value');
+		expect(text).toContain('api_key=***');
+		expect(text).toContain('status=402');
+	});
+
+	it('leaves ordinary error text alone', () => {
+		expect(redactSecrets('ECONNREFUSED db.example.com:5432 — retrying')).toBe(
+			'ECONNREFUSED db.example.com:5432 — retrying',
+		);
 	});
 });
 
@@ -201,6 +230,7 @@ describe('the worker process boundary', () => {
 			args: ['--once', '--batch', '7', '--lease', '15', '--worker-id', 'unit-worker'],
 			env,
 			io: { stdout, stderr: capture() },
+			probeTenantFn: async () => true,
 			dispatchOnceFn: async (options) => {
 				seen.push({ ...options });
 				return { claimed: 2, done: 1, retried: 1, dead: 0, lost: 0 };
@@ -223,6 +253,7 @@ describe('the worker process boundary', () => {
 			env,
 			io: { stdout, stderr: capture() },
 			signal: controller.signal,
+			probeTenantFn: async () => true,
 			runLoopFn: async (options) => {
 				expect(options.signal).toBe(controller.signal);
 				controller.abort();
@@ -238,6 +269,7 @@ describe('the worker process boundary', () => {
 			args: [],
 			env,
 			io: { stdout: capture(), stderr },
+			probeTenantFn: async () => true,
 			runLoopFn: async () => {
 				throw new Error('connection refused');
 			},
@@ -246,15 +278,92 @@ describe('the worker process boundary', () => {
 		expect(stderr.text()).toContain('connection refused');
 	});
 
+	it('exits 78 when the configured tenant does not exist, naming it (review MEDIUM-3)', async () => {
+		const stderr = capture();
+		const code = await runWorker({
+			args: ['--once'],
+			env,
+			io: { stdout: capture(), stderr },
+			probeTenantFn: async () => false,
+			dispatchOnceFn: () => {
+				throw new Error('a nonexistent tenant must never dispatch');
+			},
+		});
+		expect(code).toBe(WORKER_EXIT.UNAVAILABLE);
+		expect(stderr.text()).toContain(env.GFTB_TENANT_ID.toLowerCase());
+		expect(stderr.text()).toContain('does not exist');
+		// The honest limit is documented where the operator will read it:
+		expect(stderr.text()).toContain('wrong-but-REAL');
+	});
+
+	it('exits 78 when the tenant probe cannot reach the database', async () => {
+		const stderr = capture();
+		const code = await runWorker({
+			args: ['--once'],
+			env,
+			io: { stdout: capture(), stderr },
+			probeTenantFn: async () => {
+				throw new Error('connection refused');
+			},
+		});
+		expect(code).toBe(WORKER_EXIT.UNAVAILABLE);
+		expect(stderr.text()).toContain('while verifying tenant');
+	});
+
 	it('announces the fail-closed default registry so an operator can see there are no handlers yet', async () => {
 		const stdout = capture();
 		await runWorker({
 			args: ['--once'],
 			env,
 			io: { stdout, stderr: capture() },
+			probeTenantFn: async () => true,
 			dispatchOnceFn: async () => ({ claimed: 0, done: 0, retried: 0, dead: 0, lost: 0 }),
 		});
 		expect(stdout.text()).toContain('none registered — S7/S9 own the first handlers');
+	});
+});
+
+describe('runWorkerLoop transient-cycle tolerance (review NIT-1)', () => {
+	const base = {
+		tenantId: '11111111-2222-4333-8444-555555555555',
+		worker: 'loop-unit',
+		registry: EMPTY_REGISTRY,
+		idleDelayMs: 1,
+	};
+
+	it('rides out a transient cycle failure and keeps polling', async () => {
+		const controller = new AbortController();
+		let calls = 0;
+		const errors: number[] = [];
+		await runWorkerLoop({
+			...base,
+			signal: controller.signal,
+			maxConsecutiveCycleFailures: 5,
+			onCycleError: (_error, consecutive) => errors.push(consecutive),
+			dispatchOnceFn: async () => {
+				calls += 1;
+				if (calls === 1) throw new Error('transient blip');
+				if (calls >= 3) controller.abort();
+				return { claimed: 0, done: 0, retried: 0, dead: 0, lost: 0 };
+			},
+		});
+		expect(calls).toBeGreaterThanOrEqual(3);
+		expect(errors).toEqual([1]); // the counter reset after the recovery
+	});
+
+	it('rethrows after maxConsecutiveCycleFailures so a dead database still exits 78', async () => {
+		let calls = 0;
+		await expect(
+			runWorkerLoop({
+				...base,
+				maxConsecutiveCycleFailures: 2,
+				dispatchOnceFn: async () => {
+					calls += 1;
+					throw new Error('database is gone');
+				},
+			}),
+		).rejects.toThrow('database is gone');
+		expect(calls).toBe(2);
 	});
 });
 
@@ -284,6 +393,7 @@ const _claimedJobShape: keyof ClaimedJob extends
 	| 'lastError'
 	| 'createdAt'
 	| 'updatedAt'
+	| 'leaseToken'
 	? true
 	: never = true;
 void _claimedJobShape;

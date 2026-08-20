@@ -23,12 +23,44 @@
  * `enqueued: false`. First write wins — a differing payload on a duplicate key
  * is not written, because two payloads under one idempotency key is a caller
  * bug the queue must not paper over by guessing which one is true.
+ *
+ * EXCEPT WHEN THE STANDING ROW IS DEAD. A dead-lettered row holds its unique
+ * key forever, so silently absorbing a re-enqueue against it would tell the
+ * caller "queued" about a job nothing will ever run (PR #173 review,
+ * MEDIUM-2). That case throws `DeadIdempotencyKeyError` — loudly, inside the
+ * caller's transaction, so the domain write rolls back with it and the caller
+ * decides deliberately. Recovering the key is the operator's replay surface
+ * (spec §3.1: reset attempts/status, audited — a named hand-off, not yet
+ * built); whether enqueue should some day resurrect instead is flagged for
+ * ratification sitting #2, resolver Jess.
  */
 
 import { and, eq } from 'drizzle-orm';
 import { outboxJob } from '../db/schema';
 import { currentTenantId } from '../db/tenant';
 import type { DbTransaction, EnqueueInput, EnqueueResult } from './schema';
+
+/**
+ * The `(tenant, kind, idempotency_key)` already dead-lettered; the enqueue was
+ * refused rather than silently absorbed. The caller's transaction (domain
+ * write included) rolls back unless the caller catches this deliberately.
+ */
+export class DeadIdempotencyKeyError extends Error {
+	readonly kind: string;
+	readonly idempotencyKey: string;
+
+	constructor(kind: string, idempotencyKey: string) {
+		super(
+			`outbox enqueue: (${kind}, ${idempotencyKey}) is dead-lettered after exhausting its attempts — ` +
+				'nothing will ever run it. Re-enqueueing the same key cannot revive it; a dead row is ' +
+				'replayable only through the audited operator surface (spec §3.1). Use a new idempotency key ' +
+				'only if this is genuinely a NEW effect.',
+		);
+		this.name = 'DeadIdempotencyKeyError';
+		this.kind = kind;
+		this.idempotencyKey = idempotencyKey;
+	}
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -116,6 +148,10 @@ export async function enqueue(tx: DbTransaction, input: EnqueueInput): Promise<E
 		throw new Error(
 			`outbox enqueue: ON CONFLICT absorbed (${input.kind}, ${input.idempotencyKey}) but the standing row is gone`,
 		);
+	}
+
+	if (existing[0].status === 'dead') {
+		throw new DeadIdempotencyKeyError(input.kind, input.idempotencyKey);
 	}
 
 	return { job: existing[0], enqueued: false };

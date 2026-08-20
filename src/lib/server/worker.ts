@@ -24,16 +24,35 @@
  * configuration, pinned per transaction through `withTenant`. The value is a
  * non-secret UUID and lives in `great-falls-tool-bus-infra`.
  *
+ * THE TENANT ID IS INTEGRITY-CRITICAL, AND STARTUP PROVES IT EXISTS (PR #173
+ * review, MEDIUM-3). A ghost UUID would otherwise produce a worker that is
+ * indistinguishable from a healthy idle one forever — RLS turns "no such
+ * tenant" into "no rows", the exact silent-healthy failure S0's fail-closed
+ * doctrine exists to prevent. So startup runs one `select` against the tenant
+ * registry inside `withTenant` and exits 78, naming the tenant, when it
+ * returns no row. What that probe CANNOT catch: a wrong-but-REAL tenant id.
+ * RLS enforces "one tenant per transaction", never "the RIGHT tenant" — a
+ * worker pointed at another live tenant executes THAT tenant's jobs normally.
+ * The hand-off row to `great-falls-tool-bus-infra` must treat GFTB_TENANT_ID
+ * with config-review care, not env-var-default care.
+ *
+ * WORKER IDENTITY IS OBSERVABILITY, NOT A GUARD (PR #173 review, HIGH-2).
+ * `GFTB_WORKER_ID` may be set identically across replicas (a Deployment-level
+ * env var is exactly how an operator would set it) without harm: the
+ * completion/release/renewal guard is the per-claim lease token minted in
+ * `claimBatch`, never the worker name.
+ *
  * EXIT CODES mirror the migrator's contract: 0 for `--help`, a clean `--once`
  * cycle, or a graceful signal-driven shutdown; 64 (EX_USAGE) for arguments
  * that do not parse; 78 (EX_UNAVAILABLE) when the database or tenant is
- * unconfigured/unreachable — the code S0 published and the infra Deployment
- * keys its restart behavior on.
+ * unconfigured/unreachable/nonexistent — the code S0 published and the infra
+ * Deployment keys its restart behavior on.
  */
 
 import { hostname } from 'node:os';
 import { closeDb, resolveConnectionString } from './db/client';
-import { assertTenantId } from './db/tenant';
+import { tenant } from './db/schema';
+import { assertTenantId, withTenant } from './db/tenant';
 import { dispatchOnce, runWorkerLoop, type DispatchSummary, type WorkerLoopOptions } from './outbox/dispatch';
 import { EMPTY_REGISTRY } from './outbox/handlers';
 import { DEFAULT_BATCH_SIZE, DEFAULT_LEASE_SECONDS, type HandlerRegistry } from './outbox/schema';
@@ -76,12 +95,17 @@ Environment:
   DATABASE_URL     Connection string (DML-only gftb_app role), supplied by the
                    apply plane. A name, never a value, in this repository.
   GFTB_TENANT_ID   The one configured GFTB tenant's UUID (TIN-3817 scope).
-  GFTB_WORKER_ID   Optional stable worker identity for lease_owner.
+                   Startup proves it exists in the tenant registry and exits 78
+                   if it does not. Integrity-critical: a wrong-but-REAL tenant
+                   id executes that tenant's jobs — RLS cannot detect it.
+  GFTB_WORKER_ID   Optional worker identity, for lease_owner OBSERVABILITY
+                   only — safe to share across replicas; the completion guard
+                   is a per-claim lease token, never this name.
 
 Exit codes:
   ${WORKER_EXIT.OK}   --help, a clean --once cycle, or graceful shutdown
   ${WORKER_EXIT.USAGE}  arguments that do not parse
-  ${WORKER_EXIT.UNAVAILABLE}  database or tenant unconfigured/unreachable`;
+  ${WORKER_EXIT.UNAVAILABLE}  database or tenant unconfigured/unreachable/nonexistent`;
 
 export interface WorkerIo {
 	stdout: { write: (chunk: string) => unknown };
@@ -100,6 +124,18 @@ export interface WorkerOptions {
 	dispatchOnceFn?: typeof dispatchOnce;
 	/** Test seam: replaces the polling loop. */
 	runLoopFn?: (options: WorkerLoopOptions) => Promise<void>;
+	/**
+	 * Test seam: replaces the tenant existence probe (review MEDIUM-3).
+	 * The default runs one `select` against the tenant registry inside
+	 * `withTenant`; resolves true iff the pinned tenant's row exists.
+	 */
+	probeTenantFn?: (tenantId: string) => Promise<boolean>;
+}
+
+/** MEDIUM-3: does the configured tenant exist? Under RLS this is exactly "can this GUC see its own registry row". */
+async function probeTenantExists(tenantId: string): Promise<boolean> {
+	const rows = await withTenant(tenantId, (tx) => tx.select({ tenantId: tenant.tenantId }).from(tenant).limit(1));
+	return rows.length === 1;
 }
 
 interface ParsedArgs {
@@ -196,6 +232,7 @@ export async function runWorker(options: WorkerOptions = {}): Promise<number> {
 		signal,
 		dispatchOnceFn = dispatchOnce,
 		runLoopFn = runWorkerLoop,
+		probeTenantFn = probeTenantExists,
 	} = options;
 
 	const parsed = parseArgs(args);
@@ -241,14 +278,36 @@ export async function runWorker(options: WorkerOptions = {}): Promise<number> {
 		registry,
 		batchSize: parsed.batchSize,
 		leaseSeconds: parsed.leaseSeconds,
+		signal,
 	};
 
-	io.stdout.write(
-		`worker: ${worker} dispatching tenant ${tenantId} ` +
-			`(kinds: ${registry.kinds().length > 0 ? registry.kinds().join(', ') : 'none registered — S7/S9 own the first handlers'})\n`,
-	);
-
 	try {
+		// MEDIUM-3: fail closed on a tenant the registry does not know. Without
+		// this, a typo'd UUID yields a worker indistinguishable from a healthy
+		// idle one, forever — RLS turns "no such tenant" into "no rows", never
+		// into an error.
+		let tenantExists: boolean;
+		try {
+			tenantExists = await probeTenantFn(tenantId);
+		} catch (error) {
+			io.stderr.write(`worker: database unavailable while verifying tenant: ${(error as Error).message}\n`);
+			return WORKER_EXIT.UNAVAILABLE;
+		}
+		if (!tenantExists) {
+			io.stderr.write(
+				`worker: tenant ${tenantId} does not exist in this database's tenant registry. ` +
+					'Check GFTB_TENANT_ID against great-falls-tool-bus-infra. Refusing to idle as if healthy. ' +
+					'(Note: a wrong-but-REAL tenant id cannot be detected here — RLS enforces one tenant per ' +
+					'transaction, never the RIGHT tenant.)\n',
+			);
+			return WORKER_EXIT.UNAVAILABLE;
+		}
+
+		io.stdout.write(
+			`worker: ${worker} dispatching tenant ${tenantId} ` +
+				`(kinds: ${registry.kinds().length > 0 ? registry.kinds().join(', ') : 'none registered — S7/S9 own the first handlers'})\n`,
+		);
+
 		if (parsed.once) {
 			const summary = await dispatchOnceFn(dispatchOptions);
 			io.stdout.write(`worker: cycle ${summarize(summary)}\n`);

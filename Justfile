@@ -293,8 +293,10 @@ container-image-smoke:
     # as the migrator row above. No DATABASE_URL is supplied, so 78 is the
     # CORRECT answer: 0 would mean a Deployment reported healthy while doing
     # nothing, and 70 would mean build/worker.mjs never made it into the image.
+    # `--once` so this row can never enter the polling loop and hang the job if
+    # a future image change ever bakes in a DATABASE_URL (PR #173 review NIT-2).
     set +e
-    "$runtime" run --rm --entrypoint worker "$ref" >/dev/null 2>&1
+    "$runtime" run --rm --entrypoint worker "$ref" --once >/dev/null 2>&1
     worker_code=$?
     set -e
     if [ "$worker_code" = "78" ]; then
