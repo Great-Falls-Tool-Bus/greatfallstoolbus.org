@@ -515,3 +515,27 @@ prior artifact). Both lanes are designed in
   `tinyland-inc/site.scaffold` tag this clone was spawned from. Sister
   spokes that have not bumped past their original tag are not required
   to track schema changes until they explicitly upgrade.
+
+## GFTB SSOT grounding (binding; pointers only — content lives at each SSOT)
+
+Ground every change in these authorities and cite the specific section/ticket
+in the PR's Authority table. Reviews check citation-conformance first.
+Decisions are decided-by-default: search these before writing "open question".
+
+- meta `Great-Falls-Tool-Bus/meta` @ origin/main (ALWAYS fetch; stale local
+  checkouts have produced false not-founds):
+  - `spec/launch-member-v0-system-2026-08-16.md` — the contract (application
+    §4, contribution §5, tool custody §8, forms §10).
+  - `spec/member-v0-executable-slices-2026-08-18.md` — the slice map.
+  - `decisions/0014`, `decisions/0015` — ratified ADRs (repo split §1,
+    inventory pilot §7).
+  - `diagrams/launch-member-v0/*.mmd` — the design ontology
+    (inventory-custody-flow = the tool-flow authority).
+- Linear: initiative "Great Falls Tool Bus — Launch" + document "GFTB launch
+  operating map" (milestone spine, SLAs, WIP rule live THERE). Custody lane:
+  TIN-3814/3847/3848; TIN-3498 blocks TIN-3502. Read issue descriptions AND
+  comment threads.
+- Standing operator rulings (recorded in meta/Linear; one-line tripwires):
+  vocabulary application/intake (never enrollment/ingest/catalog/steward);
+  Maine/TIN-3905 operator-only; bus permanently parked; membership state
+  never changes on payment events; no path ever auto-charges a member.
