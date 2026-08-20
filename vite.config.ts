@@ -97,6 +97,21 @@ export default defineConfig({
 	// is told about. `PUBLIC_` matches SvelteKit's own public-env convention, so
 	// nothing secret is widened by this — only already-public toggles.
 	envPrefix: ['VITE_', 'PUBLIC_'],
+
+	// `@tummycrypt/tinyland-auth@0.3.3` does `import * as bcrypt from 'bcryptjs'`,
+	// and bcryptjs@2.4.3 is a UMD-only CJS artifact: under PLAIN node ESM —
+	// which is exactly how adapter-node loads production `dependencies`, since
+	// it bundles only devDependencies — cjs-module-lexer extracts no named
+	// exports from it, `bcrypt.hash` is undefined, and every hashPassword/
+	// verifyPassword call throws at runtime (TIN-3817 S2; probed and confirmed
+	// on node 22). Bundling the package through Vite applies real CJS interop
+	// and makes the named import work. vitest.integration.config.ts carries the
+	// same setting for the test lane, and the integration suite's password rows
+	// would catch a regression here.
+	ssr: {
+		noExternal: ['@tummycrypt/tinyland-auth'],
+	},
+
 	plugins: [
 		skeletonTailwindV4Compat(),
 		skeletonColorUtilities(),
