@@ -28,7 +28,10 @@
 ## What this is
 
 On-cluster is the live serving path under ADR 0010. This repo builds and
-publishes its Node-server image (`node build/index.js`); on a green push to
+publishes its Node-server image, run as `server.js` (TIN-3959: a thin wrapper
+around adapter-node's generated `build/handler.js` that fixes the
+Cache-Control/ETag headers the stock `node build/index.js` never sets for
+prerendered HTML — see `server.js`'s own header comment); on a green push to
 `main`, the workflow may signal the separate infra apply plane to deploy the
 exact digest. A manual workflow dispatch publishes an image but never sends
 that production signal.
@@ -36,7 +39,7 @@ that production signal.
 | Surface | Default build | Live on-cluster serve path |
 | --- | --- | --- |
 | `svelte.config.js` | adapter-static | adapter-node **iff** `ADAPTER=node` |
-| `ContainerFile` | not used | multi-stage `ADAPTER=node` build -> `node build/index.js` on `:3000`, non-root |
+| `ContainerFile` | not used | multi-stage `ADAPTER=node` build -> `node server.js` (wraps `build/handler.js`) on `:3000`, non-root |
 | `.github/workflows/container-ghcr.yml` | manual dispatch builds + pushes only | a green `main` push builds + pushes, then may signal the infra apply plane |
 
 The default static build (`just build`) still emits adapter-static and never

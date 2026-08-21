@@ -234,6 +234,7 @@
             mkdir -p "$out/app"
             cp -a ${appBuild} "$out/app/build"
             cp -a ${./package.json} "$out/app/package.json"
+            cp -a ${./server.js} "$out/app/server.js"
             cp -a ${./drizzle} "$out/app/drizzle"
             test -f "$out/app/build/migrator.mjs" || {
               echo "flake .#image: build/migrator.mjs is missing from APP_BUILD." >&2
@@ -271,8 +272,15 @@
               "HOST=0.0.0.0"
               "PORT=3000"
               # The dispatcher lives in the Nix store, so it cannot infer a
-              # repo-relative build/. Hand it the absolute in-image path.
-              "GFTB_WEB_ENTRYPOINT=/app/build/index.js"
+              # repo-relative build/. Hand it the absolute in-image path. This
+              # is server.js, NOT adapter-node's own generated build/index.js
+              # (TIN-3959): server.js wraps the generated build/handler.js
+              # with the cache-header fix documented at its top —
+              # build/index.js's stock sirv layers ship prerendered HTML with
+              # no Cache-Control and an epoch Last-Modified (mtimes are
+              # zeroed for reproducible builds), so returning visitors never
+              # revalidate.
+              "GFTB_WEB_ENTRYPOINT=/app/server.js"
               # Same reason, for the migrator (TIN-3817 S1): the applier bundle
               # and the migration SQL it hashes are both addressed absolutely.
               "GFTB_MIGRATOR_ENTRYPOINT=/app/build/migrator.mjs"

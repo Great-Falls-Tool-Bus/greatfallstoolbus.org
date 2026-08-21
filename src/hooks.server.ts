@@ -28,11 +28,18 @@ import type { AuthSession } from '$lib/server/auth';
 // cover: the small set of routes that are genuinely rendered per-request
 // (currently `/discuss` + `/discuss/[thread]`, whose `+page.server.ts` flips
 // `prerender` off under `ADAPTER=node` specifically so live archive content
-// doesn't need a redeploy) and any SSR-rendered fallback/error response. See
-// the PR description for the fuller cache-header finding, including why fixing
-// the static/prerendered paths needs either Cloudflare edge Cache Rules (the
-// planned post-Access-cutover CDN layer) or adapter-node's documented
-// "custom server" wrapper — both out of scope for this hook.
+// doesn't need a redeploy) and any SSR-rendered fallback/error response.
+//
+// The static/prerendered paths (no Cache-Control at all, and an epoch
+// Last-Modified once the build zeroes mtimes for reproducibility) are fixed
+// separately, in `server.js` (TIN-3959) — the "custom server" wrapper this
+// comment used to flag as out of scope. That file replaces `build/index.js`
+// as the production entrypoint (`GFTB_WEB_ENTRYPOINT`, ContainerFile/Nix
+// images) and sets `Cache-Control: no-cache` plus a real content-hash `ETag`
+// on every un-hashed response the sirv layers serve, without touching the
+// already-correct `_app/immutable/**` rule. This hook's own
+// `public, max-age=0, must-revalidate` for `/discuss` stays as-is — it never
+// had the missing-header bug, since it always sets one.
 // Legacy route redirects (TIN-2536: /access and /find-the-bus folded into
 // /contact anchors). These 301s previously lived ONLY in static/_redirects — a
 // Cloudflare Pages convention that adapter-node never reads — so on the

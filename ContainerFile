@@ -67,7 +67,7 @@ COPY scripts/ ./scripts/
 RUN pnpm install --frozen-lockfile
 
 # Copy config + sources.
-COPY svelte.config.js vite.config.ts tsconfig.json eslint.config.ts drizzle.config.ts ./
+COPY svelte.config.js vite.config.ts tsconfig.json eslint.config.ts drizzle.config.ts server.js ./
 COPY src/ ./src/
 COPY static/ ./static/
 COPY drizzle/ ./drizzle/
@@ -129,6 +129,7 @@ RUN addgroup -g 1001 -S nodejs && \
 COPY --from=builder --chown=nodejs:nodejs /app/build ./build
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nodejs:nodejs /app/server.js ./server.js
 COPY --from=builder --chown=nodejs:nodejs /app/scripts/platform-entrypoint.mjs ./scripts/platform-entrypoint.mjs
 # /bin/migrator reads these and hashes their EXACT bytes against the ledger, so
 # the migrations in the image are the ones in the commit (TIN-3817 S1).
@@ -150,8 +151,13 @@ ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
 # The dispatcher is installed outside build/, so hand it the absolute path to
-# the adapter-node server bundle rather than letting it guess.
-ENV GFTB_WEB_ENTRYPOINT=/app/build/index.js
+# the web entrypoint rather than letting it guess. This is server.js, NOT
+# adapter-node's own generated build/index.js (TIN-3959): server.js wraps the
+# generated build/handler.js with the cache-header fix documented at its top
+# — build/index.js's stock sirv layers ship prerendered HTML with no
+# Cache-Control and an epoch Last-Modified (mtimes are zeroed for
+# reproducible builds), so returning visitors never revalidate.
+ENV GFTB_WEB_ENTRYPOINT=/app/server.js
 # Same reason, for the migrator (TIN-3817 S1).
 ENV GFTB_MIGRATOR_ENTRYPOINT=/app/build/migrator.mjs
 ENV GFTB_MIGRATIONS_DIR=/app/drizzle
