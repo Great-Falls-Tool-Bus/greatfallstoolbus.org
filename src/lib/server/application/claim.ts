@@ -56,8 +56,8 @@ import { AuthError } from '../auth/session';
 import { VersionConflictError } from './intake';
 
 /**
- * TODO(sitting-2 item 2, ~2026-08-22): ratified role model.
- * Drafted (slices §1.4 AMENDMENT, recommended option 1, NOT ratified):
+ * Ratified 2026-08-21 — decisions/0018 (meta PR #32, pending operator
+ * signature), sitting-2 item 2, role model, option 1, verbatim:
  *   member    — implied by Active membership, not a grant
  *   keyholder — grant: claim / tour / approve / decline / force-remove;
  *               never sees amount, rail, processor state, failure detail
@@ -68,9 +68,8 @@ import { VersionConflictError } from './intake';
  *
  * S5 uses `keyholder` ONLY (slices §1.7 fence note). S2's roles.ts stays
  * deliberately vocabulary-free — the grant MECHANICS are its; this string is
- * the one role S5's capabilities hang on, named here at the point of use so
- * the ratification diff is one line. The full `GRANTABLE_ROLES` slot lands
- * with the ratified model.
+ * the one role S5's capabilities hang on, named here at the point of use.
+ * The full `GRANTABLE_ROLES` slot is a follow-up, not a ratification gap.
  */
 export const KEYHOLDER_ROLE = 'keyholder';
 

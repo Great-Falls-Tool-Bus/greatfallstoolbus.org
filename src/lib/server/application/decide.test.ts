@@ -5,8 +5,9 @@
  *     unknown keys are rejected, so a later field addition fails here;
  *   - the ratified source-state sets are pinned exactly (no claimed→approved
  *     edge; withdraw's four sources; decline's two);
- *   - the role S5 hangs capabilities on is `keyholder`, and the unratified
- *     word "steward" appears in no exported surface (sitting-2 item 2).
+ *   - the role S5 hangs capabilities on is `keyholder`, and "steward" —
+ *     excluded by the sitting-2 item 2 ratification (decisions/0018) —
+ *     appears in no exported surface.
  */
 
 import { randomUUID } from 'node:crypto';
