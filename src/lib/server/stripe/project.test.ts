@@ -126,6 +126,25 @@ describe('charge.refunded — the schema state a payload-skip left unreachable',
 		expect(outcome.action).toBe('skipped');
 	});
 
+	it('LOW-1: skips rather than crashing when Charge.customer arrives as an EXPANDED object, not a bare id string', async () => {
+		// This app never requests `expand: ['customer']`, but the compile-time
+		// claim over the runtime payload was unchecked (PR #185 review LOW-1) —
+		// prove the runtime guard, not just the type.
+		const expanded = {
+			...readFixtureEvent('07-charge-refunded.json'),
+			data: {
+				object: {
+					...readFixtureEvent('07-charge-refunded.json').data.object,
+					customer: { id: 'cus_gftbfixture01', object: 'customer' },
+				},
+			},
+		};
+		const gateway = createReplayGateway();
+		const outcome = await projectionForEvent(expanded as never, gateway);
+		expect(gateway.calls).toEqual([]);
+		expect(outcome.action).toBe('skipped');
+	});
+
 	it('treats a PARTIAL refund as a no-op — refunded is a terminal fact only a FULL refund asserts', async () => {
 		const partial = {
 			...readFixtureEvent('07-charge-refunded.json'),

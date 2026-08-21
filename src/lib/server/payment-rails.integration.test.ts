@@ -691,6 +691,113 @@ describe('charge.refunded — the schema state a payload-skip left unreachable (
 		// rows).
 		expect(await versionOf()).toBe(versionAfterRefund);
 	});
+
+	it('EDIT-1: refunded is ABSORBING against customer.subscription.deleted too — refund, then cancel, stays refunded', async () => {
+		// PR #185 round-2 review: refunding the last charge and then cancelling
+		// the subscription is the DEFAULT real-world refund workflow (Stripe
+		// guarantees no ordering between the two events, and cancel-at-period-end
+		// means deletion routinely arrives AFTER the refund) — not an edge case,
+		// so this is the pairing that actually matters in production.
+		const tenantId = await seedTenant(fixture.migratorDsn, 'refund-then-deleted-gap');
+		const stateOf = async () =>
+			(await withTenant(tenantId, (tx) => getAgreement(tx, FIXTURE.personId), runtimeDb))?.state;
+		const versionOf = async () =>
+			(await withTenant(tenantId, (tx) => getAgreement(tx, FIXTURE.personId), runtimeDb))?.version;
+
+		await withTenant(
+			tenantId,
+			(tx) =>
+				chooseContribution(tx, {
+					tenantId,
+					personId: FIXTURE.personId,
+					choice: { kind: 'stripe', cadence: 'monthly', amountCents: 1000 },
+				}),
+			runtimeDb,
+		);
+		await deliver('01-checkout-session-completed.json', { tenantId });
+		await withTenant(
+			tenantId,
+			(tx) =>
+				projectStripeEvent(tx, {
+					tenantId,
+					eventId: 'evt_gftb_fx_0001',
+					gateway: createReplayGateway({ subscriptionStatus: 'active' }),
+				}),
+			runtimeDb,
+		);
+		expect(await stateOf()).toBe('stripe_active');
+
+		await deliver('07-charge-refunded.json', { tenantId });
+		await withTenant(
+			tenantId,
+			(tx) => projectStripeEvent(tx, { tenantId, eventId: 'evt_gftb_fx_0007', gateway: createReplayGateway() }),
+			runtimeDb,
+		);
+		expect(await stateOf()).toBe('refunded');
+		const versionAfterRefund = await versionOf();
+
+		// The deletion event arrives after the refund — the guard must absorb
+		// it, not overwrite 'refunded' back to 'cancelled'.
+		await deliver('06-customer-subscription-deleted.json', { tenantId });
+		const outcome = await withTenant(
+			tenantId,
+			(tx) => projectStripeEvent(tx, { tenantId, eventId: 'evt_gftb_fx_0006', gateway: createReplayGateway() }),
+			runtimeDb,
+		);
+		expect(outcome.action).toBe('skipped');
+		expect(await stateOf()).toBe('refunded');
+		expect(await versionOf()).toBe(versionAfterRefund);
+	});
+
+	it('the reverse order also converges to refunded: cancel, then refund the last charge', async () => {
+		// The symmetric case: charge.refunded stays UNGUARDED, so it always
+		// overwrites regardless of the agreement's current state — a cancelled
+		// agreement that is subsequently refunded still lands on 'refunded'.
+		const tenantId = await seedTenant(fixture.migratorDsn, 'deleted-then-refund-gap');
+		const stateOf = async () =>
+			(await withTenant(tenantId, (tx) => getAgreement(tx, FIXTURE.personId), runtimeDb))?.state;
+
+		await withTenant(
+			tenantId,
+			(tx) =>
+				chooseContribution(tx, {
+					tenantId,
+					personId: FIXTURE.personId,
+					choice: { kind: 'stripe', cadence: 'monthly', amountCents: 1000 },
+				}),
+			runtimeDb,
+		);
+		await deliver('01-checkout-session-completed.json', { tenantId });
+		await withTenant(
+			tenantId,
+			(tx) =>
+				projectStripeEvent(tx, {
+					tenantId,
+					eventId: 'evt_gftb_fx_0001',
+					gateway: createReplayGateway({ subscriptionStatus: 'active' }),
+				}),
+			runtimeDb,
+		);
+		expect(await stateOf()).toBe('stripe_active');
+
+		await deliver('06-customer-subscription-deleted.json', { tenantId });
+		const deletionOutcome = await withTenant(
+			tenantId,
+			(tx) => projectStripeEvent(tx, { tenantId, eventId: 'evt_gftb_fx_0006', gateway: createReplayGateway() }),
+			runtimeDb,
+		);
+		expect(deletionOutcome).toMatchObject({ action: 'projected', state: 'cancelled' });
+		expect(await stateOf()).toBe('cancelled');
+
+		await deliver('07-charge-refunded.json', { tenantId });
+		const refundOutcome = await withTenant(
+			tenantId,
+			(tx) => projectStripeEvent(tx, { tenantId, eventId: 'evt_gftb_fx_0007', gateway: createReplayGateway() }),
+			runtimeDb,
+		);
+		expect(refundOutcome).toMatchObject({ action: 'projected', state: 'refunded' });
+		expect(await stateOf()).toBe('refunded');
+	});
 });
 
 /**

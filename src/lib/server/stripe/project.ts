@@ -39,8 +39,8 @@
  * Checkout time is what puts `gftb_person_id` on the subscription this walk
  * lands on.
  *
- * REFUNDED IS ABSORBING AGAINST THE SUBSCRIPTION-STATUS PROJECTION (PR #185
- * adversarial-review BLOCK-3). `stateForSubscriptionStatus` can never return
+ * REFUNDED IS ABSORBING, FULL STOP (PR #185 adversarial-review BLOCK-3, EDIT-1
+ * after round-2 re-review). `stateForSubscriptionStatus` can never return
  * `'refunded'` — no branch of its switch produces it — so a retrieved
  * subscription status is never evidence FOR OR AGAINST a refund; it is
  * evidence about the SUBSCRIPTION, a different Stripe object than the CHARGE
@@ -50,12 +50,30 @@
  * state before projecting" idiom) would otherwise silently resurrect
  * `stripe_active` out from under an already-recorded refund purely because
  * Stripe redelivers for up to 3 days and this worker retries for up to ~8×6h.
+ *
+ * `customer.subscription.deleted` is guarded too, and round-1 of this review
+ * was wrong to carve it out. Refunding the last charge and then cancelling
+ * the subscription is the DEFAULT real-world refund workflow, not an edge
+ * case — Stripe guarantees no ordering between the two events, and
+ * cancel-at-period-end means the deletion event routinely arrives AFTER the
+ * refund — so an unguarded deletion would erase `'refunded'` back to
+ * `'cancelled'` on the single most common refund/cancel pairing that exists.
+ * Neither spec document resolves which of `refunded`/`cancelled` wins when a
+ * person is both — this is genuinely sitting-2 material — but §1.10 rows 3-4's
+ * money-fact doctrine (finance receipts are append-only; a correction is a
+ * REVERSAL, never a mutation of the original fact) argues the refund is the
+ * fact that must survive projection ordering: a refunded agreement is a
+ * SUPERSET of cancelled for every downstream consumer (finance still needs to
+ * know money moved back; nothing downstream needs "cancelled, and we have no
+ * memory of whether it was ever refunded"). `charge.refunded` itself is the
+ * one event that stays UNGUARDED — its own redelivery must still converge
+ * (idempotent re-projection to `'refunded'`), which a guard against
+ * `'refunded'` would turn into a spurious `skipped`.
+ *
  * `projectStripeEvent` below enforces this with a guarded write
- * (`setAgreementStateUnlessRefunded`) for exactly those five event types —
- * `customer.subscription.deleted` and `charge.refunded` itself are NOT
- * guarded, because each is a dedicated, payload-trusted event about the exact
- * fact it asserts (deletion, refund), not a re-derivation through subscription
- * status.
+ * (`setAgreementStateUnlessRefunded`) for the five subscription-status events
+ * PLUS `customer.subscription.deleted` — every event type except
+ * `charge.refunded` itself.
  *
  * FAILURE FORENSICS COMMIT SEPARATELY (finding S2). The projection write and
  * the success stamp share the caller's transaction, so they are atomic. The
@@ -102,17 +120,38 @@ interface EventObject {
 	metadata?: Record<string, string>;
 	/** `charge.refunded` only: Stripe's own verdict on whether the FULL amount was refunded. */
 	refunded?: boolean;
-	/** `charge.refunded` only: the real `Charge.customer` field — `Charge` has no `subscription`/`invoice` field. */
-	customer?: string | null;
+	/**
+	 * `charge.refunded` only: the real `Charge.customer` field — `Charge` has
+	 * no `subscription`/`invoice` field. Typed `unknown`, not `string | null`:
+	 * Stripe hands an EXPANDED `Customer` object here when the caller requests
+	 * `expand: ['customer']` on the originating API call (this app never
+	 * does, but the compile-time claim was unchecked at runtime — PR #185
+	 * review LOW-1). `customerIdFrom` below is the runtime guard.
+	 */
+	customer?: unknown;
 }
 
-/** The five order-ambiguous events whose state is DERIVED from a retrieved subscription's status. */
-const SUBSCRIPTION_STATUS_EVENT_TYPES: ReadonlySet<string> = new Set([
+/** LOW-1: `object.customer` is `unknown` at runtime — only a bare id string is usable, never an expanded object. */
+function customerIdFrom(object: EventObject | undefined): string | undefined {
+	return typeof object?.customer === 'string' ? object.customer : undefined;
+}
+
+/**
+ * Every event type EXCEPT `charge.refunded` itself — these write through the
+ * `setAgreementStateUnlessRefunded` guard, so a refund already recorded is
+ * absorbing against all of them (module docstring, "REFUNDED IS ABSORBING,
+ * FULL STOP"). The five subscription-status events are order-ambiguous by
+ * construction; `customer.subscription.deleted` is payload-trusted but still
+ * guarded, because refund-then-cancel is the default real-world ordering, not
+ * an edge case.
+ */
+const GUARDED_AGAINST_REFUNDED_EVENT_TYPES: ReadonlySet<string> = new Set([
 	'checkout.session.completed',
 	'customer.subscription.created',
 	'customer.subscription.updated',
 	'invoice.paid',
 	'invoice.payment_failed',
+	'customer.subscription.deleted',
 ]);
 
 function personIdFrom(object: EventObject | undefined): string | undefined {
@@ -139,8 +178,12 @@ export async function projectionForEvent(
 
 	switch (event.type) {
 		case 'customer.subscription.deleted': {
-			// The ONE payload-trusting case: deletion is terminal, so no staler
-			// snapshot can contradict it and no retrieve can improve on it.
+			// Payload-trusted for the STATE DECISION: deletion is terminal, so no
+			// staler snapshot can contradict it and no retrieve can improve on it.
+			// The WRITE, though, is guarded (projectStripeEvent,
+			// GUARDED_AGAINST_REFUNDED_EVENT_TYPES) — refund-then-cancel is the
+			// default real-world ordering, and an already-recorded refund must
+			// survive a deletion event that arrives after it.
 			const personId = personIdFrom(object);
 			if (!personId) return { action: 'skipped', detail: `${event.type} carries no gftb_person_id` };
 			return { action: 'projected', state: 'cancelled', personId, detail: event.type };
@@ -169,8 +212,9 @@ export async function projectionForEvent(
 			// charge that was explicitly given metadata some other way — Charge
 			// does carry a real (if normally empty for us) `metadata` field.
 			let personId = personIdFrom(object);
-			if (object?.customer) {
-				const subscription = await gateway.findSubscriptionForCustomer(object.customer);
+			const customerId = customerIdFrom(object);
+			if (customerId) {
+				const subscription = await gateway.findSubscriptionForCustomer(customerId);
 				personId = subscription?.metadata.gftb_person_id ?? personId;
 			}
 			if (!personId) return { action: 'skipped', detail: `${event.type} carries no resolvable gftb_person_id` };
@@ -209,13 +253,14 @@ export async function projectionForEvent(
 /**
  * `setAgreementState`, but refuses to overwrite an already-`'refunded'`
  * agreement (PR #185 adversarial-review BLOCK-3 — see the module docstring's
- * "REFUNDED IS ABSORBING" section). Atomic: the guard rides the same UPDATE
- * statement's WHERE clause, so there is no read-then-write race between
- * checking the current state and writing the new one. Used ONLY for the five
- * `SUBSCRIPTION_STATUS_EVENT_TYPES` — `customer.subscription.deleted` and
- * `charge.refunded` itself keep calling the unguarded `setAgreementState`,
- * because each is a dedicated, payload-trusted event about the exact fact it
- * asserts, not a re-derivation through subscription status.
+ * "REFUNDED IS ABSORBING, FULL STOP" section). Atomic: the guard rides the
+ * same UPDATE statement's WHERE clause (`ne(state, 'refunded')`), so there is
+ * no read-then-write race between checking the current state and writing the
+ * new one — confirmed under real concurrent contention in the round-2 review.
+ * Used for every `GUARDED_AGAINST_REFUNDED_EVENT_TYPES` member; only
+ * `charge.refunded` itself keeps calling the unguarded `setAgreementState`,
+ * because its own redelivery must still converge to `'refunded'` rather than
+ * being absorbed into a spurious `skipped`.
  */
 async function setAgreementStateUnlessRefunded(
 	tx: DbTransaction,
@@ -269,12 +314,12 @@ export async function projectStripeEvent(
 	try {
 		let outcome = await projectionForEvent(event, input.gateway);
 		if (outcome.action === 'projected' && outcome.state && outcome.personId) {
-			// BLOCK-3: the five subscription-status-derived event types write
-			// through the GUARDED path — 'refunded' is absorbing against them
-			// (module docstring). customer.subscription.deleted and
-			// charge.refunded itself are dedicated, payload-trusted events about
-			// the exact fact they assert, so they keep the unguarded write.
-			const guarded = SUBSCRIPTION_STATUS_EVENT_TYPES.has(event.type);
+			// BLOCK-3 (EDIT-1 after round-2 re-review): every event type except
+			// charge.refunded itself writes through the GUARDED path — 'refunded'
+			// is absorbing, full stop (module docstring). charge.refunded keeps
+			// the unguarded write so its own redelivery still converges instead
+			// of being absorbed into a spurious skip.
+			const guarded = GUARDED_AGAINST_REFUNDED_EVENT_TYPES.has(event.type);
 			const updated = guarded
 				? await setAgreementStateUnlessRefunded(tx, outcome.personId, outcome.state)
 				: await setAgreementState(tx, outcome.personId, outcome.state);
