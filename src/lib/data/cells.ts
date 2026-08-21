@@ -11,45 +11,24 @@
 // body = optional free-form prose for future per-tool pages). This module
 // globs that tree at build time so all three routes are driven by ONE tree
 // and can never drift apart. Validate with `just tools-validate`.
+//
+// The status -> route decision (which statuses appear in a cell listing vs.
+// /wants vs. nowhere) lives in $lib/data/cell-routing.ts as pure,
+// glob-free functions (buildCells / buildWants) so it can be unit tested
+// with fixtures — see cell-routing.ts's TIN-3502 allowlist doc-comment and
+// cell-routing.test.ts's zero-routes proof.
 import { decodeOrThrow } from '$lib/effect/schema';
 import { ToolFrontmatter } from '$lib/data/tool-schema';
+import {
+	buildCells,
+	buildWants,
+	type CellTool,
+	type ToolCell,
+	type ToolEntry,
+	type WantedTool,
+} from '$lib/data/cell-routing';
 
-export interface CellTool {
-	slug: string;
-	name: string;
-	status: 'in-kit' | 'restoration';
-	blurb: string;
-	docUrl?: string;
-	docLabel?: string;
-	/** Wiki "citation needed": in the kit, but a real specific is undocumented. */
-	detailsNeeded?: boolean;
-	/** What is still missing, in fill order (e.g. ['model number', 'photo']). */
-	detailsWanted?: readonly string[];
-	/**
-	 * Repo-relative path of the .svx source for this tool, e.g.
-	 * `src/content/tools/network/g2-lora-base-station.svx`. The DetailsNeeded
-	 * chip turns this into a GitHub edit URL so an owner can fill in the gap.
-	 */
-	sourcePath: string;
-}
-
-export interface ToolCell {
-	slug: string;
-	name: string;
-	/** Captain of record. null = the cell still needs one (readme.txt want #3). */
-	captain: string | null;
-	/** How the kit travels, honestly — the donate-page criteria, applied. */
-	travels: string;
-	tools: CellTool[];
-}
-
-export interface WantedTool {
-	slug: string;
-	name: string;
-	/** Display name of the owning cell, e.g. "Sewing cell". */
-	cellName: string;
-	blurb: string;
-}
+export type { CellTool, ToolCell, WantedTool };
 
 /** Cell-level truth (captain, travel doctrine). Tools come from the .svx tree. */
 const CELL_META: Array<Omit<ToolCell, 'tools'>> = [
@@ -83,7 +62,7 @@ const modules = import.meta.glob('/src/content/tools/**/*.svx', { eager: true })
 
 const decodeFrontmatter = decodeOrThrow(ToolFrontmatter);
 
-const entries = Object.entries(modules).map(([path, mod]) => {
+const entries: ToolEntry[] = Object.entries(modules).map(([path, mod]) => {
 	const slug =
 		path
 			.replace(/\.svx$/, '')
@@ -107,30 +86,5 @@ for (const { slug, fm } of entries) {
 	}
 }
 
-export const cells: ToolCell[] = CELL_META.map((meta) => ({
-	...meta,
-	tools: entries
-		.filter(({ fm }) => fm.cell === meta.slug && fm.status !== 'wants')
-		.sort((a, b) => a.fm.order - b.fm.order)
-		.map(({ slug, sourcePath, fm }) => ({
-			slug,
-			name: fm.name,
-			status: fm.status as 'in-kit' | 'restoration',
-			blurb: fm.blurb,
-			sourcePath,
-			...(fm.docUrl !== undefined ? { docUrl: fm.docUrl } : {}),
-			...(fm.docLabel !== undefined ? { docLabel: fm.docLabel } : {}),
-			...(fm.detailsNeeded !== undefined ? { detailsNeeded: fm.detailsNeeded } : {}),
-			...(fm.detailsWanted !== undefined ? { detailsWanted: fm.detailsWanted } : {}),
-		})),
-}));
-
-export const wants: WantedTool[] = entries
-	.filter(({ fm }) => fm.status === 'wants')
-	.sort((a, b) => a.fm.order - b.fm.order)
-	.map(({ slug, fm }) => ({
-		slug,
-		name: fm.name,
-		cellName: CELL_META.find((cell) => cell.slug === fm.cell)?.name ?? fm.cell,
-		blurb: fm.blurb,
-	}));
+export const cells: ToolCell[] = buildCells(entries, CELL_META);
+export const wants: WantedTool[] = buildWants(entries, CELL_META);
