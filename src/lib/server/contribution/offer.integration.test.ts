@@ -198,6 +198,10 @@ function countingGateway() {
 			calls += 1;
 			return { id: 'sub_test', status: 'active', livemode: false, metadata: {} };
 		},
+		async findSubscriptionForCustomer() {
+			calls += 1;
+			return null;
+		},
 	};
 	return { gateway, count: () => calls, last: () => lastParams as Record<string, unknown> };
 }
@@ -211,6 +215,7 @@ function throwingGateway(): StripeGateway {
 		createCheckoutSession: async () => boom(),
 		createPortalSession: async () => boom(),
 		retrieveSubscription: async () => boom(),
+		findSubscriptionForCustomer: async () => boom(),
 	};
 }
 

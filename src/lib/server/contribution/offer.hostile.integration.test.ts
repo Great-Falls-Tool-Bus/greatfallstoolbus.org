@@ -179,6 +179,10 @@ function countingGateway(sessionUrl: string | null = 'https://checkout.stripe.ex
 			calls += 1;
 			return { id: 'sub_test', status: 'active', livemode: false, metadata: {} };
 		},
+		async findSubscriptionForCustomer() {
+			calls += 1;
+			return null;
+		},
 	};
 	return { gateway, count: () => calls };
 }
