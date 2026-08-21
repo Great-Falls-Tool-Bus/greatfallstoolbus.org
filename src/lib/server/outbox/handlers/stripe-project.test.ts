@@ -65,4 +65,19 @@ describe('createStripeProjectHandler — the malformed-payload guard', () => {
 			/job-poisoned-1.*\{"wrong":"shape"\}/,
 		);
 	});
+
+	it('truncates an oversized poisoned payload rather than quoting it in full (review soft note)', async () => {
+		const handler = createStripeProjectHandler({ gateway: createReplayGateway(), db: neverTouched as never });
+		const hugePayload = { junk: 'x'.repeat(5_000) };
+		let message = '';
+		try {
+			await handler(job({ payload: hugePayload }));
+		} catch (error) {
+			message = (error as Error).message;
+		}
+		expect(message).toContain('(truncated)');
+		// Bounded well under the outbox's own MAX_LAST_ERROR_LENGTH (2000) so
+		// the downstream describeFailure() truncation never even has to act.
+		expect(message.length).toBeLessThan(1000);
+	});
 });

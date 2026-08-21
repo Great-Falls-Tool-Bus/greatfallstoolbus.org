@@ -245,9 +245,7 @@ export async function runWorker(options: WorkerOptions = {}): Promise<number> {
 		args = [],
 		env = process.env,
 		io = { stdout: process.stdout, stderr: process.stderr },
-		// Reads `env` bound just above — a caller-supplied `env` (tests) picks a
-		// caller-supplied `registry` too, never a hidden `process.env` read.
-		registry = defaultRegistry(env),
+		registry: registryOption,
 		signal,
 		dispatchOnceFn = dispatchOnce,
 		runLoopFn = runWorkerLoop,
@@ -262,6 +260,27 @@ export async function runWorker(options: WorkerOptions = {}): Promise<number> {
 	if (parsed.help) {
 		io.stdout.write(`${HELP}\n`);
 		return WORKER_EXIT.OK;
+	}
+
+	// BLOCK-1 fix (PR #185 adversarial review): `defaultRegistry(env)` calls
+	// `readStripeConfig(env)`, which THROWS on a half-configured or
+	// non-test-shaped environment (config.ts's own fail-closed contract). That
+	// throw must never happen as a destructuring default — a default
+	// evaluates before --help/--usage even run and outside every mapped error
+	// path below, so it turned a non-secret, plausibly shared env var
+	// (STRIPE_PUBLISHABLE_KEY alone) into an unhandled rejection: exit 1, a
+	// raw stack trace, and `--help` no longer exiting 0 as its own docstring
+	// promises. Building the registry HERE — after the early returns, inside
+	// a try mapped to the same 78 (EX_UNAVAILABLE) every other
+	// unconfigured/unreachable failure below uses — keeps exit codes to
+	// exactly {0, 64, 78} as published, the set the infra Deployment's
+	// restart behavior is keyed on.
+	let registry: HandlerRegistry;
+	try {
+		registry = registryOption ?? defaultRegistry(env);
+	} catch (error) {
+		io.stderr.write(`worker: ${(error as Error).message}\n`);
+		return WORKER_EXIT.UNAVAILABLE;
 	}
 
 	// Fail fast, with the migrator's manners: name what is missing and exit 78

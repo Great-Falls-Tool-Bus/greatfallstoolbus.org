@@ -98,15 +98,32 @@ describe('projectionForEvent', () => {
 });
 
 describe('charge.refunded — the schema state a payload-skip left unreachable', () => {
-	it('projects a FULLY refunded charge to refunded, resolving identity by retrieving the subscription it funded', async () => {
-		// The committed fixture carries no metadata/client_reference_id on the
-		// charge itself (a charge does not reliably carry gftb_person_id) — the
-		// only way this test can resolve FIXTURE.personId is through the
-		// retrieve-the-truth call, which is exactly what is under test.
+	it('projects a FULLY refunded charge to refunded, resolving identity via Charge.customer -> findSubscriptionForCustomer', async () => {
+		// The committed fixture carries an empty `metadata: {}` on the charge
+		// itself (a real Charge object always has the field, but does not
+		// inherit subscription metadata) and no client_reference_id (not a
+		// Charge field) — the only way this test can resolve FIXTURE.personId is
+		// through Charge.customer -> findSubscriptionForCustomer, which is
+		// exactly what is under test (PR #185 review BLOCK-2: Charge has no
+		// `subscription`/`invoice` field in the pinned SDK, so `customer` is the
+		// only real link back to a subscription).
 		const gateway = createReplayGateway();
 		const outcome = await projectionForEvent(readFixtureEvent('07-charge-refunded.json'), gateway);
-		expect(gateway.calls.map((c) => c.method)).toEqual(['retrieveSubscription']);
+		expect(gateway.calls.map((c) => c.method)).toEqual(['findSubscriptionForCustomer']);
 		expect(outcome).toMatchObject({ action: 'projected', state: 'refunded', personId: FIXTURE.personId });
+	});
+
+	it('skips rather than resolving identity when the charge names a customer with no subscription on file', async () => {
+		const orphan = {
+			...readFixtureEvent('07-charge-refunded.json'),
+			data: {
+				object: { ...readFixtureEvent('07-charge-refunded.json').data.object, customer: 'cus_no_such_customer' },
+			},
+		};
+		const gateway = createReplayGateway();
+		const outcome = await projectionForEvent(orphan as never, gateway);
+		expect(gateway.calls.map((c) => c.method)).toEqual(['findSubscriptionForCustomer']);
+		expect(outcome.action).toBe('skipped');
 	});
 
 	it('treats a PARTIAL refund as a no-op — refunded is a terminal fact only a FULL refund asserts', async () => {

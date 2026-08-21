@@ -70,6 +70,25 @@ export class StripeProjectPayloadError extends Error {
 	}
 }
 
+/**
+ * Bound the raw payload this error message quotes (review soft note): the
+ * message ends up in `outbox_job.last_error`, a durable operator surface, and
+ * `dispatch.ts`'s `describeFailure` already truncates to
+ * `MAX_LAST_ERROR_LENGTH` downstream — but that is a backstop for every
+ * handler's errors, not a licence for THIS one to stringify an arbitrarily
+ * large or deeply-nested jsonb payload into a message in the first place.
+ * Defense in depth, same posture as `describeFailure`'s own docstring.
+ */
+const MAX_QUOTED_PAYLOAD_LENGTH = 500;
+
+function truncatedPayload(payload: unknown): string {
+	// JSON.stringify(undefined) returns `undefined` (the JS value, not a
+	// string) — String() below is the fallback for that and every other
+	// value stringify legitimately can't render (a function, a symbol).
+	const text = JSON.stringify(payload) ?? String(payload);
+	return text.length > MAX_QUOTED_PAYLOAD_LENGTH ? `${text.slice(0, MAX_QUOTED_PAYLOAD_LENGTH)}…(truncated)` : text;
+}
+
 function parseEventId(job: ClaimedJob): string {
 	const payload = job.payload;
 	const eventId =
@@ -78,7 +97,7 @@ function parseEventId(job: ClaimedJob): string {
 			: undefined;
 	if (typeof eventId !== 'string' || !eventId.trim()) {
 		throw new StripeProjectPayloadError(
-			`stripe.project job ${job.id} carries a malformed payload (expected { eventId: string }): ${JSON.stringify(payload)}`,
+			`stripe.project job ${job.id} carries a malformed payload (expected { eventId: string }): ${truncatedPayload(payload)}`,
 		);
 	}
 	return eventId;

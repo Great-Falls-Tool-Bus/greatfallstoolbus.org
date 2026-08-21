@@ -62,6 +62,19 @@ export interface StripeGateway {
 	createCheckoutSession(params: Stripe.Checkout.SessionCreateParams): Promise<CheckoutSessionSummary>;
 	createPortalSession(params: Stripe.BillingPortal.SessionCreateParams): Promise<PortalSessionSummary>;
 	retrieveSubscription(subscriptionId: string): Promise<SubscriptionSummary>;
+	/**
+	 * The most recent subscription for a Stripe customer, across every status
+	 * (`status: 'all'` — a subscription a refund is being resolved against may
+	 * already be `canceled`), or `null` if the customer has none. Added for
+	 * `project.ts`'s `charge.refunded` identity resolution (PR #185
+	 * adversarial-review BLOCK-2): `Charge` carries a real `customer` field but
+	 * no `subscription`/`invoice` field in this SDK's pinned API version, and
+	 * nothing in this schema stores a Stripe customer/subscription id against a
+	 * person — `customer` is the only real, always-present link a refund event
+	 * offers back to a subscription (and therefore to `metadata.gftb_person_id`,
+	 * which `subscription_data.metadata` at Checkout time puts there).
+	 */
+	findSubscriptionForCustomer(customerId: string): Promise<SubscriptionSummary | null>;
 }
 
 /** Every method throws before any I/O. The keyless default. */
@@ -73,6 +86,7 @@ export function createDisabledGateway(reason: string): StripeGateway {
 		createCheckoutSession: async () => refuse(),
 		createPortalSession: async () => refuse(),
 		retrieveSubscription: async () => refuse(),
+		findSubscriptionForCustomer: async () => refuse(),
 	};
 }
 
@@ -111,6 +125,24 @@ export function createStripeGateway(config: StripeRuntimeConfig): StripeGateway 
 		},
 		async retrieveSubscription(subscriptionId) {
 			const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+			return {
+				id: subscription.id,
+				status: subscription.status,
+				livemode: subscription.livemode,
+				metadata: (subscription.metadata ?? {}) as Record<string, string>,
+			};
+		},
+		async findSubscriptionForCustomer(customerId) {
+			// status: 'all' — the default omits canceled subscriptions, and a
+			// refund's subscription may already be canceled by the time the
+			// refund event is processed. limit 1 with no other filter returns the
+			// most recently created, matching "one contribution agreement per
+			// person" (contribution_one_per_person) — in practice there is at
+			// most one subscription per customer under this app's own checkout
+			// path.
+			const list = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 1 });
+			const subscription = list.data[0];
+			if (!subscription) return null;
 			return {
 				id: subscription.id,
 				status: subscription.status,

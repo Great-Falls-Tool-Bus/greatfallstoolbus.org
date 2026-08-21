@@ -28,10 +28,34 @@
  * `charge.refunded` is the one case where the retrieve buys IDENTITY, not
  * STATE: a full refund (`refunded: true`) is itself terminal — nothing later
  * un-refunds a charge — so the STATE decision trusts the payload the same way
- * `customer.subscription.deleted` does. But a charge does not reliably carry
- * `gftb_person_id`, so the subscription it funded is retrieved to resolve the
- * PERSON the refund belongs to. A partial refund is a no-op: it does not move
- * `refunded` state (spec §5 enum) — only a fully refunded charge does.
+ * `customer.subscription.deleted` does. A partial refund is a no-op: it does
+ * not move `refunded` state (spec §5 enum) — only a fully refunded charge
+ * does. IDENTITY resolution walks `Charge.customer` (a real, always-present
+ * field on a Stripe `Charge`) to `gateway.findSubscriptionForCustomer` — NOT
+ * `Charge.subscription`, which this SDK's pinned API version does not have
+ * (PR #185 adversarial-review BLOCK-2: the previous version of this case
+ * invented that field, so it could only ever fire against the hand-authored
+ * fixture, never against a real refund). `subscription_data.metadata` at
+ * Checkout time is what puts `gftb_person_id` on the subscription this walk
+ * lands on.
+ *
+ * REFUNDED IS ABSORBING AGAINST THE SUBSCRIPTION-STATUS PROJECTION (PR #185
+ * adversarial-review BLOCK-3). `stateForSubscriptionStatus` can never return
+ * `'refunded'` — no branch of its switch produces it — so a retrieved
+ * subscription status is never evidence FOR OR AGAINST a refund; it is
+ * evidence about the SUBSCRIPTION, a different Stripe object than the CHARGE
+ * a refund is a fact about. A stale or redelivered order-ambiguous event
+ * (`checkout.session.completed`, `customer.subscription.{created,updated}`,
+ * `invoice.{paid,payment_failed}` — spec §5's "retrieve current Stripe object
+ * state before projecting" idiom) would otherwise silently resurrect
+ * `stripe_active` out from under an already-recorded refund purely because
+ * Stripe redelivers for up to 3 days and this worker retries for up to ~8×6h.
+ * `projectStripeEvent` below enforces this with a guarded write
+ * (`setAgreementStateUnlessRefunded`) for exactly those five event types —
+ * `customer.subscription.deleted` and `charge.refunded` itself are NOT
+ * guarded, because each is a dedicated, payload-trusted event about the exact
+ * fact it asserts (deletion, refund), not a re-derivation through subscription
+ * status.
  *
  * FAILURE FORENSICS COMMIT SEPARATELY (finding S2). The projection write and
  * the success stamp share the caller's transaction, so they are atomic. The
@@ -42,10 +66,10 @@
  * independently of the doomed transaction.
  */
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import type { Db, DbTransaction } from '../db/client';
 import { withTenant } from '../db/tenant';
-import { stripeEventInbox, type ContributionAgreement } from '../db/schema';
+import { contributionAgreement, stripeEventInbox, type ContributionAgreement } from '../db/schema';
 import { setAgreementState } from '../contribution/agreement';
 import type { StripeGateway, StripeWebhookEvent } from './client';
 import { assertTestModeEvent } from './gate';
@@ -78,7 +102,18 @@ interface EventObject {
 	metadata?: Record<string, string>;
 	/** `charge.refunded` only: Stripe's own verdict on whether the FULL amount was refunded. */
 	refunded?: boolean;
+	/** `charge.refunded` only: the real `Charge.customer` field — `Charge` has no `subscription`/`invoice` field. */
+	customer?: string | null;
 }
+
+/** The five order-ambiguous events whose state is DERIVED from a retrieved subscription's status. */
+const SUBSCRIPTION_STATUS_EVENT_TYPES: ReadonlySet<string> = new Set([
+	'checkout.session.completed',
+	'customer.subscription.created',
+	'customer.subscription.updated',
+	'invoice.paid',
+	'invoice.payment_failed',
+]);
 
 function personIdFrom(object: EventObject | undefined): string | undefined {
 	return object?.metadata?.gftb_person_id ?? object?.client_reference_id ?? undefined;
@@ -124,14 +159,19 @@ export async function projectionForEvent(
 				return { action: 'skipped', detail: `${event.type} is a partial refund; contribution state unchanged` };
 			}
 			// Identity, unlike the refund fact itself, IS worth retrieving rather
-			// than trusting the charge payload alone: a charge does not reliably
-			// carry `gftb_person_id`, but the subscription it funded does — the
-			// same retrieve-the-truth preference the order-ambiguous events below
-			// apply to STATUS, applied here to IDENTITY instead.
+			// than trusting the charge payload alone — but `Charge.subscription`
+			// does not exist (BLOCK-2). `Charge.customer` does: walk it to the
+			// customer's subscription (findSubscriptionForCustomer, `status:
+			// 'all'` so an already-canceled subscription still resolves) and take
+			// ITS metadata, the same retrieve-the-truth preference the
+			// order-ambiguous events below apply to STATUS, applied here to
+			// IDENTITY instead. `personIdFrom(object)` is kept as a fallback for a
+			// charge that was explicitly given metadata some other way — Charge
+			// does carry a real (if normally empty for us) `metadata` field.
 			let personId = personIdFrom(object);
-			if (object?.subscription) {
-				const current = await gateway.retrieveSubscription(object.subscription);
-				personId = current.metadata.gftb_person_id ?? personId;
+			if (object?.customer) {
+				const subscription = await gateway.findSubscriptionForCustomer(object.customer);
+				personId = subscription?.metadata.gftb_person_id ?? personId;
 			}
 			if (!personId) return { action: 'skipped', detail: `${event.type} carries no resolvable gftb_person_id` };
 			return { action: 'projected', state: 'refunded', personId, detail: event.type };
@@ -164,6 +204,30 @@ export async function projectionForEvent(
 		default:
 			return { action: 'skipped', detail: `event type ${event.type} is outside the minimum set` };
 	}
+}
+
+/**
+ * `setAgreementState`, but refuses to overwrite an already-`'refunded'`
+ * agreement (PR #185 adversarial-review BLOCK-3 — see the module docstring's
+ * "REFUNDED IS ABSORBING" section). Atomic: the guard rides the same UPDATE
+ * statement's WHERE clause, so there is no read-then-write race between
+ * checking the current state and writing the new one. Used ONLY for the five
+ * `SUBSCRIPTION_STATUS_EVENT_TYPES` — `customer.subscription.deleted` and
+ * `charge.refunded` itself keep calling the unguarded `setAgreementState`,
+ * because each is a dedicated, payload-trusted event about the exact fact it
+ * asserts, not a re-derivation through subscription status.
+ */
+async function setAgreementStateUnlessRefunded(
+	tx: DbTransaction,
+	personId: string,
+	state: AgreementState,
+): Promise<ContributionAgreement | undefined> {
+	const rows = await tx
+		.update(contributionAgreement)
+		.set({ state, version: sql`${contributionAgreement.version} + 1` })
+		.where(and(eq(contributionAgreement.personId, personId), ne(contributionAgreement.state, 'refunded')))
+		.returning();
+	return rows[0];
 }
 
 /**
@@ -205,13 +269,25 @@ export async function projectStripeEvent(
 	try {
 		let outcome = await projectionForEvent(event, input.gateway);
 		if (outcome.action === 'projected' && outcome.state && outcome.personId) {
-			const updated = await setAgreementState(tx, outcome.personId, outcome.state);
+			// BLOCK-3: the five subscription-status-derived event types write
+			// through the GUARDED path — 'refunded' is absorbing against them
+			// (module docstring). customer.subscription.deleted and
+			// charge.refunded itself are dedicated, payload-trusted events about
+			// the exact fact they assert, so they keep the unguarded write.
+			const guarded = SUBSCRIPTION_STATUS_EVENT_TYPES.has(event.type);
+			const updated = guarded
+				? await setAgreementStateUnlessRefunded(tx, outcome.personId, outcome.state)
+				: await setAgreementState(tx, outcome.personId, outcome.state);
 			if (!updated) {
-				// An UPDATE that matched zero rows is not a projection — say so
-				// instead of reporting 'projected' for a person with no agreement.
+				// Zero rows matched for one of two reasons — no agreement exists
+				// for this person, or (guarded path only) the guard refused to
+				// overwrite an already-'refunded' agreement. Either way this is
+				// not a projection: say so instead of reporting 'projected'.
 				outcome = {
 					action: 'skipped',
-					detail: `no contribution agreement exists for person ${outcome.personId}; nothing to project`,
+					detail: guarded
+						? `no update for person ${outcome.personId}: either no contribution agreement exists, or it is already 'refunded' and this ${event.type} projection is absorbed rather than overwriting it`
+						: `no contribution agreement exists for person ${outcome.personId}; nothing to project`,
 				};
 			}
 		}

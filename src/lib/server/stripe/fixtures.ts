@@ -104,5 +104,10 @@ export function createReplayGateway(options: ReplayGatewayOptions = {}): ReplayG
 			calls.push({ method: 'retrieveSubscription', args });
 			return { ...subscription };
 		},
+		async findSubscriptionForCustomer(...args) {
+			calls.push({ method: 'findSubscriptionForCustomer', args });
+			const [customerId] = args;
+			return customerId === FIXTURE.customerId ? { ...subscription } : null;
+		},
 	};
 }

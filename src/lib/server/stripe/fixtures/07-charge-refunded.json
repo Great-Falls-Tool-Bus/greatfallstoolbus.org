@@ -12,14 +12,18 @@
 			"id": "ch_gftbfixture01",
 			"object": "charge",
 			"status": "succeeded",
+			"paid": true,
+			"captured": true,
 			"livemode": false,
 			"customer": "cus_gftbfixture01",
-			"invoice": "in_gftbfixture01",
-			"subscription": "sub_gftbfixture01",
+			"payment_intent": "pi_gftbfixture01",
 			"currency": "usd",
 			"amount": 1000,
+			"amount_captured": 1000,
 			"amount_refunded": 1000,
-			"refunded": true
+			"refunded": true,
+			"disputed": false,
+			"metadata": {}
 		}
 	}
 }
