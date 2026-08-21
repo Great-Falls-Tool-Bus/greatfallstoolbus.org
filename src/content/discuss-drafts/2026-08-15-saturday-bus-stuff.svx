@@ -1,0 +1,106 @@
+---
+subject: 'Reposting from the keyholders archive: Saturday, Aug 15th bus stuff (2026-08-15)'
+sourceList: 'keyholders@latoolb.us'
+sourceMessageId: 'HK id 29'
+sourceDate: '2026-08-15T19:17:00Z'
+targetList: 'discuss@latoolb.us'
+published: false
+preparedAt: '2026-08-20T23:15:00Z'
+redactionsApplied: true
+consentVerified: true
+---
+
+<!-- provenance: keyholders@latoolb.us archive, HK id 29 (private list; no email addresses recorded) -->
+<!-- pending discuss@ posting by operator; svx to be reconciled to the posted archive URL -->
+
+*(Repost to the public discuss list of a note originally sent to the
+keyholders list on 2026-08-15; lightly redacted for the public archive.)*
+
+Hello Bus friends!
+
+Ripley and I will be working on the bus this afternoon, focusing on
+waterproofing the body and orifices. :-)
+
+- Feel free to come by, we have fiberglass, caulk and some related tools;
+  I'll be taking measurements for some of any wonky shapes that may need
+  prints / inserts made.
+- If you have sheet metal, sheet plastic etc feel free to drop it by.
+
+I will come up with an interim lock solution today to implement by the end
+of the coming week. I am planning on working on bus stuff Thursdays and
+Fridays ~3pm-5pm ish ish.
+
+Things the bus could benefit from soonish:
+
+- 9/16 impact / large breaker for the stubborn bolt(s) (so far only one has
+  really screwed me over)
+- Cleaning supplies (I have brought and left contractor bags and black
+  gloves); a broom / industrial cleaner + rags could go a long way
+- A set of imperial square bits up to ⅞"
+- A set of SecurityTorx bits / drivers plz
+- Social media skills / make noise about bus things
+
+Things on my docket:
+
+- Grab posters from Alex, post in bus and integrate into an interim single
+  page application with Alex's form, near term membership and project
+  objectives, needs, some info about the project, timeline, my planned
+  working hours and static log. Will have this live by the end of the
+  weekend at greatfallstoolbus.org.
+
+Things I'd love help with:
+
+- Workshoping the user stories for member onboarding, tool checkout, tool
+  repair and tool check in, leaving the org, donating tools or resources to
+  the org etc; If anyone wants to hang out sometime next week or at 5th
+  pillar to work through how we want to make these processes as slick and
+  simple as possible, plz let me know! This can be a tedious process but is
+  fun with friends
+- UX, branding, design, asset (logo, fonts, palette, icon) creation
+- Writing templatable copy for user onboarding
+
+Next few weeks for Jess:
+
+- I'll be mostly focused on getting the membership related infrastructure /
+  CRM operations in place as outlined in my last email. This includes user
+  provisioning (member status, email provisioning, inventory MVP and its
+  associated web application, member lifecycle) as well as the tool
+  acquisition lifecycle and tool schema (what gets checked out by who, what
+  is checked out with it, entity semaphore, manage consumables / docs /
+  liability per tool, where it goes, when it comes back etc)
+  - The mid term intent as discussed with Alex is to manage all this through
+    the tooling available through user's smartphones (location, camera for
+    checkout and check in for contents, take out and return flow can all be
+    done with the glory of modern mobile browser owo); not all this will be
+    done by mid September.
+
+Seat and interior work notes:
+
+- We need hands removing and preparing seats for out-of-bus seat duty!
+- I have removed 3 seats thusly and fully removed all the rear most
+  passenger side bench fasteners, ready to be removed (do not sit on it ^w^)
+- I have left a socket + square bit that handles the seat bottom plastic
+  bits for seat removal, as well as smol ½ and 3/16" sockets, ratchet and
+  open end wrenches.
+
+Other notes:
+
+- The drive axle bolts are in the white bag at the front of the bus
+  currently, I'll label these
+- The one with the ziptie is for the driver side
+
+I have gathered a large amount of photos and some GPS data and plot data,
+which I'd be glad to share with y'all eventually for mockup purposes in CAD.
+
+I am keen to have a meeting re. asset agreement and liability structure
+future proofing, I am keen to ensure we are boxing things up such that the
+bus's structural trappings are indeed free of strings / future webs; I
+understand we are aiming currently to be established under a fiscal sponsor,
+and want to make sure organizational liability and transferability when the
+future of organizational entanglement comes to pass. ^w^
+
+How about next Thursday the 20th at 4pm at the teahouse?
+
+Cheers,
+-Jess
+Blog <https://transscendsurvival.org/> - Git <https://github.com/Jesssullivan>

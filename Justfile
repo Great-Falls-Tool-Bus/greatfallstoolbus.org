@@ -500,6 +500,18 @@ test-unit:
 tools-validate:
     cd {{ root }} && pnpm exec tsx scripts/validate-tools.mts
 
+# Validate the .svx discuss@ draft-staging tree (src/content/discuss-drafts/**):
+# schema + naming-consent + no-bare-email-address, independent of gitleaks.
+discuss-drafts-validate:
+    cd {{ root }} && pnpm exec tsx scripts/validate-discuss-drafts.mts
+
+# Convert one already-redacted HyperKitty message export (JSON) into a
+# published:false discuss@ draft under src/content/discuss-drafts/. Never
+# sends mail. Usage: just discuss-to-svx -- --input path/to/export.json
+# See docs/runbooks/discuss-to-svx-pipeline.md.
+discuss-to-svx *args:
+    cd {{ root }} && pnpm exec tsx scripts/discuss-to-svx.mjs {{ args }}
+
 # Ensure local Playwright browser cache exists; CI uses Nix Chromium instead
 playwright-ensure:
     cd {{ root }} && if [ "${CI:-}" = "true" ] && command -v nix >/dev/null 2>&1; then \
@@ -539,7 +551,7 @@ sbom out_dir="build/sbom":
         -o spdx-json="{{ out_dir }}/greatfallstoolbus.org.spdx.json"
 
 # Run the complete pre-commit validation gate.
-check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir lint typecheck tools-validate skills-validate skills-check source-map-check db-check test-unit
+check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir lint typecheck tools-validate discuss-drafts-validate skills-validate skills-check source-map-check db-check test-unit
     @echo "All checks passed."
 
 # Probe the declared production hostnames at the public Cloudflare Access edge.

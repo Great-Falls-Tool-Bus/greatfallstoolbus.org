@@ -50,3 +50,33 @@ description = "Tailscale auth, API, or client key"
 regex = '''tskey-(auth|api|client)-[A-Za-z0-9-]{40,}'''
 keywords = ["tskey-"]
 tags = ["tailscale", "tinyland"]
+
+# --- GFTB naming-consent rules (TIN-2360 naming-consent.md) ----------------
+# Independent backstop for src/lib/naming-consent.ts: this public repo may
+# name a person only in the exact public form the (private) naming-consent
+# record permits. These two rows are the highest-consequence to get wrong,
+# so they are enforced here too, not only in application code. Rule
+# descriptions deliberately do NOT spell out the names themselves (a scan
+# report should not be the thing that republishes what it is redacting), and
+# this file is allowlisted below so its own regex definitions can never
+# self-match.
+
+[[rules]]
+id = "gftb-naming-consent-bus-host-full-name"
+description = "Bus host has a public-consent row for the initial only; the unredacted first name must never appear in this public repo"
+regex = '''(?i)\bjosh\b'''
+keywords = ["josh"]
+tags = ["gftb", "naming-consent", "private-identity"]
+[rules.allowlist]
+description = "This config file's own rule definition, and the naming-consent enforcement module + its tests, legitimately contain the bare keyword — that IS the denylist."
+paths = ['''(^|/)\.gitleaks\.toml$''', '''(^|/)src/lib/naming-consent\.ts$''', '''(^|/)src/lib/naming-consent\.test\.ts$''']
+
+[[rules]]
+id = "gftb-naming-consent-private-only-identity"
+description = "A naming-consent.md identity has NO public form at all; any reference (name or list-membership proof) must never appear in this public repo"
+regex = '''(?i)\bwalter\b'''
+keywords = ["walter"]
+tags = ["gftb", "naming-consent", "private-identity"]
+[rules.allowlist]
+description = "This config file's own rule definition, and the naming-consent enforcement module + its tests, legitimately contain the bare keyword — that IS the denylist."
+paths = ['''(^|/)\.gitleaks\.toml$''', '''(^|/)src/lib/naming-consent\.ts$''', '''(^|/)src/lib/naming-consent\.test\.ts$''']
