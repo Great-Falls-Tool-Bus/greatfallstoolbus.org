@@ -5,6 +5,8 @@
 	"routes": {
 		"/": "src/routes/+page.svelte",
 		"/agent": "src/routes/agent/+page.svelte",
+		"/apply": "src/routes/apply/+page.svelte",
+		"/apply/verify": "src/routes/apply/verify/+page.svelte",
 		"/bibliography": "src/routes/bibliography/+page.svelte",
 		"/cell-sheets": "src/routes/cell-sheets/+page.svelte",
 		"/cell-sheets/new": "src/routes/cell-sheets/new/+page.svelte",

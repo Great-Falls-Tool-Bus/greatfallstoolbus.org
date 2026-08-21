@@ -132,20 +132,20 @@ export const outboxJob = pgTable(
 /**
  * Role grants, orthogonal to membership state (TIN-3817 slice S2).
  *
- * ⚠ PENDING RATIFICATION — sitting #2, Item 2 (`meta`
- * `spec/sitting-2-packet-2026-08-22.md`, staged in meta PR #24). The
- * executable-slices spec §1.4 drafts the role MODEL (`member` implied by
- * Active membership; `keyholder` and `finance` as grants; `steward` omitted)
- * as an AMENDMENT — drafted, not ratified. This table is the MECHANICAL half
- * the packet assigns to S2: rows, uniqueness, RLS, and grant/revoke access in
- * `src/lib/server/auth/roles.ts`. It deliberately encodes NO vocabulary:
+ * Ratified 2026-08-21 — decisions/0018 (meta PR #32, pending operator
+ * signature), sitting #2 Item 2. The executable-slices spec §1.4 role MODEL
+ * (`member` implied by Active membership; `keyholder` and `finance` as
+ * grants; `steward` omitted) is ratified option 1, verbatim. This table
+ * remains the MECHANICAL half assigned to S2: rows, uniqueness, RLS, and
+ * grant/revoke access in `src/lib/server/auth/roles.ts`. It deliberately
+ * still encodes NO vocabulary in the schema itself:
  *
- *   - `role` is `text`, not an enum and not CHECK-constrained. An enum or
- *     CHECK would ratify a role list by migration, which is exactly the
- *     decision the sitting owns. Once ratified, the vocabulary lands as an
- *     app-level constant plus (optionally) a follow-up CHECK migration.
+ *   - `role` stays `text`, not an enum and not CHECK-constrained. Now that
+ *     the vocabulary is ratified it CAN land as an app-level constant plus
+ *     an optional follow-up CHECK migration; this table simply hasn't taken
+ *     that follow-up yet, not because anything is still undecided.
  *   - No capability mapping lives here or in roles.ts — what a `keyholder`
- *     may do is S5's to enforce and the sitting's to ratify; what `finance`
+ *     may do is S5's to enforce (now on the ratified basis); what `finance`
  *     may see is S8's (slices §6.4).
  *
  * Column tuple is exactly the drafted shape: `(tenant_id, person_id, role,
@@ -339,6 +339,122 @@ export const stripeEventInbox = pgTable(
 	(t) => [primaryKey({ name: 'stripe_event_inbox_pkey', columns: [t.tenantId, t.eventId] })],
 );
 
+/**
+ * The application aggregate (TIN-3440 slice S4; spec §4 application state
+ * machine, executable-slices §1.6).
+ *
+ * STATES. `status` is `text`, constrained by a hand-written CHECK in the
+ * migration (drizzle-kit cannot see hand-finished SQL; 0002/0003 precedent) to
+ * the eight PERSISTED states of the ratified FSM:
+ * `submitted → email_verified → claimed → tour_scheduled → approved |
+ * declined | withdrawn | expired`. `draft` is deliberately absent: slices
+ * §2.2 row 1 makes `begin` client-side only — no draft row ever exists
+ * server-side, so no minimal-fields-violating partial ever needs storing.
+ * `claimed`/`tour_scheduled`/decision states are S5's transitions; the column
+ * admits them now so S5 adds no schema change to this table.
+ *
+ * FIELDS are exactly TIN-3440's intake list ("display name, verified external
+ * email, interests/help offer, tour availability, and required disclosures")
+ * plus the 18+ attestation mechanics (slices §1.6 AMENDMENT: `age_attested_at`
+ * + `age_attestation_version`, NO date of birth, no age, no identity
+ * document). There is structurally NO contribution column — "It captures no
+ * contribution choice or payment intent before approval" (TIN-3440), asserted
+ * by an information_schema scan in the integration suite.
+ *
+ * EMAIL is a normalized, mutable identifier and NEVER a key (spec §4
+ * identifiers): note there is no unique constraint on it — an address may
+ * hold several applications, which is also what makes the non-enumerating
+ * "same response as a fresh address" behaviour honest rather than faked
+ * (spec §4 rules; S4 acceptance).
+ *
+ * IDEMPOTENT SUBMISSION: `submission_idempotency_key` is unique per tenant —
+ * a duplicate `Idempotency-Key` returns the original receipt and creates no
+ * second application (spec §6 request contract; S4 acceptance).
+ *
+ * `version` is the `expectedVersion` optimistic-concurrency counter every
+ * state transition carries (spec §4: "stale writes require `expectedVersion`
+ * and return a conflict").
+ */
+export const application = pgTable(
+	'application',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenant.tenantId),
+		status: text('status').notNull().default('submitted'),
+		displayName: text('display_name').notNull(),
+		email: text('email').notNull(),
+		interestsHelpOffer: text('interests_help_offer').notNull(),
+		tourAvailability: text('tour_availability').notNull(),
+		disclosures: text('disclosures').notNull(),
+		ageAttestedAt: timestamp('age_attested_at', { withTimezone: true }).notNull(),
+		ageAttestationVersion: text('age_attestation_version').notNull(),
+		submissionIdempotencyKey: text('submission_idempotency_key').notNull(),
+		version: integer('version').notNull().default(1),
+		emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	},
+	(t) => [
+		// The idempotent-submission dedupe line (spec §6; S4 acceptance row 5).
+		unique('application_submission_idem_uniq').on(t.tenantId, t.submissionIdempotencyKey),
+		// Review-queue scan (S5 consumes) and the duplicate-address lookup.
+		index('application_status').on(t.tenantId, t.status),
+		index('application_email').on(t.tenantId, t.email),
+	],
+);
+
+/**
+ * Email-delivered single-use tokens for the application aggregate (TIN-3440
+ * slice S4; spec §4: "verification tokens are random, opaque, hashed at rest,
+ * single-use, and expiring").
+ *
+ * ONLY THE HASH IS STORED. `token_hash` is the SHA-256 hex of the plaintext
+ * token; the plaintext exists only in the minting call's return value and in
+ * the email the future `application.receipt_email` handler sends. It never
+ * enters a log line, an audit row, or the outbox `payload` (S3's payload
+ * doctrine in `src/lib/server/outbox/schema.ts` forbids tokens there) —
+ * asserted by a log-capture unit test.
+ *
+ * PURPOSES (`purpose`, CHECK-constrained in the migration):
+ *   - `verify_email` — the A3 `submitted → email_verified` transition's
+ *     bearer credential. `expires_at` is NOT NULL for this purpose, by CHECK:
+ *     "expiring" is part of the spec's token rule, structurally.
+ *   - `withdraw` — the single-use withdrawal credential the A2 receipt email
+ *     carries so A8 is reachable before verification (slices §2.2 row 8).
+ *     No time expiry (ASSUMPTION, resolver Jess: it dies with the
+ *     application's terminality instead — a time-boxed withdrawal right would
+ *     be an invented policy).
+ *
+ * SINGLE-USE is one-way and database-enforced: a trigger in the migration
+ * makes `consumed_at` the only writable column, NULL → NOT NULL, exactly
+ * once, and forbids DELETE — the `member_role_grant`/`finance_receipt`
+ * append-only doctrine applied to a credential row.
+ */
+export const applicationEmailToken = pgTable(
+	'application_email_token',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenant.tenantId),
+		applicationId: uuid('application_id')
+			.notNull()
+			.references(() => application.id),
+		purpose: text('purpose').notNull(),
+		tokenHash: text('token_hash').notNull(),
+		expiresAt: timestamp('expires_at', { withTimezone: true }),
+		consumedAt: timestamp('consumed_at', { withTimezone: true }),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	},
+	(t) => [
+		// Bearer lookup is by hash; tenant leads every unique (S1 shape rule).
+		unique('application_email_token_hash_uniq').on(t.tenantId, t.tokenHash),
+		index('application_email_token_app').on(t.tenantId, t.applicationId),
+	],
+);
+
 export type Tenant = typeof tenant.$inferSelect;
 export type NewTenant = typeof tenant.$inferInsert;
 export type OutboxJob = typeof outboxJob.$inferSelect;
@@ -351,3 +467,7 @@ export type FinanceReceipt = typeof financeReceipt.$inferSelect;
 export type NewFinanceReceipt = typeof financeReceipt.$inferInsert;
 export type StripeEventInboxRow = typeof stripeEventInbox.$inferSelect;
 export type NewStripeEventInboxRow = typeof stripeEventInbox.$inferInsert;
+export type Application = typeof application.$inferSelect;
+export type NewApplication = typeof application.$inferInsert;
+export type ApplicationEmailToken = typeof applicationEmailToken.$inferSelect;
+export type NewApplicationEmailToken = typeof applicationEmailToken.$inferInsert;

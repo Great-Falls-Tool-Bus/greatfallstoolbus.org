@@ -188,6 +188,7 @@ describe('the vendored auth.* tables are protected and single-ledgered (spec §1
 			'0004_payment_rails_testmode',
 			'0005_payment_rails_rls_grants',
 			'0006_payment_rails_reversal_tenant_fk',
+			'0007_application_intake', // S4 (TIN-3440)
 		]);
 		expect(rows.some((r) => r.tag.includes('lush_carmella'))).toBe(false);
 	});
@@ -432,10 +433,12 @@ describe('fresh reauthentication (spec §1.4; TIN-3440)', () => {
 	});
 });
 
-describe('member_role_grant mechanics (vocabulary PENDING sitting #2 Item 2)', () => {
-	// An opaque label on purpose: these rows prove the MECHANISM without
-	// asserting any role name the sitting has yet to ratify.
-	const ROLE = 'sitting-2-will-name-these';
+describe('member_role_grant mechanics (vocabulary ratified 2026-08-21, sitting #2 Item 2)', () => {
+	// Ratified 2026-08-21 — decisions/0018 (meta PR #32, pending operator
+	// signature): the role model names this role `keyholder`. These rows
+	// prove the MECHANISM; roles.ts itself still encodes no vocabulary
+	// (a deliberate follow-up, not a ratification gap — see roles.ts).
+	const ROLE = 'keyholder';
 
 	it('grant → hold → revoke → re-grant, history append-only', async () => {
 		const personId = randomUUID();
