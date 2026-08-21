@@ -1,19 +1,19 @@
 /**
  * Mechanical access to `member_role_grant` (TIN-3817 slice S2).
  *
- * ⚠ PENDING RATIFICATION — the role MODEL (which roles exist, what each may
- * do, `steward` omitted) is sitting #2 Item 2 (`meta`
- * `spec/sitting-2-packet-2026-08-22.md`, staged in meta PR #24). The
- * executable-slices spec §1.4 drafts it as an AMENDMENT, explicitly "drafted,
- * not ratified". This file therefore ships exactly the packet's "mechanical
- * half": rows in, rows revoked, rows read — and NO policy:
+ * Ratified 2026-08-21 — decisions/0018 (meta PR #32, pending operator
+ * signature), sitting #2 Item 2: the role MODEL (`member`/`keyholder`/
+ * `finance`, `steward` omitted) is ratified option 1, verbatim. This file
+ * still ships exactly the packet's "mechanical half": rows in, rows
+ * revoked, rows read — and NO policy. That is now an implementation choice,
+ * not a ratification blocker:
  *
  *   - `role` is an opaque string here. No enum, no allow-list, no constant
- *     naming the drafted vocabulary — encoding `member`/`keyholder`/`finance`
- *     (or `steward`'s absence) in code would pre-empt the ruling.
+ *     naming the ratified vocabulary yet — this file simply hasn't taken
+ *     that follow-up; the ruling itself no longer blocks it.
  *   - No capability semantics. Nothing here answers "may this keyholder
- *     approve" (S5's, post-ratification) or "may this session read amounts"
- *     (S8's, blocked on the same ruling per slices §6.4).
+ *     approve" (S5's, on the ratified basis) or "may this session read
+ *     amounts" (S8's, same basis, slices §6.4).
  *   - Grants are orthogonal to membership state by SHAPE (the drafted model's
  *     one structural commitment, already load-bearing for the table's
  *     uniqueness rules): nothing joins membership here, so a person can hold

@@ -132,20 +132,20 @@ export const outboxJob = pgTable(
 /**
  * Role grants, orthogonal to membership state (TIN-3817 slice S2).
  *
- * ⚠ PENDING RATIFICATION — sitting #2, Item 2 (`meta`
- * `spec/sitting-2-packet-2026-08-22.md`, staged in meta PR #24). The
- * executable-slices spec §1.4 drafts the role MODEL (`member` implied by
- * Active membership; `keyholder` and `finance` as grants; `steward` omitted)
- * as an AMENDMENT — drafted, not ratified. This table is the MECHANICAL half
- * the packet assigns to S2: rows, uniqueness, RLS, and grant/revoke access in
- * `src/lib/server/auth/roles.ts`. It deliberately encodes NO vocabulary:
+ * Ratified 2026-08-21 — decisions/0018 (meta PR #32, pending operator
+ * signature), sitting #2 Item 2. The executable-slices spec §1.4 role MODEL
+ * (`member` implied by Active membership; `keyholder` and `finance` as
+ * grants; `steward` omitted) is ratified option 1, verbatim. This table
+ * remains the MECHANICAL half assigned to S2: rows, uniqueness, RLS, and
+ * grant/revoke access in `src/lib/server/auth/roles.ts`. It deliberately
+ * still encodes NO vocabulary in the schema itself:
  *
- *   - `role` is `text`, not an enum and not CHECK-constrained. An enum or
- *     CHECK would ratify a role list by migration, which is exactly the
- *     decision the sitting owns. Once ratified, the vocabulary lands as an
- *     app-level constant plus (optionally) a follow-up CHECK migration.
+ *   - `role` stays `text`, not an enum and not CHECK-constrained. Now that
+ *     the vocabulary is ratified it CAN land as an app-level constant plus
+ *     an optional follow-up CHECK migration; this table simply hasn't taken
+ *     that follow-up yet, not because anything is still undecided.
  *   - No capability mapping lives here or in roles.ts — what a `keyholder`
- *     may do is S5's to enforce and the sitting's to ratify; what `finance`
+ *     may do is S5's to enforce (now on the ratified basis); what `finance`
  *     may see is S8's (slices §6.4).
  *
  * Column tuple is exactly the drafted shape: `(tenant_id, person_id, role,

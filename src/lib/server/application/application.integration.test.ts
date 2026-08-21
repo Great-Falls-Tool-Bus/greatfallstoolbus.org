@@ -265,7 +265,7 @@ describe('the /apply action — 429 and constant bodies at the HTTP shape (S4 ac
 		expect(JSON.stringify(again)).toBe(JSON.stringify(first));
 	});
 
-	it('while intake is closed (attestation text unratified) the action refuses 503 before any work', async () => {
+	it('while intake is closed (operator has not opened it at launch) the action refuses 503 before any work', async () => {
 		const action = _createApplyAction({ limiter: createRateLimiter({ max: 1, windowMs: 1000 }) });
 		const refused = await action(postEvent(formFields()));
 		expect(refused).toHaveProperty('status', 503);

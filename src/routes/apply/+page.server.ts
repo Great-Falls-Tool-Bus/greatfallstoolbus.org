@@ -12,7 +12,9 @@
  * real request path (429 shape, constant bodies) with injected seams while
  * production wires the defaults. Order of refusals, cheapest and least
  * revealing first:
- *   1. intake closed (sitting-2 item-1 text not yet ratified) → 503;
+ *   1. intake closed (operator has not opened `/apply` at launch yet;
+ *      sitting-2 item-1's text is ratified — decisions/0018 — this is a
+ *      launch gate, not a ratification gate) → 503;
  *   2. rate limit by CLIENT ADDRESS (never by submitted address) → 429,
  *      one constant body — exceeding the limit leaks nothing about whether
  *      any address is known (S4 acceptance);
@@ -103,7 +105,8 @@ export function _createApplyAction(seams: ApplyActionSeams = {}) {
 
 export const load: PageServerLoad = () => ({
 	intakeOpen: intakeOpen(),
-	// null until the sitting-2 item-1 wording is ratified; the page renders the
+	// The wording is ratified (decisions/0018); this stays null until the
+	// operator sets AGE_ATTESTATION_TEXT at launch. The page renders the
 	// checkbox only from this value, never from local copy.
 	attestationText: AGE_ATTESTATION_TEXT ?? null,
 });

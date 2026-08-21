@@ -1,11 +1,12 @@
 <script lang="ts">
 	// TIN-3440 slice S4. MECHANICS ONLY: every member-facing sentence on this
 	// page is agent-drafted placeholder copy, shipped in the "published: false /
-	// TODO" posture the lane's standing rules require. The page stays in its
-	// closed state until the sitting-2 item-1 attestation text is ratified and
-	// set in src/lib/server/application/attestation.ts — the load function's
-	// `intakeOpen` flag is that gate. Copy review replaces the TODO strings
-	// before the form is ever publicly open.
+	// TODO" posture the lane's standing rules require. The sitting-2 item-1
+	// attestation text is ratified (decisions/0018) but the page stays in its
+	// closed state until the operator sets AGE_ATTESTATION_TEXT in
+	// src/lib/server/application/attestation.ts as a deliberate launch act —
+	// the load function's `intakeOpen` flag is that gate. Copy review replaces
+	// the TODO strings before the form is ever publicly open.
 	import { enhance } from '$app/forms';
 	import type { ActionData, PageData } from './$types';
 
@@ -23,7 +24,7 @@
 	<h1>Become a member</h1>
 
 	{#if !data.intakeOpen}
-		<!-- TODO(sitting-2 item 1): intake opens when the attestation text is ratified. -->
+		<!-- Sitting-2 item 1 is ratified (decisions/0018); intake opens when the operator sets AGE_ATTESTATION_TEXT at launch. -->
 		<p>
 			Membership applications are not open yet. We are finishing the paperwork our first member sitting requires before
 			we can take applications. Check back soon, or ask on the contact page.
