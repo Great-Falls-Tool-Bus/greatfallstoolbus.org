@@ -25,6 +25,14 @@
  * audit record; the retrieved object is the truth. Under fixtures the gateway
  * is the replay implementation, so this path is exercised keyless too.
  *
+ * `charge.refunded` is the one case where the retrieve buys IDENTITY, not
+ * STATE: a full refund (`refunded: true`) is itself terminal — nothing later
+ * un-refunds a charge — so the STATE decision trusts the payload the same way
+ * `customer.subscription.deleted` does. But a charge does not reliably carry
+ * `gftb_person_id`, so the subscription it funded is retrieved to resolve the
+ * PERSON the refund belongs to. A partial refund is a no-op: it does not move
+ * `refunded` state (spec §5 enum) — only a fully refunded charge does.
+ *
  * FAILURE FORENSICS COMMIT SEPARATELY (finding S2). The projection write and
  * the success stamp share the caller's transaction, so they are atomic. The
  * FAILURE stamp cannot live in that transaction — the rethrow that dead-letters
@@ -68,6 +76,8 @@ interface EventObject {
 	subscription?: string;
 	client_reference_id?: string | null;
 	metadata?: Record<string, string>;
+	/** `charge.refunded` only: Stripe's own verdict on whether the FULL amount was refunded. */
+	refunded?: boolean;
 }
 
 function personIdFrom(object: EventObject | undefined): string | undefined {
@@ -99,6 +109,32 @@ export async function projectionForEvent(
 			const personId = personIdFrom(object);
 			if (!personId) return { action: 'skipped', detail: `${event.type} carries no gftb_person_id` };
 			return { action: 'projected', state: 'cancelled', personId, detail: event.type };
+		}
+		case 'charge.refunded': {
+			// A charge's `refunded` flag is Stripe's own verdict, not a staler
+			// snapshot a later event can contradict — a FULLY refunded charge
+			// (`refunded: true`) stays refunded, the same "terminal, so no
+			// retrieve can improve on it" reasoning `customer.subscription.deleted`
+			// uses above (finding B2's fix does not apply to a fact that cannot
+			// un-happen). A PARTIAL refund (`refunded: false` even though
+			// `amount_refunded > 0`) does not change contribution state — only a
+			// full refund does, so anything less is a no-op rather than a
+			// half-projected 'refunded'.
+			if (!object?.refunded) {
+				return { action: 'skipped', detail: `${event.type} is a partial refund; contribution state unchanged` };
+			}
+			// Identity, unlike the refund fact itself, IS worth retrieving rather
+			// than trusting the charge payload alone: a charge does not reliably
+			// carry `gftb_person_id`, but the subscription it funded does — the
+			// same retrieve-the-truth preference the order-ambiguous events below
+			// apply to STATUS, applied here to IDENTITY instead.
+			let personId = personIdFrom(object);
+			if (object?.subscription) {
+				const current = await gateway.retrieveSubscription(object.subscription);
+				personId = current.metadata.gftb_person_id ?? personId;
+			}
+			if (!personId) return { action: 'skipped', detail: `${event.type} carries no resolvable gftb_person_id` };
+			return { action: 'projected', state: 'refunded', personId, detail: event.type };
 		}
 		case 'checkout.session.completed':
 		case 'customer.subscription.created':

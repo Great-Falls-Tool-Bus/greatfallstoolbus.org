@@ -17,10 +17,22 @@ const MINIMUM_EVENT_SET = [
 	'invoice.payment_failed',
 ];
 
+/**
+ * Two supplemental event types beyond the spec §5 minimum, each backing an
+ * §1.11 acceptance row the minimum set alone does not exercise: a FULLY
+ * refunded charge (row 8, "portal-driven cancellation and refund project
+ * correctly" — `refunded` is otherwise dead/unreachable code) and an expired
+ * Checkout session (row 6, "a cancelled Checkout … leaves durable state
+ * untouched" — Stripe has no separate "cancelled" webhook; clicking Cancel
+ * only redirects to `cancel_url` informationally, and `checkout.session.expired`
+ * is the real mechanism for an abandoned session).
+ */
+const SUPPLEMENTAL_EVENT_TYPES = ['charge.refunded', 'checkout.session.expired'];
+
 describe('the committed lifecycle corpus', () => {
-	it('covers the spec §5 minimum event set exactly once each', () => {
+	it('covers the spec §5 minimum event set, plus the two documented supplemental rows, exactly once each', () => {
 		const types = listFixtureEventFiles().map((file) => readFixtureEvent(file).type);
-		expect([...types].sort()).toEqual([...MINIMUM_EVENT_SET].sort());
+		expect([...types].sort()).toEqual([...MINIMUM_EVENT_SET, ...SUPPLEMENTAL_EVENT_TYPES].sort());
 	});
 
 	it('is test-mode everywhere: every event and every nested object says livemode false', () => {

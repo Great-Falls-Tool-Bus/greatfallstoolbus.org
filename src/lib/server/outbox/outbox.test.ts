@@ -310,7 +310,13 @@ describe('the worker process boundary', () => {
 		expect(stderr.text()).toContain('while verifying tenant');
 	});
 
-	it('announces the fail-closed default registry so an operator can see there are no handlers yet', async () => {
+	it('defaults to the S9 stripe.project handler — no S7 offboarding kinds registered yet', async () => {
+		// No registry is passed: this exercises `defaultRegistry(env)` itself,
+		// the same path `main()` takes in production. `env` above carries no
+		// Stripe keys, so the registered handler wraps the keyless disabled
+		// gateway — still correctly REGISTERED (a `stripe.project` job would be
+		// attempted, not dead-lettered as unknown-kind), which is exactly the
+		// production gap this row closes.
 		const stdout = capture();
 		await runWorker({
 			args: ['--once'],
@@ -319,7 +325,20 @@ describe('the worker process boundary', () => {
 			probeTenantFn: async () => true,
 			dispatchOnceFn: async () => ({ claimed: 0, done: 0, retried: 0, dead: 0, lost: 0 }),
 		});
-		expect(stdout.text()).toContain('none registered — S7/S9 own the first handlers');
+		expect(stdout.text()).toContain('kinds: stripe.project');
+	});
+
+	it('still announces "none registered" for a caller-supplied EMPTY_REGISTRY (e.g. an operator forcing fail-closed)', async () => {
+		const stdout = capture();
+		await runWorker({
+			args: ['--once'],
+			env,
+			io: { stdout, stderr: capture() },
+			registry: EMPTY_REGISTRY,
+			probeTenantFn: async () => true,
+			dispatchOnceFn: async () => ({ claimed: 0, done: 0, retried: 0, dead: 0, lost: 0 }),
+		});
+		expect(stdout.text()).toContain('none registered');
 	});
 });
 

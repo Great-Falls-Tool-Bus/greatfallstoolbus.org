@@ -8,12 +8,15 @@
  * NOTHING else: no HTTP listener, no migrations on startup (spec §6 — only
  * the migrator runs DDL), no mail, no live delivery targets.
  *
- * HANDLERS ARE EMPTY ON PURPOSE. Member v0 has ratified no job kinds yet —
- * S7 (offboarding projections) and S9 (Stripe) register the first real ones.
- * Until then the worker runs `EMPTY_REGISTRY`, so any row that somehow appears
- * burns its attempts and dead-letters VISIBLY instead of being "completed" by
- * a placeholder. A worker that exits 0 while discarding jobs would be the
- * queue-shaped version of the S0 placeholder bug this replaces.
+ * HANDLERS START EMPTY AND GROW ONE SLICE AT A TIME. Member v0 registers job
+ * kinds as each owning slice lands: S9 (Stripe) registers `stripe.project`
+ * below (`./outbox/handlers/stripe-project.ts`); S7 (offboarding projections)
+ * has not landed and registers nothing yet. A kind with no handler burns its
+ * attempts and dead-letters VISIBLY instead of being "completed" by a
+ * placeholder — `defaultRegistry` below is `EMPTY_REGISTRY` PLUS whatever has
+ * actually landed, never a placeholder itself. A worker that exits 0 while
+ * discarding jobs would be the queue-shaped version of the S0 placeholder bug
+ * this replaces.
  *
  * CONFIGURATION IS NAMES, NEVER VALUES (ADR 0014 §0.2; this repository is
  * public). `DATABASE_URL` arrives from the apply plane exactly as it does for
@@ -54,8 +57,21 @@ import { closeDb, resolveConnectionString } from './db/client';
 import { tenant } from './db/schema';
 import { assertTenantId, withTenant } from './db/tenant';
 import { dispatchOnce, runWorkerLoop, type DispatchSummary, type WorkerLoopOptions } from './outbox/dispatch';
-import { EMPTY_REGISTRY } from './outbox/handlers';
+import { createHandlerRegistry } from './outbox/handlers';
+import { createProductionStripeProjectHandler, STRIPE_PROJECT_JOB_KIND } from './outbox/handlers/stripe-project';
 import { DEFAULT_BATCH_SIZE, DEFAULT_LEASE_SECONDS, type HandlerRegistry } from './outbox/schema';
+
+/**
+ * The kinds this worker actually claims, built fresh per call (not a module
+ * constant) so it reads whichever `env` the caller passed rather than always
+ * `process.env` — the same reason `readStripeConfig` takes `env` as a
+ * parameter. S7's offboarding handlers join this map when that slice lands.
+ */
+function defaultRegistry(env: NodeJS.ProcessEnv): HandlerRegistry {
+	return createHandlerRegistry({
+		[STRIPE_PROJECT_JOB_KIND]: createProductionStripeProjectHandler(env),
+	});
+}
 
 export const WORKER_EXIT = Object.freeze({
 	OK: 0,
@@ -77,8 +93,9 @@ Dispatches the transactional outbox (spec §3.1): claims bounded batches with
 FOR UPDATE SKIP LOCKED under a lease, runs the registered handler for each
 job's kind, retries failures with exponential full-jitter backoff, and
 dead-letters a job once its bounded attempt count is spent. At-least-once by
-contract; consumers are idempotent by contract. No job kinds are registered
-until S7/S9 land, so every claimed row dead-letters visibly rather than being
+contract; consumers are idempotent by contract. S9's "stripe.project" is
+registered by default; S7's offboarding handlers have not landed yet, so any
+job of a kind still unregistered dead-letters visibly rather than being
 absorbed by a placeholder.
 
 Options:
@@ -116,7 +133,7 @@ export interface WorkerOptions {
 	args?: string[];
 	env?: NodeJS.ProcessEnv;
 	io?: WorkerIo;
-	/** The handler set. Production default is the fail-closed EMPTY_REGISTRY. */
+	/** The handler set. Defaults to `defaultRegistry(env)` — see the module docstring. */
 	registry?: HandlerRegistry;
 	/** Cooperative shutdown for the loop; main() wires SIGTERM/SIGINT to it. */
 	signal?: AbortSignal;
@@ -228,7 +245,9 @@ export async function runWorker(options: WorkerOptions = {}): Promise<number> {
 		args = [],
 		env = process.env,
 		io = { stdout: process.stdout, stderr: process.stderr },
-		registry = EMPTY_REGISTRY,
+		// Reads `env` bound just above — a caller-supplied `env` (tests) picks a
+		// caller-supplied `registry` too, never a hidden `process.env` read.
+		registry = defaultRegistry(env),
 		signal,
 		dispatchOnceFn = dispatchOnce,
 		runLoopFn = runWorkerLoop,
@@ -305,7 +324,7 @@ export async function runWorker(options: WorkerOptions = {}): Promise<number> {
 
 		io.stdout.write(
 			`worker: ${worker} dispatching tenant ${tenantId} ` +
-				`(kinds: ${registry.kinds().length > 0 ? registry.kinds().join(', ') : 'none registered — S7/S9 own the first handlers'})\n`,
+				`(kinds: ${registry.kinds().length > 0 ? registry.kinds().join(', ') : 'none registered'})\n`,
 		);
 
 		if (parsed.once) {

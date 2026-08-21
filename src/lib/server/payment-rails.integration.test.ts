@@ -30,6 +30,7 @@ import {
 } from './db/integration-support';
 import { runMigrator } from './db/migrate';
 import { withTenant } from './db/tenant';
+import { createContributionCheckout } from './stripe/checkout';
 import type { StripeWebhookSecret } from './stripe/config';
 import { FIXTURE, createReplayGateway, readFixtureEventRaw, signPayloadForTest } from './stripe/fixtures';
 import { STRIPE_PROJECT_JOB_KIND, ingestStripeEvent } from './stripe/inbox';
@@ -547,5 +548,169 @@ describe('the durable Stripe inbox — checkout → webhook → recorded', () =>
 			return events;
 		});
 		expect(rows).toEqual([]);
+	});
+});
+
+/**
+ * S9 acceptance row 8, second half: "portal-driven cancellation and refund
+ * project correctly." The portal SESSION-CREATION half is proven keylessly in
+ * `stripe/portal.test.ts` (previously zero coverage of any kind). This half
+ * proves the CONSEQUENCE a portal-driven refund produces once its webhook
+ * arrives — the same shape as cancellation's `customer.subscription.deleted`
+ * proof elsewhere in this file, applied to `charge.refunded`, which
+ * previously fell through to the default skip and left the schema's
+ * `refunded` state dead/unreachable code.
+ *
+ * Runs in its OWN tenant (not `tenantA`) so it cannot perturb the exact
+ * event-list/count assertions the lifecycle describe block above depends on.
+ */
+describe('charge.refunded — the schema state a payload-skip left unreachable (S9 row 8)', () => {
+	it('projects a FULLY refunded charge to refunded, and the cash/check ledger stays untouched (append-only across rails)', async () => {
+		const tenantId = await seedTenant(fixture.migratorDsn, 'refund-gap');
+		const stateOf = async () =>
+			(await withTenant(tenantId, (tx) => getAgreement(tx, FIXTURE.personId), runtimeDb))?.state;
+		const receiptCount = async () =>
+			asTenant(fixture.runtimeDsn, tenantId, async (client) => {
+				const { rows } = await client.query(`select count(*)::int as n from finance_receipt`);
+				return rows[0].n as number;
+			});
+
+		await withTenant(
+			tenantId,
+			(tx) =>
+				chooseContribution(tx, {
+					tenantId,
+					personId: FIXTURE.personId,
+					choice: { kind: 'stripe', cadence: 'monthly', amountCents: 1000 },
+				}),
+			runtimeDb,
+		);
+
+		// Land the subscription active first — a refund on a never-active
+		// contribution is not the scenario this row describes.
+		expect((await deliver('01-checkout-session-completed.json', { tenantId })).status).toBe(200);
+		await withTenant(
+			tenantId,
+			(tx) =>
+				projectStripeEvent(tx, {
+					tenantId,
+					eventId: 'evt_gftb_fx_0001',
+					gateway: createReplayGateway({ subscriptionStatus: 'active' }),
+				}),
+			runtimeDb,
+		);
+		expect(await stateOf()).toBe('stripe_active');
+		expect(await receiptCount()).toBe(0);
+
+		// The refund itself: durable ingest through the real webhook path, then
+		// projection.
+		expect((await deliver('07-charge-refunded.json', { tenantId })).status).toBe(200);
+
+		const gateway = createReplayGateway();
+		const outcome = await withTenant(
+			tenantId,
+			(tx) => projectStripeEvent(tx, { tenantId, eventId: 'evt_gftb_fx_0007', gateway }),
+			runtimeDb,
+		);
+		expect(gateway.calls.map((c) => c.method)).toEqual(['retrieveSubscription']);
+		expect(outcome).toMatchObject({ action: 'projected', state: 'refunded', personId: FIXTURE.personId });
+		expect(await stateOf()).toBe('refunded');
+
+		// Receipts stay append-only (§1.10 rows 3-4's idiom, applied across the
+		// rail boundary): the Stripe refund path never fabricates, mutates, or
+		// otherwise touches the cash/check ledger. Zero rows before, zero after.
+		expect(await receiptCount()).toBe(0);
+	});
+});
+
+/**
+ * S9 acceptance row 6: "a cancelled Checkout and a success-redirect-without-
+ * webhook both leave durable state untouched." Each half runs in its own
+ * fresh tenant, isolated from the lifecycle describe block's ordering-
+ * sensitive assertions above.
+ */
+describe('a cancelled Checkout and a success-redirect-without-webhook leave durable state untouched (S9 row 6)', () => {
+	it('an expired Checkout session (Stripe\'s real "cancelled" mechanism) is durably ingested but projects to nothing', async () => {
+		// Stripe has no separate "cancelled Checkout" webhook: clicking Cancel
+		// only redirects the browser to cancel_url, informationally, with no
+		// event delivered at all (the second half of this row, below).
+		// checkout.session.expired is the real mechanism for an abandoned or
+		// timed-out session, and it is durably ingested like any other event
+		// even though the projector recognises no case for it.
+		const tenantId = await seedTenant(fixture.migratorDsn, 'checkout-expired-gap');
+		const stateOf = async () =>
+			(await withTenant(tenantId, (tx) => getAgreement(tx, FIXTURE.personId), runtimeDb))?.state;
+
+		await withTenant(
+			tenantId,
+			(tx) =>
+				chooseContribution(tx, {
+					tenantId,
+					personId: FIXTURE.personId,
+					choice: { kind: 'stripe', cadence: 'monthly', amountCents: 1000 },
+				}),
+			runtimeDb,
+		);
+		expect(await stateOf()).toBe('stripe_pending');
+
+		expect((await deliver('08-checkout-session-expired.json', { tenantId })).status).toBe(200);
+
+		const gateway = createReplayGateway();
+		const outcome = await withTenant(
+			tenantId,
+			(tx) => projectStripeEvent(tx, { tenantId, eventId: 'evt_gftb_fx_0008', gateway }),
+			runtimeDb,
+		);
+		expect(outcome.action).toBe('skipped');
+		expect(gateway.calls).toEqual([]);
+		expect(await stateOf()).toBe('stripe_pending');
+	});
+
+	it('a success-redirect with NO webhook EVER delivered changes nothing: zero membership/contribution state change, zero receipts', async () => {
+		const tenantId = await seedTenant(fixture.migratorDsn, 'success-redirect-gap');
+		const stateOf = async () =>
+			(await withTenant(tenantId, (tx) => getAgreement(tx, FIXTURE.personId), runtimeDb))?.state;
+
+		await withTenant(
+			tenantId,
+			(tx) =>
+				chooseContribution(tx, {
+					tenantId,
+					personId: FIXTURE.personId,
+					choice: { kind: 'stripe', cadence: 'monthly', amountCents: 1000 },
+				}),
+			runtimeDb,
+		);
+		expect(await stateOf()).toBe('stripe_pending');
+
+		// Exactly what the browser flow does: start a hosted Checkout session and
+		// (this is the scenario) land on successUrl with NO webhook ever
+		// delivered — a slow/dropped webhook, or the tab closed before Stripe
+		// retried. Nothing in this system reacts to the redirect itself; only
+		// the webhook inbox moves durable state (spec §5).
+		const gateway = createReplayGateway();
+		const session = await createContributionCheckout(gateway, {
+			personId: FIXTURE.personId,
+			choice: { kind: 'stripe', cadence: 'monthly', amountCents: 1000 },
+			successUrl: 'https://example.test/ok',
+			cancelUrl: 'https://example.test/back',
+		});
+		expect(session.kind).toBe('session');
+		expect(await stateOf()).toBe('stripe_pending');
+
+		const counts = await asTenant(fixture.runtimeDsn, tenantId, async (client) => {
+			const inbox = await client.query(`select count(*)::int as n from stripe_event_inbox`);
+			const jobs = await client.query(`select count(*)::int as n from outbox_job where kind = $1`, [
+				STRIPE_PROJECT_JOB_KIND,
+			]);
+			const receipts = await client.query(`select count(*)::int as n from finance_receipt`);
+			return {
+				inbox: inbox.rows[0].n as number,
+				jobs: jobs.rows[0].n as number,
+				receipts: receipts.rows[0].n as number,
+			};
+		});
+		expect(counts).toEqual({ inbox: 0, jobs: 0, receipts: 0 });
+		expect(await stateOf()).toBe('stripe_pending');
 	});
 });

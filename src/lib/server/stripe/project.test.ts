@@ -79,9 +79,51 @@ describe('projectionForEvent', () => {
 		expect(gateway.calls).toEqual([]);
 	});
 
-	it('skips — never throws — on event types outside the minimum set', async () => {
-		const alien = { ...readFixtureEvent('03-invoice-paid.json'), type: 'charge.refunded' };
+	it('skips — never throws — on event types outside the minimum set and the two supplemental rows', async () => {
+		const alien = { ...readFixtureEvent('03-invoice-paid.json'), type: 'customer.updated' };
 		const outcome = await projectionForEvent(alien as never, createReplayGateway());
 		expect(outcome.action).toBe('skipped');
+	});
+
+	it('leaves state untouched for an expired Checkout session — it is outside the minimum set by design', async () => {
+		// checkout.session.expired names no subscription and matches no case in
+		// the switch, so it falls to the same default-skip path as any other
+		// unrecognised type — the acceptance row's "leaves durable state
+		// untouched" is this absence of a case, not a dedicated refusal.
+		const gateway = createReplayGateway();
+		const outcome = await projectionForEvent(readFixtureEvent('08-checkout-session-expired.json'), gateway);
+		expect(outcome.action).toBe('skipped');
+		expect(gateway.calls).toEqual([]);
+	});
+});
+
+describe('charge.refunded — the schema state a payload-skip left unreachable', () => {
+	it('projects a FULLY refunded charge to refunded, resolving identity by retrieving the subscription it funded', async () => {
+		// The committed fixture carries no metadata/client_reference_id on the
+		// charge itself (a charge does not reliably carry gftb_person_id) — the
+		// only way this test can resolve FIXTURE.personId is through the
+		// retrieve-the-truth call, which is exactly what is under test.
+		const gateway = createReplayGateway();
+		const outcome = await projectionForEvent(readFixtureEvent('07-charge-refunded.json'), gateway);
+		expect(gateway.calls.map((c) => c.method)).toEqual(['retrieveSubscription']);
+		expect(outcome).toMatchObject({ action: 'projected', state: 'refunded', personId: FIXTURE.personId });
+	});
+
+	it('treats a PARTIAL refund as a no-op — refunded is a terminal fact only a FULL refund asserts', async () => {
+		const partial = {
+			...readFixtureEvent('07-charge-refunded.json'),
+			data: {
+				object: {
+					...readFixtureEvent('07-charge-refunded.json').data.object,
+					amount_refunded: 400,
+					refunded: false,
+				},
+			},
+		};
+		const gateway = createReplayGateway();
+		const outcome = await projectionForEvent(partial as never, gateway);
+		expect(outcome.action).toBe('skipped');
+		// Never even reaches for identity — nothing to project.
+		expect(gateway.calls).toEqual([]);
 	});
 });
