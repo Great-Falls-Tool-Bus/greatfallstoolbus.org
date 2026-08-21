@@ -30,6 +30,7 @@ import {
 } from './db/integration-support';
 import { runMigrator } from './db/migrate';
 import { withTenant } from './db/tenant';
+import { createContributionCheckout } from './stripe/checkout';
 import type { StripeWebhookSecret } from './stripe/config';
 import { FIXTURE, createReplayGateway, readFixtureEventRaw, signPayloadForTest } from './stripe/fixtures';
 import { STRIPE_PROJECT_JOB_KIND, ingestStripeEvent } from './stripe/inbox';
@@ -473,6 +474,9 @@ describe('the durable Stripe inbox — checkout → webhook → recorded', () =>
 			retrieveSubscription: async () => {
 				throw new Error('forced gateway failure (S2 row)');
 			},
+			findSubscriptionForCustomer: async () => {
+				throw new Error('forced gateway failure (S2 row)');
+			},
 		};
 		const before = await agreementState(FIXTURE.personId);
 		await expect(
@@ -547,5 +551,343 @@ describe('the durable Stripe inbox — checkout → webhook → recorded', () =>
 			return events;
 		});
 		expect(rows).toEqual([]);
+	});
+});
+
+/**
+ * S9 acceptance row 8, second half: "portal-driven cancellation and refund
+ * project correctly." The portal SESSION-CREATION half is proven keylessly in
+ * `stripe/portal.test.ts` (previously zero coverage of any kind). This half
+ * proves the CONSEQUENCE a portal-driven refund produces once its webhook
+ * arrives — the same shape as cancellation's `customer.subscription.deleted`
+ * proof elsewhere in this file, applied to `charge.refunded`, which
+ * previously fell through to the default skip and left the schema's
+ * `refunded` state dead/unreachable code.
+ *
+ * Runs in its OWN tenant (not `tenantA`) so it cannot perturb the exact
+ * event-list/count assertions the lifecycle describe block above depends on.
+ */
+describe('charge.refunded — the schema state a payload-skip left unreachable (S9 row 8)', () => {
+	it('projects a FULLY refunded charge to refunded, and the cash/check ledger stays untouched (append-only across rails)', async () => {
+		const tenantId = await seedTenant(fixture.migratorDsn, 'refund-gap');
+		const stateOf = async () =>
+			(await withTenant(tenantId, (tx) => getAgreement(tx, FIXTURE.personId), runtimeDb))?.state;
+		const receiptCount = async () =>
+			asTenant(fixture.runtimeDsn, tenantId, async (client) => {
+				const { rows } = await client.query(`select count(*)::int as n from finance_receipt`);
+				return rows[0].n as number;
+			});
+
+		await withTenant(
+			tenantId,
+			(tx) =>
+				chooseContribution(tx, {
+					tenantId,
+					personId: FIXTURE.personId,
+					choice: { kind: 'stripe', cadence: 'monthly', amountCents: 1000 },
+				}),
+			runtimeDb,
+		);
+
+		// Land the subscription active first — a refund on a never-active
+		// contribution is not the scenario this row describes.
+		expect((await deliver('01-checkout-session-completed.json', { tenantId })).status).toBe(200);
+		await withTenant(
+			tenantId,
+			(tx) =>
+				projectStripeEvent(tx, {
+					tenantId,
+					eventId: 'evt_gftb_fx_0001',
+					gateway: createReplayGateway({ subscriptionStatus: 'active' }),
+				}),
+			runtimeDb,
+		);
+		expect(await stateOf()).toBe('stripe_active');
+		expect(await receiptCount()).toBe(0);
+
+		// The refund itself: durable ingest through the real webhook path, then
+		// projection.
+		expect((await deliver('07-charge-refunded.json', { tenantId })).status).toBe(200);
+
+		const gateway = createReplayGateway();
+		const outcome = await withTenant(
+			tenantId,
+			(tx) => projectStripeEvent(tx, { tenantId, eventId: 'evt_gftb_fx_0007', gateway }),
+			runtimeDb,
+		);
+		expect(gateway.calls.map((c) => c.method)).toEqual(['findSubscriptionForCustomer']);
+		expect(outcome).toMatchObject({ action: 'projected', state: 'refunded', personId: FIXTURE.personId });
+		expect(await stateOf()).toBe('refunded');
+
+		// Receipts stay append-only (§1.10 rows 3-4's idiom, applied across the
+		// rail boundary): the Stripe refund path never fabricates, mutates, or
+		// otherwise touches the cash/check ledger. Zero rows before, zero after.
+		expect(await receiptCount()).toBe(0);
+	});
+
+	it('BLOCK-3: refunded is ABSORBING — a redelivered invoice.paid retrieving a still-active subscription does not resurrect stripe_active', async () => {
+		const tenantId = await seedTenant(fixture.migratorDsn, 'refund-absorbing-gap');
+		const stateOf = async () =>
+			(await withTenant(tenantId, (tx) => getAgreement(tx, FIXTURE.personId), runtimeDb))?.state;
+		const versionOf = async () =>
+			(await withTenant(tenantId, (tx) => getAgreement(tx, FIXTURE.personId), runtimeDb))?.version;
+
+		await withTenant(
+			tenantId,
+			(tx) =>
+				chooseContribution(tx, {
+					tenantId,
+					personId: FIXTURE.personId,
+					choice: { kind: 'stripe', cadence: 'monthly', amountCents: 1000 },
+				}),
+			runtimeDb,
+		);
+		await deliver('01-checkout-session-completed.json', { tenantId });
+		await withTenant(
+			tenantId,
+			(tx) =>
+				projectStripeEvent(tx, {
+					tenantId,
+					eventId: 'evt_gftb_fx_0001',
+					gateway: createReplayGateway({ subscriptionStatus: 'active' }),
+				}),
+			runtimeDb,
+		);
+		expect(await stateOf()).toBe('stripe_active');
+
+		// The refund lands.
+		await deliver('07-charge-refunded.json', { tenantId });
+		await withTenant(
+			tenantId,
+			(tx) => projectStripeEvent(tx, { tenantId, eventId: 'evt_gftb_fx_0007', gateway: createReplayGateway() }),
+			runtimeDb,
+		);
+		expect(await stateOf()).toBe('refunded');
+		const versionAfterRefund = await versionOf();
+
+		// A refund does not cancel the subscription in Stripe — it stays
+		// "active" — so a STALE or REDELIVERED invoice.paid (Stripe retries
+		// deliveries for up to 3 days; this worker's own backoff can retry a
+		// backed-off job well after the refund job ran) retrieves that SAME
+		// still-active subscription and, absent the guard, would silently
+		// overwrite 'refunded' back to 'stripe_active' — exactly the
+		// arrival-order dependency spec §5's retrieve-the-truth idiom exists to
+		// eliminate (see the module docstring's "REFUNDED IS ABSORBING" note).
+		await deliver('03-invoice-paid.json', { tenantId });
+		const outcome = await withTenant(
+			tenantId,
+			(tx) =>
+				projectStripeEvent(tx, {
+					tenantId,
+					eventId: 'evt_gftb_fx_0003',
+					gateway: createReplayGateway({ subscriptionStatus: 'active' }),
+				}),
+			runtimeDb,
+		);
+		expect(outcome.action).toBe('skipped');
+		expect(await stateOf()).toBe('refunded');
+		// The guard is a no-op WRITE, not a no-op statement: version does not
+		// advance for an absorbed projection (the UPDATE's WHERE matched zero
+		// rows).
+		expect(await versionOf()).toBe(versionAfterRefund);
+	});
+
+	it('EDIT-1: refunded is ABSORBING against customer.subscription.deleted too — refund, then cancel, stays refunded', async () => {
+		// PR #185 round-2 review: refunding the last charge and then cancelling
+		// the subscription is the DEFAULT real-world refund workflow (Stripe
+		// guarantees no ordering between the two events, and cancel-at-period-end
+		// means deletion routinely arrives AFTER the refund) — not an edge case,
+		// so this is the pairing that actually matters in production.
+		const tenantId = await seedTenant(fixture.migratorDsn, 'refund-then-deleted-gap');
+		const stateOf = async () =>
+			(await withTenant(tenantId, (tx) => getAgreement(tx, FIXTURE.personId), runtimeDb))?.state;
+		const versionOf = async () =>
+			(await withTenant(tenantId, (tx) => getAgreement(tx, FIXTURE.personId), runtimeDb))?.version;
+
+		await withTenant(
+			tenantId,
+			(tx) =>
+				chooseContribution(tx, {
+					tenantId,
+					personId: FIXTURE.personId,
+					choice: { kind: 'stripe', cadence: 'monthly', amountCents: 1000 },
+				}),
+			runtimeDb,
+		);
+		await deliver('01-checkout-session-completed.json', { tenantId });
+		await withTenant(
+			tenantId,
+			(tx) =>
+				projectStripeEvent(tx, {
+					tenantId,
+					eventId: 'evt_gftb_fx_0001',
+					gateway: createReplayGateway({ subscriptionStatus: 'active' }),
+				}),
+			runtimeDb,
+		);
+		expect(await stateOf()).toBe('stripe_active');
+
+		await deliver('07-charge-refunded.json', { tenantId });
+		await withTenant(
+			tenantId,
+			(tx) => projectStripeEvent(tx, { tenantId, eventId: 'evt_gftb_fx_0007', gateway: createReplayGateway() }),
+			runtimeDb,
+		);
+		expect(await stateOf()).toBe('refunded');
+		const versionAfterRefund = await versionOf();
+
+		// The deletion event arrives after the refund — the guard must absorb
+		// it, not overwrite 'refunded' back to 'cancelled'.
+		await deliver('06-customer-subscription-deleted.json', { tenantId });
+		const outcome = await withTenant(
+			tenantId,
+			(tx) => projectStripeEvent(tx, { tenantId, eventId: 'evt_gftb_fx_0006', gateway: createReplayGateway() }),
+			runtimeDb,
+		);
+		expect(outcome.action).toBe('skipped');
+		expect(await stateOf()).toBe('refunded');
+		expect(await versionOf()).toBe(versionAfterRefund);
+	});
+
+	it('the reverse order also converges to refunded: cancel, then refund the last charge', async () => {
+		// The symmetric case: charge.refunded stays UNGUARDED, so it always
+		// overwrites regardless of the agreement's current state — a cancelled
+		// agreement that is subsequently refunded still lands on 'refunded'.
+		const tenantId = await seedTenant(fixture.migratorDsn, 'deleted-then-refund-gap');
+		const stateOf = async () =>
+			(await withTenant(tenantId, (tx) => getAgreement(tx, FIXTURE.personId), runtimeDb))?.state;
+
+		await withTenant(
+			tenantId,
+			(tx) =>
+				chooseContribution(tx, {
+					tenantId,
+					personId: FIXTURE.personId,
+					choice: { kind: 'stripe', cadence: 'monthly', amountCents: 1000 },
+				}),
+			runtimeDb,
+		);
+		await deliver('01-checkout-session-completed.json', { tenantId });
+		await withTenant(
+			tenantId,
+			(tx) =>
+				projectStripeEvent(tx, {
+					tenantId,
+					eventId: 'evt_gftb_fx_0001',
+					gateway: createReplayGateway({ subscriptionStatus: 'active' }),
+				}),
+			runtimeDb,
+		);
+		expect(await stateOf()).toBe('stripe_active');
+
+		await deliver('06-customer-subscription-deleted.json', { tenantId });
+		const deletionOutcome = await withTenant(
+			tenantId,
+			(tx) => projectStripeEvent(tx, { tenantId, eventId: 'evt_gftb_fx_0006', gateway: createReplayGateway() }),
+			runtimeDb,
+		);
+		expect(deletionOutcome).toMatchObject({ action: 'projected', state: 'cancelled' });
+		expect(await stateOf()).toBe('cancelled');
+
+		await deliver('07-charge-refunded.json', { tenantId });
+		const refundOutcome = await withTenant(
+			tenantId,
+			(tx) => projectStripeEvent(tx, { tenantId, eventId: 'evt_gftb_fx_0007', gateway: createReplayGateway() }),
+			runtimeDb,
+		);
+		expect(refundOutcome).toMatchObject({ action: 'projected', state: 'refunded' });
+		expect(await stateOf()).toBe('refunded');
+	});
+});
+
+/**
+ * S9 acceptance row 6: "a cancelled Checkout and a success-redirect-without-
+ * webhook both leave durable state untouched." Each half runs in its own
+ * fresh tenant, isolated from the lifecycle describe block's ordering-
+ * sensitive assertions above.
+ */
+describe('a cancelled Checkout and a success-redirect-without-webhook leave durable state untouched (S9 row 6)', () => {
+	it('an expired Checkout session (Stripe\'s real "cancelled" mechanism) is durably ingested but projects to nothing', async () => {
+		// Stripe has no separate "cancelled Checkout" webhook: clicking Cancel
+		// only redirects the browser to cancel_url, informationally, with no
+		// event delivered at all (the second half of this row, below).
+		// checkout.session.expired is the real mechanism for an abandoned or
+		// timed-out session, and it is durably ingested like any other event
+		// even though the projector recognises no case for it.
+		const tenantId = await seedTenant(fixture.migratorDsn, 'checkout-expired-gap');
+		const stateOf = async () =>
+			(await withTenant(tenantId, (tx) => getAgreement(tx, FIXTURE.personId), runtimeDb))?.state;
+
+		await withTenant(
+			tenantId,
+			(tx) =>
+				chooseContribution(tx, {
+					tenantId,
+					personId: FIXTURE.personId,
+					choice: { kind: 'stripe', cadence: 'monthly', amountCents: 1000 },
+				}),
+			runtimeDb,
+		);
+		expect(await stateOf()).toBe('stripe_pending');
+
+		expect((await deliver('08-checkout-session-expired.json', { tenantId })).status).toBe(200);
+
+		const gateway = createReplayGateway();
+		const outcome = await withTenant(
+			tenantId,
+			(tx) => projectStripeEvent(tx, { tenantId, eventId: 'evt_gftb_fx_0008', gateway }),
+			runtimeDb,
+		);
+		expect(outcome.action).toBe('skipped');
+		expect(gateway.calls).toEqual([]);
+		expect(await stateOf()).toBe('stripe_pending');
+	});
+
+	it('a success-redirect with NO webhook EVER delivered changes nothing: zero membership/contribution state change, zero receipts', async () => {
+		const tenantId = await seedTenant(fixture.migratorDsn, 'success-redirect-gap');
+		const stateOf = async () =>
+			(await withTenant(tenantId, (tx) => getAgreement(tx, FIXTURE.personId), runtimeDb))?.state;
+
+		await withTenant(
+			tenantId,
+			(tx) =>
+				chooseContribution(tx, {
+					tenantId,
+					personId: FIXTURE.personId,
+					choice: { kind: 'stripe', cadence: 'monthly', amountCents: 1000 },
+				}),
+			runtimeDb,
+		);
+		expect(await stateOf()).toBe('stripe_pending');
+
+		// Exactly what the browser flow does: start a hosted Checkout session and
+		// (this is the scenario) land on successUrl with NO webhook ever
+		// delivered — a slow/dropped webhook, or the tab closed before Stripe
+		// retried. Nothing in this system reacts to the redirect itself; only
+		// the webhook inbox moves durable state (spec §5).
+		const gateway = createReplayGateway();
+		const session = await createContributionCheckout(gateway, {
+			personId: FIXTURE.personId,
+			choice: { kind: 'stripe', cadence: 'monthly', amountCents: 1000 },
+			successUrl: 'https://example.test/ok',
+			cancelUrl: 'https://example.test/back',
+		});
+		expect(session.kind).toBe('session');
+		expect(await stateOf()).toBe('stripe_pending');
+
+		const counts = await asTenant(fixture.runtimeDsn, tenantId, async (client) => {
+			const inbox = await client.query(`select count(*)::int as n from stripe_event_inbox`);
+			const jobs = await client.query(`select count(*)::int as n from outbox_job where kind = $1`, [
+				STRIPE_PROJECT_JOB_KIND,
+			]);
+			const receipts = await client.query(`select count(*)::int as n from finance_receipt`);
+			return {
+				inbox: inbox.rows[0].n as number,
+				jobs: jobs.rows[0].n as number,
+				receipts: receipts.rows[0].n as number,
+			};
+		});
+		expect(counts).toEqual({ inbox: 0, jobs: 0, receipts: 0 });
+		expect(await stateOf()).toBe('stripe_pending');
 	});
 });

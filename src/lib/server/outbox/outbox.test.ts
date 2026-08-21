@@ -310,7 +310,13 @@ describe('the worker process boundary', () => {
 		expect(stderr.text()).toContain('while verifying tenant');
 	});
 
-	it('announces the fail-closed default registry so an operator can see there are no handlers yet', async () => {
+	it('defaults to the S9 stripe.project handler — no S7 offboarding kinds registered yet', async () => {
+		// No registry is passed: this exercises `defaultRegistry(env)` itself,
+		// the same path `main()` takes in production. `env` above carries no
+		// Stripe keys, so the registered handler wraps the keyless disabled
+		// gateway — still correctly REGISTERED (a `stripe.project` job would be
+		// attempted, not dead-lettered as unknown-kind), which is exactly the
+		// production gap this row closes.
 		const stdout = capture();
 		await runWorker({
 			args: ['--once'],
@@ -319,7 +325,56 @@ describe('the worker process boundary', () => {
 			probeTenantFn: async () => true,
 			dispatchOnceFn: async () => ({ claimed: 0, done: 0, retried: 0, dead: 0, lost: 0 }),
 		});
-		expect(stdout.text()).toContain('none registered — S7/S9 own the first handlers');
+		expect(stdout.text()).toContain('kinds: stripe.project');
+	});
+
+	it('still announces "none registered" for a caller-supplied EMPTY_REGISTRY (e.g. an operator forcing fail-closed)', async () => {
+		const stdout = capture();
+		await runWorker({
+			args: ['--once'],
+			env,
+			io: { stdout, stderr: capture() },
+			registry: EMPTY_REGISTRY,
+			probeTenantFn: async () => true,
+			dispatchOnceFn: async () => ({ claimed: 0, done: 0, retried: 0, dead: 0, lost: 0 }),
+		});
+		expect(stdout.text()).toContain('none registered');
+	});
+
+	// BLOCK-1 regression rows (PR #185 adversarial review): defaultRegistry(env)
+	// reads Stripe config and THROWS on a half-configured environment — a real,
+	// non-secret trigger (STRIPE_PUBLISHABLE_KEY alone, exactly the shape of a
+	// shared ConfigMap/envFrom value). Building the registry after the early
+	// returns, inside a try mapped to WORKER_EXIT.UNAVAILABLE, must hold for
+	// BOTH the --help fast path and the normal dispatch path.
+	it('BLOCK-1: --help still exits 0 even with a half-configured Stripe env that would throw building the registry', async () => {
+		const stdout = capture();
+		const code = await runWorker({
+			args: ['--help'],
+			env: { STRIPE_PUBLISHABLE_KEY: 'pk_test_x' },
+			io: { stdout, stderr: capture() },
+			dispatchOnceFn: () => {
+				throw new Error('--help must not dispatch');
+			},
+		});
+		expect(code).toBe(WORKER_EXIT.OK);
+		expect(stdout.text()).toContain('Usage: worker');
+	});
+
+	it('BLOCK-1: a half-configured Stripe env exits 78 with a worker-prefixed message, never an unhandled throw', async () => {
+		const stderr = capture();
+		const code = await runWorker({
+			args: ['--once'],
+			env: { ...env, STRIPE_PUBLISHABLE_KEY: 'pk_test_x' },
+			io: { stdout: capture(), stderr },
+			probeTenantFn: async () => true,
+			dispatchOnceFn: () => {
+				throw new Error('a registry-construction failure must never reach dispatch');
+			},
+		});
+		expect(code).toBe(WORKER_EXIT.UNAVAILABLE);
+		expect(stderr.text()).toMatch(/^worker: /);
+		expect(stderr.text()).toContain('half-configured');
 	});
 });
 

@@ -79,9 +79,87 @@ describe('projectionForEvent', () => {
 		expect(gateway.calls).toEqual([]);
 	});
 
-	it('skips — never throws — on event types outside the minimum set', async () => {
-		const alien = { ...readFixtureEvent('03-invoice-paid.json'), type: 'charge.refunded' };
+	it('skips — never throws — on event types outside the minimum set and the two supplemental rows', async () => {
+		const alien = { ...readFixtureEvent('03-invoice-paid.json'), type: 'customer.updated' };
 		const outcome = await projectionForEvent(alien as never, createReplayGateway());
 		expect(outcome.action).toBe('skipped');
+	});
+
+	it('leaves state untouched for an expired Checkout session — it is outside the minimum set by design', async () => {
+		// checkout.session.expired names no subscription and matches no case in
+		// the switch, so it falls to the same default-skip path as any other
+		// unrecognised type — the acceptance row's "leaves durable state
+		// untouched" is this absence of a case, not a dedicated refusal.
+		const gateway = createReplayGateway();
+		const outcome = await projectionForEvent(readFixtureEvent('08-checkout-session-expired.json'), gateway);
+		expect(outcome.action).toBe('skipped');
+		expect(gateway.calls).toEqual([]);
+	});
+});
+
+describe('charge.refunded — the schema state a payload-skip left unreachable', () => {
+	it('projects a FULLY refunded charge to refunded, resolving identity via Charge.customer -> findSubscriptionForCustomer', async () => {
+		// The committed fixture carries an empty `metadata: {}` on the charge
+		// itself (a real Charge object always has the field, but does not
+		// inherit subscription metadata) and no client_reference_id (not a
+		// Charge field) — the only way this test can resolve FIXTURE.personId is
+		// through Charge.customer -> findSubscriptionForCustomer, which is
+		// exactly what is under test (PR #185 review BLOCK-2: Charge has no
+		// `subscription`/`invoice` field in the pinned SDK, so `customer` is the
+		// only real link back to a subscription).
+		const gateway = createReplayGateway();
+		const outcome = await projectionForEvent(readFixtureEvent('07-charge-refunded.json'), gateway);
+		expect(gateway.calls.map((c) => c.method)).toEqual(['findSubscriptionForCustomer']);
+		expect(outcome).toMatchObject({ action: 'projected', state: 'refunded', personId: FIXTURE.personId });
+	});
+
+	it('skips rather than resolving identity when the charge names a customer with no subscription on file', async () => {
+		const orphan = {
+			...readFixtureEvent('07-charge-refunded.json'),
+			data: {
+				object: { ...readFixtureEvent('07-charge-refunded.json').data.object, customer: 'cus_no_such_customer' },
+			},
+		};
+		const gateway = createReplayGateway();
+		const outcome = await projectionForEvent(orphan as never, gateway);
+		expect(gateway.calls.map((c) => c.method)).toEqual(['findSubscriptionForCustomer']);
+		expect(outcome.action).toBe('skipped');
+	});
+
+	it('LOW-1: skips rather than crashing when Charge.customer arrives as an EXPANDED object, not a bare id string', async () => {
+		// This app never requests `expand: ['customer']`, but the compile-time
+		// claim over the runtime payload was unchecked (PR #185 review LOW-1) —
+		// prove the runtime guard, not just the type.
+		const expanded = {
+			...readFixtureEvent('07-charge-refunded.json'),
+			data: {
+				object: {
+					...readFixtureEvent('07-charge-refunded.json').data.object,
+					customer: { id: 'cus_gftbfixture01', object: 'customer' },
+				},
+			},
+		};
+		const gateway = createReplayGateway();
+		const outcome = await projectionForEvent(expanded as never, gateway);
+		expect(gateway.calls).toEqual([]);
+		expect(outcome.action).toBe('skipped');
+	});
+
+	it('treats a PARTIAL refund as a no-op — refunded is a terminal fact only a FULL refund asserts', async () => {
+		const partial = {
+			...readFixtureEvent('07-charge-refunded.json'),
+			data: {
+				object: {
+					...readFixtureEvent('07-charge-refunded.json').data.object,
+					amount_refunded: 400,
+					refunded: false,
+				},
+			},
+		};
+		const gateway = createReplayGateway();
+		const outcome = await projectionForEvent(partial as never, gateway);
+		expect(outcome.action).toBe('skipped');
+		// Never even reaches for identity — nothing to project.
+		expect(gateway.calls).toEqual([]);
 	});
 });

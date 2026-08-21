@@ -1,0 +1,26 @@
+{
+	"id": "evt_gftb_fx_0008",
+	"object": "event",
+	"api_version": "2026-01-28.clover",
+	"created": 1755610000,
+	"livemode": false,
+	"type": "checkout.session.expired",
+	"pending_webhooks": 1,
+	"request": { "id": null, "idempotency_key": null },
+	"data": {
+		"object": {
+			"id": "cs_test_gftbfixture02",
+			"object": "checkout.session",
+			"mode": "subscription",
+			"status": "expired",
+			"payment_status": "unpaid",
+			"livemode": false,
+			"customer": "cus_gftbfixture01",
+			"subscription": null,
+			"client_reference_id": "11111111-1111-4111-8111-111111111111",
+			"currency": "usd",
+			"amount_total": 1000,
+			"metadata": { "gftb_person_id": "11111111-1111-4111-8111-111111111111" }
+		}
+	}
+}

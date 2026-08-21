@@ -19,6 +19,7 @@ describe('the keyless stub', () => {
 		await expect(gateway.createCheckoutSession({ mode: 'subscription' })).rejects.toThrow(StripeDisabledError);
 		await expect(gateway.createPortalSession({ customer: 'cus_x' })).rejects.toThrow(StripeDisabledError);
 		await expect(gateway.retrieveSubscription('sub_x')).rejects.toThrow(StripeDisabledError);
+		await expect(gateway.findSubscriptionForCustomer('cus_x')).rejects.toThrow(StripeDisabledError);
 	});
 
 	it('is what the factory returns for an unconfigured runtime', async () => {

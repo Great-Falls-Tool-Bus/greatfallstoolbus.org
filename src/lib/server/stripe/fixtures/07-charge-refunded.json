@@ -1,0 +1,29 @@
+{
+	"id": "evt_gftb_fx_0007",
+	"object": "event",
+	"api_version": "2026-01-28.clover",
+	"created": 1758451200,
+	"livemode": false,
+	"type": "charge.refunded",
+	"pending_webhooks": 1,
+	"request": { "id": null, "idempotency_key": null },
+	"data": {
+		"object": {
+			"id": "ch_gftbfixture01",
+			"object": "charge",
+			"status": "succeeded",
+			"paid": true,
+			"captured": true,
+			"livemode": false,
+			"customer": "cus_gftbfixture01",
+			"payment_intent": "pi_gftbfixture01",
+			"currency": "usd",
+			"amount": 1000,
+			"amount_captured": 1000,
+			"amount_refunded": 1000,
+			"refunded": true,
+			"disputed": false,
+			"metadata": {}
+		}
+	}
+}
