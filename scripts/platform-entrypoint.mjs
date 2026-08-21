@@ -124,19 +124,27 @@ export function platformRoleHelp(role) {
 }
 
 /**
- * Locate the adapter-node server bundle.
+ * Locate the web server entrypoint.
  *
- * In the image the bundle sits at an absolute path handed over by
+ * This is `server.js` (TIN-3959), not adapter-node's own generated
+ * `build/index.js`: server.js wraps the generated `build/handler.js` with a
+ * Cache-Control/ETag fix (see server.js's own header comment) — running
+ * `build/index.js` directly ships prerendered HTML with no Cache-Control and
+ * an epoch Last-Modified (the build zeroes mtimes for reproducibility),
+ * which lets browsers cache the page essentially forever without
+ * revalidating.
+ *
+ * In the image the entrypoint sits at an absolute path handed over by
  * GFTB_WEB_ENTRYPOINT, because the dispatcher itself is installed into the Nix
  * store (or /app/scripts) and cannot assume a repo-relative layout. Outside the
- * image the repo-relative `build/index.js` is the natural default.
+ * image the repo-relative `server.js` is the natural default.
  *
  * @param {string | undefined} override
  * @returns {URL}
  */
 export function resolveWebEntrypoint(override) {
 	if (override) return pathToFileURL(override);
-	return new URL('../build/index.js', import.meta.url);
+	return new URL('../server.js', import.meta.url);
 }
 
 /**

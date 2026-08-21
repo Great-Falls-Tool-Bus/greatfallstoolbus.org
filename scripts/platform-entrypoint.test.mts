@@ -250,8 +250,8 @@ describe('web entrypoint resolution', () => {
 		expect(resolveWebEntrypoint('/app/build/index.js').href).toBe('file:///app/build/index.js');
 	});
 
-	it('defaults to the repo-relative adapter-node output', () => {
-		expect(resolveWebEntrypoint(undefined).href).toMatch(/\/build\/index\.js$/);
+	it('defaults to the repo-relative custom server (TIN-3959 cache-header fix)', () => {
+		expect(resolveWebEntrypoint(undefined).href).toMatch(/\/server\.js$/);
 	});
 });
 

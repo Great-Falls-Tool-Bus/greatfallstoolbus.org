@@ -48,6 +48,12 @@
   # a value" error. `-A image` passes both via `--arg`, overriding these defaults.
   appBuild ? throw "nix/oci-image.nix: building the 'image' attr requires --arg appBuild \"$PWD/build\" (the ADAPTER=node output); it is not needed for -A skopeo.",
   appPackageJson ? throw "nix/oci-image.nix: building the 'image' attr requires --arg appPackageJson \"$PWD/package.json\"; it is not needed for -A skopeo.",
+  # server.js (TIN-3959): the custom adapter-node entrypoint that wraps
+  # build/handler.js with the Cache-Control/ETag fix — see server.js's own
+  # header comment. Mirrors flake.nix's `${./server.js}`, which reads it
+  # straight from the flake source tree; this file takes it as an arg like
+  # appPackageJson because it has no source-tree access of its own.
+  appServer ? throw "nix/oci-image.nix: building the 'image' attr requires --arg appServer \"$PWD/server.js\"; it is not needed for -A skopeo.",
   # The checked-in migration tree (TIN-3817 S1). /bin/migrator hashes these
   # files' EXACT bytes against the ledger, so they ship with the image.
   appMigrations ? throw "nix/oci-image.nix: building the 'image' attr requires --arg appMigrations \"$PWD/drizzle\"; it is not needed for -A skopeo.",
@@ -61,6 +67,7 @@ let
     mkdir -p "$out/app"
     cp -a ${appBuild} "$out/app/build"
     cp -a ${appPackageJson} "$out/app/package.json"
+    cp -a ${appServer} "$out/app/server.js"
     cp -a ${appMigrations} "$out/app/drizzle"
     test -f "$out/app/build/migrator.mjs" || {
       echo "nix/oci-image.nix: build/migrator.mjs is missing from appBuild." >&2
@@ -141,8 +148,10 @@ in
         "HOST=0.0.0.0"
         "PORT=3000"
         # The dispatcher lives in the Nix store, so it cannot infer a
-        # repo-relative build/. Hand it the absolute in-image path.
-        "GFTB_WEB_ENTRYPOINT=/app/build/index.js"
+        # repo-relative build/. Hand it the absolute in-image path. This is
+        # server.js, NOT adapter-node's own generated build/index.js
+        # (TIN-3959) — see the flake.nix Env comment for why.
+        "GFTB_WEB_ENTRYPOINT=/app/server.js"
         # Same reason, for the migrator (TIN-3817 S1).
         "GFTB_MIGRATOR_ENTRYPOINT=/app/build/migrator.mjs"
         "GFTB_MIGRATIONS_DIR=/app/drizzle"
