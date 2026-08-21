@@ -1,10 +1,12 @@
 /**
  * Versioned membership agreement mechanics (TIN-3440 slice S6; slices §1.8
- * ASSUMPTION; sitting-2 packet item 3 — MECHANICS now, ratified values land
- * as data ~2026-08-22).
+ * ASSUMPTION; sitting-2 packet item 3).
  *
- * THE DRAFTED SCHEME, implemented exactly (slices §1.8, recommended option,
- * NOT ratified as copy — the packet ratifies the identifier scheme's shape):
+ * Ratified 2026-08-21 — decisions/0018 (meta PR #32, pending operator
+ * signature): the IDENTIFIER SCHEME below is ratified option 1, verbatim —
+ * mechanism only. This does NOT ratify the agreement's body text: that stays
+ * separate, future, operator-side copy work (decisions/0018 Boundaries),
+ * not something sitting-2 blocked and now unblocks.
  *   - `agreement_version.id` — monotonically increasing integer per tenant;
  *   - `body_sha256` — immutable digest of the assented text;
  *   - `effective_from` — timestamptz;
