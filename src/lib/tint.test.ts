@@ -3,7 +3,7 @@ import { TINT_STOPS, tintFor } from './tint';
 
 describe('tintFor', () => {
 	it('always returns one of the five omux brand stops', () => {
-		for (const name of ['Ripley', 'J.', 'Alex', 'Jess Sullivan', 'Ithaca Generator', '', '   ']) {
+		for (const name of ['Ripley', 'J.', 'Alex', 'Jess Sullivan', 'Community workshop', '', '   ']) {
 			expect(TINT_STOPS).toContain(tintFor(name));
 		}
 	});
@@ -18,7 +18,7 @@ describe('tintFor', () => {
 	});
 
 	it('spreads a small roster across more than one stop', () => {
-		const names = ['Ripley', 'J.', 'Alex', 'Jess Sullivan', 'Ithaca Generator'];
+		const names = ['Ripley', 'J.', 'Alex', 'Jess Sullivan', 'Community workshop'];
 		const distinct = new Set(names.map(tintFor));
 		expect(distinct.size).toBeGreaterThan(1);
 	});

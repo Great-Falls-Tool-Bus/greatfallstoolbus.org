@@ -14,7 +14,6 @@ import {
 	Megaphone,
 	MailCheck,
 	MessagesSquare,
-	FileText,
 	type Icon as LucideIcon,
 } from '@lucide/svelte';
 import { archiveVisible } from '$lib/flags';
@@ -66,15 +65,15 @@ export interface NavItem {
 // per-row cell tag, so Cells demotes to the "Get involved" footer group as the
 // steward, kit-logistics, and captaincy plus authoring view. Its natural peers
 // there are Wants and Keyholders (participatory get-involved surfaces), not the
-// read-only "About" references (Safety, Bibliography, Shout-outs, Operator
-// docs). The /cells routes are unaffected; only the nav placement moves.
+// read-only "About" references (Safety, Bibliography, Shout-outs). The /cells
+// routes are unaffected; only the nav placement moves.
 //
 // TIN-2536 folded the former /access and /find-the-bus surfaces into the single
 // /contact route (reach out, get access, find the bus is one intent), so the
 // primary "Get access" item points at /contact; access-how-to and the
 // request-first location now live as anchored sections there (#access,
-// #find-the-bus). Safety, Cells, Wants, Keyholders, Bibliography, Shout-outs,
-// and Operator docs demote to footer groups; /stewards remains a footer-only
+// #find-the-bus). Safety, Cells, Wants, Keyholders, Bibliography, and Shout-outs
+// demote to footer groups; /stewards remains a footer-only
 // link hard-coded in +layout.svelte (predates this array). Safety demotes off
 // the primary bar because its docs need careful hand editing before they lead
 // the site; it stays reachable via the footer and sitemap.
@@ -94,11 +93,6 @@ export const navItems: NavItem[] = [
 		icon: BookOpen,
 	},
 	{ label: 'Shout-outs', href: '/shout-outs', match: ['/shout-outs'], footerGroup: 'About', icon: Megaphone },
-	// Operator docs: the on-site index of the operator-facing runbooks, deploy /
-	// launch readiness, CI + development contracts, and the network / port
-	// diagrams (all rendered from the real docs/** tree). Footer-demoted into
-	// "About"; the technical surface never belongs in the ≤6-item primary bar.
-	{ label: 'Operator docs', href: '/docs', match: ['/docs'], footerGroup: 'About', icon: FileText },
 	{ label: 'Get access', href: '/contact', match: ['/contact'], primary: true, icon: KeyRound },
 	// Discuss: the public `discuss@latoolb.us` community board archive (TIN-2528).
 	// PROMOTED to the primary bar as the 6th item (the on-site thread index makes

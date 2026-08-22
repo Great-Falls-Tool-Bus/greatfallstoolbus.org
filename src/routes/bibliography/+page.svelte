@@ -25,18 +25,6 @@
 					href: 'https://www.noisebridge.net/wiki/Hackerspace_Design_Patterns_2.0',
 				},
 				{
-					title: 'Making Makerspaces: Creating a Business Model',
-					meta: 'Gui Cavalcanti (Artisan’s Asylum) · Make:, 2013',
-					note: 'The canonical expense/income taxonomy for creative manufacturing spaces, adapted here for a rolling one.',
-					href: 'https://makezine.com/article/education/making-makerspaces-creating-a-business-model/',
-				},
-				{
-					title: 'How to Make a Makerspace (workshop series)',
-					meta: 'Cavalcanti + MAKE / Artisan’s Asylum · 2013–2014',
-					note: 'Full-day curriculum distilled from growing Artisan’s Asylum to 40,000 sq ft in four stages.',
-					href: 'https://makezine.com/2014/05/08/learn-how-to-make-a-makerspace-with-gui-cavalcanti/',
-				},
-				{
 					title: 'Nation of Makers Resource Library',
 					meta: 'Nation of Makers · ongoing',
 					note: 'Crowdsourced best-practice repository across 2,000+ US maker organizations: bylaws, waivers, budgets, peers.',

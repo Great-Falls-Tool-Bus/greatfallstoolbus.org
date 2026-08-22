@@ -27,15 +27,6 @@
 			note: 'Runs this site and the keyholders mail infrastructure.',
 		},
 	];
-
-	const friends = [
-		{ name: 'The Portland makerspace community', note: 'Our nearest maker neighbors down the turnpike.' },
-		{
-			name: 'Ithaca Generator',
-			note: 'The 501(c)(3) makerspace where Jess served as Membership Chair and 3D Printing Captain.',
-		},
-		{ name: 'Artisan’s Asylum', note: 'Whose “How to Make a Makerspace” tradition anchors our bibliography.' },
-	];
 </script>
 
 <svelte:head>
@@ -46,7 +37,7 @@
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
 	<PageHeader
 		title="Shout-outs"
-		lead="A tool bus is mostly people. These are the ones who made it real, plus the first donors whose tools are already in the kits."
+		lead="A tool bus is mostly people. These are the people whose consented public roles helped make it real."
 		icon={Megaphone}
 	/>
 
@@ -68,25 +59,13 @@
 	<section class="border-surface-200-800 mt-12 border-t pt-8" aria-label="About Jess">
 		<h2 class="text-2xl font-semibold">About the shop chops behind the site</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
-			Jess has spent a decade inside community shops: Fabrication Laboratory Manager for the Landscape Architecture
-			makerspace at Cornell CALS; Membership Chair and 3D Printing Captain at Ithaca Generator, teaching a traveling
-			Fusion 360 class series across New York; and First Fellow at Plymouth State’s D&amp;M Makerspace, where she helped
-			coordinate COVID-19 PPE manufacture with New England makerspaces including Artisan’s Asylum. She writes at
+			Jess has spent a decade inside community shops: managing fabrication laboratories, serving in membership and
+			3D-printing leadership roles, teaching traveling digital-fabrication classes, and helping regional makerspaces
+			coordinate COVID-19 PPE manufacture. She writes at
 			<a class="underline" href="https://transscendsurvival.org" rel="external noopener">transscendsurvival.org</a>
 			(mirrored at
 			<a class="underline" href="https://jesssullivan.github.io" rel="external noopener">jesssullivan.github.io</a>).
 		</p>
-	</section>
-
-	<section class="mt-12" aria-label="Friends">
-		<h2 class="text-2xl font-semibold">Friends of the bus</h2>
-		<div class="mt-6 space-y-3">
-			{#each friends as f (f.name)}
-				<Card title={f.name} body={f.note} headingLevel="h3" compact>
-					{#snippet lead()}<Avatar name={f.name} />{/snippet}
-				</Card>
-			{/each}
-		</div>
 	</section>
 
 	<footer class="text-surface-500 pt-12 text-sm">Belong on this list? Tell a keyholder.</footer>

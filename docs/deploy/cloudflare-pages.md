@@ -43,4 +43,4 @@ Access, or repo settings.
 
 Blahaj and the `great-falls-tool-bus-infra` overlay own DNS, Cloudflare Access,
 Tunnel, and edge apply authority — unaffected by this lane's retirement. See
-`docs/DEVELOPMENT.md` "Deploying" for the current on-cluster serving lane.
+`AGENTS.md` "Deploy lane" for the current on-cluster serving lane.

@@ -4,9 +4,9 @@
 	import SourceLink from '$lib/components/SourceLink.svelte';
 	import { ShieldCheck } from '@lucide/svelte';
 
-	// Safety + responsible-use is MANDATORY for a public power-tool organization
-	// (Artisan's Asylum / Station North precedent: safety orientation before
-	// use, published code of conduct). The specifics below are community
+	// Safety + responsible-use is MANDATORY for a public power-tool organization.
+	// Established makerspace and tool-library practice requires orientation before
+	// use and a published code of conduct. The specifics below are community
 	// defaults drawn from that precedent and are NOT operator-confirmed; see the
 	// OPERATOR-CONFIRM markers and the PR operator_review_flags. Nothing here is
 	// legal advice or a substitute for tool-specific manufacturer guidance.
@@ -69,7 +69,7 @@
 		<h2 class="text-2xl font-semibold">Code of conduct</h2>
 		<p class="text-surface-700 dark:text-surface-300 mt-4 leading-relaxed">
 			The bus is a shared space, even on wheels. Borrowing from it means agreeing to a few simple commitments:
-			<!-- OPERATOR-CONFIRM: code of conduct is a community-default draft (AA / Station North precedent), not operator-ratified. -->
+			<!-- OPERATOR-CONFIRM: this code of conduct is a community-default draft, not operator-ratified. -->
 		</p>
 		<ul class="prose mt-4 max-w-none">
 			{#each conduct as item (item)}

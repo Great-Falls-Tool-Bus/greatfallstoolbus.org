@@ -3,12 +3,12 @@
 - Status: **Accepted** (operator ruled 2026-07-05)
 - Date: 2026-07-05
 - Supersedes / narrows:
-  - **0003** (`0003-hosting-and-remote-posture.md`) Decision 1 - supersedes the
+  - historical **0003** (retained in Git history) Decision 1 - supersedes the
     Cloudflare-Pages-bound serving host for the static-production surface.
-  - **0007** (`0007-private-repos-rollback-gap.md`) - narrows the retained
+  - historical **0007** (retained in Git history) - narrows the retained
     Cloudflare Pages publisher from an open-ended warm standby to a
     cutover-window-only standby that is then decommissioned.
-  - **0008** (`0008-oncluster-production-hosting.md`) - rules 0008's Decision 2
+  - historical **0008** (retained in Git history) - rules 0008's Decision 2
     (its P4). This retires 0008's own "declare-only / not a hosting change /
     optionality not adoption" framing: on-prem is now the adopted host and the
     cutover is the executing plan, not a parked option.
