@@ -30,6 +30,7 @@
 		"/keyholders": "src/routes/keyholders/+page.svelte",
 		"/membership": "src/routes/(member)/membership/+page.svelte",
 		"/mission": "src/routes/mission/+page.svelte",
+		"/offboarding": "src/routes/(keyholder)/offboarding/+page.svelte",
 		"/remove": "src/routes/(keyholder)/remove/+page.svelte",
 		"/review": "src/routes/(keyholder)/review/+page.svelte",
 		"/review/[id]": "src/routes/(keyholder)/review/[id]/+page.svelte",
