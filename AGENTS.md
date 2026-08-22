@@ -453,7 +453,26 @@ prior artifact). Both lanes are designed in
 [`docs/decisions/dynamic-canary-blue-green.md`](docs/decisions/dynamic-canary-blue-green.md)
 (design-stage; no workflow/tofu wiring is shipped yet).
 
-## Per-PR Ephemeral Envs
+## Per-PR Ephemeral Envs — SUPERSEDED, see meta ADR 0020
+
+> **SUPERSEDED (2026-08-21).** The `tinyland-inc/blahaj` GitHub App
+> `repository_dispatch` receiver this section describes was deleted 2026-08-05
+> (PR #1255 / `813ef8c0`, operator ruling: "fully remove, these are
+> application infra substrate that should not live in blahaj"). Nothing
+> execution-shaped has replaced it estate-wide. Reading this section in the
+> present tense is the exact failure mode
+> `org-standard-cd-pattern-truth-20260821.md` C6/D21 names: an agent's first
+> read is the superseded pattern. CD authority for GFTB now routes through
+> `meta` ADR `decisions/0020-adopt-production-convergence-contract-2026-08-21.md`
+> (Great-Falls-Tool-Bus/meta#34, DRAFT — operator merges); the
+> preview-environment companion decision is
+> `great-falls-tool-bus-infra` ADR `docs/decisions/0002-preview-cd-authority-companion-2026-08-21.md`
+> (great-falls-tool-bus-infra#125, DRAFT). The ratified interim is a tailnet
+> preview (`tailscale serve`, `just preview-tailnet`); the ratified target is
+> `staging.greatfallstoolbus.org` promote-on-PR after the infra apply
+> sitting. The text below is retained per the no-silent-rewrite convention —
+> it describes the scaffold's generic Per-PR Ephemeral Envs shape, which this
+> repository does not currently run.
 
 - Each PR provisions one ephemeral environment per declared lane via the
   `tinyland-inc/blahaj` GitHub App (`repository_dispatch` payload
@@ -467,6 +486,12 @@ prior artifact). Both lanes are designed in
 - Local dry-run: `just lane-dispatch <pr>` prints the payload Blahaj
   would receive; `just lane-reap <pr>` does the same for destroy (with
   a confirm prompt; `--dispatch` requires `REAP_CONFIRM=1`).
+- `.github/workflows/lane-env.yml` (this repo) still calls the deprecated
+  `spoke-lane-env.yml@v2.10.0` with no live receiver — it is *why* "do we
+  have PR envs?" reads as yes when the answer is no (truth doc C8). This ADR
+  round does not delete that workflow: a separate, already-in-flight lane
+  (`feat/preview-tailnet-lane`) carries that deletion alongside standing up
+  the tailnet preview lane above; do not duplicate it here.
 
 ## Public Client Previews
 
@@ -484,7 +509,25 @@ prior artifact). Both lanes are designed in
   updating this scaffold, `ci-templates`, Blahaj, or GloriousFlywheel to keep
   the pattern consistent across repos.
 
-## Tofu Posture
+## Tofu Posture — SUPERSEDED, see meta ADR 0020
+
+> **SUPERSEDED (2026-08-21).** `spoke-state-namespace` below is the module
+> the current site.scaffold `docs/CI-SCHEMA.md` §8 (as re-ingested into this
+> repo in the same change as this stamp) calls "the retired
+> state-namespace/env-reaper IAM module." GFTB's actual per-spoke `tofu/`
+> wiring and its relationship to the org-standard production-convergence
+> carrier are governed by `meta` ADR
+> `decisions/0020-adopt-production-convergence-contract-2026-08-21.md`
+> (Great-Falls-Tool-Bus/meta#34, DRAFT) from here forward, not by this
+> section. This repository owns no gitops apply
+> (`tinyland.repo.json` `boundaries.owns_gitops_apply=false`); actual `tofu/`
+> state for GFTB's workloads lives in `great-falls-tool-bus-infra`, whose own
+> preview-authority companion decision is
+> `docs/decisions/0002-preview-cd-authority-companion-2026-08-21.md`
+> (great-falls-tool-bus-infra#125, DRAFT). The text below is retained per the
+> no-silent-rewrite convention as the scaffold's generic Tofu Posture shape;
+> confirm current module pins against `great-falls-tool-bus-infra` before
+> relying on the specifics.
 
 - Per-spoke infrastructure lives in `tofu/`. The five spoke-facing
   modules come from `tinyland-inc/GloriousFlywheel/tofu/modules/spoke-*`
@@ -507,14 +550,43 @@ prior artifact). Both lanes are designed in
 
 ## Conformance
 
-- `just conformance` runs `scripts/check-conformance.sh`, the
-  seventeen-item checklist in `docs/CI-SCHEMA.md` §12. A green run means
-  the spoke is house-style compliant. MANUAL items (org ruleset,
-  tailnet DNS) require operator verification outside this repo.
-- This scaffold conforms to `docs/CI-SCHEMA.md` at the
-  `tinyland-inc/site.scaffold` tag this clone was spawned from. Sister
-  spokes that have not bumped past their original tag are not required
-  to track schema changes until they explicitly upgrade.
+- `just conformance` runs `scripts/check-conformance.sh`, the checklist in
+  `docs/CI-SCHEMA.md` §11. A green run means the spoke is house-style
+  compliant. MANUAL items (org ruleset, required status checks) require
+  operator verification outside this repo.
+- This scaffold conforms to `docs/CI-SCHEMA.md` at `tinyland-inc/site.scaffold`
+  commit `8659dcd7702524697220c5c2e79d6096921f4b84` (`origin/main`,
+  2026-08-18), re-ingested 2026-08-21. **This is a SHA receipt, not a tag
+  pin**, and `tinyland.repo.json`'s `scaffold_tag` field says `v0.3.0` —
+  read that string with the caveat meta ADR 0020 §1 records in full:
+  `site.scaffold`'s actual `v0.3.0` git tag points at an earlier commit
+  (`5c6b8bc5`, 2026-07-08) that predates every `docs/patterns/*` document
+  this re-ingest exists to reach, by 94 commits. No tag currently covers
+  `8659dcd7`. `scaffold_tag` is stamped `v0.3.0` here because that is the
+  latest tag name that exists and because the task ordering this re-ingest
+  named it explicitly — not because the ingested content and that tag
+  agree. Re-pin to a real covering tag (`v0.3.1`+) once `site.scaffold` cuts
+  one; until then, `tinyland-scaffold-doctor`'s version-drift diff against
+  the literal tag string will underclaim what is actually in this tree.
+- **`config/production-convergence.json` is deliberately absent, not
+  merely default.** GFTB does not converge yet and is not declaring a
+  carrier. The scaffold's own contract test
+  (`scripts/test-production-convergence-contract.py`,
+  `test_declaring_neither_carrier_fails`) treats a declaration file that
+  exists but names zero or two carriers as a **violation**, not an opt-out
+  — only a *missing* file reads as "out of scope, the template-repository
+  default" (`production-convergence.md:144-148`). There is no third,
+  schema-legal "consciously declared non-converging" shape: any file with
+  an `armed`/`enabled`/comment-only body and no `carrier_workflow` or
+  `carrier_resource` key fails the same way an empty `{}` does. Given that,
+  writing the file would turn a currently-invisible, correctly-out-of-scope
+  product into a mechanically FAILING one for no doctrinal gain — so this
+  repository stays in the silent-absence state and records the reasoning
+  here instead, per meta ADR 0020 §8/§10 and
+  `org-standard-cd-pattern-truth-20260821.md` §3.4 item 4's own instruction
+  to "choose consciously and record which." Re-open this note once GFTB
+  adopts a real carrier (ADR 0020 §2) or once `site.scaffold` grows a
+  legitimate declared-non-converging shape, whichever comes first.
 
 ## GFTB SSOT grounding (binding; pointers only — content lives at each SSOT)
 

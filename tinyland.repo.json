@@ -1,7 +1,7 @@
 {
 	"$schema": "./docs/schemas/tinyland-repo-manifest.schema.json",
 	"schema_version": 1,
-	"scaffold_tag": "v0.2.0",
+	"scaffold_tag": "v0.3.0",
 	"repo": {
 		"name": "greatfallstoolbus.org",
 		"github": "Great-Falls-Tool-Bus/greatfallstoolbus.org",
