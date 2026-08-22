@@ -10,13 +10,14 @@
  *
  * HANDLERS START EMPTY AND GROW ONE SLICE AT A TIME. Member v0 registers job
  * kinds as each owning slice lands: S9 (Stripe) registers `stripe.project`
- * below (`./outbox/handlers/stripe-project.ts`); S7 (offboarding projections)
- * has not landed and registers nothing yet. A kind with no handler burns its
- * attempts and dead-letters VISIBLY instead of being "completed" by a
- * placeholder — `defaultRegistry` below is `EMPTY_REGISTRY` PLUS whatever has
- * actually landed, never a placeholder itself. A worker that exits 0 while
- * discarding jobs would be the queue-shaped version of the S0 placeholder bug
- * this replaces.
+ * (`./outbox/handlers/stripe-project.ts`); S7 registers the three §2.3
+ * offboarding projections (`offboard.cancel_billing`, `offboard.remove_lists`,
+ * `offboard.disable_mailbox`). Both have now landed — `defaultRegistry`
+ * below is `EMPTY_REGISTRY` PLUS whatever has actually landed, never a
+ * placeholder itself. Any OTHER kind still burns its attempts and
+ * dead-letters VISIBLY through `UnknownJobKindError` instead of being
+ * "completed" by a placeholder. A worker that exits 0 while discarding jobs
+ * would be the queue-shaped version of the S0 placeholder bug this replaces.
  *
  * CONFIGURATION IS NAMES, NEVER VALUES (ADR 0014 §0.2; this repository is
  * public). `DATABASE_URL` arrives from the apply plane exactly as it does for
@@ -58,18 +59,37 @@ import { tenant } from './db/schema';
 import { assertTenantId, withTenant } from './db/tenant';
 import { dispatchOnce, runWorkerLoop, type DispatchSummary, type WorkerLoopOptions } from './outbox/dispatch';
 import { createHandlerRegistry } from './outbox/handlers';
+import { cancelBillingHandler } from './outbox/handlers/cancel-billing';
+import { createDisableMailboxHandler } from './outbox/handlers/disable-mailbox';
+import { createRemoveListsHandler } from './outbox/handlers/remove-lists';
 import { createProductionStripeProjectHandler, STRIPE_PROJECT_JOB_KIND } from './outbox/handlers/stripe-project';
 import { DEFAULT_BATCH_SIZE, DEFAULT_LEASE_SECONDS, type HandlerRegistry } from './outbox/schema';
 
 /**
- * The kinds this worker actually claims, built fresh per call (not a module
- * constant) so it reads whichever `env` the caller passed rather than always
- * `process.env` — the same reason `readStripeConfig` takes `env` as a
- * parameter. S7's offboarding handlers join this map when that slice lands.
+ * The production handler set: S7's three §2.3 offboarding projections
+ * (`offboard.cancel_billing`, `offboard.remove_lists`,
+ * `offboard.disable_mailbox`) plus S9's `stripe.project`
+ * (`./outbox/handlers/stripe-project.ts`) — every kind that has landed, and
+ * NOTHING else; any other kind still dead-letters visibly through
+ * `UnknownJobKindError` (the fail-closed posture, kept). The two mail
+ * projections default to their gate-disabled recorded-no-op shape because
+ * this repository holds no mail-plane credential, ever (AGENTS
+ * non-negotiables); the infra-owned deployment injects real deliveries
+ * through the handler seams when the mail gate opens.
+ *
+ * Built fresh per call (not a module constant) so it reads whichever `env`
+ * the caller passed rather than always `process.env` — the same reason
+ * `readStripeConfig` takes `env` as a parameter. `createProductionStripeProjectHandler(env)`
+ * THROWS on a half-configured Stripe env (see the BLOCK-1 comment on its
+ * caller below), which is exactly why this is a function and not a module
+ * constant like `MEMBER_V0_REGISTRY` used to be.
  */
 function defaultRegistry(env: NodeJS.ProcessEnv): HandlerRegistry {
 	return createHandlerRegistry({
 		[STRIPE_PROJECT_JOB_KIND]: createProductionStripeProjectHandler(env),
+		'offboard.cancel_billing': cancelBillingHandler,
+		'offboard.remove_lists': createRemoveListsHandler(),
+		'offboard.disable_mailbox': createDisableMailboxHandler(),
 	});
 }
 
@@ -93,9 +113,10 @@ Dispatches the transactional outbox (spec §3.1): claims bounded batches with
 FOR UPDATE SKIP LOCKED under a lease, runs the registered handler for each
 job's kind, retries failures with exponential full-jitter backoff, and
 dead-letters a job once its bounded attempt count is spent. At-least-once by
-contract; consumers are idempotent by contract. S9's "stripe.project" is
-registered by default; S7's offboarding handlers have not landed yet, so any
-job of a kind still unregistered dead-letters visibly rather than being
+contract; consumers are idempotent by contract. S9's "stripe.project" and
+S7's three offboarding kinds ("offboard.cancel_billing",
+"offboard.remove_lists", "offboard.disable_mailbox") are registered by
+default; any other job kind still dead-letters visibly rather than being
 absorbed by a placeholder.
 
 Options:

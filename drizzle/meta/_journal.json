@@ -64,6 +64,13 @@
       "when": 1787246202276,
       "tag": "0008_keyholder_review",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787247294717,
+      "tag": "0009_member_activation",
+      "breakpoints": true
     }
   ]
 }

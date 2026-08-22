@@ -40,7 +40,22 @@ export const TOKEN_BYTES = 32;
  */
 export const VERIFY_EMAIL_TOKEN_TTL_MS = 48 * 60 * 60 * 1000;
 
-export type TokenPurpose = 'verify_email' | 'withdraw';
+/**
+ * Activation-token lifetime (TIN-3440 slice S6). Spec §4's authentication
+ * baseline routes initial access through "application approval and the
+ * application-owned verification/reset flow" — so the M1 activation bearer
+ * credential is a `purpose = 'activate'` row on this same substrate, minted
+ * at decision-email render time (the S4 payload doctrine: the outbox row
+ * carries `{ applicationId }` only, never a token). Like the verify TTL
+ * above, THAT it expires is the spec's; the figure is an ASSUMPTION —
+ * 14 days, longer than verify because approval already carries the 3-business-
+ * day human-response clock and an activation link that dies over a weekend
+ * would force a needless re-approval round trip. Recorded, per-call
+ * overridable, resolver Jess, sitting #2.
+ */
+export const ACTIVATE_TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
+export type TokenPurpose = 'verify_email' | 'withdraw' | 'activate';
 
 /** Internal shape `assessTokenRow` decides over; a subset of the table row. */
 export interface AssessableTokenRow {
@@ -115,7 +130,13 @@ export interface MintedToken {
  */
 export async function mintToken(tx: DbTransaction, input: MintTokenInput): Promise<MintedToken> {
 	const now = input.now ?? new Date();
-	const ttlMs = input.ttlMs ?? (input.purpose === 'verify_email' ? VERIFY_EMAIL_TOKEN_TTL_MS : undefined);
+	const ttlMs =
+		input.ttlMs ??
+		(input.purpose === 'verify_email'
+			? VERIFY_EMAIL_TOKEN_TTL_MS
+			: input.purpose === 'activate'
+				? ACTIVATE_TOKEN_TTL_MS
+				: undefined);
 	const token = generateToken();
 
 	const tenantId = await currentTenant(tx);

@@ -20,11 +20,11 @@ import { withTenant } from '$lib/server/db/tenant';
 import { reviewDetail, scheduleTour } from '$lib/server/application/claim';
 import {
 	InvalidDecisionError,
-	approveApplication,
 	declineApplication,
 	validateApproval,
 	validateDecline,
 } from '$lib/server/application/decide';
+import { provisionOnApproval } from '$lib/server/membership/activate';
 import type { PageServerLoad } from './$types';
 import { NOT_AUTHENTICATED, UNAVAILABLE, parseExpectedVersion, resolveReviewer, reviewFailure } from '../reviewer';
 
@@ -141,8 +141,11 @@ function decisionRaw(applicationId: string, form: FormData, withReason: boolean)
 export function _createApproveAction(seams: ReviewDetailSeams = {}) {
 	return actionWith(seams, async (tenantId, personId, applicationId, form) => {
 		const validated = validateApproval(decisionRaw(applicationId, form, false));
+		// S6 executed decide.ts's recorded hand-off: approval now provisions
+		// the `person` + `membership(pending_assent)` and writes the row-6
+		// audit records in the SAME unit of work (slices §2.2 row 6).
 		const result = await withTenant(tenantId, (tx) =>
-			approveApplication(tx, { ...validated, keyholderPersonId: personId }),
+			provisionOnApproval(tx, { ...validated, keyholderPersonId: personId }),
 		);
 		return { decided: result.decision.decision, replayed: !result.decided };
 	});

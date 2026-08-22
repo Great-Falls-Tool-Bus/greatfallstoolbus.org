@@ -80,14 +80,20 @@ describe('applying the checked-in migrations', () => {
 			'auth.sessions',
 			'auth.totp_secrets',
 			'auth.users',
+			'public.agreement_version', // S6 (TIN-3440): versioned membership agreement, migration 0009
 			'public.application', // S4 (TIN-3440): the application aggregate rides migration 0007
 			'public.application_claim', // S5 (TIN-3440): live-claim history, migration 0008
 			'public.application_decision', // S5 (TIN-3440): the immutable decision record, migration 0008
 			'public.application_email_token', // S4 (TIN-3440): hashed single-use tokens, migration 0007
+			'public.assent', // S6 (TIN-3440): the immutable assent record, migration 0009
+			'public.audit_event', // S6 (TIN-3440): the append-only audit spine, migration 0009
 			'public.contribution_agreement',
 			'public.finance_receipt',
 			'public.member_role_grant', // S2 (TIN-3817): the role-grant table rides migration 0003
+			'public.membership', // S6/S7 (TIN-3440): the membership aggregate, migration 0009
 			'public.outbox_job',
+			'public.person', // S6 (TIN-3440): immutable person identity, migration 0009
+			'public.person_email', // S6 (TIN-3440): address history, migration 0009
 			'public.stripe_event_inbox',
 			'public.tenant',
 		]);

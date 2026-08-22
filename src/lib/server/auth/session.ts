@@ -140,8 +140,9 @@ export function normalizeSessionInstants(session: AuthSession): AuthSession {
  * The package's positional `role` column is set to its own `'member'` value
  * and is INERT for the platform: no authorization decision in this repository
  * reads `AdminUser.role`. Platform roles are orthogonal grants in
- * `member_role_grant` (see `./roles.ts`), whose vocabulary is pending
- * ratification at sitting #2 Item 2.
+ * `member_role_grant` (see `./roles.ts`), whose vocabulary is ratified
+ * (decisions/0018, sitting #2 Item 2, 2026-08-21) but not yet encoded there
+ * — a deliberate follow-up, not a ratification gap.
  */
 export async function createUserWithPassword(
 	tx: DbTransaction,

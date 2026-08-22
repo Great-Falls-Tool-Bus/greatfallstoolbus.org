@@ -310,13 +310,15 @@ describe('the worker process boundary', () => {
 		expect(stderr.text()).toContain('while verifying tenant');
 	});
 
-	it('defaults to the S9 stripe.project handler — no S7 offboarding kinds registered yet', async () => {
+	it('defaults to the union registry: S9 stripe.project plus S7 offboarding, nothing else', async () => {
 		// No registry is passed: this exercises `defaultRegistry(env)` itself,
 		// the same path `main()` takes in production. `env` above carries no
-		// Stripe keys, so the registered handler wraps the keyless disabled
-		// gateway — still correctly REGISTERED (a `stripe.project` job would be
-		// attempted, not dead-lettered as unknown-kind), which is exactly the
-		// production gap this row closes.
+		// Stripe keys, so the Stripe entry wraps the keyless disabled gateway —
+		// still correctly REGISTERED (a `stripe.project` job would be
+		// attempted, not dead-lettered as unknown-kind). Both S9's kind and
+		// S7's three offboarding kinds have landed; any OTHER kind still
+		// dead-letters visibly. The announce line is the operator's proof of
+		// exactly which effects this worker can perform.
 		const stdout = capture();
 		await runWorker({
 			args: ['--once'],
@@ -325,7 +327,9 @@ describe('the worker process boundary', () => {
 			probeTenantFn: async () => true,
 			dispatchOnceFn: async () => ({ claimed: 0, done: 0, retried: 0, dead: 0, lost: 0 }),
 		});
-		expect(stdout.text()).toContain('kinds: stripe.project');
+		expect(stdout.text()).toContain(
+			'kinds: stripe.project, offboard.cancel_billing, offboard.remove_lists, offboard.disable_mailbox',
+		);
 	});
 
 	it('still announces "none registered" for a caller-supplied EMPTY_REGISTRY (e.g. an operator forcing fail-closed)', async () => {
@@ -346,7 +350,9 @@ describe('the worker process boundary', () => {
 	// non-secret trigger (STRIPE_PUBLISHABLE_KEY alone, exactly the shape of a
 	// shared ConfigMap/envFrom value). Building the registry after the early
 	// returns, inside a try mapped to WORKER_EXIT.UNAVAILABLE, must hold for
-	// BOTH the --help fast path and the normal dispatch path.
+	// BOTH the --help fast path and the normal dispatch path — and must still
+	// hold now that S7's three (Stripe-config-free) offboarding handlers are
+	// folded into the same `defaultRegistry(env)` call.
 	it('BLOCK-1: --help still exits 0 even with a half-configured Stripe env that would throw building the registry', async () => {
 		const stdout = capture();
 		const code = await runWorker({

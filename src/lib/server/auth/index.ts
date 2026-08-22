@@ -39,6 +39,10 @@ export {
 	type PasswordHashOptions,
 } from './session';
 
+// The one package TYPE the door re-exports (S6): session metadata for the
+// activation flow's session mint. A type-only alias — no runtime surface.
+export type { SessionMetadata } from '@tummycrypt/tinyland-auth';
+
 export {
 	REAUTH_WINDOW_MS,
 	isFreshlyAuthenticated,
