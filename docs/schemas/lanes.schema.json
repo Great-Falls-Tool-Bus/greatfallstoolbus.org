@@ -64,7 +64,7 @@
 					"items": { "$ref": "#/$defs/provedTargetClass" },
 					"default": [],
 					"uniqueItems": true,
-					"description": "Proved REAPI target classes the spoke may invoke through GF_BAZEL_SUBSTRATE_MODE=executor-backed. Must be a subset of the allowlist enum. See docs/CI-SCHEMA.md §5."
+					"description": "Proved REAPI target classes the spoke may invoke through GF_BAZEL_SUBSTRATE_MODE=executor-backed. Must be a subset of the allowlist enum. See docs/CI-SCHEMA.md §4."
 				},
 				"trigger": {
 					"$ref": "#/$defs/laneTrigger",

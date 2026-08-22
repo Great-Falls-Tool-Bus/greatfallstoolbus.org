@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 # Thin wrapper over tinyland-inc/ci-templates' spoke-ci.yml. See
-# docs/CI-SCHEMA.md §6 + §9 for the runner-class matrix and required
+# docs/CI-SCHEMA.md §5 + §6 for the runner-class matrix and required
 # status checks. Bump the @v... pin deliberately after reviewing the
 # ci-templates CHANGELOG.
 

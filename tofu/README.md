@@ -19,7 +19,7 @@ marking where the adapter-node (dynamic-spoke) blue/green deploy target will be
 composed. It declares no resources and does not affect `tofu plan`; see
 [`../docs/decisions/dynamic-canary-blue-green.md`](../docs/decisions/dynamic-canary-blue-green.md).
 
-## Hard invariants (CI-SCHEMA §5)
+## Hard invariants (CI-SCHEMA §8)
 
 - State backend MUST be **operator-provisioned S3-compatible storage** — in
   Tinyland today that is **RustFS** (never Garage, never MinIO; those are
@@ -75,7 +75,7 @@ credentials to this repo.
 cluster reachability for the Kubernetes-provider modules
 (`dns_pr_env`, `cache_quota`, `runner_binding`,
 `blahaj_app_install`) and is normally run from a cluster-attached
-operator host. Per CI-SCHEMA §9, state-mutating operations MUST run from
+operator host. Per CI-SCHEMA §8, state-mutating operations MUST run from
 a cluster runner; ad-hoc laptop `tofu apply` is not the supported path.
 
 ## Versioning

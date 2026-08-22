@@ -79,7 +79,7 @@ clean-all: clean
 # buildx. nix/oci-image.nix stays as the nixpkgs-only fallback. The GF shared
 # cache accelerates the SvelteKit build inputs; the image PUSH is never
 # remote-execution eligible (`container-image-and-push` is blocked at the GF
-# manifest layer — skill rule 8, docs/CI-SCHEMA.md §5). The default adapter-static
+# manifest layer — skill rule 8, docs/CI-SCHEMA.md §4). The default adapter-static
 # build is untouched; only ADAPTER=node here selects adapter-node.
 #
 # IMAGE CONTRACT (TIN-3815 S0): the image carries ONE dispatcher
@@ -460,6 +460,423 @@ test-integration *args:
     pnpm exec vitest run --config vitest.integration.config.ts {{ args }}
 
 # ─────────────────────────────────────────────
+# Preview (tailnet; INTERIM lane — the ratified target is
+# staging.greatfallstoolbus.org promote-on-PR once the infra apply sitting
+# lands. See docs/preview-tailnet.md.)
+# ─────────────────────────────────────────────
+
+# Both recipes below kill by PROCESS GROUP, not by a bare pidfile pid.
+# `pnpm exec tsx <file> &` is a 4-deep chain (nix pnpm -> pnpm shim -> tsx
+# cli -> the real node process); `$!` alone names only the top wrapper, so
+# killing just that pid leaves the other three reparented to PID 1, still
+# running — proven against an earlier revision of this lane by adversarial
+# review (PR #192, an isolated repro of this exact launch/kill construct).
+# `set -m` (job control) makes each `cmd &` below its own new process-group
+# leader, so `kill -- -PGID` reaches the whole chain. `kill_lane_group`
+# validates the pidfile's pgid against an expected command-line SHAPE
+# (`command_matches`) before trusting it — a stale or planted pidfile should
+# not steer a `kill -9` at an unrelated process — and backstops with
+# `pgrep -f` on the same marker regardless of pidfile state, so a survivor
+# from a prior unclean exit is still caught. `pgrep -f` alone is a
+# substring match, so the backstop validates EVERY candidate it finds
+# through that same `command_matches` check before killing it — a
+# marker-only backstop would `kill -9` an unrelated process that merely
+# mentions the marker (e.g. `tail -f server.js`), proven by adversarial
+# review.
+#
+# Re-runnable: kills the previous run's web/worker process groups first
+# (validated + backstopped, not a bare pidfile trust), then restarts
+# Postgres against the SAME on-disk cluster (not re-initdb'd), so a tenant
+# seeded on a previous run survives a re-run after a code change.
+# `just preview-tailnet-down` throws the cluster away for good.
+#
+# One-command tailnet preview (Postgres + migrations + web + worker) fronted by tailscale serve — HTTPS only, never funnel.
+preview-tailnet:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -m
+    cd {{ root }}
+    root_dir="$PWD"
+
+    state_dir="${TMPDIR:-/tmp}/gftb-preview-tailnet"
+    pgdata="$state_dir/pgdata"
+    pg_port=55446
+    web_port=8443
+    db_name=gftb_preview
+    web_marker="${root_dir}/server.js"
+    worker_marker="--worker-id gftb-preview-tailnet"
+    mkdir -p "$state_dir"
+
+    # Refuse to run initdb/pg_ctl against a planted symlink under a shared
+    # TMPDIR/tmp (this host's TMPDIR is per-user private, but the /tmp
+    # fallback is not on every OS — see docs/preview-tailnet.md).
+    if [ -L "$pgdata" ] || [ -L "$state_dir" ]; then
+        echo "preview-tailnet: ${pgdata} or ${state_dir} is a symlink — refusing to follow it. Remove it and re-run." >&2
+        exit 1
+    fi
+
+    # Structural command validator: does PID's ACTUAL command line look like
+    # something this recipe launched, not merely a process whose argv happens
+    # to contain the marker substring? `pgrep -f` alone cannot tell
+    # `node .../server.js` apart from an innocent `tail -f .../server.js` —
+    # proven by adversarial review, which got an innocent tail process
+    # kill -9'd by the backstop below. Used by BOTH the pidfile-trust path
+    # and the pgrep backstop, so neither can be tricked by a process that
+    # merely mentions the marker.
+    command_matches() {
+        local pid="$1" kind="$2"
+        local cmd
+        cmd="$(ps -p "$pid" -o command= 2>/dev/null)" || return 1
+        case "$kind" in
+            web)
+                [[ "$cmd" == "node "* ]] && [[ "$cmd" == *"$web_marker"* ]]
+                ;;
+            worker)
+                [[ "$cmd" == *tsx* ]] && [[ "$cmd" == *worker.ts* ]] && [[ "$cmd" == *"$worker_marker"* ]]
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    }
+
+    # Process-group kill: validate the pidfile's pgid still runs the
+    # expected command before trusting it, kill the whole group, then
+    # backstop with pgrep — validating EACH candidate the same way before
+    # killing it, so a process that merely mentions the marker is spared.
+    kill_lane_group() {
+        local name="$1" marker="$2"
+        local pidfile="$state_dir/$name.pid"
+        if [ -f "$pidfile" ]; then
+            local pgid
+            pgid="$(cat "$pidfile" 2>/dev/null || true)"
+            if [[ "$pgid" =~ ^[0-9]+$ ]] && command_matches "$pgid" "$name"; then
+                echo "preview-tailnet: stopping stale ${name} (pgid ${pgid})"
+                kill -TERM -- "-${pgid}" 2>/dev/null || true
+                for _ in 1 2 3 4 5; do
+                    kill -0 -- "-${pgid}" 2>/dev/null || break
+                    sleep 1
+                done
+                kill -KILL -- "-${pgid}" 2>/dev/null || true
+            fi
+            rm -f "$pidfile"
+        fi
+        local survivors pid
+        survivors="$(pgrep -f -- "$marker" 2>/dev/null || true)"
+        for pid in $survivors; do
+            if command_matches "$pid" "$name"; then
+                echo "preview-tailnet: killing backstop survivor for ${name}: pid ${pid}"
+                kill -KILL "$pid" 2>/dev/null || true
+            else
+                echo "preview-tailnet: pgrep matched pid ${pid} on the ${name} marker, but its command doesn't look like ours — leaving it alone" >&2
+            fi
+        done
+    }
+
+    # 1. Kill stale web/worker from a previous run — the re-runnable contract.
+    kill_lane_group web "$web_marker"
+    kill_lane_group worker "$worker_marker"
+
+    # 2. Resolve a PostgreSQL 16 toolchain. This repo's flake devShell does
+    #    not carry `postgresql` — `just test-integration` reaches for a
+    #    testcontainer or an operator-named server instead (see
+    #    src/lib/server/db/integration-support.ts) — and a throwaway *local*
+    #    preview has neither. Borrow the same `nix-shell -p postgresql_16`
+    #    convenience already used ad hoc for local DB work on this project.
+    #    `tail -n 1`: some shells print a devShell banner ahead of the real
+    #    answer on `nix-shell` startup; only the last line is the path.
+    #    `2>&1` (not `2>/dev/null`) + `|| true`: under `set -e`, a failing
+    #    command substitution aborts the assignment itself before the
+    #    friendly error below can ever run — capture stderr into the same
+    #    line instead of discarding it, so a real nix failure is diagnosable.
+    pg_bindir="$(nix-shell -p postgresql_16 --run 'dirname "$(command -v pg_ctl)"' 2>&1 | tail -n 1)" || true
+    if [ ! -x "${pg_bindir}/pg_ctl" ]; then
+        echo "preview-tailnet: could not resolve postgresql_16 via 'nix-shell -p postgresql_16'." >&2
+        echo "  nix-shell said: ${pg_bindir}" >&2
+        exit 1
+    fi
+
+    # 3. Refuse to clobber an unrelated pre-existing tailscale-serve mapping
+    #    on this exact port before doing anything else: a stranger's handler
+    #    on :8443 would otherwise be silently overwritten on up and deleted
+    #    on down. Checks for ANY handler on the port — not just a `/`-scoped
+    #    `Proxy` shape — so a `Text` or path-scoped handler is caught too,
+    #    not just the exact shape this lane itself writes.
+    web_serve_verdict="$(tailscale serve status --json 2>/dev/null | jq -r --arg port "$web_port" --arg target "http://127.0.0.1:${web_port}" '
+        ((.Web // {}) | to_entries[] | select(.key | endswith(":" + $port)) | .value.Handlers) as $h
+        | if ($h == null or ($h | length) == 0) then "none"
+          elif ($h == {"/": {"Proxy": $target}}) then "ours"
+          else "foreign"
+          end
+    ' 2>/dev/null | head -n 1)"
+    if [ "${web_serve_verdict:-none}" = "foreign" ]; then
+        echo "preview-tailnet: tailscale serve already has an unrelated handler on :${web_port} — refusing to clobber it." >&2
+        echo "  Inspect with 'tailscale serve status', clear it yourself, or free the port and re-run." >&2
+        exit 1
+    fi
+
+    # 4. Start (or reuse) the throwaway cluster. Loopback-only listen address
+    #    and trust auth: the only network exposure of this whole lane is
+    #    tailscale-serve HTTPS — Postgres itself never leaves 127.0.0.1. Note
+    #    trust auth also means the role passwords below buy no LOCAL
+    #    isolation (any local user can connect as postgres and bypass RLS
+    #    entirely) — the role split's real job is only to make the app
+    #    processes run as gftb_app so RLS actually applies to them.
+    if [ ! -d "$pgdata" ]; then
+        echo "preview-tailnet: initializing throwaway PostgreSQL cluster at ${pgdata}"
+        "${pg_bindir}/initdb" --pgdata="$pgdata" --username=postgres --auth=trust --no-locale --encoding=UTF8 >/dev/null
+    fi
+    if "${pg_bindir}/pg_ctl" status -D "$pgdata" >/dev/null 2>&1; then
+        "${pg_bindir}/pg_ctl" stop -D "$pgdata" -m fast -w >/dev/null 2>&1 || true
+    fi
+    "${pg_bindir}/pg_ctl" start -D "$pgdata" -w -l "$state_dir/postgres.log" \
+        -o "-p ${pg_port} -h 127.0.0.1 -c listen_addresses=127.0.0.1"
+
+    superuser_dsn="postgresql://postgres@127.0.0.1:${pg_port}/postgres"
+    if ! "${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$superuser_dsn" -tAc \
+        "select 1 from pg_database where datname = '${db_name}'" | grep -q 1; then
+        "${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$superuser_dsn" -c "create database \"${db_name}\""
+    fi
+    db_superuser_dsn="postgresql://postgres@127.0.0.1:${pg_port}/${db_name}"
+
+    # 5. Build the migrator/runtime role split exactly as
+    #    src/lib/server/db/integration-support.ts's `prepareDatabase` +
+    #    `credentialRuntimeRole` do for the integration suite's "external
+    #    server" fixture path: a superuser bypasses RLS unconditionally, so
+    #    web/worker must run as the DML-only `gftb_app` role for this preview
+    #    to prove anything about the RLS the S1/S2 migrations ship. Passwords
+    #    are generated fresh per run and never written to a committed file —
+    #    but see step 4's trust-auth note above: they buy no LOCAL secrecy on
+    #    this cluster either way.
+    migrator_pw="$(openssl rand -hex 24)"
+    app_pw="$(openssl rand -hex 24)"
+    # create-or-alter rather than a `do $$ ... $$` PL/pgSQL block: simpler to
+    # keep correct across a re-run against the SAME persisted cluster, and
+    # avoids Justfile heredoc/escaping pitfalls entirely.
+    "${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$db_superuser_dsn" \
+        -c "create role gftb_migrator login nosuperuser nobypassrls createrole password '${migrator_pw}'" \
+        >/dev/null 2>&1 || \
+        "${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$db_superuser_dsn" \
+            -c "alter role gftb_migrator login password '${migrator_pw}' nosuperuser nobypassrls createrole"
+    "${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$db_superuser_dsn" \
+        -c "grant create on database \"${db_name}\" to gftb_migrator" \
+        -c "alter schema public owner to gftb_migrator"
+    migrator_dsn="postgresql://gftb_migrator:${migrator_pw}@127.0.0.1:${pg_port}/${db_name}"
+
+    # 6. Apply the checked-in migrations through the SAME applier
+    #    `just db-migrate` runs (src/lib/server/db/migrate.ts): advisory
+    #    lock, immutable ledger, forward-only. A no-op is a success, so this
+    #    is safe on every re-run.
+    echo "preview-tailnet: applying migrations"
+    DATABASE_URL="$migrator_dsn" just db-migrate
+
+    # 7. Credential the runtime role the way great-falls-tool-bus-infra does
+    #    after the migrator has run —
+    #    drizzle/0002_rls_force_and_runtime_grants.sql creates it NOLOGIN;
+    #    only infra (and here, this recipe) grants it a login.
+    "${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$db_superuser_dsn" -c \
+        "alter role gftb_app login password '${app_pw}'"
+    runtime_dsn="postgresql://gftb_app:${app_pw}@127.0.0.1:${pg_port}/${db_name}"
+    # No-password form for anything PRINTED below: trust auth (step 4) never
+    # checks it anyway, so this connects identically without ever echoing a
+    # credential-shaped string to the terminal/scrollback.
+    runtime_dsn_display="postgresql://gftb_app@127.0.0.1:${pg_port}/${db_name}"
+
+    # 8. No committed seed path exists yet (grepped scripts/ and
+    #    src/lib/server/**: nothing but the integration suite's in-process
+    #    seedTenant/seedOutboxJob fixtures). Print the minimal tenant +
+    #    keyholder grant an operator can paste, rather than invent a new
+    #    committed seed mechanism this lane was not asked to own.
+    seed_tenant_id="$(node -e 'console.log(crypto.randomUUID())')"
+    seed_person_id="$(node -e 'console.log(crypto.randomUUID())')"
+
+    # 9. Build (adapter-node) and launch web + worker as separate long-lived
+    #    background processes. Mirrors the ADAPTER=node guard
+    #    container-image-build/-publish already run before their build.
+    if [ -d static/photos ] && [ -n "$(ls -A static/photos 2>/dev/null)" ]; then
+        node scripts/optimize-images.js
+    fi
+    ADAPTER=node pnpm install --frozen-lockfile
+    ADAPTER=node pnpm run build
+
+    tailnet_dns="$(tailscale status --json | jq -r '.Self.DNSName | rtrimstr(".")')"
+    if [ -z "$tailnet_dns" ] || [ "$tailnet_dns" = "null" ]; then
+        echo "preview-tailnet: could not resolve this device's tailnet DNS name (tailscale status --json)." >&2
+        echo "  Is tailscale up? Run 'tailscale status' to check." >&2
+        exit 1
+    fi
+    origin="https://${tailnet_dns}:${web_port}"
+
+    # `set -m` (top of this recipe) makes each of these its own new
+    # process-group leader: $! is both the pid and the pgid, and
+    # kill_lane_group above/preview-tailnet-down below can kill the whole
+    # chain via `kill -- -PGID` instead of only the top wrapper (B1).
+    # `${web_marker}` (an absolute path) rather than a cwd-relative
+    # `server.js`, so the launched process's own argv carries something a
+    # `pgrep -f` backstop can match on. `${worker_marker}` is a real,
+    # already-supported `--worker-id <name>` flag (src/lib/server/worker.ts)
+    # doing double duty as that same backstop signature for the worker.
+    echo "preview-tailnet: starting web on 127.0.0.1:${web_port} (origin ${origin})"
+    HOST=127.0.0.1 PORT="${web_port}" ORIGIN="${origin}" DATABASE_URL="${runtime_dsn}" \
+        nohup node "${web_marker}" >"$state_dir/web.log" 2>&1 &
+    echo $! > "$state_dir/web.pid"
+
+    echo "preview-tailnet: starting worker (outbox dispatcher)"
+    DATABASE_URL="${runtime_dsn}" GFTB_TENANT_ID="${GFTB_TENANT_ID:-}" \
+        nohup pnpm exec tsx src/lib/server/worker.ts ${worker_marker} \
+        >"$state_dir/worker.log" 2>&1 &
+    echo $! > "$state_dir/worker.pid"
+
+    web_pid="$(cat "$state_dir/web.pid")"
+    worker_pid="$(cat "$state_dir/worker.pid")"
+    sleep 2
+    if kill -0 "$web_pid" 2>/dev/null; then
+        echo "preview-tailnet: web is running (pgid ${web_pid})"
+    else
+        echo "preview-tailnet: web exited immediately — see ${state_dir}/web.log" >&2
+        exit 1
+    fi
+    # tsx transpiles worker.ts (many imports) before its own fail-closed
+    # "no tenant" check can even run, so detecting an EARLY exit needs a
+    # bounded poll rather than one fixed sleep: a healthy worker just runs
+    # out this (short, bounded) clock and is reported running below.
+    worker_state="running"
+    for _ in 1 2 3 4 5; do
+        if ! kill -0 "$worker_pid" 2>/dev/null; then
+            worker_state="not running — see ${state_dir}/worker.log (expected until a tenant is seeded and GFTB_TENANT_ID is exported; see below)"
+            break
+        fi
+        sleep 1
+    done
+
+    # 10. Publish. `serve`, never `funnel` — tailnet identity is the whole
+    #     access-control story for this lane.
+    echo "preview-tailnet: publishing via tailscale serve (HTTPS only, never funnel)"
+    tailscale serve --bg --https="${web_port}" "http://127.0.0.1:${web_port}"
+
+    echo ""
+    echo "preview-tailnet: up."
+    echo "  Web:      ${origin}/  (tailnet identity required; no other network exposure)"
+    echo "  Worker:   ${worker_state}"
+    echo "  Postgres: 127.0.0.1:${pg_port}/${db_name} (throwaway — 'just preview-tailnet-down' deletes it)"
+    echo "  Logs:     ${state_dir}/{web,worker,postgres}.log"
+    echo "  Down:     just preview-tailnet-down"
+    echo ""
+    echo "  No tenant is seeded yet. To exercise the member-v0 routes as a keyholder,"
+    echo "  seed a minimal tenant + keyholder grant against this preview's runtime DSN"
+    echo "  and export GFTB_TENANT_ID before re-running (skip this if you already did"
+    echo "  it on an earlier run — the same Postgres cluster persists across re-runs)."
+    echo "  This connects password-less on purpose: trust auth on this loopback-only"
+    echo "  cluster never checks it (step 4 above), so nothing credential-shaped is"
+    echo "  printed here."
+    echo ""
+    echo "    ${pg_bindir}/psql \"${runtime_dsn_display}\" -c \"select set_config('app.tenant_id', '${seed_tenant_id}', false)\" -c \"insert into tenant (tenant_id, slug, display_name) values ('${seed_tenant_id}', 'preview-tailnet', 'Preview Tailnet Tenant')\" -c \"insert into member_role_grant (tenant_id, person_id, role, granted_by) values ('${seed_tenant_id}', '${seed_person_id}', 'keyholder', '${seed_person_id}')\""
+    echo ""
+    echo "    export GFTB_TENANT_ID=${seed_tenant_id}"
+    echo "    just preview-tailnet   # re-run; the worker will now dispatch for this tenant"
+    echo ""
+
+# Kill web/worker by whole process group (validated + pgrep-backstopped —
+# same `kill_lane_group` shape as `preview-tailnet`'s own stale-kill step;
+# see that recipe's header comment for why a bare pidfile pid cannot be
+# trusted here). Removes the tailscale serve mapping (scoped
+# `--https=8443 off`, never a blanket `tailscale serve reset`;
+# `preview-tailnet` itself already refuses to start on top of an unrelated
+# pre-existing handler on this port, so this never removes a mapping the
+# lane didn't create). Stops Postgres and deletes the throwaway cluster —
+# even when Postgres cannot be stopped cleanly, the on-disk state is still
+# deleted rather than left running with no trace.
+#
+# Tear down the tailnet preview: stop web/worker, remove the tailscale serve mapping, stop Postgres, delete the cluster.
+preview-tailnet-down:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ root }}
+    root_dir="$PWD"
+
+    state_dir="${TMPDIR:-/tmp}/gftb-preview-tailnet"
+    pgdata="$state_dir/pgdata"
+    web_port=8443
+    web_marker="${root_dir}/server.js"
+    worker_marker="--worker-id gftb-preview-tailnet"
+
+    # See `preview-tailnet`'s own copy of `command_matches` for why this
+    # exists: `pgrep -f` alone cannot tell `node .../server.js` apart from
+    # an innocent `tail -f .../server.js` — proven by adversarial review,
+    # which got an innocent tail process kill -9'd by an earlier revision of
+    # the backstop below. Used by BOTH the pidfile-trust path and the pgrep
+    # backstop, so neither can be tricked by a process that merely mentions
+    # the marker.
+    command_matches() {
+        local pid="$1" kind="$2"
+        local cmd
+        cmd="$(ps -p "$pid" -o command= 2>/dev/null)" || return 1
+        case "$kind" in
+            web)
+                [[ "$cmd" == "node "* ]] && [[ "$cmd" == *"$web_marker"* ]]
+                ;;
+            worker)
+                [[ "$cmd" == *tsx* ]] && [[ "$cmd" == *worker.ts* ]] && [[ "$cmd" == *"$worker_marker"* ]]
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    }
+
+    kill_lane_group() {
+        local name="$1" marker="$2"
+        local pidfile="$state_dir/$name.pid"
+        if [ -f "$pidfile" ]; then
+            local pgid
+            pgid="$(cat "$pidfile" 2>/dev/null || true)"
+            if [[ "$pgid" =~ ^[0-9]+$ ]] && command_matches "$pgid" "$name"; then
+                echo "preview-tailnet-down: stopping ${name} (pgid ${pgid})"
+                kill -TERM -- "-${pgid}" 2>/dev/null || true
+                for _ in 1 2 3 4 5; do
+                    kill -0 -- "-${pgid}" 2>/dev/null || break
+                    sleep 1
+                done
+                kill -KILL -- "-${pgid}" 2>/dev/null || true
+            fi
+            rm -f "$pidfile"
+        fi
+        local survivors pid
+        survivors="$(pgrep -f -- "$marker" 2>/dev/null || true)"
+        for pid in $survivors; do
+            if command_matches "$pid" "$name"; then
+                echo "preview-tailnet-down: killing backstop survivor for ${name}: pid ${pid}"
+                kill -KILL "$pid" 2>/dev/null || true
+            else
+                echo "preview-tailnet-down: pgrep matched pid ${pid} on the ${name} marker, but its command doesn't look like ours — leaving it alone" >&2
+            fi
+        done
+    }
+
+    kill_lane_group web "$web_marker"
+    kill_lane_group worker "$worker_marker"
+
+    echo "preview-tailnet-down: removing tailscale serve mapping (https=${web_port})"
+    tailscale serve --https="${web_port}" off 2>/dev/null || true
+
+    # This whole block must never abort before the rm -rf below — a failed
+    # nix-shell resolution should not leave Postgres running with no trace
+    # and no diagnosis. `|| true` neutralizes `set -e` on the assignment the
+    # same way `preview-tailnet` does, and `2>&1` (not `2>/dev/null`) keeps
+    # the real nix error visible if resolution does fail.
+    if [ -d "$pgdata" ]; then
+        pg_bindir="$(nix-shell -p postgresql_16 --run 'dirname "$(command -v pg_ctl)"' 2>&1 | tail -n 1)" || true
+        if [ -x "${pg_bindir}/pg_ctl" ] && "${pg_bindir}/pg_ctl" status -D "$pgdata" >/dev/null 2>&1; then
+            "${pg_bindir}/pg_ctl" stop -D "$pgdata" -m fast -w >/dev/null 2>&1 || true
+        elif [ ! -x "${pg_bindir}/pg_ctl" ]; then
+            echo "preview-tailnet-down: could not resolve postgresql_16 to stop Postgres cleanly (nix-shell said: ${pg_bindir}) — deleting the cluster's on-disk state anyway." >&2
+        fi
+    fi
+
+    rm -rf "$state_dir"
+    echo "preview-tailnet-down: done — web/worker process groups stopped, tailscale serve mapping removed, Postgres stopped, ${state_dir} deleted."
+
+# ─────────────────────────────────────────────
 # Validation
 # ─────────────────────────────────────────────
 
@@ -535,7 +952,7 @@ sbom out_dir="build/sbom":
         -o spdx-json="{{ out_dir }}/greatfallstoolbus.org.spdx.json"
 
 # Run the complete pre-commit validation gate.
-check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir lint typecheck skills-validate skills-check source-map-check db-check test-unit
+check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints lint typecheck skills-validate skills-check source-map-check db-check test-unit
     @echo "All checks passed."
 
 # Probe the declared production hostnames at the public Cloudflare Access edge.
@@ -637,9 +1054,13 @@ source-map-check: source-map-build
     cd {{ root }} && git diff --exit-code -- src/lib/generated/source-map.json
 
 # House-style drift audit: layer 1 (existing checks) + layer 3 (boundary audit). Layer 2 (tag diff) is manual; see the skill body.
+# `just conformance` runs LAST in this chain, deliberately: it is the one check
+# most likely to carry a known, already-reported red row (see AGENTS.md's
+# Conformance section), and a red conformance must not suppress the other six
+# checks -- especially scan-endpoints and secrets-scan-dir, the public-safety
+# scans -- which is exactly what an early `&&`-chain position did before.
 scaffold-doctor:
     @cd {{ root }} && echo "=== Layer 1: existing checks ===" && \
-      just conformance && \
       just repo-manifest-validate && \
       just lanes-validate && \
       just inhouse-package-parity && \
@@ -647,7 +1068,9 @@ scaffold-doctor:
       just secrets-scan-dir && \
       just bazel-graph && \
       echo "" && echo "=== Layer 3: authority-boundary audit ===" && \
-      bash scripts/scaffold-doctor-boundary.sh
+      bash scripts/scaffold-doctor-boundary.sh && \
+      echo "" && echo "=== Conformance (run last; see AGENTS.md if red) ===" && \
+      just conformance
 
 # Dry-run construct the Blahaj provision payload for a PR
 lane-dispatch pr filter="all":
@@ -659,16 +1082,25 @@ lane-reap pr:
     cd {{ root }} && python3 scripts/lane-dispatch.py --pr {{ pr }} --reap
     @echo "(dry-run; set REAP_CONFIRM=1 and pass --dispatch to actually send)"
 
-# Run the spoke conformance checklist (docs/CI-SCHEMA.md §12)
+# Run the spoke conformance checklist (docs/CI-SCHEMA.md §11), then the
+# GFTB-local addendum (scripts/check-conformance-local.sh) that restores the
+# two local-only items the wholesale scaffold re-ingest doesn't carry.
+# Both run even if the first fails, so a red ingested check never suppresses
+# the local addendum's own report; the recipe fails if either script does.
 conformance:
-    cd {{ root }} && bash scripts/check-conformance.sh
+    #!/usr/bin/env bash
+    set -uo pipefail
+    cd {{ root }}
+    rc1=0; bash scripts/check-conformance.sh || rc1=$?
+    rc2=0; bash scripts/check-conformance-local.sh || rc2=$?
+    [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ]
 
 # Verify @tummycrypt/@tinyland npm package versions match MODULE.bazel.
 inhouse-package-parity:
     cd {{ root }} && python3 scripts/check-inhouse-package-parity.py
 
 # ─────────────────────────────────────────────
-# Flywheel (cache-first; executor opt-in; see docs/CI-SCHEMA.md §5)
+# Flywheel (cache-first; executor opt-in; see docs/CI-SCHEMA.md §4)
 # Env contract:
 #   GF_FLYWHEEL_PROFILE_STATE names the fleet enrollment state.
 #   BAZEL_REMOTE_CACHE is required for Flywheel-backed Bazel work.
@@ -876,7 +1308,7 @@ sync-flywheel-bazelrc tag="v2.9.0":
     fi
 
 # ─────────────────────────────────────────────
-# Tofu (spoke infrastructure; see tofu/README.md and docs/CI-SCHEMA.md §7)
+# Tofu (spoke infrastructure; see tofu/README.md and docs/CI-SCHEMA.md §8)
 # ─────────────────────────────────────────────
 
 # Initialize the OpenTofu backend + download modules. Backend creds via AWS_* env.
