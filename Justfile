@@ -460,6 +460,247 @@ test-integration *args:
     pnpm exec vitest run --config vitest.integration.config.ts {{ args }}
 
 # ─────────────────────────────────────────────
+# Preview (tailnet; INTERIM lane — the ratified target is
+# staging.greatfallstoolbus.org promote-on-PR once the infra apply sitting
+# lands. See docs/preview-tailnet.md.)
+# ─────────────────────────────────────────────
+
+# One-command tailnet preview: throwaway local PostgreSQL + the checked-in
+# migrations + the adapter-node web server (via server.js, TIN-3959's
+# Cache-Control/ETag fix — never adapter-node's generated build/index.js
+# directly, see scripts/platform-entrypoint.mjs's resolveWebEntrypoint) +
+# the outbox worker (src/lib/server/worker.ts via tsx, the same source-level
+# shape `just db-migrate` already uses for the migrator), fronted by
+# `tailscale serve` (HTTPS only — NEVER `tailscale funnel`). Loopback-only
+# bind everywhere: the only network exposure of this whole lane is
+# tailscale-serve's tailnet-identity-gated HTTPS.
+#
+# Re-runnable: kills stale web/worker pids from a previous run first, then
+# restarts Postgres against the SAME on-disk cluster (not re-initdb'd), so a
+# tenant seeded on a previous run survives a re-run after a code change.
+# `just preview-tailnet-down` is what actually throws the cluster away.
+preview-tailnet:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ root }}
+
+    state_dir="${TMPDIR:-/tmp}/gftb-preview-tailnet"
+    pgdata="$state_dir/pgdata"
+    pg_port=55446
+    web_port=8443
+    db_name=gftb_preview
+    mkdir -p "$state_dir"
+
+    # 1. Kill stale web/worker from a previous run — the re-runnable contract.
+    for name in web worker; do
+        pidfile="$state_dir/$name.pid"
+        if [ -f "$pidfile" ]; then
+            pid="$(cat "$pidfile" 2>/dev/null || true)"
+            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                echo "preview-tailnet: stopping stale ${name} (pid ${pid})"
+                kill "$pid" 2>/dev/null || true
+                for _ in 1 2 3 4 5; do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+                kill -9 "$pid" 2>/dev/null || true
+            fi
+            rm -f "$pidfile"
+        fi
+    done
+
+    # 2. Resolve a PostgreSQL 16 toolchain. This repo's flake devShell does
+    #    not carry `postgresql` — `just test-integration` reaches for a
+    #    testcontainer or an operator-named server instead (see
+    #    src/lib/server/db/integration-support.ts) — and a throwaway *local*
+    #    preview has neither. Borrow the same `nix-shell -p postgresql_16`
+    #    convenience already used ad hoc for local DB work on this project.
+    #    `tail -n 1`: some shells print a devShell banner ahead of the real
+    #    answer on `nix-shell` startup; only the last line is the path.
+    pg_bindir="$(nix-shell -p postgresql_16 --run 'dirname "$(command -v pg_ctl)"' 2>/dev/null | tail -n 1)"
+    if [ ! -x "${pg_bindir}/pg_ctl" ]; then
+        echo "preview-tailnet: could not resolve postgresql_16 via 'nix-shell -p postgresql_16'." >&2
+        exit 1
+    fi
+
+    # 3. Start (or reuse) the throwaway cluster. Loopback-only listen address
+    #    and trust auth: the only network exposure of this whole lane is
+    #    tailscale-serve HTTPS — Postgres itself never leaves 127.0.0.1, so a
+    #    passwordless local trust policy costs nothing extra off-host.
+    if [ ! -d "$pgdata" ]; then
+        echo "preview-tailnet: initializing throwaway PostgreSQL cluster at ${pgdata}"
+        "${pg_bindir}/initdb" --pgdata="$pgdata" --username=postgres --auth=trust --no-locale --encoding=UTF8 >/dev/null
+    fi
+    if "${pg_bindir}/pg_ctl" status -D "$pgdata" >/dev/null 2>&1; then
+        "${pg_bindir}/pg_ctl" stop -D "$pgdata" -m fast -w >/dev/null 2>&1 || true
+    fi
+    "${pg_bindir}/pg_ctl" start -D "$pgdata" -w -l "$state_dir/postgres.log" \
+        -o "-p ${pg_port} -h 127.0.0.1 -c listen_addresses=127.0.0.1"
+
+    superuser_dsn="postgresql://postgres@127.0.0.1:${pg_port}/postgres"
+    if ! "${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$superuser_dsn" -tAc \
+        "select 1 from pg_database where datname = '${db_name}'" | grep -q 1; then
+        "${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$superuser_dsn" -c "create database \"${db_name}\""
+    fi
+    db_superuser_dsn="postgresql://postgres@127.0.0.1:${pg_port}/${db_name}"
+
+    # 4. Build the migrator/runtime role split exactly as
+    #    src/lib/server/db/integration-support.ts's `prepareDatabase` +
+    #    `credentialRuntimeRole` do for the integration suite's "external
+    #    server" fixture path: a superuser bypasses RLS unconditionally, so
+    #    web/worker must run as the DML-only `gftb_app` role for this preview
+    #    to prove anything about the RLS the S1/S2 migrations ship. Passwords
+    #    are generated fresh per run, never written to a committed file or
+    #    logged.
+    migrator_pw="$(openssl rand -hex 24)"
+    app_pw="$(openssl rand -hex 24)"
+    # create-or-alter rather than a `do $$ ... $$` PL/pgSQL block: simpler to
+    # keep correct across a re-run against the SAME persisted cluster, and
+    # avoids Justfile heredoc/escaping pitfalls entirely.
+    "${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$db_superuser_dsn" \
+        -c "create role gftb_migrator login nosuperuser nobypassrls createrole password '${migrator_pw}'" \
+        >/dev/null 2>&1 || \
+        "${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$db_superuser_dsn" \
+            -c "alter role gftb_migrator login password '${migrator_pw}' nosuperuser nobypassrls createrole"
+    "${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$db_superuser_dsn" \
+        -c "grant create on database \"${db_name}\" to gftb_migrator" \
+        -c "alter schema public owner to gftb_migrator"
+    migrator_dsn="postgresql://gftb_migrator:${migrator_pw}@127.0.0.1:${pg_port}/${db_name}"
+
+    # 5. Apply the checked-in migrations through the SAME applier
+    #    `just db-migrate` runs (src/lib/server/db/migrate.ts): advisory
+    #    lock, immutable ledger, forward-only. A no-op is a success, so this
+    #    is safe on every re-run.
+    echo "preview-tailnet: applying migrations"
+    DATABASE_URL="$migrator_dsn" just db-migrate
+
+    # 6. Credential the runtime role the way great-falls-tool-bus-infra does
+    #    after the migrator has run — migration 0002_rls_and_runtime_grants.sql
+    #    creates it NOLOGIN; only infra (and here, this recipe) grants it a
+    #    login.
+    "${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$db_superuser_dsn" -c \
+        "alter role gftb_app login password '${app_pw}'"
+    runtime_dsn="postgresql://gftb_app:${app_pw}@127.0.0.1:${pg_port}/${db_name}"
+
+    # 7. No committed seed path exists yet (grepped scripts/ and
+    #    src/lib/server/**: nothing but the integration suite's in-process
+    #    seedTenant/seedOutboxJob fixtures). Print the minimal tenant +
+    #    keyholder grant an operator can paste, rather than invent a new
+    #    committed seed mechanism this lane was not asked to own.
+    seed_tenant_id="$(node -e 'console.log(crypto.randomUUID())')"
+    seed_person_id="$(node -e 'console.log(crypto.randomUUID())')"
+
+    # 8. Build (adapter-node) and launch web + worker as separate long-lived
+    #    background processes. Mirrors the ADAPTER=node guard
+    #    container-image-build/-publish already run before their build.
+    if [ -d static/photos ] && [ -n "$(ls -A static/photos 2>/dev/null)" ]; then
+        node scripts/optimize-images.js
+    fi
+    ADAPTER=node pnpm install --frozen-lockfile
+    ADAPTER=node pnpm run build
+
+    tailnet_dns="$(tailscale status --json | jq -r '.Self.DNSName | rtrimstr(".")')"
+    if [ -z "$tailnet_dns" ] || [ "$tailnet_dns" = "null" ]; then
+        echo "preview-tailnet: could not resolve this device's tailnet DNS name (tailscale status --json)." >&2
+        echo "  Is tailscale up? Run 'tailscale status' to check." >&2
+        exit 1
+    fi
+    origin="https://${tailnet_dns}:${web_port}"
+
+    echo "preview-tailnet: starting web on 127.0.0.1:${web_port} (origin ${origin})"
+    HOST=127.0.0.1 PORT="${web_port}" ORIGIN="${origin}" DATABASE_URL="${runtime_dsn}" \
+        nohup node server.js >"$state_dir/web.log" 2>&1 &
+    echo $! > "$state_dir/web.pid"
+
+    echo "preview-tailnet: starting worker (outbox dispatcher)"
+    DATABASE_URL="${runtime_dsn}" GFTB_TENANT_ID="${GFTB_TENANT_ID:-}" \
+        nohup pnpm exec tsx src/lib/server/worker.ts >"$state_dir/worker.log" 2>&1 &
+    echo $! > "$state_dir/worker.pid"
+
+    web_pid="$(cat "$state_dir/web.pid")"
+    worker_pid="$(cat "$state_dir/worker.pid")"
+    sleep 2
+    if kill -0 "$web_pid" 2>/dev/null; then
+        echo "preview-tailnet: web is running (pid ${web_pid})"
+    else
+        echo "preview-tailnet: web exited immediately — see ${state_dir}/web.log" >&2
+        exit 1
+    fi
+    # tsx transpiles worker.ts (many imports) before its own fail-closed
+    # "no tenant" check can even run, so detecting an EARLY exit needs a
+    # bounded poll rather than one fixed sleep: a healthy worker just runs
+    # out this (short, bounded) clock and is reported running below.
+    worker_state="running"
+    for _ in 1 2 3 4 5; do
+        if ! kill -0 "$worker_pid" 2>/dev/null; then
+            worker_state="not running — see ${state_dir}/worker.log (expected until a tenant is seeded and GFTB_TENANT_ID is exported; see below)"
+            break
+        fi
+        sleep 1
+    done
+
+    # 9. Publish. `serve`, never `funnel` — tailnet identity is the whole
+    #    access-control story for this lane.
+    echo "preview-tailnet: publishing via tailscale serve (HTTPS only, never funnel)"
+    tailscale serve --bg --https="${web_port}" "http://127.0.0.1:${web_port}"
+
+    echo ""
+    echo "preview-tailnet: up."
+    echo "  Web:      ${origin}/  (tailnet identity required; no other network exposure)"
+    echo "  Worker:   ${worker_state}"
+    echo "  Postgres: 127.0.0.1:${pg_port}/${db_name} (throwaway — 'just preview-tailnet-down' deletes it)"
+    echo "  Logs:     ${state_dir}/{web,worker,postgres}.log"
+    echo "  Down:     just preview-tailnet-down"
+    echo ""
+    echo "  No tenant is seeded yet. To exercise the member-v0 routes as a keyholder,"
+    echo "  seed a minimal tenant + keyholder grant against this preview's runtime DSN"
+    echo "  and export GFTB_TENANT_ID before re-running (skip this if you already did"
+    echo "  it on an earlier run — the same Postgres cluster persists across re-runs):"
+    echo ""
+    echo "    ${pg_bindir}/psql \"${runtime_dsn}\" -c \"select set_config('app.tenant_id', '${seed_tenant_id}', false)\" -c \"insert into tenant (tenant_id, slug, display_name) values ('${seed_tenant_id}', 'preview-tailnet', 'Preview Tailnet Tenant')\" -c \"insert into member_role_grant (tenant_id, person_id, role, granted_by) values ('${seed_tenant_id}', '${seed_person_id}', 'keyholder', '${seed_person_id}')\""
+    echo ""
+    echo "    export GFTB_TENANT_ID=${seed_tenant_id}"
+    echo "    just preview-tailnet   # re-run; the worker will now dispatch for this tenant"
+    echo ""
+
+# Tear down the tailnet preview: kill web+worker (pidfiles), remove the
+# tailscale serve mapping (scoped to --https=8443 off — never a blanket
+# `tailscale serve reset`, so any unrelated serve config on this device is
+# left untouched), stop Postgres, and delete the throwaway cluster.
+preview-tailnet-down:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ root }}
+
+    state_dir="${TMPDIR:-/tmp}/gftb-preview-tailnet"
+    pgdata="$state_dir/pgdata"
+    web_port=8443
+
+    for name in web worker; do
+        pidfile="$state_dir/$name.pid"
+        if [ -f "$pidfile" ]; then
+            pid="$(cat "$pidfile" 2>/dev/null || true)"
+            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                echo "preview-tailnet-down: stopping ${name} (pid ${pid})"
+                kill "$pid" 2>/dev/null || true
+                for _ in 1 2 3 4 5; do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+                kill -9 "$pid" 2>/dev/null || true
+            fi
+            rm -f "$pidfile"
+        fi
+    done
+
+    echo "preview-tailnet-down: removing tailscale serve mapping (https=${web_port})"
+    tailscale serve --https="${web_port}" off 2>/dev/null || true
+
+    if [ -d "$pgdata" ]; then
+        pg_bindir="$(nix-shell -p postgresql_16 --run 'dirname "$(command -v pg_ctl)"' 2>/dev/null | tail -n 1)"
+        if [ -x "${pg_bindir}/pg_ctl" ] && "${pg_bindir}/pg_ctl" status -D "$pgdata" >/dev/null 2>&1; then
+            "${pg_bindir}/pg_ctl" stop -D "$pgdata" -m fast -w >/dev/null 2>&1 || true
+        fi
+    fi
+
+    rm -rf "$state_dir"
+    echo "preview-tailnet-down: done — web/worker stopped, tailscale serve mapping removed, Postgres stopped, ${state_dir} deleted."
+
+# ─────────────────────────────────────────────
 # Validation
 # ─────────────────────────────────────────────
 
