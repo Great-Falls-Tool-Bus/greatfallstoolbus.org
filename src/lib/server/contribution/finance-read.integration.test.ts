@@ -48,6 +48,10 @@ import { recordCashCheckReceipt } from './receipt';
 import { keyholderContributionView } from './visibility';
 import { FINANCE_ROLE, requireFinance, listFinanceContributions } from './finance-read';
 import * as financeRoute from '../../../routes/(finance)/contributions/+page.server';
+// Test-only: the route layer imports this (outside the contribution/stripe fence by
+// construction), so asserting its content here does not cross `import-boundary.test.ts`'s
+// line — that scan excludes every `.test.` file, this one included.
+import { LIVE_STRIPE_GATE } from '../stripe/gate';
 
 const { _createFinanceLoad } = financeRoute;
 
@@ -299,14 +303,38 @@ describe('listFinanceContributions: data a finance session reads', () => {
 });
 
 describe('the /contributions route: HTTP-level role gate', () => {
-	it('has no `actions` export — structurally read-only', () => {
-		expect((financeRoute as { actions?: unknown }).actions).toBeUndefined();
+	it('exports exactly {_createFinanceLoad, load, prerender} — no actions, no other surface (the #194 form: bites on ANY addition, not just `actions`)', () => {
+		expect(Object.keys(financeRoute).sort()).toEqual(['_createFinanceLoad', 'load', 'prerender']);
 	});
 
 	it('401s an anonymous request', async () => {
 		const tenantId = await newTenant();
 		const load = _createFinanceLoad(seams(tenantId));
 		await expect(load(financeEvent(null))).rejects.toMatchObject({ status: 401 });
+	});
+
+	it('EDIT-1 regression: an anonymous request never sees LIVE_STRIPE_GATE.reason, even with runtime env unset — authentication is checked before the env/gate-status branch', async () => {
+		// Adversarial review (PR #195, comment 5377394267) proved the env-missing
+		// branch used to run BEFORE the actor/401 check, so a stranger hitting
+		// this route while GFTB_TENANT_ID/DATABASE_URL were unset got back
+		// {available:false, liveGate: LIVE_STRIPE_GATE} — internal governance
+		// prose ("form PROPOSED … unsigned") — with no session at all.
+		const load = _createFinanceLoad({ env: {} as NodeJS.ProcessEnv });
+		const rejection = await load(financeEvent(null)).catch((e: unknown) => e);
+		expect(rejection).toMatchObject({ status: 401 });
+		expect(JSON.stringify(rejection)).not.toContain(LIVE_STRIPE_GATE.reason);
+		expect(JSON.stringify(rejection)).not.toContain('PROPOSED');
+	});
+
+	it('a finance session still reaches the "unavailable" shape (not a 401) when runtime env is genuinely unset', async () => {
+		// Unlike the anonymous case above, an ALREADY-authenticated actor reaching
+		// an unconfigured process is not a stranger being handed governance prose
+		// — it is the same "auth disabled without infra config" posture every
+		// other route in this repo takes (hooks.server.ts). Confirms the EDIT-1
+		// fix is a reorder, not a blanket ban on the unavailable branch.
+		const load = _createFinanceLoad({ env: {} as NodeJS.ProcessEnv });
+		const result = await load(financeEvent(randomUUID()));
+		expect(result).toEqual({ available: false, rows: [], liveGate: LIVE_STRIPE_GATE });
 	});
 
 	it('403s a signed-in session with no finance grant (a plain member)', async () => {

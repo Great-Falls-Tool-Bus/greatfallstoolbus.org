@@ -25,12 +25,32 @@
  * HTTP error: 401 with no session at all, 403 for an authenticated session
  * without the `finance` grant (member and keyholder sessions alike).
  *
+ * AUTHENTICATION IS CHECKED BEFORE ANYTHING ELSE, INCLUDING THE
+ * ENV/RUNTIME-CONFIG GUARD (adversarial-review finding EDIT-1 on PR #195):
+ * the env check used to run first, so an anonymous caller hitting this route
+ * while `GFTB_TENANT_ID`/`DATABASE_URL` were unset got back the 200
+ * "unavailable" shape carrying `LIVE_STRIPE_GATE.reason` — internal
+ * governance prose ("form PROPOSED … unsigned") — before ever being asked
+ * who they were. The actor check now runs first and unconditionally: no
+ * session, no data of any shape, gate status included.
+ *
  * WHAT IT SHOWS: every contribution offer in the tenant — amount, rail,
  * cadence, lifecycle state, the append-only cash/check receipt trail
  * (rails not collapsed), and the reversal-aware net — plus the frozen
  * `LIVE_STRIPE_GATE` fact (Stripe test-mode status; TIN-3818's seven-row live
  * gate, CLOSED). Copy is recipient-neutral throughout; no field here says
  * more than the schema itself already holds for this role.
+ *
+ * SERIALIZATION IS TEMPLATE-EXACT (adversarial-review EDIT-2): `+page.svelte`
+ * renders `receipt.rail`, `.amountCents`, `.receivedOn`, `.reversesId`, and
+ * `.note` — nothing else — so `.cadence`, `.createdAt`, and `.checkRefLast4`
+ * stop at this module and never reach the browser. All three are
+ * finance-permitted data (not a role-boundary break — the domain layer,
+ * `FinanceContributionView`, still carries the full `FinanceReceipt` row),
+ * but shipping a field nothing renders is needless exposure, and
+ * `checkRefLast4` in particular is the one column slices §1.10's own
+ * ASSUMPTION singles out as minimum-necessary ("at most the last four
+ * digits … never routing or account numbers").
  */
 
 import { error as httpError, type RequestEvent } from '@sveltejs/kit';
@@ -47,7 +67,14 @@ export interface FinanceSeams {
 	env?: NodeJS.ProcessEnv;
 }
 
-/** Serialisable listing row for the page — dates flattened, cents left as integers (no float money, ever). */
+/**
+ * Serialisable listing row for the page — dates flattened, cents left as
+ * integers (no float money, ever), and EXACTLY the fields `+page.svelte`
+ * renders. `receipt.cadence`, `.createdAt`, and `.checkRefLast4` are
+ * withheld here on purpose (EDIT-2): read them off `row.view.receipts`
+ * directly (the domain layer) if a future template needs them, rather than
+ * re-adding them speculatively.
+ */
 function serializeRow(row: FinanceContributionRow) {
 	const agreement = row.view.agreement;
 	return {
@@ -65,11 +92,8 @@ function serializeRow(row: FinanceContributionRow) {
 			rail: r.rail,
 			amountCents: r.amountCents,
 			receivedOn: r.receivedOn,
-			cadence: r.cadence,
 			note: r.note,
-			checkRefLast4: r.checkRefLast4,
 			reversesId: r.reversesId,
-			createdAt: r.createdAt.toISOString(),
 		})),
 	};
 }
@@ -78,14 +102,17 @@ export function _createFinanceLoad(seams: FinanceSeams = {}) {
 	const env = seams.env ?? process.env;
 
 	return async (event: RequestEvent) => {
-		const tenantId = env.GFTB_TENANT_ID?.trim();
-		if (!tenantId || !env.DATABASE_URL?.trim()) {
-			return { available: false as const, rows: [], liveGate: LIVE_STRIPE_GATE };
-		}
-
+		// Authentication FIRST, unconditionally — before the env/runtime-config
+		// guard below, and before anything (including `LIVE_STRIPE_GATE`) can be
+		// returned to a caller who has not even proven a session (EDIT-1).
 		const actor = resolveFinanceActor(event);
 		if (!actor) {
 			throw httpError(401, 'This page requires a signed-in finance session.');
+		}
+
+		const tenantId = env.GFTB_TENANT_ID?.trim();
+		if (!tenantId || !env.DATABASE_URL?.trim()) {
+			return { available: false as const, rows: [], liveGate: LIVE_STRIPE_GATE };
 		}
 
 		try {
