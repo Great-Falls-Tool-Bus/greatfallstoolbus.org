@@ -160,35 +160,73 @@ export async function personRecord(tx: DbTransaction, personId: string): Promise
  * has no mutation entry point, and the outbox rows it reads are S3/S7's
  * standing state — no new state is introduced here.
  *
- * ROLE VISIBILITY — FLAGGED ASSUMPTION, not a ratified rule. The launch spec
- * §5 states plainly that "only the finance role can read amount, rail,
- * processor/customer identifiers, cash notes, or failure detail" for
- * CONTRIBUTION data, and that general keyholders see only whether a
- * contribution step was offered. Neither the launch spec, the executable
- * slices doc (§1.9 S7, §2.3), nor decisions/0018's ratified role model
- * (`member`/`keyholder`/`finance`) says anything about who may read
- * OFFBOARDING JOB QUEUE STATE (kind/status/attempts/timestamps/dead-letter
- * reason) over HTTP — that surface did not exist before this slice, so
- * neither ratified document could have addressed it. `requireFinance`-shaped
- * enforcement does not exist anywhere in this codebase yet (S8's
- * `contribution/visibility.ts` ships the finance/keyholder SHAPE split but
- * explicitly defers enforcement to "S8" — grep shows no such guard has
- * landed). Building a new finance-gated path here would invent both a
- * capability and a role-check the ratified record never asked for. Per this
- * slice's own operating instructions, an unstated design point takes the
- * MOST RESTRICTIVE defensible reading: this surface is gated on a live
- * `keyholder` grant ONLY — the same `requireKeyholder` guard `/remove` and
- * `/review` already use (spec §6 "authorization checked against the current
- * membership/role in the same unit of work") — and finance is deliberately
- * NOT admitted. `offboard.cancel_billing`'s queue state can imply a person
- * had a billing relationship that needed cancelling, which sits closer to
- * financial inference than "offered/not offered"; restricting to keyholder
- * (never finance, never public) is the narrower of the two plausible readings
- * TIN-3440's "keyholder... executes decisions" framing supports. Flagged for
- * the operator: if a sitting later rules finance should ALSO read this
- * surface (e.g. to see cancel_billing dead-letters without a keyholder
- * intermediary), that is an ADDITIVE follow-up, not a revert — finance
- * enforcement does not exist yet to widen.
+ * ROLE VISIBILITY — RULED BY §2.3 ROW 1, NOT A GAP (round 2, after adversarial
+ * review BLOCK on PR #194 @ 83947ea proved the round-1 "genuinely unstated"
+ * claim false). `member-v0-executable-slices-2026-08-18.md:731` (§2.3, the
+ * offboarding-replay table, row 1) names the audience for a permanently
+ * failed `offboard.cancel_billing` explicitly: "dead-letter; **membership
+ * stays offboarded**; **finance sees an open obligation**." Rows 2/3
+ * (`remove_lists`, `disable_mailbox`) say only "visible" / "visible as
+ * 'projection pending'" with NO named audience — the doc distinguishes the
+ * three kinds on purpose. This function's own `personRecord` neighbor already
+ * quoted that row 20 lines above this comment ("A dead `offboard.cancel_billing`
+ * is precisely 'finance sees an open obligation'") — the round-1 search trail
+ * missed a citation already sitting in this file.
+ *
+ * WHAT THIS MEANS, MECHANICALLY, split by what §2.3 row 1 actually grants
+ * finance — an AUDIENCE for the dead-lettered obligation and its reason, not
+ * a monopoly on this whole route:
+ *
+ *   - kind / status / attempts / maxAttempts / timestamps, for all three
+ *     kinds — spec §5's keyholder-visibility list (amount, rail, processor
+ *     identifiers, cash notes, failure detail —
+ *     `spec/launch-member-v0-system-2026-08-16.md:223-225`;
+ *     `member-v0-executable-slices-2026-08-18.md:425`, ratified verbatim by
+ *     `decisions/0018-sitting-2-rulings-2026-08-21.md:81-83`) never lists
+ *     queue bookkeeping, and it carries ~zero money signal regardless (a
+ *     `cancel_billing` row is enqueued UNCONDITIONALLY for every offboarding,
+ *     `enqueueOffboarding` above, whether or not the person ever contributed;
+ *     `cancelBillingHandler` reports `done` identically for a contributor and
+ *     a non-contributor). Stays on `requireKeyholder`, the `/remove` and
+ *     `/review` precedent (spec §6 "authorization checked against the
+ *     current membership/role in the same unit of work",
+ *     `launch-member-v0-system-2026-08-16.md:288`).
+ *   - `lastError` for `offboard.remove_lists` / `offboard.disable_mailbox` —
+ *     keyholder-visible. Neither kind is money-adjacent, and spec §2.3 rows
+ *     2/3 name no restricted audience for them.
+ *   - `lastError` for `offboard.cancel_billing` — spec §5's keyholder
+ *     prohibition list literally includes "failure detail"
+ *     (`launch-member-v0-system-2026-08-16.md:223-225`;
+ *     `decisions/0018:82`; TIN-3818), and this column is free text with no
+ *     content restriction (`describeFailure`,
+ *     `src/lib/server/outbox/dispatch.ts:137`, redacts only URL userinfo,
+ *     bearer tokens, and `key=value` credential shapes — a Stripe SDK error
+ *     naming a subscription id and amount passes through untouched). This
+ *     PR's own adversarial review proved a seeded amount-bearing string
+ *     reaches a keyholder byte-for-byte through this exact function.
+ *     WITHHELD from the keyholder surface — redacted to `null` at the route
+ *     boundary (`src/routes/(keyholder)/offboarding/+page.server.ts`), the
+ *     `keyholderContributionView` precedent (`contribution/visibility.ts`)
+ *     applied here. §2.3 row 1's finance audience is served separately, by
+ *     `financeOpenBillingObligations` (`contribution/offboarding-obligations.ts`,
+ *     PR #195's `requireFinance`) — this PR stacks on #195 for exactly that
+ *     import; see the PR body for why that surface is NOT this module (the
+ *     bidirectional `membership/**` <-> `contribution/**` import fence,
+ *     `contribution/import-boundary.test.ts`, forbids a `membership/**`
+ *     module from ever importing `requireFinance` itself).
+ *   - A keyholder who is ALSO a finance grant holder learns nothing extra
+ *     from THIS route; they read the finance detail from the finance-gated
+ *     route instead, on its own grant check.
+ *
+ * This function itself stays a single keyholder-gated reader returning the
+ * FULL row (including `lastError` for every kind) — the redaction is applied
+ * once, at the HTTP boundary, the same "closed shape built field-by-field at
+ * the route" convention `/remove`'s and `/review`'s serializers already use.
+ * `financeOpenBillingObligations` (`contribution/offboarding-obligations.ts`)
+ * is a SEPARATE reader over the same `outbox_job` table, not a caller of this
+ * function — the bidirectional import fence (below) forbids the latter
+ * shape, so the two surfaces independently query the one shared table
+ * instead of sharing a membership-side entry point.
  *
  * WHY OUTBOX ROWS DIRECTLY, NOT `personRecord`'s `openObligations`.
  * `personRecord` (above) intentionally filters to non-`done` rows for the
@@ -205,7 +243,15 @@ export interface OffboardJobStatus {
 	maxAttempts: number;
 	availableAt: Date;
 	leaseExpiresAt: Date | null;
-	/** Set only when `status === 'dead'` OR a retry is pending after a failed attempt; already redacted at write time (`describeFailure`, outbox/schema.ts). */
+	/**
+	 * Set only when `status === 'dead'` OR a retry is pending after a failed
+	 * attempt; already redacted at write time (`describeFailure`,
+	 * `outbox/dispatch.ts:137` — URL userinfo, bearer tokens, and `key=value`
+	 * credential shapes only, NOT a general content filter). This domain type
+	 * carries the raw value for every kind; the HTTP route boundary is what
+	 * withholds it for `offboard.cancel_billing` — see the ROLE VISIBILITY
+	 * comment on `offboardingObservability` below.
+	 */
 	lastError: string | null;
 	createdAt: Date;
 	updatedAt: Date;

@@ -13,19 +13,36 @@
  * (whole-offboarding replay via a membership transition, `enqueueOffboarding`
  * in `$lib/server/membership/offboard.ts`), never a button on this surface.
  *
- * WHO SEES IT: a live session holding a live `keyholder` grant — see the
- * FLAGGED ASSUMPTION on `offboardingObservability` in
- * `$lib/server/membership/offboard.ts` for the search trail behind that
- * choice (finance was considered and NOT admitted). The grant check runs
- * inside the same `withTenant` unit of work as the query (spec §6), the
- * `/remove` and `/review` precedent.
+ * WHO SEES IT, AND WHAT — round 2, after adversarial review BLOCK on PR #194
+ * @ 83947ea (B1/B2). A live session holding a live `keyholder` grant; see the
+ * ROLE VISIBILITY comment on `offboardingObservability` in
+ * `$lib/server/membership/offboard.ts` for the ruling, which is §2.3 row 1
+ * (`member-v0-executable-slices-2026-08-18.md:731`), not an unstated gap —
+ * round 1's "genuinely unstated" claim was false and is corrected there. The
+ * grant check runs inside the same `withTenant` unit of work as the query
+ * (spec §6), the `/remove` and `/review` precedent.
+ *
+ * REDACTION AT THIS BOUNDARY (round 2 fix, not present in round 1):
+ * `serializeMembership` below withholds `lastError` for `offboard.cancel_billing`
+ * unconditionally (spec §5's keyholder "failure detail" prohibition,
+ * `launch-member-v0-system-2026-08-16.md:223-225`) and drops `leaseExpiresAt`
+ * (never rendered by `+page.svelte`, so never shipped). `lastError` for the
+ * other two kinds is served only when `status === 'dead'`, matching what the
+ * page actually renders — a retry-pending error is not shipped invisibly.
+ * The domain function returns the raw row; THIS is the closed shape, the
+ * `keyholderContributionView` / `/remove` "serialize a closed shape on
+ * purpose" convention applied here. Finance reads the withheld
+ * `cancel_billing` detail from `/offboarding-obligations` instead
+ * (`$lib/server/contribution/offboarding-obligations.ts`, PR #195's
+ * `requireFinance` — §2.3 row 1's named audience).
  *
  * NO NEW STATE: every field below is read straight from `outbox_job` (S3) and
  * `membership` (S1/S6) rows S7 already writes. This slice adds zero columns
  * and zero migrations.
  */
 
-import type { RequestEvent } from '@sveltejs/kit';
+import { error as httpError, type RequestEvent } from '@sveltejs/kit';
+import { AuthError } from '$lib/server/auth';
 import { withTenant } from '$lib/server/db/tenant';
 import { offboardingObservability, type OffboardedMembershipObservability } from '$lib/server/membership/offboard';
 import type { PageServerLoad } from './$types';
@@ -37,7 +54,15 @@ export interface OffboardingSeams {
 	env?: NodeJS.ProcessEnv;
 }
 
-/** Serialisable row for the page — dates flattened to ISO strings, nothing added. */
+const CANCEL_BILLING_KIND = 'offboard.cancel_billing';
+
+/**
+ * Serialisable row for the page — the closed keyholder shape, not a spread.
+ * `leaseExpiresAt` is dropped (never rendered). `lastError` is withheld for
+ * `offboard.cancel_billing` always (spec §5 "failure detail"), and for every
+ * other kind only when `status === 'dead'` (a retry-pending error is not
+ * shipped invisibly — `+page.svelte` renders `lastError` only in that state).
+ */
 function serializeMembership(entry: OffboardedMembershipObservability) {
 	return {
 		membershipId: entry.membershipId,
@@ -50,8 +75,7 @@ function serializeMembership(entry: OffboardedMembershipObservability) {
 			attempts: job.attempts,
 			maxAttempts: job.maxAttempts,
 			availableAt: job.availableAt.toISOString(),
-			leaseExpiresAt: job.leaseExpiresAt ? job.leaseExpiresAt.toISOString() : null,
-			lastError: job.lastError,
+			lastError: job.status === 'dead' && job.kind !== CANCEL_BILLING_KIND ? job.lastError : null,
 			createdAt: job.createdAt.toISOString(),
 			updatedAt: job.updatedAt.toISOString(),
 		})),
@@ -76,10 +100,20 @@ export function _createOffboardingLoad(seams: OffboardingSeams = {}) {
 				memberships: entries.map(serializeMembership),
 			};
 		} catch (error) {
-			// A session without the grant reads as an empty, unauthorized surface —
-			// the page explains; there is no action here to return an explicit 403.
-			console.error('[offboarding] load refused:', error instanceof Error ? error.message : error);
-			return { available: true as const, authenticated: false as const, memberships: [] };
+			if (error instanceof AuthError) {
+				// A session without the grant reads as an empty, unauthorized surface
+				// — the page explains; there is no action here to return an explicit
+				// 403. This is the ONLY class of error this load swallows.
+				console.error('[offboarding] load refused:', error.message);
+				return { available: true as const, authenticated: false as const, memberships: [] };
+			}
+			// Round-2 fix (adversarial review EDIT-4): anything else — an
+			// unreachable database, a malformed tenant id, any infrastructure
+			// failure — is NOT an auth problem and must not render as one. A
+			// surface whose purpose is observing failures must not itself hide
+			// its own failures behind "please sign in."
+			console.error('[offboarding] load failed:', error instanceof Error ? error.message : error);
+			throw httpError(500, 'Offboarding read failed.');
 		}
 	};
 }

@@ -3,12 +3,34 @@
  * HTTP observability"), on the S1/S3/S6/S7 fixture: real migrator run, real
  * `gftb_migrator`/`gftb_app` role split, FORCE RLS.
  *
+ * ROUND 2 (adversarial review BLOCK on PR #194 @ 83947ea). The finance-only
+ * and mid-request-revocation cells below are adapted from the reviewer's own
+ * cross-slice probe (not committed to either PR):
+ * `reviewer-cross-slice.integration.test.ts`, `MATRIX /offboarding` and
+ * `mid-request revocation` describe blocks — credited in the commit body.
+ *
  *   - role-gate rejection: a session with no live `keyholder` grant reads the
  *     surface as unauthorized/empty, never the underlying rows (spec §6);
+ *   - FINANCE-ONLY (a live `finance` grant, no `keyholder` grant) is refused
+ *     the same way — holding `finance` never implies `keyholder`
+ *     (decisions/0018:81-85) — the round-1 untested cell (EDIT-1);
+ *   - a keyholder grant revoked BETWEEN two loads is refused on the second
+ *     (EDIT-2), same discipline `requireKeyholder` gives every other S5-S7
+ *     surface;
  *   - correct rendering of every outbox state — pending, leased ("processing"
- *     at the HTTP edge), done, AND dead — including the dead-letter reason;
+ *     at the HTTP edge), done, AND dead — including the dead-letter reason,
+ *     EXCEPT `offboard.cancel_billing`'s, which round 2 withholds from the
+ *     keyholder surface entirely (spec §5 "failure detail"; §2.3 row 1 names
+ *     finance as that job kind's audience instead — see
+ *     `offboarding-obligations.integration.test.ts` for the finance side);
+ *   - `leaseExpiresAt` is not served at all (round-2 EDIT-3: never rendered,
+ *     never shipped);
  *   - tenant isolation: a keyholder in tenant B never sees tenant A's
  *     offboarded memberships or jobs, even holding a live grant of their own;
+ *   - a non-auth failure (malformed tenant id, standing in for "the database
+ *     is unreachable") is NOT swallowed as "not signed in" — it throws a real
+ *     500 (round-2 EDIT-4; round 1 proved this bug, this file now proves the
+ *     fix);
  *   - the surface is read-only: the route module ships no `actions` (unit-
  *     level proof in `offboarding.test.ts`), and this file additionally
  *     proves the LOAD ITSELF never mutates an `outbox_job` row it reads.
@@ -35,8 +57,9 @@ import {
 	startPostgres,
 	type PgFixture,
 } from '../db/integration-support';
-import { grantRole } from '../auth/roles';
+import { grantRole, revokeRole } from '../auth/roles';
 import { KEYHOLDER_ROLE } from '../application/claim';
+import { FINANCE_ROLE } from '../contribution/finance-read';
 import { application, membership, outboxJob, person } from '../db/schema';
 import { OFFBOARD_JOB_KINDS, type OffboardJobKind } from './offboard';
 import { _createOffboardingLoad } from '../../../routes/(keyholder)/offboarding/+page.server';
@@ -159,6 +182,18 @@ async function newTenantWithKeyholder(): Promise<{ tenantId: string; keyholder: 
 	return { tenantId, keyholder };
 }
 
+/** A tenant plus a person holding a live FINANCE grant and no keyholder grant. */
+async function newTenantWithFinanceOnly(): Promise<{ tenantId: string; financeOnly: string }> {
+	const tenantId = await seedTenant(fixture.migratorDsn, `s11-fin-${randomUUID().slice(0, 8)}`);
+	const financeOnly = randomUUID();
+	await withTenant(
+		tenantId,
+		(tx) => grantRole(tx, tenantId, { personId: financeOnly, role: FINANCE_ROLE, grantedBy: randomUUID() }),
+		db,
+	);
+	return { tenantId, financeOnly };
+}
+
 describe('role gate (spec §6: authorization checked in the same unit of work as the read)', () => {
 	it('a session with no live keyholder grant reads as unauthorized — never the underlying rows', async () => {
 		const { tenantId } = await newTenantWithKeyholder();
@@ -182,15 +217,75 @@ describe('role gate (spec §6: authorization checked in the same unit of work as
 		const result = (await load(loadEvent(null))) as { authenticated: boolean };
 		expect(result.authenticated).toBe(false);
 	});
+
+	// EDIT-1 (adversarial review, adapted from reviewer-cross-slice.integration.test.ts
+	// "FINANCE-ONLY -> REFUSED (the untested cell in PR #194)"): a live `finance`
+	// grant does not imply `keyholder` — this route stays keyholder-only.
+	it('a live FINANCE grant with no keyholder grant is refused, same as no grant at all', async () => {
+		const { tenantId, financeOnly } = await newTenantWithFinanceOnly();
+		const load = _createOffboardingLoad({ env: { GFTB_TENANT_ID: tenantId, DATABASE_URL: fixture.runtimeDsn } });
+		const result = (await load(loadEvent(financeOnly))) as { authenticated: boolean; memberships: unknown[] };
+		expect(result).toMatchObject({ authenticated: false, memberships: [] });
+	});
+
+	// EDIT-2 (adversarial review, adapted from reviewer-cross-slice.integration.test.ts
+	// "mid-request revocation"): the grant check rides the load's own unit of
+	// work, so a revocation committed BETWEEN two loads is seen on the second.
+	it('a keyholder grant revoked between two loads is refused on the second', async () => {
+		const { tenantId } = await newTenantWithKeyholder();
+		const kh = randomUUID();
+		await withTenant(
+			tenantId,
+			(tx) => grantRole(tx, tenantId, { personId: kh, role: KEYHOLDER_ROLE, grantedBy: randomUUID() }),
+			db,
+		);
+		const load = _createOffboardingLoad({ env: { GFTB_TENANT_ID: tenantId, DATABASE_URL: fixture.runtimeDsn } });
+		const before = (await load(loadEvent(kh))) as { authenticated: boolean };
+		expect(before.authenticated).toBe(true);
+
+		await withTenant(tenantId, (tx) => revokeRole(tx, tenantId, kh, KEYHOLDER_ROLE), db);
+
+		const after = (await load(loadEvent(kh))) as { authenticated: boolean; memberships: unknown[] };
+		expect(after).toMatchObject({ authenticated: false, memberships: [] });
+	});
+});
+
+// EDIT-4 (adversarial review, proven bug): a non-auth failure must not render
+// as "please sign in". A malformed tenant id stands in for "the database is
+// unreachable" — both are infrastructure failures `withTenant`'s own
+// `assertTenantId` throws a plain (non-`AuthError`) `Error` for, which is
+// exactly the class round 1's blanket catch swallowed.
+describe('a non-auth failure is not swallowed as unauthenticated (round-2 EDIT-4 fix)', () => {
+	it('a malformed GFTB_TENANT_ID throws a real 500, not a soft "unauthenticated" 200', async () => {
+		const load = _createOffboardingLoad({
+			env: { GFTB_TENANT_ID: 'not-a-real-tenant-id', DATABASE_URL: fixture.runtimeDsn },
+		});
+		let caught: { status?: number } | undefined;
+		try {
+			await load(loadEvent(randomUUID()));
+		} catch (error) {
+			caught = error as { status?: number };
+		}
+		expect(caught).toBeDefined();
+		expect(caught?.status).toBe(500);
+	});
 });
 
 describe('rendering every outbox state, including dead-letter (S11 acceptance)', () => {
-	it('a live keyholder sees kind, state, attempts, timestamps, and the dead-letter reason for every job', async () => {
+	it('a live keyholder sees kind, state, attempts, and timestamps for every job — but NEVER cancel_billing lastError', async () => {
 		const { tenantId, keyholder } = await newTenantWithKeyholder();
 		const { membershipId } = await seedOffboardedMembership(tenantId, 'removed', 'Fully Processed Then One Poison');
 		await seedJobs(tenantId, membershipId, [
-			{ kind: 'offboard.cancel_billing', status: 'dead', attempts: 8, lastError: 'billing: cancellation refused' },
-			{ kind: 'offboard.remove_lists', status: 'done', attempts: 1 },
+			// The withheld kind (round-2 B2 fix): dead, with a money-shaped reason.
+			{
+				kind: 'offboard.cancel_billing',
+				status: 'dead',
+				attempts: 8,
+				lastError: 'Error: cancel refused for stripe subscription sub_ABC amount 2000',
+			},
+			// A dead NON-billing kind: lastError is NOT money-adjacent and must
+			// still pass through — proves the redaction is kind-specific, not blanket.
+			{ kind: 'offboard.remove_lists', status: 'dead', attempts: 8, lastError: 'mailman: list not found' },
 			{ kind: 'offboard.disable_mailbox', status: 'leased', attempts: 2 },
 		]);
 
@@ -200,7 +295,7 @@ describe('rendering every outbox state, including dead-letter (S11 acceptance)',
 			memberships: {
 				membershipId: string;
 				status: string;
-				jobs: { kind: string; status: string; attempts: number; maxAttempts: number; lastError: string | null }[];
+				jobs: Record<string, unknown>[];
 			}[];
 		};
 		expect(result.authenticated).toBe(true);
@@ -208,14 +303,25 @@ describe('rendering every outbox state, including dead-letter (S11 acceptance)',
 		expect(entry).toBeDefined();
 		expect(entry!.status).toBe('removed');
 
-		const byKind = Object.fromEntries(entry!.jobs.map((j) => [j.kind, j]));
-		expect(byKind['offboard.cancel_billing']).toMatchObject({
+		const byKind = Object.fromEntries(entry!.jobs.map((j) => [j.kind as string, j]));
+		// Redacted: dead cancel_billing carries a real lastError in the DB, but
+		// the keyholder-served value is null — the exact string never crosses.
+		expect(byKind['offboard.cancel_billing']).toMatchObject({ status: 'dead', attempts: 8, lastError: null });
+		expect(JSON.stringify(result)).not.toContain('sub_ABC');
+		expect(JSON.stringify(result)).not.toContain('amount 2000');
+		// Not redacted: dead, but not the billing kind.
+		expect(byKind['offboard.remove_lists']).toMatchObject({
 			status: 'dead',
 			attempts: 8,
-			lastError: 'billing: cancellation refused',
+			lastError: 'mailman: list not found',
 		});
-		expect(byKind['offboard.remove_lists']).toMatchObject({ status: 'done', attempts: 1, lastError: null });
+		// Not dead, so no lastError shipped regardless of kind (EDIT-3: matches what the page renders).
 		expect(byKind['offboard.disable_mailbox']).toMatchObject({ status: 'leased', attempts: 2, lastError: null });
+
+		// EDIT-3: leaseExpiresAt is never rendered by the page and is not served at all.
+		for (const job of entry!.jobs) {
+			expect(Object.keys(job)).not.toContain('leaseExpiresAt');
+		}
 		// every job carries ISO timestamps a keyholder can read
 		for (const job of entry!.jobs) {
 			expect(() => new Date((job as unknown as { availableAt: string }).availableAt)).not.toThrow();
