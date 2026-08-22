@@ -1,5 +1,5 @@
 {
-	"$comment": "Three-lane reference (MassageIthaca-shaped). Not loaded by CI. Copy fields into lanes.json to enable multi-trunk posture. See docs/CI-SCHEMA.md §2 Example B.",
+	"$comment": "Three-lane reference (MassageIthaca-shaped). Not loaded by CI. Copy fields into lanes.json to enable multi-trunk posture. See docs/CI-SCHEMA.md §2 Lane metadata for the schema and rules -- the current doc ships one minimal single-lane example there, not a lettered Example A/A2/B set; this file is the multi-lane reference the old §3 used to carry inline.",
 	"$schema": "../docs/schemas/lanes.schema.json",
 	"schema_version": 1,
 	"spoke": {

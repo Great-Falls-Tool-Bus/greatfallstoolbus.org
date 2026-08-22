@@ -576,10 +576,24 @@ prior artifact). Both lanes are designed in
 
 ## Conformance
 
-- `just conformance` runs `scripts/check-conformance.sh`, the checklist in
-  `docs/CI-SCHEMA.md` §11. A green run means the spoke is house-style
-  compliant. MANUAL items (org ruleset, required status checks) require
-  operator verification outside this repo.
+- `just conformance` runs **two** scripts, always both: the ingested
+  `scripts/check-conformance.sh` (the checklist in `docs/CI-SCHEMA.md` §11,
+  byte-identical to `site.scaffold`), then `scripts/check-conformance-local.sh`
+  (GFTB-specific items with no scaffold equivalent — see that file's own
+  header for why it's separate rather than patched into the ingested one). A
+  green run on both means the spoke is house-style compliant. MANUAL items
+  (org ruleset, required status checks) require operator verification
+  outside this repo.
+- **Known-red rows, as of this re-ingest** — see each script's own comments
+  for the full account; this is the pointer, not the duplicate: the
+  ingested script's role gate, `validate-substrate-boundary.py`,
+  `test-production-convergence-contract.py`, and
+  `modules/converge_agent/tests/test_converge_agent_contract.py` rows are
+  expected red (scaffold gates this repo doesn't carry yet; see
+  `scripts/check-conformance.sh`'s own numbered comments for which). The
+  local addendum's two rows (endpoint leak scan, `app-stateful-spoke` role)
+  are expected **green** — if either goes red, treat it as a real finding,
+  not scaffold drift.
 - This scaffold conforms to `docs/CI-SCHEMA.md` at `tinyland-inc/site.scaffold`
   commit `8659dcd7702524697220c5c2e79d6096921f4b84` (`origin/main`,
   2026-08-18), re-ingested 2026-08-21. `site.scaffold`'s actual `v0.3.0` git
