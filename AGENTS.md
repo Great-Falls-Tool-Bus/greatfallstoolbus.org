@@ -80,7 +80,15 @@ repository as private or renamed** in code, comments, docs, or image refs.
   and no hidden prompt-only requirements.
 - The desired convergence is a GloriousFlywheel-powered, Blahaj-routed GitOps
   path where repo shape is declarative and lane/reaper/public-preview plumbing
-  is not duplicated per repo.
+  is not duplicated per repo. **This describes mechanism layer B (the
+  gated-convergence chain), which meta ADR
+  `decisions/0020-adopt-production-convergence-contract-2026-08-21.md` §2
+  tracks but does NOT adopt** — its GFTB carrier (TIN-2611) is Backlog behind
+  seven unmet prerequisites, and the *dispatch* shape this bullet names is
+  what `converge-agent.md` §3 forbids outright once GFTB declares a carrier
+  under mechanism A. See the "Per-PR Ephemeral Envs" and "Tofu Posture"
+  sections ~375 lines below for the current, superseded-and-stamped state of
+  the Blahaj-routed path specifically.
 
 ## Authoritative Entrypoints
 
@@ -466,7 +474,7 @@ prior artifact). Both lanes are designed in
 > `meta` ADR `decisions/0020-adopt-production-convergence-contract-2026-08-21.md`
 > (Great-Falls-Tool-Bus/meta#34, DRAFT — operator merges); the
 > preview-environment companion decision is
-> `great-falls-tool-bus-infra` ADR `docs/decisions/0002-preview-cd-authority-companion-2026-08-21.md`
+> `great-falls-tool-bus-infra` ADR `docs/decisions/0003-preview-cd-authority-companion-2026-08-21.md`
 > (great-falls-tool-bus-infra#125, DRAFT). The ratified interim is a tailnet
 > preview (`tailscale serve`, `just preview-tailnet`); the ratified target is
 > `staging.greatfallstoolbus.org` promote-on-PR after the infra apply
@@ -493,7 +501,25 @@ prior artifact). Both lanes are designed in
   (`feat/preview-tailnet-lane`) carries that deletion alongside standing up
   the tailnet preview lane above; do not duplicate it here.
 
-## Public Client Previews
+## Public Client Previews — SUPERSEDED, see meta ADR 0020
+
+> **SUPERSEDED (2026-08-21).** Same failure mode as the two stamped sections
+> around this one (C6/D21: an agent's first read is the superseded pattern) —
+> missed in the first stamping pass, closed here. "Public/client review URLs
+> are explicit overlays requested through
+> `docs/schemas/public-preview-dispatch.schema.json`" describes a dispatch
+> receiver in the same evicted `tinyland-inc/blahaj` GitHub App family as
+> "Per-PR Ephemeral Envs" above — and the freshly re-ingested
+> `docs/CI-SCHEMA.md` (current, this same PR) states plainly that "the former
+> Blahaj lane, reaper, and public-preview dispatch schemas are removed" and
+> preserved only in git history, not an execution contract. GFTB CD authority
+> routes through `meta` ADR
+> `decisions/0020-adopt-production-convergence-contract-2026-08-21.md`
+> (Great-Falls-Tool-Bus/meta#34, DRAFT) and the preview companion
+> `great-falls-tool-bus-infra` ADR
+> `docs/decisions/0003-preview-cd-authority-companion-2026-08-21.md`
+> (great-falls-tool-bus-infra#125, DRAFT) from here forward. The text below
+> is retained per the no-silent-rewrite convention.
 
 - Tailnet PR lanes are the default. Public/client review URLs are explicit
   overlays requested through `docs/schemas/public-preview-dispatch.schema.json`.
@@ -523,7 +549,7 @@ prior artifact). Both lanes are designed in
 > (`tinyland.repo.json` `boundaries.owns_gitops_apply=false`); actual `tofu/`
 > state for GFTB's workloads lives in `great-falls-tool-bus-infra`, whose own
 > preview-authority companion decision is
-> `docs/decisions/0002-preview-cd-authority-companion-2026-08-21.md`
+> `docs/decisions/0003-preview-cd-authority-companion-2026-08-21.md`
 > (great-falls-tool-bus-infra#125, DRAFT). The text below is retained per the
 > no-silent-rewrite convention as the scaffold's generic Tofu Posture shape;
 > confirm current module pins against `great-falls-tool-bus-infra` before
@@ -556,18 +582,25 @@ prior artifact). Both lanes are designed in
   operator verification outside this repo.
 - This scaffold conforms to `docs/CI-SCHEMA.md` at `tinyland-inc/site.scaffold`
   commit `8659dcd7702524697220c5c2e79d6096921f4b84` (`origin/main`,
-  2026-08-18), re-ingested 2026-08-21. **This is a SHA receipt, not a tag
-  pin**, and `tinyland.repo.json`'s `scaffold_tag` field says `v0.3.0` —
-  read that string with the caveat meta ADR 0020 §1 records in full:
-  `site.scaffold`'s actual `v0.3.0` git tag points at an earlier commit
-  (`5c6b8bc5`, 2026-07-08) that predates every `docs/patterns/*` document
-  this re-ingest exists to reach, by 94 commits. No tag currently covers
-  `8659dcd7`. `scaffold_tag` is stamped `v0.3.0` here because that is the
-  latest tag name that exists and because the task ordering this re-ingest
-  named it explicitly — not because the ingested content and that tag
-  agree. Re-pin to a real covering tag (`v0.3.1`+) once `site.scaffold` cuts
-  one; until then, `tinyland-scaffold-doctor`'s version-drift diff against
-  the literal tag string will underclaim what is actually in this tree.
+  2026-08-18), re-ingested 2026-08-21. `site.scaffold`'s actual `v0.3.0` git
+  tag points at an earlier commit (`5c6b8bc5`, 2026-07-08) that predates
+  every `docs/patterns/*` document this re-ingest exists to reach, by 94
+  commits — no tag currently covers `8659dcd7` (meta ADR 0020 §1 has the
+  full derivation).
+- **`tinyland.repo.json`'s `scaffold_tag` field holds that same SHA, not
+  `v0.3.0`, on purpose.** The field's schema (`docs/schemas/tinyland-repo-manifest.schema.json`)
+  types it as a bare non-empty string with no tag-shape pattern, and
+  `tinyland-scaffold-doctor`'s Layer 2 reads it only to run
+  `git checkout "$SCAFFOLD_TAG"` against a `site.scaffold` clone — a
+  40-hex SHA is exactly as valid there as a tag name, so this keeps the
+  doctor chain green. The two rejected alternatives: stamping the literal
+  string `v0.3.0` would be false about the ingested bytes on this ADR's own
+  evidence (the tag does not cover the commit); adding a sibling
+  `scaffold_sha` field would fail conformance item 0 outright, since the
+  manifest schema sets `additionalProperties: false` at the top level and
+  editing that schema is its own re-ingest-scope decision, not this PR's.
+  Re-pin to a real covering tag (`v0.3.1`+, a proper tag string again) once
+  `site.scaffold` cuts one, per the ask meta ADR 0020 §1 already makes.
 - **`config/production-convergence.json` is deliberately absent, not
   merely default.** GFTB does not converge yet and is not declaring a
   carrier. The scaffold's own contract test

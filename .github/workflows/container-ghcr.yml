@@ -32,7 +32,7 @@
 # daemon, no buildx. The GloriousFlywheel shared cache
 # accelerates the SvelteKit build inputs; the image push itself is NOT
 # remote-execution eligible (`container-image-and-push` is blocked at the GF
-# manifest layer — see docs/CI-SCHEMA.md §5 and the flywheel skill's rule 8).
+# manifest layer — see docs/CI-SCHEMA.md §4 and the flywheel skill's rule 8).
 #
 # CREDENTIALS (public-repo-safe): no cache/executor endpoint, token, or UUID is
 # committed. GloriousFlywheel is PRIVATE again (2026-08 GF-RBE contraction), so
