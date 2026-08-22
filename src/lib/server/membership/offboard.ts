@@ -28,11 +28,12 @@
  *      is the sitting #3 named gate): finance and audit records persist.
  */
 
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { DbTransaction } from '../db/client';
 import { membership, outboxJob, person, type Membership, type OutboxJob } from '../db/schema';
 import { revokeAllSessions } from '../auth';
 import { enqueue } from '../outbox/enqueue';
+import { requireKeyholder } from '../application/claim';
 
 /** The three ratified offboarding projections (slices §2.3), in fan-out order. */
 export const OFFBOARD_JOB_KINDS = [
@@ -151,4 +152,180 @@ export async function personRecord(tx: DbTransaction, personId: string): Promise
 				lastError: job.lastError,
 			})),
 	};
+}
+
+/**
+ * S11 — offboarding HTTP observability (TIN-3440; L70 mandate, sitting-2 QA
+ * gap item, targeted for 2026-08-30). Read-only: this module writes NOTHING,
+ * has no mutation entry point, and the outbox rows it reads are S3/S7's
+ * standing state — no new state is introduced here.
+ *
+ * ROLE VISIBILITY — RULED BY §2.3 ROW 1, NOT A GAP (round 2, after adversarial
+ * review BLOCK on PR #194 @ 83947ea proved the round-1 "genuinely unstated"
+ * claim false). `member-v0-executable-slices-2026-08-18.md:731` (§2.3, the
+ * offboarding-replay table, row 1) names the audience for a permanently
+ * failed `offboard.cancel_billing` explicitly: "dead-letter; **membership
+ * stays offboarded**; **finance sees an open obligation**." Rows 2/3
+ * (`remove_lists`, `disable_mailbox`) say only "visible" / "visible as
+ * 'projection pending'" with NO named audience — the doc distinguishes the
+ * three kinds on purpose. This function's own `personRecord` neighbor already
+ * quoted that row 20 lines above this comment ("A dead `offboard.cancel_billing`
+ * is precisely 'finance sees an open obligation'") — the round-1 search trail
+ * missed a citation already sitting in this file.
+ *
+ * WHAT THIS MEANS, MECHANICALLY, split by what §2.3 row 1 actually grants
+ * finance — an AUDIENCE for the dead-lettered obligation and its reason, not
+ * a monopoly on this whole route:
+ *
+ *   - kind / status / attempts / maxAttempts / timestamps, for all three
+ *     kinds — spec §5's keyholder-visibility list (amount, rail, processor
+ *     identifiers, cash notes, failure detail —
+ *     `spec/launch-member-v0-system-2026-08-16.md:223-225`;
+ *     `member-v0-executable-slices-2026-08-18.md:425`, ratified verbatim by
+ *     `decisions/0018-sitting-2-rulings-2026-08-21.md:81-83`) never lists
+ *     queue bookkeeping, and it carries ~zero money signal regardless (a
+ *     `cancel_billing` row is enqueued UNCONDITIONALLY for every offboarding,
+ *     `enqueueOffboarding` above, whether or not the person ever contributed;
+ *     `cancelBillingHandler` reports `done` identically for a contributor and
+ *     a non-contributor). Stays on `requireKeyholder`, the `/remove` and
+ *     `/review` precedent (spec §6 "authorization checked against the
+ *     current membership/role in the same unit of work",
+ *     `launch-member-v0-system-2026-08-16.md:288`).
+ *   - `lastError` for `offboard.remove_lists` / `offboard.disable_mailbox` —
+ *     keyholder-visible. Neither kind is money-adjacent, and spec §2.3 rows
+ *     2/3 name no restricted audience for them.
+ *   - `lastError` for `offboard.cancel_billing` — spec §5's keyholder
+ *     prohibition list literally includes "failure detail"
+ *     (`launch-member-v0-system-2026-08-16.md:223-225`;
+ *     `decisions/0018:82`; TIN-3818), and this column is free text with no
+ *     content restriction (`describeFailure`,
+ *     `src/lib/server/outbox/dispatch.ts:137`, redacts only URL userinfo,
+ *     bearer tokens, and `key=value` credential shapes — a Stripe SDK error
+ *     naming a subscription id and amount passes through untouched). This
+ *     PR's own adversarial review proved a seeded amount-bearing string
+ *     reaches a keyholder byte-for-byte through this exact function.
+ *     WITHHELD from the keyholder surface — redacted to `null` at the route
+ *     boundary (`src/routes/(keyholder)/offboarding/+page.server.ts`), the
+ *     `keyholderContributionView` precedent (`contribution/visibility.ts`)
+ *     applied here. §2.3 row 1's finance audience is served separately, by
+ *     `financeOpenBillingObligations` (`contribution/offboarding-obligations.ts`,
+ *     PR #195's `requireFinance`) — this PR stacks on #195 for exactly that
+ *     import; see the PR body for why that surface is NOT this module (the
+ *     bidirectional `membership/**` <-> `contribution/**` import fence,
+ *     `contribution/import-boundary.test.ts`, forbids a `membership/**`
+ *     module from ever importing `requireFinance` itself).
+ *   - A keyholder who is ALSO a finance grant holder learns nothing extra
+ *     from THIS route; they read the finance detail from the finance-gated
+ *     route instead, on its own grant check.
+ *
+ * This function itself stays a single keyholder-gated reader returning the
+ * FULL row (including `lastError` for every kind) — the redaction is applied
+ * once, at the HTTP boundary, the same "closed shape built field-by-field at
+ * the route" convention `/remove`'s and `/review`'s serializers already use.
+ * `financeOpenBillingObligations` (`contribution/offboarding-obligations.ts`)
+ * is a SEPARATE reader over the same `outbox_job` table, not a caller of this
+ * function — the bidirectional import fence (below) forbids the latter
+ * shape, so the two surfaces independently query the one shared table
+ * instead of sharing a membership-side entry point.
+ *
+ * WHY OUTBOX ROWS DIRECTLY, NOT `personRecord`'s `openObligations`.
+ * `personRecord` (above) intentionally filters to non-`done` rows for the
+ * operator "what's still owed" surface (§2.3 invariant 3). This slice's
+ * acceptance instead requires "correct rendering of ALL outbox states incl.
+ * dead-letter" — a `done` job is exactly as much "offboarding observability"
+ * as a `dead` one, so this function does not filter by status at all.
+ */
+export interface OffboardJobStatus {
+	kind: OffboardJobKind;
+	/** `pending` (queued) | `leased` (a worker is running it) | `done` | `dead` (dead-lettered). */
+	status: OutboxJob['status'];
+	attempts: number;
+	maxAttempts: number;
+	availableAt: Date;
+	leaseExpiresAt: Date | null;
+	/**
+	 * Set only when `status === 'dead'` OR a retry is pending after a failed
+	 * attempt; already redacted at write time (`describeFailure`,
+	 * `outbox/dispatch.ts:137` — URL userinfo, bearer tokens, and `key=value`
+	 * credential shapes only, NOT a general content filter). This domain type
+	 * carries the raw value for every kind; the HTTP route boundary is what
+	 * withholds it for `offboard.cancel_billing` — see the ROLE VISIBILITY
+	 * comment on `offboardingObservability` below.
+	 */
+	lastError: string | null;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface OffboardedMembershipObservability {
+	membershipId: string;
+	personId: string;
+	displayName: string;
+	/** `left` | `removed` — the two terminal states that fan out offboarding jobs. */
+	status: string;
+	endedAt: Date | null;
+	/** Every offboarding job this membership has ever enqueued, newest first. Empty when offboarding has not yet run (job creation and the membership-status commit are not the same instant to a READER, even though they are the same transaction to the writer). */
+	jobs: OffboardJobStatus[];
+}
+
+/**
+ * The read-only observability surface: every offboarded (`left`/`removed`)
+ * membership, tenant-scoped by RLS via the transaction's GUC, joined to the
+ * full history of its offboarding outbox jobs. Keyholder-gated as the FIRST
+ * step, inside the caller's `withTenant` unit of work, matching
+ * `listReviewQueue`'s shape (spec §6) — a grant revoked mid-request is
+ * refused before any row is read.
+ */
+export async function offboardingObservability(
+	tx: DbTransaction,
+	keyholderPersonId: string,
+): Promise<OffboardedMembershipObservability[]> {
+	await requireKeyholder(tx, keyholderPersonId);
+
+	const rows = await tx
+		.select({ m: membership, displayName: person.displayName })
+		.from(membership)
+		.innerJoin(person, eq(person.id, membership.personId))
+		.where(inArray(membership.status, ['left', 'removed']))
+		.orderBy(desc(membership.updatedAt));
+	if (rows.length === 0) return [];
+
+	const membershipIds = rows.map((row) => row.m.id);
+	const jobs = await tx
+		.select()
+		.from(outboxJob)
+		.where(
+			and(
+				eq(outboxJob.aggregateType, 'membership'),
+				inArray(outboxJob.aggregateId, membershipIds),
+				inArray(outboxJob.kind, [...OFFBOARD_JOB_KINDS]),
+			),
+		)
+		.orderBy(desc(outboxJob.createdAt));
+
+	const byMembership = new Map<string, OutboxJob[]>();
+	for (const job of jobs) {
+		const list = byMembership.get(job.aggregateId) ?? [];
+		list.push(job);
+		byMembership.set(job.aggregateId, list);
+	}
+
+	return rows.map((row) => ({
+		membershipId: row.m.id,
+		personId: row.m.personId,
+		displayName: row.displayName,
+		status: row.m.status,
+		endedAt: row.m.endedAt,
+		jobs: (byMembership.get(row.m.id) ?? []).map((job) => ({
+			kind: job.kind as OffboardJobKind,
+			status: job.status,
+			attempts: job.attempts,
+			maxAttempts: job.maxAttempts,
+			availableAt: job.availableAt,
+			leaseExpiresAt: job.leaseExpiresAt,
+			lastError: job.lastError,
+			createdAt: job.createdAt,
+			updatedAt: job.updatedAt,
+		})),
+	}));
 }
