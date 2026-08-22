@@ -1,139 +1,44 @@
-// Icon vocabulary (Wave-2.5 icons, TIN-2423 PR2b): tree-shaken named imports
-// from @lucide/svelte, never the barrel. Each nav item's icon is reused as the
-// matching route's PageHeader icon, so the vocabulary stays curated instead of
-// growing per surface.
-import {
-	Compass,
-	Hammer,
-	Boxes,
-	KeyRound,
-	ShieldCheck,
-	Gift,
-	ClipboardList,
-	BookOpen,
-	Megaphone,
-	MailCheck,
-	MessagesSquare,
-	FileText,
-	type Icon as LucideIcon,
-} from '@lucide/svelte';
-import { archiveVisible } from '$lib/flags';
-
+// Single source of truth for nav — shared by the desktop <nav>, the mobile
+// drawer, and the footer groups in +layout.svelte.
+//
+// Single-product history (L72 Q3-A, 2026-08-21): every legacy marketing-tree
+// nav item (Mission, Tools, Cells, Safety, Donate, Wants, Keyholders,
+// Bibliography, Shout-outs, Get access/Contact, Discuss) is deleted along with
+// its route. `greatfallstoolbus.org` is now the member-tree entry surface
+// (ADR 0014 §1); the public information site moves to `gftb-site`.
+//
+// `navItems` is intentionally empty pending real member-tree navigation
+// (apply/review/home/membership/contribution/login as those slices land).
+// `/apply` itself is deliberately NOT added here: it ships `noindex` and
+// "not linked from navigation" by its own launch-gate design
+// (src/routes/apply/+page.svelte) while intake stays closed; the entry page
+// links to it directly instead of promoting it to the nav bar.
 export interface NavItem {
 	label: string;
 	href: string;
 	/** Base-relative path patterns that light this item as the active section. */
 	match: string[];
 	/** Rendered in the primary AppBar bar + mobile drawer top. Kept to ≤6 items
-	 *  (lane B nav-regroup) so the bar reads as navigation, not a sitemap. */
+	 *  so the bar reads as navigation, not a sitemap. */
 	primary?: boolean;
 	/** When not `primary`, which footer group this item is demoted into.
 	 *  Rendered by the footer in +layout.svelte. */
 	footerGroup?: 'About' | 'Get involved';
-	/** Optional decorative icon, rendered beside the label in the primary bar
-	 *  and mobile drawer (see +layout.svelte). Also handed to the matching
-	 *  route's <PageHeader icon> so nav and page header agree. */
-	icon?: typeof LucideIcon;
 }
 
-/**
- * Primary navigation — the single source of truth shared by the desktop
- * <nav>, the mobile drawer, and the footer groups in +layout.svelte (DRY,
- * mirroring MassageIthaca's src/lib/nav-items.ts). The logo links home, so
- * there is no "Home" item. hrefs are base-relative; the layout prepends
- * `base`.
- */
-// Ordered as a narrative: who we are (Mission), what's on the bus (Tools),
-// how to use it (Safety), how to give (Donate, Wants), where it's going plus
-// credibility (Bibliography, Shout-outs), reach us (Get access).
-// `navItems` stays the single flat array (DRY); `primary` and `footerGroup`
-// mark where each item renders (see `primaryNavItems` and `footerNavGroups`
-// below). Primary bar: Mission, Tools, Donate, Get access, and, once the
-// archive is visible, Discuss: the browse, use, give, reach, talk arc a
-// Lewiston neighbor actually needs. That is 4 primary items always, plus
-// Discuss as the gated 5th (TIN-2528 promoted it from the "Get involved"
-// footer group now that /discuss carries a real on-site thread index, not just
-// an outbound link). The archiveVisible gate is inlined at build, so the bar is
-// 4 items while the archive is hidden and 5 once it is live: comfortable
-// headroom under the ≤6-item cap (the AppBar primary <nav> is `lg:flex`,
-// desktop-only; the mobile drawer lists the same items vertically, so there is
-// no 375px fit concern).
-//
-// Cells is NOT primary. Tools and Cells were two parallel doors to the same
-// inventory, which confused first-time borrowers; the base flow is "get tools,
-// share them", and cells are an optional lens, never a gate (agreed product
-// principle). /tools now leads with the flat borrowable list and carries a
-// per-row cell tag, so Cells demotes to the "Get involved" footer group as the
-// steward, kit-logistics, and captaincy plus authoring view. Its natural peers
-// there are Wants and Keyholders (participatory get-involved surfaces), not the
-// read-only "About" references (Safety, Bibliography, Shout-outs, Operator
-// docs). The /cells routes are unaffected; only the nav placement moves.
-//
-// TIN-2536 folded the former /access and /find-the-bus surfaces into the single
-// /contact route (reach out, get access, find the bus is one intent), so the
-// primary "Get access" item points at /contact; access-how-to and the
-// request-first location now live as anchored sections there (#access,
-// #find-the-bus). Safety, Cells, Wants, Keyholders, Bibliography, Shout-outs,
-// and Operator docs demote to footer groups; /stewards remains a footer-only
-// link hard-coded in +layout.svelte (predates this array). Safety demotes off
-// the primary bar because its docs need careful hand editing before they lead
-// the site; it stays reachable via the footer and sitemap.
-export const navItems: NavItem[] = [
-	{ label: 'Mission', href: '/mission', match: ['/mission'], primary: true, icon: Compass },
-	{ label: 'Tools', href: '/tools', match: ['/tools'], primary: true, icon: Hammer },
-	{ label: 'Cells', href: '/cells', match: ['/cells', '/cell-sheets'], footerGroup: 'Get involved', icon: Boxes },
-	{ label: 'Safety', href: '/safety', match: ['/safety'], footerGroup: 'About', icon: ShieldCheck },
-	{ label: 'Donate', href: '/donate', match: ['/donate'], primary: true, icon: Gift },
-	{ label: 'Wants', href: '/wants', match: ['/wants'], footerGroup: 'Get involved', icon: ClipboardList },
-	{ label: 'Keyholders', href: '/keyholders', match: ['/keyholders'], footerGroup: 'Get involved', icon: MailCheck },
-	{
-		label: 'Bibliography',
-		href: '/bibliography',
-		match: ['/bibliography'],
-		footerGroup: 'About',
-		icon: BookOpen,
-	},
-	{ label: 'Shout-outs', href: '/shout-outs', match: ['/shout-outs'], footerGroup: 'About', icon: Megaphone },
-	// Operator docs: the on-site index of the operator-facing runbooks, deploy /
-	// launch readiness, CI + development contracts, and the network / port
-	// diagrams (all rendered from the real docs/** tree). Footer-demoted into
-	// "About"; the technical surface never belongs in the ≤6-item primary bar.
-	{ label: 'Operator docs', href: '/docs', match: ['/docs'], footerGroup: 'About', icon: FileText },
-	{ label: 'Get access', href: '/contact', match: ['/contact'], primary: true, icon: KeyRound },
-	// Discuss: the public `discuss@latoolb.us` community board archive (TIN-2528).
-	// PROMOTED to the primary bar as the 6th item (the on-site thread index makes
-	// it a first-class browse surface, not a footer link) — see the ≤6 accounting
-	// in the block above. It stays GATED behind the fail-closed `archiveVisible`
-	// predicate: this entry only appears once the archive is visible, via gated
-	// PREVIEW testing inside the Access-gated deploy (PUBLIC_ARCHIVE_PREVIEW) or
-	// the reserved PUBLIC go-live (PUBLIC_ARCHIVE_LIVE). Until then the /discuss
-	// route still exists and explains the board is coming, it is simply not
-	// advertised in nav. The conditional spread means a false predicate is inlined
-	// at build and the item is dead-code-eliminated from the bundle — so the
-	// primary bar is 5 items while gated and 6 once visible, never over cap.
-	...(archiveVisible
-		? [
-				{
-					label: 'Discuss',
-					href: '/discuss',
-					match: ['/discuss'],
-					primary: true,
-					icon: MessagesSquare,
-				} satisfies NavItem,
-			]
-		: []),
-];
+export const navItems: NavItem[] = [];
 
 /** Primary AppBar bar + mobile drawer top — derived, never hand-duplicated. */
 export const primaryNavItems: NavItem[] = navItems.filter((item) => item.primary);
 
-/** Footer-demoted items, grouped in `navItems` order within each group. */
-export const footerNavGroups: Array<{ heading: string; items: NavItem[] }> = (['About', 'Get involved'] as const).map(
-	(heading) => ({
+/** Footer-demoted items, grouped in `navItems` order within each group. Groups
+ *  with zero items are dropped so the footer never renders an empty heading. */
+export const footerNavGroups: Array<{ heading: string; items: NavItem[] }> = (['About', 'Get involved'] as const)
+	.map((heading) => ({
 		heading,
 		items: navItems.filter((item) => item.footerGroup === heading),
-	}),
-);
+	}))
+	.filter((group) => group.items.length > 0);
 
 /**
  * True when `pathname` (already base-stripped, "/" for root) is at or under

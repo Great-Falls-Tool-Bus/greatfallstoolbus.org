@@ -1,31 +1,17 @@
 // M3.3 sitemap.xml endpoint. Prerendered at build time by adapter-static so the
 // XML lives at build/sitemap.xml. Add additional routes here as M5 lands them.
+//
+// Single-product history (L72 Q3-A): the 15 legacy marketing-tree route
+// families (mission, tools, cells, cell-sheets, wants, donate, safety,
+// bibliography, shout-outs, keyholders, stewards, contact, discuss, agent,
+// plus the old marketing `/`) are deleted from this list. `greatfallstoolbus.org`
+// becomes the member-tree entry surface (ADR 0014 §1); public information-surface
+// duty moves to `gftb-site`. `/apply` stays out of the sitemap: it is
+// `noindex` while intake is closed (src/routes/apply/+page.svelte).
 import type { RequestHandler } from './$types';
 
 const SITE = 'https://greatfallstoolbus.org';
-const PAGES: string[] = [
-	'/',
-	'/agent',
-	'/bibliography',
-	'/cell-sheets',
-	'/cell-sheets/new',
-	'/cells',
-	'/cells/network',
-	'/cells/new',
-	'/cells/sewing',
-	'/cells/welding',
-	'/contact',
-	'/discuss',
-	'/docs',
-	'/donate',
-	'/keyholders',
-	'/mission',
-	'/safety',
-	'/shout-outs',
-	'/stewards',
-	'/tools',
-	'/wants',
-];
+const PAGES: string[] = ['/'];
 
 export const prerender = true;
 

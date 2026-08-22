@@ -37,24 +37,11 @@ test('mobile drawer overlays the full viewport at 375px', async ({ page }) => {
 	expect(geometry.drawer?.height, 'drawer height').toBe(geometry.viewport.height);
 });
 
-test('mobile drawer items are hittable and navigate', async ({ page }) => {
-	await page.goto('/');
-	await page.waitForLoadState('networkidle');
-	await page.getByRole('button', { name: 'Open navigation' }).click();
-
-	const missionLink = page.locator('[data-scope="dialog"][data-part="content"] a', { hasText: 'Mission' });
-	await expect(missionLink).toBeVisible();
-
-	// The link's center must actually receive the tap (no content stacked over it).
-	const hittable = await missionLink.evaluate((el) => {
-		const rect = el.getBoundingClientRect();
-		const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
-		return el === hit || el.contains(hit);
-	});
-	expect(hittable, 'drawer nav item receives the tap at its center').toBe(true);
-
-	await missionLink.click();
-	// Generous timeout: local runs against `vite dev` compile /mission on demand.
-	await expect(page).toHaveURL(/\/mission\/?$/, { timeout: 15_000 });
-	await expect(page.locator('[data-scope="dialog"][data-part="content"]')).toBeHidden();
-});
+// The former "drawer items are hittable and navigate" regression test drove a
+// hard-coded "Mission" nav link, which is deleted along with the rest of the
+// legacy marketing-tree nav (L72 Q3-A, 2026-08-21; see $lib/nav-items —
+// `navItems` is intentionally empty pending real member-tree navigation).
+// There is currently no primary nav item to assert a tap-and-navigate against;
+// the drawer-portal geometry regression guard above still covers the actual
+// bug this spec exists for. Re-add an items-hittable test once a member-tree
+// nav item lands in `$lib/nav-items`.

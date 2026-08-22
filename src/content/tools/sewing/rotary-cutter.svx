@@ -1,7 +1,0 @@
----
-name: 'Small handheld rotary cutter'
-status: 'in-kit'
-cell: 'sewing'
-order: 9
-blurb: 'In kit.'
----

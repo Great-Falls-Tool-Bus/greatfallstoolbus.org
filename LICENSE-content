@@ -19,7 +19,7 @@ SCOPE / EXCLUSIONS:
     is licensed under the zlib License — see LICENSE.
   - It does NOT cover third-party assets bundled or referenced by the
     site — in particular the historical photographs, which are used under
-    their own terms with provenance recorded in src/lib/data/credits.ts
-    and summarized in NOTICE. The GFTB-authored cropping, treatment, and
+    their own terms with provenance summarized in NOTICE and
+    docs/attribution.md. The GFTB-authored cropping, treatment, and
     surrounding presentation are ours; the underlying source images are
     not, and CC BY-SA 4.0 is asserted only over the former.

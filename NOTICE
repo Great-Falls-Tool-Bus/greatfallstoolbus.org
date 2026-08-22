@@ -6,17 +6,22 @@ SOFTWARE DEPENDENCIES
   nix module graph. Each carries its own license; see the respective
   upstream projects.
 
-IMAGES (used with recorded provenance — see src/lib/data/credits.ts for
-the authoritative, auditable record of author + source + license per
-asset):
+IMAGES:
   - "Plate of woodworking hand tools" (c.1922) — historical illustration.
+    Public domain; see docs/attribution.md for full source/license detail.
   - "The Falls and Old Man, Auburn and Lewiston, Maine" — historical
-    Tichnor Bros. linen postcard of the Great Falls gorge; used cropped as
-    the site hero.
+    Tichnor Bros. linen postcard of the Great Falls gorge. Public domain.
+  Single-product history (L72 Q3-A, 2026-08-21): the pages that displayed
+  these two images (the legacy /mission and /shout-outs marketing routes)
+  are deleted from this repo; the source files remain under static/photos/
+  unreferenced pending a decision on whether to rescue them into gftb-site,
+  the public information site (ADR 0014 §1). `src/lib/data/credits.ts`, the
+  in-repo credit ledger that used to back a live page caption, is deleted
+  with them — this file and docs/attribution.md are now the record.
   These are used under their own (public-domain / attribution-free or
-  standard-license) terms as recorded in credits.ts and never hotlinked.
-  The GFTB cropping and presentation are covered by LICENSE-content; the
-  underlying source images are not.
+  standard-license) terms and never hotlinked. The GFTB cropping and
+  presentation are covered by LICENSE-content; the underlying source images
+  are not.
 
 The application source code is under the zlib License (LICENSE). The
 site's written content is under CC BY-SA 4.0 (LICENSE-content).

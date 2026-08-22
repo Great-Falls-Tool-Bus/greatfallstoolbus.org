@@ -16,7 +16,9 @@
 
 <svelte:head>
 	<title>Apply — Great Falls Tool Bus</title>
-	<!-- Not linked from navigation and not indexed until intake opens. -->
+	<!-- Linked from the member-tree entry page (`/`, L72 Q3-A, 2026-08-21) but
+	     still not SEARCH-INDEXED until intake opens: `noindex` blocks indexing,
+	     not crawling, and this is the only page on the site. -->
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
