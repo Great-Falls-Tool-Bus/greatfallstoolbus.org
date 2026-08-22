@@ -473,11 +473,16 @@ test-integration *args:
 # review (PR #192, an isolated repro of this exact launch/kill construct).
 # `set -m` (job control) makes each `cmd &` below its own new process-group
 # leader, so `kill -- -PGID` reaches the whole chain. `kill_lane_group`
-# additionally validates the pidfile's pgid against an expected
-# command-line marker before trusting it — a stale or planted pidfile
-# should not steer a `kill -9` at an unrelated process — and backstops with
-# `pgrep -f` on that same marker regardless of pidfile state, so a survivor
-# from a prior unclean exit is still caught.
+# validates the pidfile's pgid against an expected command-line SHAPE
+# (`command_matches`) before trusting it — a stale or planted pidfile should
+# not steer a `kill -9` at an unrelated process — and backstops with
+# `pgrep -f` on the same marker regardless of pidfile state, so a survivor
+# from a prior unclean exit is still caught. `pgrep -f` alone is a
+# substring match, so the backstop validates EVERY candidate it finds
+# through that same `command_matches` check before killing it — a
+# marker-only backstop would `kill -9` an unrelated process that merely
+# mentions the marker (e.g. `tail -f server.js`), proven by adversarial
+# review.
 #
 # Re-runnable: kills the previous run's web/worker process groups first
 # (validated + backstopped, not a bare pidfile trust), then restarts
@@ -510,16 +515,42 @@ preview-tailnet:
         exit 1
     fi
 
+    # Structural command validator: does PID's ACTUAL command line look like
+    # something this recipe launched, not merely a process whose argv happens
+    # to contain the marker substring? `pgrep -f` alone cannot tell
+    # `node .../server.js` apart from an innocent `tail -f .../server.js` —
+    # proven by adversarial review, which got an innocent tail process
+    # kill -9'd by the backstop below. Used by BOTH the pidfile-trust path
+    # and the pgrep backstop, so neither can be tricked by a process that
+    # merely mentions the marker.
+    command_matches() {
+        local pid="$1" kind="$2"
+        local cmd
+        cmd="$(ps -p "$pid" -o command= 2>/dev/null)" || return 1
+        case "$kind" in
+            web)
+                [[ "$cmd" == "node "* ]] && [[ "$cmd" == *"$web_marker"* ]]
+                ;;
+            worker)
+                [[ "$cmd" == *tsx* ]] && [[ "$cmd" == *worker.ts* ]] && [[ "$cmd" == *"$worker_marker"* ]]
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    }
+
     # Process-group kill: validate the pidfile's pgid still runs the
     # expected command before trusting it, kill the whole group, then
-    # backstop with pgrep regardless of pidfile state.
+    # backstop with pgrep — validating EACH candidate the same way before
+    # killing it, so a process that merely mentions the marker is spared.
     kill_lane_group() {
         local name="$1" marker="$2"
         local pidfile="$state_dir/$name.pid"
         if [ -f "$pidfile" ]; then
             local pgid
             pgid="$(cat "$pidfile" 2>/dev/null || true)"
-            if [[ "$pgid" =~ ^[0-9]+$ ]] && ps -p "$pgid" -o command= 2>/dev/null | grep -qF -- "$marker"; then
+            if [[ "$pgid" =~ ^[0-9]+$ ]] && command_matches "$pgid" "$name"; then
                 echo "preview-tailnet: stopping stale ${name} (pgid ${pgid})"
                 kill -TERM -- "-${pgid}" 2>/dev/null || true
                 for _ in 1 2 3 4 5; do
@@ -530,13 +561,16 @@ preview-tailnet:
             fi
             rm -f "$pidfile"
         fi
-        local survivors
+        local survivors pid
         survivors="$(pgrep -f -- "$marker" 2>/dev/null || true)"
-        if [ -n "$survivors" ]; then
-            echo "preview-tailnet: killing backstop survivor(s) for ${name}: ${survivors}"
-            # shellcheck disable=SC2086
-            kill -KILL $survivors 2>/dev/null || true
-        fi
+        for pid in $survivors; do
+            if command_matches "$pid" "$name"; then
+                echo "preview-tailnet: killing backstop survivor for ${name}: pid ${pid}"
+                kill -KILL "$pid" 2>/dev/null || true
+            else
+                echo "preview-tailnet: pgrep matched pid ${pid} on the ${name} marker, but its command doesn't look like ours — leaving it alone" >&2
+            fi
+        done
     }
 
     # 1. Kill stale web/worker from a previous run — the re-runnable contract.
@@ -565,10 +599,18 @@ preview-tailnet:
     # 3. Refuse to clobber an unrelated pre-existing tailscale-serve mapping
     #    on this exact port before doing anything else: a stranger's handler
     #    on :8443 would otherwise be silently overwritten on up and deleted
-    #    on down.
-    existing_proxy="$(tailscale serve status --json 2>/dev/null | jq -r --arg port "$web_port" '(.Web // {}) | to_entries[] | select(.key | endswith(":" + $port)) | .value.Handlers["/"].Proxy // empty' 2>/dev/null | head -n 1)"
-    if [ -n "$existing_proxy" ] && [ "$existing_proxy" != "http://127.0.0.1:${web_port}" ]; then
-        echo "preview-tailnet: tailscale serve already has an unrelated handler on :${web_port} (proxying ${existing_proxy}) — refusing to clobber it." >&2
+    #    on down. Checks for ANY handler on the port — not just a `/`-scoped
+    #    `Proxy` shape — so a `Text` or path-scoped handler is caught too,
+    #    not just the exact shape this lane itself writes.
+    web_serve_verdict="$(tailscale serve status --json 2>/dev/null | jq -r --arg port "$web_port" --arg target "http://127.0.0.1:${web_port}" '
+        ((.Web // {}) | to_entries[] | select(.key | endswith(":" + $port)) | .value.Handlers) as $h
+        | if ($h == null or ($h | length) == 0) then "none"
+          elif ($h == {"/": {"Proxy": $target}}) then "ours"
+          else "foreign"
+          end
+    ' 2>/dev/null | head -n 1)"
+    if [ "${web_serve_verdict:-none}" = "foreign" ]; then
+        echo "preview-tailnet: tailscale serve already has an unrelated handler on :${web_port} — refusing to clobber it." >&2
         echo "  Inspect with 'tailscale serve status', clear it yourself, or free the port and re-run." >&2
         exit 1
     fi
@@ -758,13 +800,37 @@ preview-tailnet-down:
     web_marker="${root_dir}/server.js"
     worker_marker="--worker-id gftb-preview-tailnet"
 
+    # See `preview-tailnet`'s own copy of `command_matches` for why this
+    # exists: `pgrep -f` alone cannot tell `node .../server.js` apart from
+    # an innocent `tail -f .../server.js` — proven by adversarial review,
+    # which got an innocent tail process kill -9'd by an earlier revision of
+    # the backstop below. Used by BOTH the pidfile-trust path and the pgrep
+    # backstop, so neither can be tricked by a process that merely mentions
+    # the marker.
+    command_matches() {
+        local pid="$1" kind="$2"
+        local cmd
+        cmd="$(ps -p "$pid" -o command= 2>/dev/null)" || return 1
+        case "$kind" in
+            web)
+                [[ "$cmd" == "node "* ]] && [[ "$cmd" == *"$web_marker"* ]]
+                ;;
+            worker)
+                [[ "$cmd" == *tsx* ]] && [[ "$cmd" == *worker.ts* ]] && [[ "$cmd" == *"$worker_marker"* ]]
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    }
+
     kill_lane_group() {
         local name="$1" marker="$2"
         local pidfile="$state_dir/$name.pid"
         if [ -f "$pidfile" ]; then
             local pgid
             pgid="$(cat "$pidfile" 2>/dev/null || true)"
-            if [[ "$pgid" =~ ^[0-9]+$ ]] && ps -p "$pgid" -o command= 2>/dev/null | grep -qF -- "$marker"; then
+            if [[ "$pgid" =~ ^[0-9]+$ ]] && command_matches "$pgid" "$name"; then
                 echo "preview-tailnet-down: stopping ${name} (pgid ${pgid})"
                 kill -TERM -- "-${pgid}" 2>/dev/null || true
                 for _ in 1 2 3 4 5; do
@@ -775,13 +841,16 @@ preview-tailnet-down:
             fi
             rm -f "$pidfile"
         fi
-        local survivors
+        local survivors pid
         survivors="$(pgrep -f -- "$marker" 2>/dev/null || true)"
-        if [ -n "$survivors" ]; then
-            echo "preview-tailnet-down: killing backstop survivor(s) for ${name}: ${survivors}"
-            # shellcheck disable=SC2086
-            kill -KILL $survivors 2>/dev/null || true
-        fi
+        for pid in $survivors; do
+            if command_matches "$pid" "$name"; then
+                echo "preview-tailnet-down: killing backstop survivor for ${name}: pid ${pid}"
+                kill -KILL "$pid" 2>/dev/null || true
+            else
+                echo "preview-tailnet-down: pgrep matched pid ${pid} on the ${name} marker, but its command doesn't look like ours — leaving it alone" >&2
+            fi
+        done
     }
 
     kill_lane_group web "$web_marker"

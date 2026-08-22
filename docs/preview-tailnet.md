@@ -77,7 +77,13 @@ bare pidfile pid: `pnpm exec tsx <file>` is several processes deep, and an
 earlier revision of this lane's teardown left the real worker process
 orphaned and reparented to PID 1 (found by adversarial review). The pidfile
 pgid is validated against the launched command before being trusted, and a
-`pgrep -f` pass backstops it regardless of pidfile state.
+`pgrep -f` pass backstops it regardless of pidfile state — but a marker
+substring match alone is not enough to kill something on: an earlier
+revision's backstop `kill -9`'d an innocent `tail -f server.js` process
+because its argv happened to contain the marker. Every backstop candidate
+is now re-validated against the actual launched command shape (`node
+<path>` for web; `tsx`+`worker.ts`+the marker for worker) before it is
+killed, not just matched by `pgrep -f`.
 
 ## Honest limits
 
