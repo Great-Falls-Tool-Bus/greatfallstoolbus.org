@@ -44,7 +44,7 @@ Three layers, run in this order:
 ### Layer 1 — Existing checks (fast)
 
 ```bash
-just conformance                # 17-item checklist (docs/CI-SCHEMA.md §12)
+just conformance                # conformance checklist (docs/CI-SCHEMA.md §11) + GFTB-local addendum
 just repo-manifest-validate     # tinyland.repo.json against the JSON Schema
 just lanes-validate             # .github/lanes.json against schema
 just inhouse-package-parity     # package.json versions == MODULE.bazel versions

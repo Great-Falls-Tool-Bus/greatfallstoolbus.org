@@ -79,7 +79,7 @@ clean-all: clean
 # buildx. nix/oci-image.nix stays as the nixpkgs-only fallback. The GF shared
 # cache accelerates the SvelteKit build inputs; the image PUSH is never
 # remote-execution eligible (`container-image-and-push` is blocked at the GF
-# manifest layer — skill rule 8, docs/CI-SCHEMA.md §5). The default adapter-static
+# manifest layer — skill rule 8, docs/CI-SCHEMA.md §4). The default adapter-static
 # build is untouched; only ADAPTER=node here selects adapter-node.
 #
 # IMAGE CONTRACT (TIN-3815 S0): the image carries ONE dispatcher
@@ -956,7 +956,7 @@ sbom out_dir="build/sbom":
         -o spdx-json="{{ out_dir }}/greatfallstoolbus.org.spdx.json"
 
 # Run the complete pre-commit validation gate.
-check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir lint typecheck tools-validate skills-validate skills-check source-map-check db-check test-unit
+check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints lint typecheck tools-validate skills-validate skills-check source-map-check db-check test-unit
     @echo "All checks passed."
 
 # Probe the declared production hostnames at the public Cloudflare Access edge.
@@ -1058,9 +1058,13 @@ source-map-check: source-map-build
     cd {{ root }} && git diff --exit-code -- src/lib/generated/source-map.json
 
 # House-style drift audit: layer 1 (existing checks) + layer 3 (boundary audit). Layer 2 (tag diff) is manual; see the skill body.
+# `just conformance` runs LAST in this chain, deliberately: it is the one check
+# most likely to carry a known, already-reported red row (see AGENTS.md's
+# Conformance section), and a red conformance must not suppress the other six
+# checks -- especially scan-endpoints and secrets-scan-dir, the public-safety
+# scans -- which is exactly what an early `&&`-chain position did before.
 scaffold-doctor:
     @cd {{ root }} && echo "=== Layer 1: existing checks ===" && \
-      just conformance && \
       just repo-manifest-validate && \
       just lanes-validate && \
       just inhouse-package-parity && \
@@ -1068,7 +1072,9 @@ scaffold-doctor:
       just secrets-scan-dir && \
       just bazel-graph && \
       echo "" && echo "=== Layer 3: authority-boundary audit ===" && \
-      bash scripts/scaffold-doctor-boundary.sh
+      bash scripts/scaffold-doctor-boundary.sh && \
+      echo "" && echo "=== Conformance (run last; see AGENTS.md if red) ===" && \
+      just conformance
 
 # Dry-run construct the Blahaj provision payload for a PR
 lane-dispatch pr filter="all":
@@ -1080,16 +1086,25 @@ lane-reap pr:
     cd {{ root }} && python3 scripts/lane-dispatch.py --pr {{ pr }} --reap
     @echo "(dry-run; set REAP_CONFIRM=1 and pass --dispatch to actually send)"
 
-# Run the spoke conformance checklist (docs/CI-SCHEMA.md §12)
+# Run the spoke conformance checklist (docs/CI-SCHEMA.md §11), then the
+# GFTB-local addendum (scripts/check-conformance-local.sh) that restores the
+# two local-only items the wholesale scaffold re-ingest doesn't carry.
+# Both run even if the first fails, so a red ingested check never suppresses
+# the local addendum's own report; the recipe fails if either script does.
 conformance:
-    cd {{ root }} && bash scripts/check-conformance.sh
+    #!/usr/bin/env bash
+    set -uo pipefail
+    cd {{ root }}
+    rc1=0; bash scripts/check-conformance.sh || rc1=$?
+    rc2=0; bash scripts/check-conformance-local.sh || rc2=$?
+    [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ]
 
 # Verify @tummycrypt/@tinyland npm package versions match MODULE.bazel.
 inhouse-package-parity:
     cd {{ root }} && python3 scripts/check-inhouse-package-parity.py
 
 # ─────────────────────────────────────────────
-# Flywheel (cache-first; executor opt-in; see docs/CI-SCHEMA.md §5)
+# Flywheel (cache-first; executor opt-in; see docs/CI-SCHEMA.md §4)
 # Env contract:
 #   GF_FLYWHEEL_PROFILE_STATE names the fleet enrollment state.
 #   BAZEL_REMOTE_CACHE is required for Flywheel-backed Bazel work.
@@ -1297,7 +1312,7 @@ sync-flywheel-bazelrc tag="v2.9.0":
     fi
 
 # ─────────────────────────────────────────────
-# Tofu (spoke infrastructure; see tofu/README.md and docs/CI-SCHEMA.md §7)
+# Tofu (spoke infrastructure; see tofu/README.md and docs/CI-SCHEMA.md §8)
 # ─────────────────────────────────────────────
 
 # Initialize the OpenTofu backend + download modules. Backend creds via AWS_* env.

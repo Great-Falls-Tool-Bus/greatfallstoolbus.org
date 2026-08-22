@@ -187,5 +187,5 @@ if [ "${missing}" -eq 0 ]; then
 fi
 
 echo "Result: ${missing} blocker(s). Fix them and re-run \`just flywheel-doctor\`."
-echo "Reference: docs/CI-SCHEMA.md §5, AGENTS.md 'Flywheel Binding'."
+echo "Reference: docs/CI-SCHEMA.md §4, AGENTS.md 'Flywheel Binding'."
 exit 1

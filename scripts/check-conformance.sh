@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Check spoke conformance with docs/CI-SCHEMA.md §12 checklist.
+# Check spoke conformance with docs/CI-SCHEMA.md §11 checklist.
 #
 # Exit 0 if all mechanical checks pass; non-zero with a checklist of
-# failures otherwise. Items not mechanically verifiable (org ruleset
-# membership, tailnet DNS reachability) are flagged as MANUAL.
+# failures otherwise. Repository settings that are not mechanically verifiable
+# from source are flagged as MANUAL.
 #
 # Usage: scripts/check-conformance.sh [--strict]
 #   --strict  treat MANUAL items as failures (default: warn)
@@ -28,46 +28,34 @@ man() {
   fi
 }
 
-echo "Conformance check (see docs/CI-SCHEMA.md §12)"
+echo "Conformance check (see docs/CI-SCHEMA.md §11)"
 echo
 
-# 0. repo manifest exists and validates against the repo taxonomy schema.
+# 0. repo manifest exists and validates against the repo taxonomy schema
+# matching its schema_version (1 -> v1 schema, 2 -> v2 schema).
 if [[ -f tinyland.repo.json ]]; then
+  manifest_schema=docs/schemas/tinyland-repo-manifest.schema.json
+  if [[ "$(jq -r '.schema_version // 1' tinyland.repo.json)" == "2" ]]; then
+    manifest_schema=docs/schemas/tinyland-repo-manifest.v2.schema.json
+  fi
   set +e
   python3 scripts/validate-lanes.py \
-    --schema docs/schemas/tinyland-repo-manifest.schema.json \
+    --schema "$manifest_schema" \
     --instance tinyland.repo.json >/dev/null 2>&1
   rc=$?
   set -e
   case $rc in
-    0) ok "tinyland.repo.json validates against tinyland-repo-manifest.schema.json" ;;
+    0) ok "tinyland.repo.json validates against ${manifest_schema##*/}" ;;
     2) man "tinyland.repo.json validator unavailable (jsonschema missing — run inside nix develop)" ;;
     *) no "tinyland.repo.json fails schema validation (run just repo-manifest-validate for details)" ;;
   esac
 
-  # Role gate. The scaffold lineage is static-spoke-shaped, but TIN-3815 promotes
-  # THIS repository to an app-stateful spoke: it owns runtime backend behavior.
-  # Promotion does not relax the apply-plane boundary — ADR 0014 §0.2 keeps
-  # GitOps apply and edge/Cloudflare mutation in great-falls-tool-bus-infra, so
-  # an app-stateful manifest that claims either is a hard fail, not a warning.
   role=$(jq -r '.taxonomy.primary_role // empty' tinyland.repo.json)
-  case "$role" in
-    static-spoke | static-spoke-scaffold)
-      ok "repo manifest declares a static-spoke-compatible role"
-      ;;
-    app-stateful-spoke)
-      if [[ "$(jq -r '.boundaries.owns_runtime_backend' tinyland.repo.json)" == "true" ]] \
-        && [[ "$(jq -r '.boundaries.owns_gitops_apply' tinyland.repo.json)" == "false" ]] \
-        && [[ "$(jq -r '.boundaries.owns_cloudflare_mutation' tinyland.repo.json)" == "false" ]]; then
-        ok "repo manifest declares app-stateful-spoke owning its runtime backend, apply authority left external"
-      else
-        no "app-stateful-spoke must set owns_runtime_backend=true and leave owns_gitops_apply/owns_cloudflare_mutation false"
-      fi
-      ;;
-    *)
-      no "repo manifest declares an unsupported role (got: ${role:-missing}); expected static-spoke, static-spoke-scaffold, or app-stateful-spoke"
-      ;;
-  esac
+  if [[ "$role" == "static-spoke" || "$role" == "static-spoke-scaffold" ]]; then
+    ok "repo manifest declares a static-spoke-compatible role"
+  else
+    no "repo manifest must declare static-spoke or static-spoke-scaffold for this scaffold (got: ${role:-missing})"
+  fi
 else
   no "tinyland.repo.json is missing"
 fi
@@ -102,7 +90,7 @@ fi
 
 # 3 & 4. Org ruleset + required checks
 man "Org ruleset tinyland-spoke-default imported (verify: gh api repos/{owner}/{repo}/rulesets)"
-man "Required status checks per §9 configured at the repo level"
+man "Required status checks per §6 configured at the repo level"
 
 # 5. flywheel_target_classes subset of proved allowlist
 if [[ -f .github/lanes.json ]]; then
@@ -121,8 +109,8 @@ if [[ -f .github/lanes.json ]]; then
 fi
 
 # 6. No runs-on: ubuntu-latest in artifact / state / bazel jobs.
-# Allowed on ubuntu-latest: secrets-scan, lane-dispatch dispatcher, pulse-ingest
-# wrapper, cloudflare/vercel/netlify external-publication deploys (need vendor
+# Allowed on ubuntu-latest: secrets-scan, pulse-ingest wrapper, and
+# cloudflare/vercel/netlify external-publication deploys (need vendor
 # API egress, can't realistically live on self-hosted ARC). Flagged: any job
 # whose key matches bazel-*, build*, publish-image, tofu-*, test-e2e, or
 # flywheel-*.
@@ -201,20 +189,17 @@ fi
 # 9. No OpenTofu in flywheel_target_classes (already covered by item 5)
 ok "OpenTofu target-class check (subsumed by allowlist check)"
 
-# 10. image_repository pattern
+# 10. Optional artifact-repository metadata shape
 if [[ -f .github/lanes.json ]]; then
   img=$(jq -r '.spoke.image_repository // empty' .github/lanes.json)
   if [[ -z "$img" ]]; then
-    ok "spoke.image_repository unset (default ghcr.io/<owner>/<spoke.name> resolved at workflow time)"
+    ok "spoke.image_repository unset (optional artifact metadata not declared)"
   elif echo "$img" | grep -qE '^ghcr\.io/[a-z0-9._-]+/[a-z0-9._-]+$'; then
-    ok "spoke.image_repository matches ghcr.io/<owner>/<repo>"
+    ok "spoke.image_repository metadata matches ghcr.io/<owner>/<repo>"
   else
     no "spoke.image_repository does not match ghcr.io/<owner>/<repo>: $img"
   fi
 fi
-
-# 11. Tailnet DNS — manual
-man "Tailnet DNS for each lane resolves to a runner-reachable address"
 
 # 12. AGENTS.md cites scaffold tag
 if grep -qE 'site\.scaffold|scaffold (tag|version|@v[0-9])|spawned from' AGENTS.md 2>/dev/null \
@@ -224,19 +209,20 @@ else
   man "AGENTS.md cites the scaffold tag the repo conforms to (pre-D3 PR7 OK)"
 fi
 
-# 13. In-house package Bzlmod/npm parity
+# 13. In-house package Bazel-only ingestion (TIN-2838): no org npm specifier in
+#     package.json AND each org package present as bazel_dep + npm_link_package.
 if [[ -f package.json && -f MODULE.bazel ]]; then
   set +e
   python3 scripts/check-inhouse-package-parity.py >/dev/null 2>&1
   rc=$?
   set -e
   if [[ "$rc" -eq 0 ]]; then
-    ok "In-house @tummycrypt/@tinyland package versions match MODULE.bazel"
+    ok "In-house @tummycrypt/@tinyland packages are ingested Bazel-only (no npm specifier; bazel_dep + npm_link_package)"
   else
-    no "In-house @tummycrypt/@tinyland package versions drift from MODULE.bazel"
+    no "In-house @tummycrypt/@tinyland packages violate Bazel-only ingestion (npm specifier present, or missing bazel_dep/npm_link_package)"
   fi
 else
-  man "In-house package parity skipped (package.json or MODULE.bazel missing)"
+  man "In-house package Bazel-only ingestion check skipped (package.json or MODULE.bazel missing)"
 fi
 
 # 14. Gitleaks baseline exists and is routed through Just + Nix.
@@ -287,13 +273,79 @@ if [[ -f tinyland.repo.json ]]; then
   esac
 fi
 
-# 16. Public-safe: no internal cluster endpoints / hostnames leak into the tree.
-# gitleaks only catches token shapes; this guards the private blahaj / tool-bus
-# topology (and tofu/ slug-correctness) across ALL committed files.
-if [[ -f scripts/scan-internal-endpoints.sh ]] && bash scripts/scan-internal-endpoints.sh >/dev/null 2>&1; then
-  ok "no internal cluster endpoints/hostnames in tree (public-safe scan)"
+# 16. Substrate-boundary conformance (TIN-2423 / TIN-3066): the scaffold has
+# no direct Blahaj application/PR receiver reach.
+if [[ -f scripts/validate-substrate-boundary.py ]]; then
+  set +e
+  python3 scripts/validate-substrate-boundary.py >/dev/null 2>&1
+  rc=$?
+  set -e
+  if [[ "$rc" -eq 0 ]]; then
+    ok "substrate-boundary validation passed (zero direct application/PR receiver reach)"
+  else
+    no "substrate-boundary validation failed (run scripts/validate-substrate-boundary.py for details)"
+  fi
 else
-  no "internal cluster endpoint/hostname leak — run just scan-endpoints"
+  no "scripts/validate-substrate-boundary.py is missing"
+fi
+
+# 17. Production-convergence contract (TIN-489 / TIN-3065): main is the only
+# durable branch, no checked-in receipts, no SHA literals in binding documents
+# outside the receipt claim, and any declared converge carrier must exist and
+# reference a checked-in workflow-state toggle document.
+if [[ -f scripts/test-production-convergence-contract.py ]]; then
+  set +e
+  python3 scripts/test-production-convergence-contract.py >/dev/null 2>&1
+  rc=$?
+  set -e
+  if [[ "$rc" -eq 0 ]]; then
+    ok "production-convergence contract holds (run just production-convergence-contract for details)"
+  else
+    no "production-convergence contract violated (run just production-convergence-contract for details)"
+  fi
+else
+  no "scripts/test-production-convergence-contract.py is missing"
+fi
+
+# 17b. Published converge-agent carrier module contract (TIN-2030): module-source
+# laws (kill switch proven by EXECUTING the gate against enabled:true/false
+# fixtures, digest-not-tag, template-mode derivation, edge-probe custody) plus
+# N-tenant isolation laws. The module directory is .bazelignore'd from the
+# root graph on purpose (nested Bazel module published to the registry), so
+# the root Bazel lanes never run its test — this item and the ci.yml
+# carrier-module-contract job are its standing gates.
+if [[ -f modules/converge_agent/tests/test_converge_agent_contract.py ]]; then
+  set +e
+  python3 modules/converge_agent/tests/test_converge_agent_contract.py >/dev/null 2>&1
+  rc=$?
+  set -e
+  if [[ "$rc" -eq 0 ]]; then
+    ok "converge-agent carrier module contract holds (run just converge-agent-module-contract for details)"
+  else
+    no "converge-agent carrier module contract violated (run just converge-agent-module-contract for details)"
+  fi
+else
+  no "modules/converge_agent/tests/test_converge_agent_contract.py is missing"
+fi
+
+echo
+echo "--------------------------------------------------------------------------"
+# 18. Anti-dogfooding + packaging tag-shape scan (TIN-2672 phase 1, P4 of the
+# maximize-Bazel-SSOT roadmap). WARN only: never touches pass/fail/manual and
+# never affects this script's exit code. The two anti-patterns detected are:
+#   (1) an in-house @tummycrypt/@tinyland package.json dep declared as
+#       workspace:* or a vendored tarball/producer-tree path instead of a
+#       bazel-registry-pinned exact npm version;
+#   (2) a pkg_tar/container packaging Bazel target whose tags mix or omit
+#       pieces of the two disjoint packaging classes (deployment-bundle-
+#       packaging+flywheel-eligible OR container-image-and-push+
+#       gloriousflywheel-cache-only+no-remote-exec, never mixed).
+# A later PR flips this to a hard-fail conformance item once the fleet has had
+# a chance to react to the drift it surfaces.
+if [[ -f scripts/check-bazel-ssot-report-only.py ]]; then
+  python3 scripts/check-bazel-ssot-report-only.py || true
+else
+  echo "  ⚠ REPORT-ONLY: scripts/check-bazel-ssot-report-only.py is missing (skipping scan)"
 fi
 
 echo
