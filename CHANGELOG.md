@@ -7,6 +7,15 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ### Removed
 
+- Single-product history (L72 Q3-A, 2026-08-21): deleted the 15 legacy
+  public-marketing route families (`/`'s marketing body, mission, tools,
+  cells, cell-sheets, wants, donate, safety, bibliography, shout-outs,
+  keyholders, stewards, contact, discuss, agent) and their supporting lib
+  code. `greatfallstoolbus.org` is now the member-tree entry surface (ADR
+  0014 §1); the public information site moves to the separate `gftb-site`
+  repository, with worth-rescuing content staged there pending operator
+  wording. `/` is replaced with a minimal member-tree entry page linking to
+  `/apply`.
 - Retired the public operator-docs routes and renderer after moving current
   planning and consent authority to the private Meta repository. Live local
   schemas and repo-operation contracts remain in source for validation.

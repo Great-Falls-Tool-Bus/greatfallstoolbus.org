@@ -1,8 +1,10 @@
 # Great Falls Tool Bus
 
-> The Great Falls Tool Bus is a shared tool library on wheels for
-> Lewiston-Auburn, Maine: a static site with agent routes at /agent, /llms.txt,
-> and /agent-map.md.
+> The Great Falls Tool Bus is a member-tree application for Lewiston-Auburn,
+> Maine (`app-stateful-spoke`, tinyland.repo.json). This repository's public
+> agent index is /llms.txt and /agent-map.md; there is no live /agent route
+> (single-product history, L72 Q3-A, 2026-08-21 -- the public information
+> site is the separate gftb-site repository).
 
 ## Canonical
 
@@ -41,7 +43,6 @@ src/lib/data/mail-clients.ts.
 
 ## Agent Routes
 
-- [AX map](https://greatfallstoolbus.org/agent)
 - [Machine route map](https://greatfallstoolbus.org/agent-map.md)
 - [Sitemap](https://greatfallstoolbus.org/sitemap.xml)
 

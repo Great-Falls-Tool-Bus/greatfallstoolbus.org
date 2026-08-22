@@ -19,16 +19,17 @@ import type { AuthSession } from '$lib/server/auth';
 // `_app/immutable/assets/**` by Vite, so they already inherit rule (a) below
 // for free); then (2) a second sirv layer serving PRERENDERED pages (which is
 // nearly the whole site — the root `+layout.ts` sets `prerender = true` and
-// only `/discuss` and `/discuss/[thread]` opt out under `ADAPTER=node`); only
-// THEN (3) does a request reach this `handle` hook.
+// only `/apply` (and its `/apply/verify` sibling) opt out under `ADAPTER=node`
+// — the legacy `/discuss` route that used to share this split is deleted, L72
+// Q3-A, 2026-08-21); only THEN (3) does a request reach this `handle` hook.
 //
 // Both sirv layers serve a matching file and return before this hook ever
 // runs, so this hook CANNOT set headers for static assets or prerendered HTML
 // — there is nothing left here to intercept for those paths. What it DOES
 // cover: the small set of routes that are genuinely rendered per-request
-// (currently `/discuss` + `/discuss/[thread]`, whose `+page.server.ts` flips
-// `prerender` off under `ADAPTER=node` specifically so live archive content
-// doesn't need a redeploy) and any SSR-rendered fallback/error response.
+// (currently `/apply` + `/apply/verify`, whose `+page.server.ts` carries a
+// form action and reads request-time state, so it is never prerendered) and
+// any SSR-rendered fallback/error response.
 //
 // The static/prerendered paths (no Cache-Control at all, and an epoch
 // Last-Modified once the build zeroes mtimes for reproducibility) are fixed
@@ -48,9 +49,14 @@ import type { AuthSession } from '$lib/server/auth';
 // hook, so redirecting here works under adapter-node; under the default
 // adapter-static build these paths have no route and the (now-vestigial)
 // _redirects file documents the same mapping.
+//
+// Single-product history (L72 Q3-A, 2026-08-21): /contact itself is deleted
+// (public information-surface duty moves to gftb-site, ADR 0014 §1), so both
+// targets now fall back to `/`, the new member-tree entry page, rather than
+// 301'ing to an anchor on a route that no longer exists.
 const LEGACY_REDIRECTS: ReadonlyArray<readonly [RegExp, string]> = [
-	[/^\/access(\/.*)?$/, '/contact#access'],
-	[/^\/find-the-bus(\/.*)?$/, '/contact#find-the-bus'],
+	[/^\/access(\/.*)?$/, '/'],
+	[/^\/find-the-bus(\/.*)?$/, '/'],
 ];
 
 // Session resolution (TIN-3817 slice S2). Reads the session cookie and, when
@@ -119,11 +125,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	if (response.headers.get('content-type')?.includes('text/html')) {
-		// Short + revalidate-on-every-use: safe for the live `/discuss` archive
-		// pages (new posts should never sit behind a stale shared cache) and
-		// still lets an in-front CDN (Cloudflare, once Access comes off) do
-		// cheap conditional-GET revalidation instead of re-fetching the full
-		// body on every hit.
+		// Short + revalidate-on-every-use: safe for per-request pages like
+		// `/apply` (request-time state — e.g. whether intake is open — should
+		// never sit behind a stale shared cache) and still lets an in-front CDN
+		// (Cloudflare, once Access comes off) do cheap conditional-GET
+		// revalidation instead of re-fetching the full body on every hit.
 		response.headers.set('cache-control', 'public, max-age=0, must-revalidate');
 	}
 

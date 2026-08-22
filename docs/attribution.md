@@ -1,7 +1,12 @@
 # Attribution
 
-This file records external visual assets used by the site. See
-[`contributing-photos.md`](./contributing-photos.md) before adding new photos.
+This file records external visual assets used by the site.
+
+`docs/contributing-photos.md`, the photo-contribution workflow this file used
+to point to, described a `.svx`-tool-tree + `credits.ts` + `Picture.svelte`
+pipeline that no longer exists (single-product history, L72 Q3-A,
+2026-08-21). Deleted rather than left dangling; re-derive a contribution
+guide for the member-tree app's own asset needs if and when it has any.
 
 ## Interim logo (Wikimedia Commons)
 
@@ -23,6 +28,11 @@ in `static/logo/`.
 
 ## Mission hand-tools plate
 
+Unreferenced since the legacy `/mission` route was deleted (single-product
+history, L72 Q3-A, 2026-08-21); the source file remains under
+`static/photos/` pending a rescue decision for `gftb-site`. Record kept for
+provenance.
+
 - **File:** `static/photos/hand-tools-plate-1922.jpg`
 - **Source:** https://commons.wikimedia.org/wiki/File:Manual_training_for_the_rural_schools;_a_group_of_farm_and_farm_home_woodworking_problems_(1922)_(14781178044).jpg
 - **Direct asset:** https://upload.wikimedia.org/wikipedia/commons/f/f8/Manual_training_for_the_rural_schools%3B_a_group_of_farm_and_farm_home_woodworking_problems_%281922%29_%2814781178044%29.jpg
@@ -30,5 +40,6 @@ in `static/logo/`.
   Schools*, 1922; digitized by Internet Archive Book Images / Library of
   Congress.
 - **License/status:** Public domain / no known copyright restrictions.
-- **Attribution required:** No known restriction, but source credit is displayed
-  in the page caption and recorded in `src/lib/data/credits.ts`.
+- **Attribution required:** No known restriction. Formerly displayed in the
+  `/mission` page caption via `src/lib/data/credits.ts`, both deleted with the
+  legacy tree; this record is the remaining provenance trail.

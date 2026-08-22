@@ -12,7 +12,6 @@
 	import '../app.css';
 	import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
 	import ExternalLink from '$lib/components/ExternalLink.svelte';
-	import ContributeMenu from '$lib/components/ContributeMenu.svelte';
 	import { buildSha, buildShaShort } from '$lib/build-info';
 	import { toaster } from '$lib/toaster';
 	import { theme } from '$lib/theme.svelte';
@@ -118,7 +117,6 @@
 				<nav class="hidden items-center gap-4 text-sm lg:flex" aria-label="Section navigation">
 					{#each primaryNavItems as item (item.href)}
 						{@const active = isActivePath(currentPath, item.match)}
-						{@const Icon = item.icon}
 						<a
 							href={`${base}${item.href}`}
 							class="nav-underline hover:text-primary-500 inline-flex items-center gap-1.5 transition-colors {active
@@ -127,9 +125,6 @@
 							aria-current={active ? 'page' : undefined}
 							aria-label={item.label}
 						>
-							{#if Icon}
-								<Icon class="h-4 w-4" aria-hidden="true" />
-							{/if}
 							{item.label}</a
 						>
 					{/each}
@@ -173,7 +168,6 @@
 									<Navigation.Content>
 										<Navigation.Menu>
 											{#each primaryNavItems as item (item.href)}
-												{@const Icon = item.icon}
 												<Navigation.TriggerAnchor
 													href={`${base}${item.href}`}
 													aria-current={isActivePath(currentPath, item.match) ? 'page' : undefined}
@@ -181,9 +175,6 @@
 														mobileOpen = false;
 													}}
 												>
-													{#if Icon}
-														<Icon class="h-4 w-4" aria-hidden="true" />
-													{/if}
 													<Navigation.TriggerText>{item.label}</Navigation.TriggerText>
 												</Navigation.TriggerAnchor>
 											{/each}
@@ -207,11 +198,13 @@
 		{@render children?.()}
 	</div>
 
-	<!-- Footer groups mirror $lib/nav-items's footerGroup metadata (lane B
-	     nav-regroup): items demoted off the ≤6-item primary bar land here,
-	     grouped, instead of vanishing. "Get involved" and the meta group are
-	     hand-authored (Wants/Stewards and Stewards/Agent AX/GitHub/Security
-	     predate + extend the shared array). -->
+	<!-- Footer groups mirror $lib/nav-items's footerGroup metadata. Single-product
+	     history (L72 Q3-A): the legacy marketing-tree footer groups (About, Get
+	     involved incl. the hard-coded Stewards link (D13), and the Meta group's
+	     AX/agent-index link) are gone along with their routes. `footerNavGroups`
+	     is presently empty (see $lib/nav-items), so only the external GitHub/
+	     Security links below survive; the each-block stays wired for when
+	     member-tree nav items land. -->
 	<footer class="site-footer border-surface-200-800 bg-surface-100-900/80 mt-16 border-t backdrop-blur-sm">
 		<div class="container mx-auto grid gap-8 px-6 py-10 text-sm md:grid-cols-[2fr_1fr_1fr_1fr]">
 			<div class="max-w-sm">
@@ -247,16 +240,12 @@
 								>
 							</li>
 						{/each}
-						{#if group.heading === 'Get involved'}
-							<li><a href={`${base}/stewards`} class="hover:text-primary-500 transition-colors">Stewards</a></li>
-						{/if}
 					</ul>
 				</nav>
 			{/each}
 			<nav aria-label="Meta">
 				<p class="text-surface-500 text-xs tracking-widest uppercase">Meta</p>
 				<ul class="mt-3 space-y-2">
-					<li><a href={`${base}/agent`} class="hover:text-primary-500 transition-colors">AX</a></li>
 					<li>
 						<ExternalLink href={REPO_URL} class="hover:text-primary-500 transition-colors">GitHub</ExternalLink>
 					</li>
@@ -268,10 +257,11 @@
 		</div>
 	</footer>
 
-	<!-- Floating contribution affordance (owned here): one persistent control that
-	     gathers the three contribution paths. Mounted ONCE, at the dropdown z-tier
-	     below the AppBar and Toasts, anchored bottom-left to clear the toast stack. -->
-	<ContributeMenu />
+	<!-- The floating contribution affordance (ContributeMenu) that lived here
+	     hard-coded /donate, /contact, and /cells/new — all deleted (L72 Q3-A).
+	     Member contributions now happen inside the member app post-approval
+	     (ADR 0014 §5), which does not exist on this public entry surface yet;
+	     removed rather than repointed at nothing. -->
 
 	<Toast.Group
 		{toaster}

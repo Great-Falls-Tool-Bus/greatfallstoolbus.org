@@ -50,13 +50,23 @@ try {
 		args: ['--disable-dev-shm-usage', '--disable-gpu', '--no-sandbox'],
 	});
 
+	// Single-product history (L72 Q3-A, 2026-08-21): the `/agent` route this
+	// smoke test used to check (the site.scaffold public agent-index — skill
+	// bodies rendered from `.agents/skills/*/SKILL.md`) is deleted along with
+	// the rest of the legacy marketing tree. `greatfallstoolbus.org` is now an
+	// `app-stateful-spoke` (tinyland.repo.json), not the static-spoke brand
+	// site the agent-index contract targets; that public surface moves to
+	// `gftb-site` (ADR 0014 §1), which does not carry an `/agent` route yet
+	// either — tracked as a residual, not fixed here. This smoke test now
+	// proves the built static site serves real content at `/`, the new
+	// member-tree entry page, instead.
 	const page = await browser.newPage();
-	await page.goto(`${baseURL}/agent`, { waitUntil: 'networkidle' });
+	await page.goto(`${baseURL}/`, { waitUntil: 'networkidle' });
 	const text = normalizeWhitespace((await page.locator('body').textContent()) || '');
 
-	for (const term of ['site.scaffold traversal map', 'tinyland-flywheel-bazel', 'just flywheel-test']) {
+	for (const term of ['Great Falls Tool Bus', 'Member area', 'Apply for membership']) {
 		if (!text.includes(term)) {
-			throw new Error(`agent route did not render expected content: ${term}`);
+			throw new Error(`entry page did not render expected content: ${term}`);
 		}
 	}
 

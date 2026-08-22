@@ -496,10 +496,6 @@ scan-endpoints:
 test-unit:
     cd {{ root }} && pnpm run test:unit
 
-# Validate the .svx tool-inventory tree (src/content/tools/**) frontmatter
-tools-validate:
-    cd {{ root }} && pnpm exec tsx scripts/validate-tools.mts
-
 # Ensure local Playwright browser cache exists; CI uses Nix Chromium instead
 playwright-ensure:
     cd {{ root }} && if [ "${CI:-}" = "true" ] && command -v nix >/dev/null 2>&1; then \
@@ -539,7 +535,7 @@ sbom out_dir="build/sbom":
         -o spdx-json="{{ out_dir }}/greatfallstoolbus.org.spdx.json"
 
 # Run the complete pre-commit validation gate.
-check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir lint typecheck tools-validate skills-validate skills-check source-map-check db-check test-unit
+check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir lint typecheck skills-validate skills-check source-map-check db-check test-unit
     @echo "All checks passed."
 
 # Probe the declared production hostnames at the public Cloudflare Access edge.
