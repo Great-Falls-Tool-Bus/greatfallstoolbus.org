@@ -38,9 +38,9 @@ const alwaysDeny: RateLimiter = { check: () => ({ allowed: false, retryAfterMs: 
 describe('/agreement/publish route module', () => {
 	it('exports exactly the runtime surface this route is meant to have', () => {
 		expect(Object.keys(route).sort()).toEqual([
-			'PUBLISH_RATE_LIMIT_MAX',
-			'PUBLISH_RATE_LIMIT_WINDOW_MS',
-			'StaleAgreementPreviewError',
+			'_PUBLISH_RATE_LIMIT_MAX',
+			'_PUBLISH_RATE_LIMIT_WINDOW_MS',
+			'_StaleAgreementPreviewError',
 			'_createPublishAction',
 			'_createPublishLoad',
 			'actions',

@@ -428,9 +428,38 @@ describe('double-submit safety', () => {
 
 	it('layer 2 — TRUE concurrent race at the lib level: exactly one publish wins, the loser gets AgreementVersionRaceError, one row exists', async () => {
 		const tenantId = await newTenant();
+		// A naive `Promise.allSettled` of two independent `withTenant` calls is
+		// NOT a reliable race on a fast local Postgres (trust auth, unix
+		// socket): transaction A can complete its entire SELECT-max+INSERT+COMMIT
+		// lifecycle before transaction B's first query is even dispatched, so
+		// both simply compute DIFFERENT next ids sequentially — no race, no
+		// failure, and a green test that proves nothing. (First draft of this
+		// test did exactly that and both fulfilled with ids 1 and 2.)
+		//
+		// Force the race deterministically instead, using the REAL
+		// `publishAgreementVersion` on both sides: hold transaction A open
+		// (uncommitted, after its own insert) for well longer than a local
+		// round trip, so transaction B's insert of the SAME computed id is
+		// GUARANTEED to reach the database while A's row is still only
+		// tentative — Postgres blocks B's insert on A's row lock, then B's
+		// `ON CONFLICT DO NOTHING` resolves the conflict the moment A commits.
 		const outcomes = await Promise.allSettled([
-			withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'race A' }), db),
-			withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'race B' }), db),
+			withTenant(
+				tenantId,
+				async (tx) => {
+					const result = await publishAgreementVersion(tx, { body: 'race A' });
+					await new Promise((resolve) => setTimeout(resolve, 150));
+					return result;
+				},
+				db,
+			),
+			(async () => {
+				// A head start for A: by the time this fires, A has already
+				// computed next_id=1 and inserted (tentatively) — B's own
+				// SELECT max(id) below is what must land on the SAME value.
+				await new Promise((resolve) => setTimeout(resolve, 20));
+				return withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'race B' }), db);
+			})(),
 		]);
 		const fulfilled = outcomes.filter((o) => o.status === 'fulfilled');
 		const rejected = outcomes.filter((o) => o.status === 'rejected') as PromiseRejectedResult[];

@@ -87,16 +87,16 @@ const RATE_LIMITED = { code: 'rate_limited' } as const;
  * is a rare, deliberate, already-authenticated-and-allowlisted operator
  * action, not a public endpoint absorbing anonymous traffic.
  */
-export const PUBLISH_RATE_LIMIT_MAX = 5;
-export const PUBLISH_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+export const _PUBLISH_RATE_LIMIT_MAX = 5;
+export const _PUBLISH_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 
 const defaultPublishRateLimiter: RateLimiter = createRateLimiter({
-	max: PUBLISH_RATE_LIMIT_MAX,
-	windowMs: PUBLISH_RATE_LIMIT_WINDOW_MS,
+	max: _PUBLISH_RATE_LIMIT_MAX,
+	windowMs: _PUBLISH_RATE_LIMIT_WINDOW_MS,
 });
 
 /** 409-shaped: the version number the form was built against is stale. */
-export class StaleAgreementPreviewError extends Error {
+export class _StaleAgreementPreviewError extends Error {
 	readonly expected: number;
 	readonly actual: number;
 	constructor(expected: number, actual: number) {
@@ -250,7 +250,7 @@ export function _createPublishAction(seams: PublishSeams = {}) {
 				// "what publishing right now would produce" must still hold.
 				const actualNextVersionId = await previewNextAgreementVersionId(tx);
 				if (actualNextVersionId !== expectedNextVersionId) {
-					throw new StaleAgreementPreviewError(expectedNextVersionId, actualNextVersionId);
+					throw new _StaleAgreementPreviewError(expectedNextVersionId, actualNextVersionId);
 				}
 				// Double-submit safety layer 2 (see header): the database's own
 				// primary key, not this check, is the actual guarantee.
@@ -271,7 +271,7 @@ export function _createPublishAction(seams: PublishSeams = {}) {
 			};
 		} catch (error) {
 			if (error instanceof AuthError) return fail(error.status, { code: error.code });
-			if (error instanceof StaleAgreementPreviewError) {
+			if (error instanceof _StaleAgreementPreviewError) {
 				return fail(409, { code: 'stale_preview' as const, nextVersionId: error.actual });
 			}
 			if (error instanceof AgreementVersionRaceError) {
