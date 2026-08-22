@@ -675,9 +675,12 @@ lane-reap pr:
 # Both run even if the first fails, so a red ingested check never suppresses
 # the local addendum's own report; the recipe fails if either script does.
 conformance:
-    cd {{ root }} && bash scripts/check-conformance.sh; rc1=$?; \
-      bash scripts/check-conformance-local.sh; rc2=$?; \
-      [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ]
+    #!/usr/bin/env bash
+    set -uo pipefail
+    cd {{ root }}
+    rc1=0; bash scripts/check-conformance.sh || rc1=$?
+    rc2=0; bash scripts/check-conformance-local.sh || rc2=$?
+    [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ]
 
 # Verify @tummycrypt/@tinyland npm package versions match MODULE.bazel.
 inhouse-package-parity:
