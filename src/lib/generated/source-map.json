@@ -19,6 +19,7 @@
 		"/cells/welding": "src/routes/cells/welding/+page.svelte",
 		"/contact": "src/routes/contact/+page.svelte",
 		"/contribution": "src/routes/(member)/contribution/+page.svelte",
+		"/contributions": "src/routes/(finance)/contributions/+page.svelte",
 		"/discuss": "src/routes/discuss/+page.svelte",
 		"/discuss/[thread]": "src/routes/discuss/[thread]/+page.svelte",
 		"/docs": "src/routes/docs/+page.svelte",
