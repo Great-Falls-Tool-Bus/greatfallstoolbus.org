@@ -71,6 +71,13 @@
       "when": 1787247294717,
       "tag": "0009_member_activation",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787516886741,
+      "tag": "0010_mail_delivery_journal",
+      "breakpoints": true
     }
   ]
 }

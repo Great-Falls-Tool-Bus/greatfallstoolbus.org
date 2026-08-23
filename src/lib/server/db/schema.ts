@@ -810,6 +810,57 @@ export const auditEvent = pgTable(
 	],
 );
 
+/**
+ * The mail-delivery journal (TIN-4062; operator interview 2026-08-23: mail
+ * leg funded, delivery-off default). Records what the three application-mail
+ * outbox handlers (`application.receipt_email`, `application.decision_email`,
+ * `application.withdrawn_ack`) actually did — and doubles as their
+ * consumer-side idempotency receipt, the exact shape `outbox/schema.ts`'s
+ * `ClaimedJob` docstring calls for: "a receipt keyed on (kind,
+ * idempotency_key) before the effect."
+ *
+ * NOT AN AUDIT EVENT, DELIBERATELY. `audit_event`'s vocabulary
+ * (`src/lib/server/audit/schema.ts`) is a closed, ratified 14-name list
+ * (spec §6; slices §2.2 rows 2-14); `assertAuditInput` hard-rejects any
+ * other name, and "delivery gate is disabled" is operational machinery, not
+ * a member-lifecycle transition, so it gets its own append-only table
+ * instead — the same reasoning 0003 gave for refusing to ratify a role
+ * vocabulary by migration.
+ *
+ * `mode` is `'disabled'` (the default: `DisabledDelivery` recorded a no-op)
+ * or `'sent'` (`SmtpDelivery` actually transmitted — unreachable in this
+ * deployment absent an operator-attended env change, see
+ * `src/lib/server/mail/config.ts`). `template_approved` mirrors the
+ * approval-gate state at the moment of the write, so an operator reading the
+ * journal never has to cross-reference the in-code template registry to know
+ * whether a given row COULD have sent for real.
+ */
+export const mailDeliveryJournal = pgTable(
+	'mail_delivery_journal',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenant.tenantId),
+		outboxJobId: uuid('outbox_job_id')
+			.notNull()
+			.references(() => outboxJob.id),
+		kind: text('kind').notNull(),
+		idempotencyKey: text('idempotency_key').notNull(),
+		templateId: text('template_id').notNull(),
+		templateApproved: boolean('template_approved').notNull(),
+		mode: text('mode').notNull(),
+		detail: text('detail'),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	},
+	(t) => [
+		// The idempotency receipt's key — the outbox_job_idem_uniq shape.
+		unique('mail_delivery_journal_idem_uniq').on(t.tenantId, t.kind, t.idempotencyKey),
+		index('mail_delivery_journal_job').on(t.tenantId, t.outboxJobId),
+		check('mail_delivery_journal_mode', sql`${t.mode} in ('disabled', 'sent')`),
+	],
+);
+
 export type Tenant = typeof tenant.$inferSelect;
 export type NewTenant = typeof tenant.$inferInsert;
 export type OutboxJob = typeof outboxJob.$inferSelect;
@@ -842,3 +893,5 @@ export type Assent = typeof assent.$inferSelect;
 export type NewAssent = typeof assent.$inferInsert;
 export type AuditEvent = typeof auditEvent.$inferSelect;
 export type NewAuditEvent = typeof auditEvent.$inferInsert;
+export type MailDeliveryJournalRow = typeof mailDeliveryJournal.$inferSelect;
+export type NewMailDeliveryJournalRow = typeof mailDeliveryJournal.$inferInsert;
