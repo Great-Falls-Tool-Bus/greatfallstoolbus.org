@@ -55,7 +55,7 @@
 		"@sveltejs/kit": "^2.70.3",
 		"@sveltejs/vite-plugin-svelte": "^7.3.0",
 		"@tailwindcss/vite": "^4.3.3",
-		"@testcontainers/postgresql": "^11.14.0",
+		"@testcontainers/postgresql": "^12.1.0",
 		"@tummycrypt/vite-plugin-a11y": "0.2.2",
 		"@tummycrypt/vite-plugin-skeleton-colors": "0.2.2",
 		"@types/node": "^22.20.1",
