@@ -35,7 +35,7 @@
 					<dd>{form.version}</dd>
 					<dt>SHA-256</dt>
 					<dd><code>{form.bodySha256}</code></dd>
-					<dt>Effective from</dt>
+					<dt>Effective from (UTC)</dt>
 					<dd>{form.effectiveFrom}</dd>
 				</dl>
 			</section>
@@ -80,7 +80,8 @@
 			</label>
 
 			<label>
-				Effective from (optional — defaults to now)
+				Effective from, UTC (optional — defaults to now). This clock reads your browser's local time zone but the value
+				is stored and interpreted as UTC — convert before typing if that is not UTC.
 				<input type="datetime-local" name="effectiveFrom" />
 			</label>
 

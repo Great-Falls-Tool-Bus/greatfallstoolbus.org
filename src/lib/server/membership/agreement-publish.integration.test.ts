@@ -164,7 +164,14 @@ function loadEvent(session: AuthSession | null) {
 
 async function agreementVersionRows(tenantId: string) {
 	return asTenant(fixture.runtimeDsn, tenantId, async (client) => {
-		const { rows } = await client.query('select id, body, body_sha256 from agreement_version order by id');
+		// `effective_from` included (review E3): the row-equality asserts
+		// below must be able to SEE the field or they cannot prove anything
+		// about it — this column was the exact gap two mutants (M13: drop the
+		// field silently; M13b: silently rewrite it to epoch) exploited to
+		// stay green across the full unit AND integration suites.
+		const { rows } = await client.query(
+			'select id, body, body_sha256, effective_from from agreement_version order by id',
+		);
 		return rows;
 	});
 }
@@ -288,8 +295,45 @@ describe('/agreement/publish — auth matrix (action)', () => {
 		const still = await withTenant(tenantId, (tx) => validateSession(tx, tenantId, kh.session.id), db);
 		expect(still).toBeNull();
 
+		// No explicit effectiveFrom was submitted (defaults to "now" —
+		// `agreement.ts`'s own PublishAgreementInput contract), so this row
+		// only proves the id/body/digest triple; the exact-instant proof
+		// (killing M13/M13b) is the dedicated test below.
 		const rows = await agreementVersionRows(tenantId);
-		expect(rows).toEqual([{ id: 1, body, body_sha256: agreementBodySha256(body) }]);
+		expect(rows).toEqual([{ id: 1, body, body_sha256: agreementBodySha256(body), effective_from: expect.any(Date) }]);
+	});
+
+	it('the persisted effective_from is the EXACT UTC instant the operator submitted — not merely a string (review E3, killing M13 and M13b)', async () => {
+		const tenantId = await newTenant();
+		const kh = await newKeyholderSession(tenantId);
+		const action = _createPublishAction({
+			env: { ...process.env, GFTB_TENANT_ID: tenantId, GFTB_OPERATOR_PERSON_IDS: kh.userId },
+		});
+		// The datetime-local wire shape (no offset, no `Z`) — this route's
+		// _parseEffectiveFromUTC (E2) treats it as UTC explicitly. The
+		// expectation below is NOT re-derived by re-parsing this same string
+		// with any Date constructor (review's stated test trap — that would
+		// make the assertion a tautology against production's own parser);
+		// it is a separately hand-written literal UTC instant.
+		const { event } = requestEvent({ ...form(1), effectiveFrom: '2026-08-30T12:00:00' }, kh.session);
+		const result = await action(event);
+		expect(result).toMatchObject({ published: true, version: 1 });
+
+		const rows = await agreementVersionRows(tenantId);
+		expect(rows).toHaveLength(1);
+		// A literal, independently-constructed instant — 2026-08-30 12:00:00
+		// UTC — not a re-parse of the submitted string.
+		const expected = new Date(Date.UTC(2026, 7, 30, 12, 0, 0));
+		expect(rows[0].effective_from.getTime()).toBe(expected.getTime());
+		expect(rows[0].effective_from.toISOString()).toBe('2026-08-30T12:00:00.000Z');
+
+		// M13 (drop the field: publishAgreementVersion(tx, {body}) with no
+		// effectiveFrom) would persist "now" instead — fails the assertion
+		// above unless this test runs at exactly that microsecond, which it
+		// will not. M13b (rewrite to `new Date(0)`) persists epoch — also
+		// fails. Spelled out so a future reader does not have to re-derive
+		// why an exact-instant assert is sufficient to kill both:
+		expect(rows[0].effective_from.getTime()).not.toBe(0);
 	});
 
 	it('a WRONG password refuses the confirmation and rolls back — the presented session survives (the /remove precedent)', async () => {
@@ -346,25 +390,43 @@ describe('/agreement/publish — publishing does not touch intake', () => {
 	});
 });
 
-describe('the database enforces agreement_version append-only (migration 0009 trigger + REVOKE)', () => {
-	it('the runtime role cannot UPDATE a published version', async () => {
+/**
+ * Migration 0009 puts TWO independent mechanisms on `agreement_version`:
+ * `REVOKE UPDATE, DELETE` on the runtime role, and a `BEFORE UPDATE OR
+ * DELETE` trigger. Review nit 5, comment-accuracy correction: `asTenant`
+ * below connects AS `gftb_app` (`integration-support.ts`), and Postgres
+ * checks a role's table privileges before a statement is even planned — so
+ * every row here observes "permission denied" from the REVOKE, and the
+ * trigger's own "append-only" message is NEVER what actually fires in this
+ * suite. The regex `/append-only|permission denied/i` was written to name
+ * both mechanisms but, as executed, only ever exercises one; a prior
+ * version of this comment implied otherwise. Not vacuous either way — with
+ * grants restored and the trigger left intact, the UPDATE/DELETE is still
+ * refused (by the trigger) and these rows would still pass; only with
+ * grants restored AND the trigger dropped does the write succeed and these
+ * rows go red. Canarying the trigger layer specifically (running as a role
+ * that HAS the grants) is a real gap, left as a follow-up rather than
+ * added here.
+ */
+describe('the database enforces agreement_version append-only — REVOKE, as observed by the runtime role (migration 0009)', () => {
+	it('the runtime role cannot UPDATE a published version — "permission denied" (REVOKE), not the trigger', async () => {
 		const tenantId = await newTenant();
 		await withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'v1' }), db);
 		await expect(
 			asTenant(fixture.runtimeDsn, tenantId, async (client) => {
 				await client.query("update agreement_version set body = 'rewritten' where id = 1");
 			}),
-		).rejects.toThrow(/append-only|permission denied/i);
+		).rejects.toThrow(/permission denied/i);
 	});
 
-	it('the runtime role cannot DELETE a published version', async () => {
+	it('the runtime role cannot DELETE a published version — "permission denied" (REVOKE), not the trigger', async () => {
 		const tenantId = await newTenant();
 		await withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'v1' }), db);
 		await expect(
 			asTenant(fixture.runtimeDsn, tenantId, async (client) => {
 				await client.query('delete from agreement_version where id = 1');
 			}),
-		).rejects.toThrow(/append-only|permission denied/i);
+		).rejects.toThrow(/permission denied/i);
 		expect(await agreementVersionRows(tenantId)).toHaveLength(1);
 	});
 });

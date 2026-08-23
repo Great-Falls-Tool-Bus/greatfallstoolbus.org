@@ -95,6 +95,92 @@ const defaultPublishRateLimiter: RateLimiter = createRateLimiter({
 	windowMs: _PUBLISH_RATE_LIMIT_WINDOW_MS,
 });
 
+/**
+ * ASSUMPTION — the sanity bound on `effectiveFrom`, no ratified figure
+ * exists. Wide enough to never constrain legitimate backdating or
+ * forward-dating, narrow enough to reject an obvious typo (a bare probe of
+ * `1900-01-01T00:00` / `9999-12-31T23:59` is exactly what review E2 used to
+ * show there was previously no bound at all). Resolver Jess.
+ */
+const EFFECTIVE_FROM_MIN_YEAR = 2020;
+const EFFECTIVE_FROM_MAX_YEAR = 2100;
+
+/**
+ * The exact wire shape an HTML `<input type="datetime-local">` posts:
+ * `YYYY-MM-DDTHH:mm` or `YYYY-MM-DDTHH:mm:ss` — NEVER an offset, NEVER a `Z`.
+ *
+ * REVIEW E2, THE DEFECT THIS GUARDS: per ECMAScript's Date Time String
+ * Format, only the DATE-ONLY form (`YYYY-MM-DD`) parses as UTC; the
+ * date-TIME form without an offset parses as the process's LOCAL time. A
+ * plain `new Date(effectiveFromRaw)` therefore made the instant committed to
+ * this append-only table a function of `TZ` at the moment the pod happened
+ * to run in — measured end to end through the real action: one input,
+ * `2026-08-30T09:00`, produced 09:00Z / 13:00Z / 00:00Z / 07:00Z under
+ * UTC / America/New_York / Asia/Tokyo / Europe/Berlin respectively, a
+ * 13-hour spread for the SAME operator keystrokes. `withTimezone: true` on
+ * the column (`schema.ts`) cannot rescue this: by the time the value reaches
+ * the insert, the JS `Date` already IS the wrong absolute instant — that flag
+ * only controls how a CORRECT instant is stored, not the parse.
+ *
+ * THE REMEDY IS THE ONE THIS REPOSITORY ALREADY RULED ON AND BUILT, for the
+ * READ side of the identical class of bug (`auth/adapter.ts` `parseDbInstant`,
+ * S2's naive-timestamp fix, doc'd there in detail): treat a zoneless
+ * timestamp string as UTC EXPLICITLY, never by falling through to the
+ * platform's local-time string parser. Unlike `parseDbInstant` (which
+ * accepts whatever the adapter handed back and appends `Z`), this is the
+ * WRITE side and the input is operator-typed, so it additionally: rejects
+ * anything that is not exactly this shape (an offset-bearing string is
+ * refused, not honored — this field is documented UTC-only, not general
+ * ISO 8601); rejects calendar overflow `Date.UTC` would otherwise silently
+ * normalize (`2026-02-30` does not become March 2); and enforces the sanity
+ * bound above. `production runs UTC end to end` (adapter.ts) is exactly why
+ * this bug was invisible in every green gate: under UTC, `new Date(raw)` and
+ * `Date.UTC(...)` agree, and `.toISOString()` on the receipt prints the
+ * operator's typed string with a `Z` appended either way.
+ */
+const DATETIME_LOCAL_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;
+
+/**
+ * Parse an `effectiveFrom` form value as an explicit UTC instant, or `null`
+ * if it is not exactly the `datetime-local` wire shape, is calendar-invalid,
+ * or falls outside the sanity bound. TZ-INVARIANT BY CONSTRUCTION: every
+ * component is read out of the string with a regex and assembled with
+ * `Date.UTC`, which — unlike `new Date(string)` on a zoneless date-time
+ * string — never consults the process's local time zone. Exported (not
+ * inlined) so the unit lane can assert that invariance directly by flipping
+ * `process.env.TZ` and re-parsing the identical input (E2's test trap: an
+ * assertion built by re-deriving the expected instant with `new Date(raw)`
+ * would itself be TZ-dependent and prove nothing).
+ */
+export function _parseEffectiveFromUTC(raw: string): Date | null {
+	const match = DATETIME_LOCAL_RE.exec(raw.trim());
+	if (!match) return null;
+	const [, y, mo, d, h, mi, s] = match;
+	const year = Number(y);
+	if (year < EFFECTIVE_FROM_MIN_YEAR || year > EFFECTIVE_FROM_MAX_YEAR) return null;
+	const month = Number(mo);
+	const day = Number(d);
+	const hour = Number(h);
+	const minute = Number(mi);
+	const second = s ? Number(s) : 0;
+	const instant = Date.UTC(year, month - 1, day, hour, minute, second);
+	const date = new Date(instant);
+	// Date.UTC silently normalizes overflow (month 13 rolls into next year,
+	// Feb 30 rolls into March) instead of refusing it — read the components
+	// back and reject anything that didn't round-trip, rather than accept a
+	// date nobody actually typed.
+	if (
+		date.getUTCFullYear() !== year ||
+		date.getUTCMonth() !== month - 1 ||
+		date.getUTCDate() !== day ||
+		date.getUTCHours() !== hour ||
+		date.getUTCMinutes() !== minute
+	) {
+		return null;
+	}
+	return date;
+}
+
 /** 409-shaped: the version number the form was built against is stale. */
 export class _StaleAgreementPreviewError extends Error {
 	readonly expected: number;
@@ -197,9 +283,16 @@ export function _createPublishAction(seams: PublishSeams = {}) {
 		const operator = resolveOperator(event);
 		if (!operator) return fail(401, NOT_AUTHENTICATED);
 
-		// Keyed by actor first, address second (best-effort) — this route is
-		// never anonymous, so keying purely by address (the /apply pattern)
-		// would let one operator session hop addresses to reset the window.
+		// Keyed by actor first, address second (best-effort). This does NOT
+		// buy hop-immunity — measured on the real limiter: hopping addresses
+		// while holding the actor fixed still reaches `verifyPassword` every
+		// time (200/200, zero 429s), because the address half of the key
+		// changes with the hop. What the composite actually buys is per-actor
+		// isolation behind a shared egress: two allowlisted operators sharing
+		// one address/NAT/tunnel each get their own window rather than
+		// exhausting a single address-keyed bucket for each other (the
+		// `/apply` pattern, address-only, would do that here). Reword
+		// deliberately narrow — see review nit 4.
 		let clientKey = operator.personId;
 		try {
 			clientKey = `${operator.personId}:${event.getClientAddress()}`;
@@ -226,10 +319,11 @@ export function _createPublishAction(seams: PublishSeams = {}) {
 		}
 		let effectiveFrom: Date | undefined;
 		if (typeof effectiveFromRaw === 'string' && effectiveFromRaw.trim().length > 0) {
-			effectiveFrom = new Date(effectiveFromRaw);
-			if (Number.isNaN(effectiveFrom.getTime())) {
+			const parsed = _parseEffectiveFromUTC(effectiveFromRaw);
+			if (parsed === null) {
 				return fail(400, { code: 'invalid_effective_from' as const });
 			}
+			effectiveFrom = parsed;
 		}
 		const expectedNextVersionId =
 			typeof expectedNextVersionIdRaw === 'string' ? Number.parseInt(expectedNextVersionIdRaw, 10) : NaN;
