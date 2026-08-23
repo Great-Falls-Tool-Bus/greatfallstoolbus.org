@@ -60,9 +60,9 @@
 		},
 		{
 			"id": "kubeconfig-fragment",
-			"description": "kubeconfig or cluster credential fragment (value-shaped: a bare mention of the field name, e.g. governance prose explaining that no kubeconfig lives in this repo, does not fire — only field-name-plus-value or the serviceaccount token mount path do)",
-			"pattern": "\\b(client-certificate-data|client-key-data|certificate-authority-data|current-context)\\s*:\\s*\\S{4,}|serviceaccount/token\\b",
-			"flags": "iu"
+			"description": "kubeconfig or cluster credential fragment (value-shaped: a bare mention of the field name, e.g. governance prose explaining that no kubeconfig lives in this repo, does not fire — only field-name-plus-value or the serviceaccount token mount path do; also matches a YAML block-scalar indicator — `|` or `>`, optionally `-`/`+` chomped — immediately after the field name at end of line, the ordinary way a multi-line kubeconfig value is pasted into a runbook, per R2 residual R-1)",
+			"pattern": "\\b(client-certificate-data|client-key-data|certificate-authority-data|current-context)\\s*:\\s*(?:\\S{4,}|[|>][-+]?[ \\t]*$)|serviceaccount/token\\b",
+			"flags": "imu"
 		},
 		{
 			"id": "internal-hostname",

@@ -228,57 +228,101 @@ function lineOf(text, index) {
  * not just at the reported occurrence, but at any OTHER occurrence the
  * excerpt window happens to catch, and not even a truncated fragment of one.
  *
- * Two failure modes were found and fixed here, both by review:
- *   1. A single-occurrence `String.prototype.replace(string, ...)` only
- *      replaces the FIRST occurrence in the window, so a needle repeating
- *      within ~24 characters of itself printed the real value at whichever
- *      occurrence `replace` did not pick.
- *   2. Redacting only WITHIN the already-sliced window can still print a
- *      TRUNCATED fragment of a second occurrence that straddles the window
- *      boundary (e.g. a 23-character needle sliced to its first 20
- *      characters at the window edge) — not the full needle, but enough of
- *      it to defeat the point.
+ * Three failure modes were found by review, across two rounds:
+ *   1. (R1/B3, closed) A single-occurrence `String.prototype.replace(string,
+ *      ...)` only replaces the FIRST occurrence in the window, so a needle
+ *      repeating within ~24 characters of itself printed the real value at
+ *      whichever occurrence `replace` did not pick.
+ *   2. (R1/B3, closed) Redacting only WITHIN the already-sliced window can
+ *      still print a TRUNCATED fragment of a second occurrence that
+ *      straddles the window boundary — not the full needle, but enough of it
+ *      to defeat the point.
+ *   3. (R2/B3-a + B3-b, closed here) The R1 fix redacted only the ONE needle
+ *      belonging to the finding being built, and only in the EXACT case that
+ *      one occurrence happened to match. So (a) a differently-cased repeat
+ *      of the SAME needle survived — `deniedLiterals` matching is already
+ *      case-insensitive (`haystack.toLowerCase().indexOf(...)`), but the R1
+ *      redaction used a case-sensitive `String.split`, so match semantics
+ *      and redact semantics disagreed; measured survival was 20 of 22
+ *      characters of a differently-cased repeat. And (b) a second,
+ *      UNRELATED protected value that merely happened to fall within the
+ *      same ±24-character window — another rule's match, or another
+ *      `deniedLiterals` entry — was never redacted at all, because
+ *      `excerptAt` only ever knew about its own needle.
  *
- * The fix for both: redact every occurrence of the needle across the WHOLE
- * text first, then slice the window from the already-redacted text. No
- * occurrence, whole or partial, of the original needle can survive a window
- * boundary that is cut from text where the needle no longer exists at all.
+ * The fix: `excerptAt` now takes the FULL set of protected values live
+ * anywhere in this text (every rule match plus every deniedLiterals
+ * occurrence, collected by scanText's first pass below), expands the window
+ * to swallow any occurrence — of ANY of them, case-insensitively — that
+ * merely overlaps it, then redacts every one of them within the window,
+ * longest value first (so a short protected value that is a substring of a
+ * longer one, e.g. an initial embedded in a full name, cannot fragment an
+ * already-placed `<<redacted>>` token). No single-needle, single-case blind
+ * spot remains.
  *
  * @param {string} text
  * @param {number} index
  * @param {number} length
+ * @param {string[]} [protectedValues] Every value elsewhere in this same
+ *   text that must not survive in ANY excerpt, not just this finding's own
+ *   match. This call's own needle is always included automatically; the
+ *   caller does not need to add it.
  * @returns {string}
  */
-function excerptAt(text, index, length) {
+function excerptAt(text, index, length, protectedValues = []) {
 	const needle = text.slice(index, index + length);
+	// Case-insensitive de-dup (keep one representative spelling per distinct
+	// value) so the same value seen in two different cases does not run two
+	// redundant redaction passes over the window.
+	const byLowerCase = new Map();
+	for (const value of [needle, ...protectedValues]) {
+		if (!value) continue;
+		const key = value.toLowerCase();
+		if (!byLowerCase.has(key)) byLowerCase.set(key, value);
+	}
+	const values = [...byLowerCase.values()];
 
 	// 1. Naive window, same as before.
 	let start = Math.max(0, index - 24);
 	let end = Math.min(text.length, index + length + 24);
 
-	// 2. Find every occurrence of the needle in the WHOLE text, then expand
-	// the window to fully swallow any occurrence it merely overlaps. A window
-	// that stops in the MIDDLE of an occurrence is exactly failure mode 2
-	// above: split/join below only recognizes a COMPLETE needle, so a
-	// partial one at the boundary would be left as plain, readable text.
-	if (needle) {
-		let cursor = 0;
-		for (;;) {
-			const at = text.indexOf(needle, cursor);
-			if (at === -1) break;
-			const occStart = at;
-			const occEnd = at + needle.length;
+	// 2. Find every occurrence of every protected value in the WHOLE text,
+	// case-insensitively, and expand the window to fully swallow any
+	// occurrence it merely overlaps — a window that stops in the MIDDLE of an
+	// occurrence would leave a redactable fragment un-redacted at the
+	// boundary. An occurrence far away in a large file will not overlap this
+	// (locally bounded) window and so will not pull it open: this loop only
+	// grows the window in response to something that already overlaps it.
+	for (const value of values) {
+		const pattern = new RegExp(escapeRegExp(value), 'giu');
+		for (const match of text.matchAll(pattern)) {
+			const occStart = match.index;
+			const occEnd = occStart + match[0].length;
 			if (occStart < end && occEnd > start) {
 				start = Math.min(start, occStart);
 				end = Math.max(end, occEnd);
 			}
-			cursor = at + 1; // overlapping occurrences of the needle with itself still count
 		}
 	}
 
-	const window = text.slice(start, end);
-	const redacted = needle ? window.split(needle).join('<<redacted>>') : window;
-	return redacted.replace(/\s+/gu, ' ').trim();
+	let window = text.slice(start, end);
+	// Longest value first: redacting a short protected value (e.g. an
+	// initial) before a longer one that contains it as a substring could
+	// chew a hole out of the longer value's own placeholder before that
+	// value's own pass runs; longest-first never has that problem.
+	for (const value of [...values].sort((left, right) => right.length - left.length)) {
+		const pattern = new RegExp(escapeRegExp(value), 'giu');
+		window = window.replace(pattern, '<<redacted>>');
+	}
+	return window.replace(/\s+/gu, ' ').trim();
+}
+
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+function escapeRegExp(value) {
+	return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 }
 
 /**
@@ -297,9 +341,16 @@ function compile(rule) {
  * @returns {LeakFinding[]}
  */
 export function scanText(file, text, options = {}) {
-	/** @type {LeakFinding[]} */
-	const findings = [];
 	const excludeRuleIds = new Set(options.excludeRuleIds ?? []);
+
+	// PASS 1 (R2/B3-b fix): collect every raw match — index, length, and
+	// description — from every source (rule matches, deniedLiterals, the host
+	// check, the mailbox check) BEFORE building any excerpt. A finding's
+	// excerpt must be able to redact every OTHER protected value that shares
+	// its ±24-character window, not just its own match, and that is only
+	// possible once every match in the whole text is known.
+	/** @type {{ file: string, ruleId: string, description: string, index: number, length: number }[]} */
+	const raw = [];
 
 	for (const rule of LEAK_RULES) {
 		if (excludeRuleIds.has(rule.id)) continue;
@@ -311,13 +362,7 @@ export function scanText(file, text, options = {}) {
 				PERMITTED_NAME_FORMS.some((permitted) => permitted.file === file && permitted.text === match[0].trim())
 			)
 				continue;
-			findings.push({
-				file,
-				ruleId: rule.id,
-				description: rule.description,
-				line: lineOf(text, match.index),
-				excerpt: excerptAt(text, match.index, match[0].length),
-			});
+			raw.push({ file, ruleId: rule.id, description: rule.description, index: match.index, length: match[0].length });
 		}
 	}
 
@@ -327,12 +372,12 @@ export function scanText(file, text, options = {}) {
 		const haystack = text.toLowerCase();
 		let index = haystack.indexOf(needle.toLowerCase());
 		while (index !== -1) {
-			findings.push({
+			raw.push({
 				file,
 				ruleId: 'operator-denied-literal',
 				description: 'operator-supplied literal that must not be published',
-				line: lineOf(text, index),
-				excerpt: excerptAt(text, index, needle.length),
+				index,
+				length: needle.length,
 			});
 			index = haystack.indexOf(needle.toLowerCase(), index + needle.length);
 		}
@@ -352,12 +397,20 @@ export function scanText(file, text, options = {}) {
 		for (const match of text.matchAll(URL_RE)) {
 			const host = match[1].toLowerCase().replace(/\.$/u, '');
 			if (allowedHosts.has(host) || RESERVED_DOC_HOST_RE.test(host) || SELF_DOMAIN_RE.test(host)) continue;
-			findings.push({
+			// R2/B3-c fix: description used to interpolate the raw host
+			// (`outbound host ${host} is not...`), and every runner prints
+			// `finding.description` verbatim — so a "redacted" excerpt sat right
+			// next to the same value in cleartext, one field over, with no
+			// GFTB_LEAK_SCAN_DENY or repeat needed to trigger it. Description is
+			// now rule-generic, matching how every other rule's description
+			// already worked; the (now correctly redacted) excerpt is the only
+			// place the match's location is shown.
+			raw.push({
 				file,
 				ruleId: 'unreviewed-outbound-host',
-				description: `outbound host ${host} is not on the reviewed public allowlist`,
-				line: lineOf(text, match.index ?? 0),
-				excerpt: excerptAt(text, match.index ?? 0, match[0].length),
+				description: 'outbound host is not on the reviewed public allowlist',
+				index: match.index ?? 0,
+				length: match[0].length,
 			});
 		}
 	}
@@ -373,14 +426,30 @@ export function scanText(file, text, options = {}) {
 		// fixtures) gets a pass here.
 		const mailboxHost = mailbox.split('@')[1] ?? '';
 		if (allowedMailboxes.has(mailbox) || RESERVED_DOC_HOST_RE.test(mailboxHost)) continue;
-		findings.push({
+		// R2/B3-c fix: same as unreviewed-outbound-host above — description is
+		// now rule-generic, never the raw mailbox.
+		raw.push({
 			file,
 			ruleId: 'unreviewed-mailbox',
-			description: `mailbox ${mailbox} is not one of the reviewed public list addresses`,
-			line: lineOf(text, match.index ?? 0),
-			excerpt: excerptAt(text, match.index ?? 0, match[0].length),
+			description: 'mailbox is not one of the reviewed public list addresses',
+			index: match.index ?? 0,
+			length: match[0].length,
 		});
 	}
+
+	// PASS 2: now that every match in this text is known, build the shared
+	// protected-value set (every raw match's own literal text) and use it to
+	// build every finding's excerpt — each excerpt redacts every protected
+	// value that overlaps its window, not just its own.
+	const protectedValues = raw.map((entry) => text.slice(entry.index, entry.index + entry.length));
+	/** @type {LeakFinding[]} */
+	const findings = raw.map((entry) => ({
+		file: entry.file,
+		ruleId: entry.ruleId,
+		description: entry.description,
+		line: lineOf(text, entry.index),
+		excerpt: excerptAt(text, entry.index, entry.length, protectedValues),
+	}));
 
 	return findings.sort((left, right) => left.line - right.line || left.ruleId.localeCompare(right.ruleId));
 }

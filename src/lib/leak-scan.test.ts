@@ -150,6 +150,34 @@ describe('leak-scan detections', () => {
 		expect(idsFiring('http://localhost:3000/')).toContain('localhost-reference');
 	});
 
+	// R2 delta-verify, residual R-1 (fixed in-PR since this PR's own
+	// value-shaping opened it): kubeconfig-fragment's value-shaping required
+	// `\S{4,}` on the SAME line as the field name, so a YAML block scalar
+	// (`client-key-data: |` or `certificate-authority-data: >-`, with the
+	// base64 on the FOLLOWING indented lines — the ordinary way a kubeconfig
+	// is pasted into a runbook) escaped every rule in the tree set. The
+	// bare-keyword form this PR replaced caught it; the value-shaped form did
+	// not, until now.
+	it('catches a YAML block-scalar kubeconfig value, not just a same-line one (R2 residual R-1)', () => {
+		const blockPipe = [
+			'    user:',
+			'      client-key-data: |',
+			'        RkFLRS1TWU5USEVUSUMtQkFTRTY0LUJMT0Ita3ViZWNvbmZpZy1maXh0dXJlLWRhdGE=',
+		].join('\n');
+		expect(idsFiring(blockPipe)).toContain('kubeconfig-fragment');
+
+		const blockFoldedChomped = [
+			'    user:',
+			'      certificate-authority-data: >-',
+			'        RkFLRS1TWU5USEVUSUMtQ0VSVC1GSVhUVVJFLWZvci1yZXZpZXctcjItcjE=',
+		].join('\n');
+		expect(idsFiring(blockFoldedChomped)).toContain('kubeconfig-fragment');
+
+		// Still silent on a bare field-name mention with no value at all —
+		// the value-shaping's whole point, unchanged by the block-scalar fix.
+		expect(idsFiring('this repo never holds a client-key-data field anywhere')).not.toContain('kubeconfig-fragment');
+	});
+
 	it('does NOT flag bare IPv4 loopback as a private-network-address (dropped deliberately, see leak-scan-rules.json)', () => {
 		expect(idsFiring('listen_addresses=127.0.0.1')).not.toContain('private-network-address');
 	});
@@ -299,6 +327,165 @@ describe('operator-supplied deniedLiterals (never committed)', () => {
 		for (const finding of findings) {
 			expect(finding.excerpt).not.toContain('AKIAIOSFODNN7EXAMPLE');
 		}
+	});
+
+	// R2 delta-verify (comment 5388485160), B3-a: R1's fix redacted the needle
+	// with a case-SENSITIVE `String.split`, but deniedLiterals MATCHING is
+	// already case-insensitive (`haystack.toLowerCase().indexOf(...)` above),
+	// so match semantics and redact semantics disagreed. Measured on the R1
+	// fix: a differently-cased repeat printed 20 of 22 characters of the
+	// literal. Redaction must fold case exactly the way matching already does.
+	it('redacts a differently-cased repeat of the same deniedLiteral, not just an exact-case repeat (R2/B3-a)', () => {
+		const needle = 'SYNTHETIC-PRIVATE-NAME';
+		const text = `one: mail ${needle} regarding it\ntwo: ask ${needle.toLowerCase()} again`;
+		const findings = scanText('f.html', text, { deniedLiterals: [needle] });
+		expect(findings.length).toBeGreaterThanOrEqual(2);
+		for (const finding of findings) {
+			expect(finding.excerpt.toLowerCase()).not.toContain(needle.toLowerCase());
+			for (let len = needle.length; len >= 4; len -= 1) {
+				for (let start = 0; start + len <= needle.length; start += 1) {
+					expect(finding.excerpt.toLowerCase()).not.toContain(needle.slice(start, start + len).toLowerCase());
+				}
+			}
+		}
+	});
+
+	// R2 delta-verify, B3-b: R1's fix only ever redacted the ONE needle
+	// belonging to the finding being built — a second, UNRELATED protected
+	// value sharing the same ±24-character excerpt window (another rule's
+	// match, or another deniedLiterals entry) was never touched. This is
+	// active by DEFAULT, with no deniedLiterals needed at all: two ordinary
+	// private-personal-name matches close together each printed the other in
+	// cleartext.
+	it('redacts a second, unrelated protected value sharing the same excerpt window, not just its own match (R2/B3-b)', () => {
+		const text = 'contact Q. Fakeperson or R. Otherperson today for details';
+		const findings = scanText('f.html', text);
+		expect(findings.filter((f) => f.ruleId === 'private-personal-name').length).toBeGreaterThanOrEqual(2);
+		for (const finding of findings) {
+			for (const other of ['Q. Fakeperson', 'R. Otherperson']) {
+				for (let len = other.length; len >= 4; len -= 1) {
+					for (let start = 0; start + len <= other.length; start += 1) {
+						expect(finding.excerpt).not.toContain(other.slice(start, start + len));
+					}
+				}
+			}
+		}
+	});
+
+	// R2 delta-verify, B3-b, the deniedLiterals+rule-match cross-contamination
+	// case specifically: an operator-denied literal inside a DIFFERENT rule's
+	// excerpt window (here, an unreviewed-mailbox match) needs no repeat and
+	// no case games — it is a straight window-sharing leak.
+	it('redacts a deniedLiteral that merely shares a window with an unrelated rule match (R2/B3-b)', () => {
+		const needle = 'SYNTHETIC-PRIVATE-NAME';
+		const text = `one: mail zz.yy@leak-scan-synthetic-fixture.dev regarding ${needle} today`;
+		const findings = scanText('f.html', text, { deniedLiterals: [needle] });
+		const mailboxFinding = findings.find((f) => f.ruleId === 'unreviewed-mailbox');
+		expect(mailboxFinding).toBeDefined();
+		expect(mailboxFinding!.excerpt).not.toContain(needle);
+		const literalFinding = findings.find((f) => f.ruleId === 'operator-denied-literal');
+		expect(literalFinding).toBeDefined();
+		expect(literalFinding!.excerpt).not.toContain('zz.yy@leak-scan-synthetic-fixture.dev');
+	});
+});
+
+// R2 delta-verify, B3-c: unreviewed-mailbox and unreviewed-outbound-host used
+// to interpolate the raw matched value into `description`
+// (`` `mailbox ${mailbox} is not...` ``, `` `outbound host ${host} is not...` ``),
+// and every runner (check-tracked-tree.mjs, leak-scan-src.mjs,
+// check-build-output.mjs, and formatFindings below, which all three share the
+// exact same template) prints `finding.description` verbatim — so a
+// "redacted" excerpt sat next to the same value in cleartext, one field over,
+// needing no GFTB_LEAK_SCAN_DENY and no repeat to trigger. This describe
+// block audits EVERY rule category plus both positive checks against one
+// fixture, not just the two the review named, and asserts over
+// `formatFindings()` output — the literal string every one of the three
+// runners' `console.error` calls builds from the same two fields.
+describe('finding.description never carries a raw matched value (R2/B3-c)', () => {
+	// Assembled at run time, same technique as FAKE_CLUSTER_HOST/FAKE_RFC1918_HOST
+	// above (this file's own B1 lesson: this repo's `scan-internal-endpoints.sh`
+	// greps TRACKED SOURCE for contiguous cluster-hostname/RFC1918 shapes, so no
+	// contiguous copy of either may appear in this file's committed text).
+	const AUDIT_FAKE_CLUSTER_HOST = ['widget.some-ns', 'svc.cluster.local'].join('.');
+	const AUDIT_FAKE_RFC1918_HOST = ['10', '99', '99', '99'].join('.');
+
+	// One fixture line per rule category this repo ported, plus both positive
+	// checks (unreviewed-outbound-host, unreviewed-mailbox) and a
+	// deniedLiterals value — deliberately broader than the two rules the
+	// review named, per its own "audit ALL rules" instruction. Each entry
+	// pairs the fixture line with the exact raw value a leak would print.
+	const cases: { ruleId: string; line: string; value: string }[] = [
+		{ ruleId: 'secret-cloud-access-key', line: 'AKIAFAKEFAKEFAKEFAKE', value: 'AKIAFAKEFAKEFAKEFAKE' },
+		{
+			ruleId: 'secret-forge-token',
+			line: 'ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE',
+			value: 'ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE',
+		},
+		{
+			ruleId: 'kubeconfig-fragment',
+			line: 'client-key-data: FAKEBASE64DATASTRINGVALUE',
+			value: 'FAKEBASE64DATASTRINGVALUE',
+		},
+		{
+			ruleId: 'internal-hostname',
+			line: AUDIT_FAKE_CLUSTER_HOST,
+			value: AUDIT_FAKE_CLUSTER_HOST,
+		},
+		{ ruleId: 'private-network-address', line: AUDIT_FAKE_RFC1918_HOST, value: AUDIT_FAKE_RFC1918_HOST },
+		{
+			ruleId: 'cache-or-executor-endpoint',
+			line: 'grpcs://cache.synthetic-fixture.invalid',
+			value: 'grpcs://cache.synthetic-fixture.invalid',
+		},
+		{
+			ruleId: 'developer-filesystem-path',
+			line: '/Users/fakeuser/projects/site',
+			value: '/Users/fakeuser/projects/site',
+		},
+		{ ruleId: 'private-personal-name', line: 'Q. Fakeperson', value: 'Q. Fakeperson' },
+		{
+			ruleId: 'private-list-archive',
+			line: 'hyperkitty/list/keyholders@synthetic-fixture.invalid',
+			value: 'hyperkitty/list/keyholders@',
+		},
+		{
+			ruleId: 'unreviewed-outbound-host',
+			line: 'https://leak-scan-synthetic-fixture.dev/path',
+			value: 'leak-scan-synthetic-fixture.dev',
+		},
+		{
+			ruleId: 'unreviewed-mailbox',
+			line: 'plant-fixture@leak-scan-synthetic-fixture.dev',
+			value: 'plant-fixture@leak-scan-synthetic-fixture.dev',
+		},
+	];
+
+	it('exercises at least ten rule categories, so the audit is not vacuous', () => {
+		expect(cases.length).toBeGreaterThanOrEqual(10);
+	});
+
+	for (const { ruleId, line, value } of cases) {
+		it(`${ruleId}: description carries no raw matched value, in finding.description or the formatted runner line`, () => {
+			const findings = scanText('audit.md', line, { deniedLiterals: ['SYNTHETIC-DENY-AUDIT-FIXTURE'] });
+			const finding = findings.find((f) => f.ruleId === ruleId);
+			expect(finding, `expected fixture line to trip ${ruleId}: ${JSON.stringify(line)}`).toBeDefined();
+			expect(finding!.description).not.toContain(value);
+			// formatFindings builds the exact string every one of the three
+			// production runners (check-tracked-tree.mjs, leak-scan-src.mjs,
+			// check-build-output.mjs) prints via console.error — proving the
+			// leak is closed here proves it closed at the shape that actually
+			// reaches a public Actions log.
+			expect(formatFindings([finding!])).not.toContain(value);
+		});
+	}
+
+	it('a deniedLiterals value never appears in description either', () => {
+		const needle = 'SYNTHETIC-DENY-AUDIT-FIXTURE';
+		const findings = scanText('audit.md', `see ${needle} for details`, { deniedLiterals: [needle] });
+		const finding = findings.find((f) => f.ruleId === 'operator-denied-literal');
+		expect(finding).toBeDefined();
+		expect(finding!.description).not.toContain(needle);
+		expect(formatFindings([finding!])).not.toContain(needle);
 	});
 });
 
