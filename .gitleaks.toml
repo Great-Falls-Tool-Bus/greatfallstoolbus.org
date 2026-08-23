@@ -12,6 +12,26 @@ paths = [
   '''(^|/).*\.sample$''',
 ]
 
+# Gitignored, ephemeral build artifacts. `gitleaks dir` walks the filesystem
+# regardless of .gitignore, so a bundler that constant-folds a deliberately
+# split test-fixture literal (src/lib/server/stripe/client.ts assembles a
+# fake sk_test_ key from two string pieces precisely so gitleaks sees no
+# contiguous literal in SOURCE) can still recombine it in compiled output.
+# `.svelte-kit/output` is a pure intermediate SSR-render artifact, never
+# published anywhere. `build/` is the real published artefact, and it already
+# has a dedicated, more precise scanner: `just leak-scan-build`
+# (scripts/lib/leak-scan.mjs), which classifies every file by extension and
+# fails closed on anything it cannot classify — gitleaks scanning it too adds
+# no coverage, only a false-positive surface that made `just check`
+# non-idempotent (a second local run without `just clean` went red on this
+# exact folded literal after the first run's build).
+[[allowlists]]
+description = "Gitignored build artifacts (.svelte-kit/, build/) — covered by just leak-scan-build instead."
+paths = [
+  '''(^|/)\.svelte-kit/''',
+  '''(^|/)build/''',
+]
+
 [[allowlists]]
 description = "Known non-secret infrastructure literals."
 regexTarget = "line"

@@ -909,6 +909,50 @@ secrets-scan:
 scan-endpoints:
     cd {{ root }} && bash scripts/scan-internal-endpoints.sh
 
+# ─────────────────────────────────────────────
+# Consent / leak scan (ported from gftb-site, TIN-ungrounded: durable fix
+# named by PR #193's R2 delta-verify after the PR #190/#187 consent
+# incidents; see scripts/lib/leak-scan.mjs's header for the full citation).
+# Two thin runners share the ONE rules implementation in
+# scripts/lib/leak-scan.mjs — see that file and scripts/check-tracked-tree.mjs
+# for what is and is not scanned, and why.
+# ─────────────────────────────────────────────
+
+# Scan an already-materialized build directory (default `build/`) for secrets,
+# kubeconfig fragments, cluster hostnames, private names, and unreviewed
+# outbound hosts/mailboxes. FAILS CLOSED on a missing/empty directory or a
+# file extension the scanner has no verdict for — see
+# scripts/check-build-output.mjs. Set GFTB_LEAK_SCAN_DENY (never committed) to
+# add real private literals an operator wants enforced without ever appearing
+# in this repository.
+leak-scan build_dir="build":
+    cd {{ root }} && node scripts/check-build-output.mjs {{ build_dir }}
+
+# Build first, then scan the FRESH artefact — never trust a stale build/ left
+# on disk from an earlier run. This is the recipe `just check` calls.
+leak-scan-build: build
+    cd {{ root }} && just leak-scan build
+
+# Same rules, scoped to this repo's published-PROSE surface (docs/, static/,
+# and the top-level README/AGENTS/CLAUDE/NOTICE/LICENSE files) rather than a
+# build artefact. NOT a gftb-site straight port — that repo only ever scans
+# build/ output; this repo is an app-stateful-spoke where most of src/** never
+# reaches a client bundle, yet every tracked file is still visible on the
+# public GitHub repo regardless of whether SvelteKit ever routes it. See
+# scripts/check-tracked-tree.mjs's header for the full scoping rationale
+# (including why src/** application source is deliberately out of scope).
+leak-scan-tree:
+    cd {{ root }} && node scripts/check-tracked-tree.mjs
+
+# Narrow identity/consent subset (private-personal-name, private-list-archive,
+# the mailbox allowlist check) over src/** application source and its test
+# fixtures. NOT the full rule set — that produces ~70 findings, nearly all
+# fixture noise (measured; see scripts/leak-scan-src.mjs's header). This is
+# the recipe that closes the historical gap `leak-scan-tree` alone leaves:
+# 3 of this repo's 5 consent redaction commits lived in src/**.
+leak-scan-src:
+    cd {{ root }} && node scripts/leak-scan-src.mjs
+
 # Run Vitest unit tests
 test-unit:
     cd {{ root }} && pnpm run test:unit
@@ -951,8 +995,12 @@ sbom out_dir="build/sbom":
         -o cyclonedx-json="{{ out_dir }}/greatfallstoolbus.org.cyclonedx.json" \
         -o spdx-json="{{ out_dir }}/greatfallstoolbus.org.spdx.json"
 
-# Run the complete pre-commit validation gate.
-check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints lint typecheck skills-validate skills-check source-map-check db-check test-unit
+# Run the complete pre-commit validation gate. leak-scan-tree and
+# leak-scan-src run early (cheap, git-ls-files-scoped, alongside the other
+# public-safety scans); leak-scan-build runs last (it pays for a full
+# `just build`, ~4 minutes — the only step this gate added that was not
+# already part of `check`'s cost) so a cheaper failure surfaces first.
+check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints leak-scan-tree leak-scan-src lint typecheck skills-validate skills-check source-map-check db-check test-unit leak-scan-build
     @echo "All checks passed."
 
 # Probe the declared production hostnames at the public Cloudflare Access edge.

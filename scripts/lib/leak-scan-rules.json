@@ -1,0 +1,153 @@
+{
+	"comment": [
+		"Public-output leak rules for greatfallstoolbus.org, ported from the",
+		"gftb-site repository's scripts/lib/leak-scan-rules.json (the source of",
+		"this gate; see the PR that introduced this file for the citation).",
+		"Read by scripts/lib/leak-scan.mjs, the single scanner implementation both",
+		"src/lib/leak-scan.test.ts (unit tested) and scripts/check-build-output.mjs",
+		"/ scripts/check-tracked-tree.mjs (the just leak-scan-build / leak-scan-tree",
+		"gates) run, so the rule text has exactly one home. Patterns are RegExp",
+		"source strings; flags are applied per rule and 'g' is added by the scanner.",
+		"",
+		"TWO RULES FROM THE SOURCE REPO WERE DELIBERATELY DROPPED, NOT PORTED:",
+		"'internal-tracker-reference' (banned bare TIN-#### ticket references and",
+		"most github.com links) and the llms.txt/agent-map.md sub-pattern of",
+		"'source-map-or-dev-artifact'. Both encode a policy specific to gftb-site,",
+		"which has no public agent surface and treats a Linear ticket reference as",
+		"a leak. This repo's own AGENTS.md and static/llms.txt / static/agent-map.md",
+		"are sanctioned public agent surfaces (see AGENTS.md 'Public agent index')",
+		"that routinely and intentionally cite TIN-#### tickets and github.com blob",
+		"links across multiple repos (this repo, tinyland-inc/site.scaffold, ...) —",
+		"porting that rule unmodified would red the gate on files this repo",
+		"deliberately publishes. See the porting PR description for the full note."
+	],
+	"rules": [
+		{
+			"id": "secret-pem-block",
+			"description": "PEM private key or certificate block",
+			"pattern": "-----BEGIN [A-Z ]*(PRIVATE KEY|CERTIFICATE)-----",
+			"flags": "u"
+		},
+		{
+			"id": "secret-ssh-key",
+			"description": "OpenSSH private key material",
+			"pattern": "ssh-(rsa|ed25519) AAAA[0-9A-Za-z+/]{32,}",
+			"flags": "u"
+		},
+		{
+			"id": "secret-cloud-access-key",
+			"description": "cloud provider access key id",
+			"pattern": "\\b(AKIA|ASIA)[0-9A-Z]{16}\\b",
+			"flags": "u"
+		},
+		{
+			"id": "secret-forge-token",
+			"description": "code-forge or chat access token",
+			"pattern": "\\b(ghp_[0-9A-Za-z]{36}|github_pat_[0-9A-Za-z_]{22,}|glpat-[0-9A-Za-z_-]{20}|xox[abprs]-[0-9A-Za-z-]{10,})\\b",
+			"flags": "u"
+		},
+		{
+			"id": "secret-json-web-token",
+			"description": "signed JSON Web Token",
+			"pattern": "\\beyJ[0-9A-Za-z_-]{10,}\\.eyJ[0-9A-Za-z_-]{10,}\\.[0-9A-Za-z_-]{10,}\\b",
+			"flags": "u"
+		},
+		{
+			"id": "secret-assignment",
+			"description": "credential-shaped assignment",
+			"pattern": "\\b(api[_-]?key|secret[_-]?key|access[_-]?token|client[_-]?secret|password|passwd)\\b\\s*[:=]\\s*[\"'][^\"'\\s]{12,}[\"']",
+			"flags": "iu"
+		},
+		{
+			"id": "kubeconfig-fragment",
+			"description": "kubeconfig or cluster credential fragment (value-shaped: a bare mention of the field name, e.g. governance prose explaining that no kubeconfig lives in this repo, does not fire — only field-name-plus-value or the serviceaccount token mount path do; also matches a YAML block-scalar indicator — `|` or `>`, optionally `-`/`+` chomped — immediately after the field name at end of line, the ordinary way a multi-line kubeconfig value is pasted into a runbook, per R2 residual R-1)",
+			"pattern": "\\b(client-certificate-data|client-key-data|certificate-authority-data|current-context)\\s*:\\s*(?:\\S{4,}|[|>][-+]?[ \\t]*$)|serviceaccount/token\\b",
+			"flags": "imu"
+		},
+		{
+			"id": "internal-hostname",
+			"description": "cluster-local, tailnet, or otherwise private hostname",
+			"pattern": "\\b[a-z0-9-]+(?:\\.[a-z0-9-]+)*\\.(?:svc|cluster\\.local|ts\\.net|internal|intranet|lan|home\\.arpa)\\b",
+			"flags": "iu"
+		},
+		{
+			"id": "private-network-address",
+			"description": "RFC1918, link-local, or CGNAT address",
+			"pattern": "\\b(?:10(?:\\.\\d{1,3}){3}|172\\.(?:1[6-9]|2\\d|3[01])(?:\\.\\d{1,3}){2}|192\\.168(?:\\.\\d{1,3}){2}|169\\.254(?:\\.\\d{1,3}){2}|100\\.(?:6[4-9]|[7-9]\\d|1[01]\\d|12[0-7])(?:\\.\\d{1,3}){2})\\b",
+			"flags": "u"
+		},
+		{
+			"id": "private-loopback-address",
+			"description": "IPv4 loopback address (127.0.0.0/8) — SPLIT OUT of private-network-address on purpose, at the surface layer, not the rule layer: this rule applies to leak-scan-build with no exclusions (a loopback literal in published output can still name a specific machine's admin surface), but is excluded from leak-scan-tree only, because this repo's own docs/preview-tailnet.md cites 127.0.0.1 repeatedly to document a loopback-only-binding SAFETY property, not a leak",
+			"pattern": "\\b127(?:\\.\\d{1,3}){3}\\b",
+			"flags": "u"
+		},
+		{
+			"id": "cache-or-executor-endpoint",
+			"description": "build cache, remote executor, or gRPC endpoint literal (value-shaped: grpc(s):// must be followed immediately by a host, so prose like \"grpc:// endpoints\" listing the forbidden shape as a category does not fire)",
+			"pattern": "(?:grpcs?://\\S|https?://[^\\s\"'<>)]*(?:bazel-cache|remote-cache|reapi|executor|buildbarn|buildfarm))",
+			"flags": "iu"
+		},
+		{
+			"id": "localhost-reference",
+			"description": "localhost or a bound development port",
+			"pattern": "\\blocalhost(?::\\d{1,5})?\\b|\\b0\\.0\\.0\\.0\\b",
+			"flags": "iu"
+		},
+		{
+			"id": "source-map-or-dev-artifact",
+			"description": "source map or developer-only artefact leaked into the public build",
+			"pattern": "sourceMappingURL|//# sourceURL",
+			"flags": "u"
+		},
+		{
+			"id": "developer-filesystem-path",
+			"description": "absolute path from a developer or CI machine",
+			"pattern": "(?:/Users/[a-z0-9._-]+|/home/[a-z0-9._-]+|/private/var/[a-z0-9._/-]+|/root/|[A-Z]:\\\\Users\\\\)",
+			"flags": "iu"
+		},
+		{
+			"id": "private-personal-name",
+			"description": "personal name shaped as an initial-plus-surname, beyond any operator-consented initial (Unicode-aware: matches accented/non-ASCII letters, e.g. Nunez-with-tilde or Etienne-with-acute, not just A-Z/a-z)",
+			"pattern": "(?<=^|[\\s>\"'(])(?:\\p{Lu}\\.\\s*\\p{Lu}\\p{Ll}{2,}|\\p{Lu}\\p{Ll}{2,}\\s+\\p{Lu}\\.\\s*\\p{Lu}\\p{Ll}{2,})\\b",
+			"flags": "u"
+		},
+		{
+			"id": "private-list-archive",
+			"description": "archive link for the private keyholders role list",
+			"pattern": "hyperkitty/list/keyholders@|/archives?/keyholders@|keyholders@[a-z0-9.-]+/(?:thread|message)",
+			"flags": "iu"
+		}
+	],
+	"allowedHosts": [
+		"github.com",
+		"raw.githubusercontent.com",
+		"great-falls-tool-bus.github.io",
+		"greatfallstoolbus.org",
+		"latoolb.us",
+		"tinyland.dev",
+		"hub.tinyland.dev",
+		"checkout.stripe.com",
+		"billing.stripe.com",
+		"api.cloudflare.com",
+		"schema.org",
+		"json-schema.org",
+		"svelte.dev",
+		"tailwindcss.com",
+		"creativecommons.org",
+		"commons.wikimedia.org",
+		"upload.wikimedia.org",
+		"keepachangelog.com",
+		"semver.org",
+		"www.sitemaps.org",
+		"www.w3.org"
+	],
+	"allowedMailboxes": [
+		"keyholders@latoolb.us",
+		"keyholders-join@latoolb.us",
+		"keyholders-owner@latoolb.us",
+		"keyholders-leave@latoolb.us",
+		"discuss@latoolb.us",
+		"hello@tinyland.dev"
+	]
+}
