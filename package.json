@@ -49,7 +49,7 @@
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.61.1",
-		"@skeletonlabs/skeleton": "4.15.2",
+		"@skeletonlabs/skeleton": "5.0.1",
 		"@skeletonlabs/skeleton-svelte": "4.15.2",
 		"@sveltejs/adapter-static": "^3.0.10",
 		"@sveltejs/kit": "^2.69.2",

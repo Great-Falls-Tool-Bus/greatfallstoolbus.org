@@ -55,8 +55,8 @@ importers:
         specifier: ^1.61.1
         version: 1.61.1
       '@skeletonlabs/skeleton':
-        specifier: 4.15.2
-        version: 4.15.2(tailwindcss@4.3.2)
+        specifier: 5.0.1
+        version: 5.0.1(tailwindcss@4.3.2)
       '@skeletonlabs/skeleton-svelte':
         specifier: 4.15.2
         version: 4.15.2(svelte@5.56.4(@typescript-eslint/types@8.63.0))
@@ -1275,8 +1275,8 @@ packages:
     peerDependencies:
       svelte: ^5.29.0
 
-  '@skeletonlabs/skeleton@4.15.2':
-    resolution: {integrity: sha512-5O23Py76nw56aoieV2b2T7MJ6xS0DwDjUULpwLnCXxXOnmzADEoWoQxb/ABbqg04IMOygtRzK3HO22I1+kFsog==}
+  '@skeletonlabs/skeleton@5.0.1':
+    resolution: {integrity: sha512-WozocxlhoeJdo60qnY+JvvpVqyfV5AsB4PrBisAcIcMIMXMbXfI8a5JJ7KbqfONVjBl1AtRTqdFW6g3dBOlsIg==}
     peerDependencies:
       tailwindcss: ^4.0.0
 
@@ -2412,6 +2412,7 @@ packages:
   eslint@9.39.4:
     resolution: {integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -4774,7 +4775,7 @@ snapshots:
       '@zag-js/tree-view': 1.39.1
       svelte: 5.56.4(@typescript-eslint/types@8.63.0)
 
-  '@skeletonlabs/skeleton@4.15.2(tailwindcss@4.3.2)':
+  '@skeletonlabs/skeleton@5.0.1(tailwindcss@4.3.2)':
     dependencies:
       tailwindcss: 4.3.2
 
