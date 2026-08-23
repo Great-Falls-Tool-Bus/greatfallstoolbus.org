@@ -67,6 +67,21 @@ export class NoAgreementVersionError extends Error {
 }
 
 /**
+ * 409-shaped (TIN-3440 slice S13): two publishes computed the same `max + 1`
+ * before either committed. The database's primary key — not application
+ * logic — decided the single winner (`ON CONFLICT DO NOTHING` below); the
+ * loser gets this typed error instead of a raw unique-violation. Retrying
+ * (after a fresh `previewNextAgreementVersionId`) publishes at the next free
+ * id; nothing here silently invents a second row at the same id.
+ */
+export class AgreementVersionRaceError extends Error {
+	constructor() {
+		super('Two publishes raced for the same version number; reload and retry.');
+		this.name = 'AgreementVersionRaceError';
+	}
+}
+
+/**
  * The pure currency rule, exported for the unit suite: greatest
  * `effective_from` at or before `now`, ties broken by highest id. Rows whose
  * `effective_from` is in the future are not yet current (a version can be
@@ -105,16 +120,37 @@ export interface PublishAgreementInput {
 	now?: Date;
 }
 
+/** Shared by the publisher and the preview so the two can never disagree. */
+async function nextVersionId(tx: DbTransaction, tenantId: string): Promise<number> {
+	const next = await tx.execute<{ next_id: number }>(
+		sql`select coalesce(max(id), 0) + 1 as next_id from ${agreementVersion} where tenant_id = ${tenantId}`,
+	);
+	return Number(next.rows[0].next_id);
+}
+
+/**
+ * Read-only preview of the version id a publish right now would receive
+ * (TIN-3440 slice S13 — the operator-publish route's confirmation form).
+ * NOT a reservation: nothing locks this number to the caller, and a
+ * concurrent publish can still take it first — see `AgreementVersionRaceError`.
+ */
+export async function previewNextAgreementVersionId(tx: DbTransaction): Promise<number> {
+	const tenantId = await currentTenant(tx);
+	return nextVersionId(tx, tenantId);
+}
+
 /**
  * Append the next agreement version: id = max + 1 for this tenant, digest
  * computed here so `body_sha256` can never disagree with `body`. The insert
  * serialises on the composite primary key — two concurrent publishes race to
- * the same `max + 1` and the loser gets a unique violation rather than a
- * silent double-claim; the operator surface retries.
+ * the same `max + 1`; `ON CONFLICT DO NOTHING` lets the database's own
+ * uniqueness decide the single winner, and the loser gets the typed
+ * `AgreementVersionRaceError` instead of either a raw unique-violation 500 or
+ * a silent double-claim.
  *
  * This is the OPERATOR-mediated publication mechanic (sitting-2 item 3): the
- * ratified text arrives as data through here — there is no route surface for
- * it in S6, deliberately.
+ * ratified text arrives as data through here — S6 shipped no route surface
+ * for it, deliberately; TIN-3440 slice S13 is that route.
  */
 export async function publishAgreementVersion(
 	tx: DbTransaction,
@@ -125,20 +161,20 @@ export async function publishAgreementVersion(
 	}
 	const now = input.now ?? new Date();
 	const tenantId = await currentTenant(tx);
-	const next = await tx.execute<{ next_id: number }>(
-		sql`select coalesce(max(id), 0) + 1 as next_id from ${agreementVersion} where tenant_id = ${tenantId}`,
-	);
+	const id = await nextVersionId(tx, tenantId);
 	const rows = await tx
 		.insert(agreementVersion)
 		.values({
 			tenantId,
-			id: Number(next.rows[0].next_id),
+			id,
 			body: input.body,
 			bodySha256: agreementBodySha256(input.body),
 			effectiveFrom: input.effectiveFrom ?? now,
 			createdAt: now,
 		})
+		.onConflictDoNothing()
 		.returning();
+	if (rows.length !== 1) throw new AgreementVersionRaceError();
 	return rows[0];
 }
 

@@ -4,6 +4,7 @@
 	"branch": "main",
 	"routes": {
 		"/": "src/routes/+page.svelte",
+		"/agreement/publish": "src/routes/(operator)/agreement/publish/+page.svelte",
 		"/apply": "src/routes/apply/+page.svelte",
 		"/apply/verify": "src/routes/apply/verify/+page.svelte",
 		"/apply/withdraw": "src/routes/apply/withdraw/+page.svelte",
