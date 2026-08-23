@@ -12,6 +12,7 @@ import {
 	LOGIN_RATE_LIMIT_MAX,
 	LOGIN_RATE_LIMIT_WINDOW_MS,
 	createRateLimiter,
+	loginRateLimiter,
 } from './ratelimit';
 
 const T0 = new Date('2026-08-20T12:00:00Z');
@@ -76,5 +77,27 @@ describe('createRateLimiter — sliding window over caller keys', () => {
 		expect(LOGIN_RATE_LIMIT_MAX).toBe(10);
 		expect(LOGIN_RATE_LIMIT_WINDOW_MS).toBe(15 * 60 * 1000);
 		expect(LOGIN_RATE_LIMIT_MAX).toBeGreaterThan(INTAKE_RATE_LIMIT_MAX);
+	});
+
+	/**
+	 * PR #198 round-2 review, ED-3: the assertion above pins the CONSTANT,
+	 * not the limiter `/login` actually consults. The review proved these
+	 * are different things by mutation — rewire the exported
+	 * `loginRateLimiter` singleton itself to `createRateLimiter({ max:
+	 * 1_000_000, windowMs: LOGIN_RATE_LIMIT_WINDOW_MS })` while leaving
+	 * `LOGIN_RATE_LIMIT_MAX` untouched at 10, and both this file's own pin
+	 * above AND `login.integration.test.ts` (which injects its own seam
+	 * limiter, never the real singleton) stay green. This row drives the
+	 * WIRED instance directly, so a mutation of the wiring — not just the
+	 * constant — fails here.
+	 */
+	it('the wired loginRateLimiter denies the 11th attempt in a window — not just the constant, the instance', () => {
+		loginRateLimiter.reset();
+		const key = 'ed3-wired-limiter-probe';
+		for (let i = 0; i < LOGIN_RATE_LIMIT_MAX; i++) {
+			expect(loginRateLimiter.check(key, at(i)).allowed).toBe(true);
+		}
+		expect(loginRateLimiter.check(key, at(LOGIN_RATE_LIMIT_MAX)).allowed).toBe(false);
+		loginRateLimiter.reset();
 	});
 });

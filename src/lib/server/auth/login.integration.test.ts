@@ -302,15 +302,28 @@ describe('/login — no enumeration oracle (S12 acceptance)', () => {
 	 * (measured against real PG at production rounds=12: unknown median
 	 * 4.0ms/worst 26.3ms vs known-wrong median 3183ms/best 426.8ms — bodies
 	 * identical, but ONE request classified one address). The fix
-	 * (`session.ts`'s `DUMMY_PASSWORD_HASH`) makes `authenticate()` run a real
-	 * bcrypt compare on EVERY call, known handle or not.
+	 * (`session.ts`'s `_DUMMY_PASSWORD_HASH`) makes `authenticate()` run a
+	 * real bcrypt compare on EVERY call, known handle or not.
 	 *
 	 * This member is activated WITHOUT `FAST_HASH` — deliberately, at the
 	 * package's real production rounds (12) — because the property under test
 	 * IS the bcrypt cost; a rounds=4 fixture would hide exactly the gap this
-	 * test exists to close. Generous 30s timeout for the two real compares.
+	 * test exists to close.
+	 *
+	 * PR #198 round-2 review, ED-2: a single interleaved pair with a
+	 * ONE-SIDED `unknown > wrong * 0.5` floor only catches "unknown too
+	 * FAST" — it cannot see the class going the other direction. The review
+	 * proved this by mutation: make the unknown path pay an extra dummy
+	 * compare (double work), and unknown becomes ~2x SLOWER than wrong
+	 * (measured: median ratio 2.046, AUC 0.910) while the old one-sided
+	 * assertion still passed. `authenticate()` is meant to cost the SAME
+	 * either way, not merely "at least as much" — so this now samples N=10
+	 * per class, INTERLEAVED (unknown/wrong alternating, not two back-to-back
+	 * blocks) to spread any monotonic drift across the run evenly instead of
+	 * loading it onto one class, and bounds the MEDIAN ratio symmetrically in
+	 * both directions.
 	 */
-	it('an unknown identifier costs comparable wall-clock time to a known member wrong-password refusal (production bcrypt rounds)', async () => {
+	it('an unknown identifier costs comparable wall-clock time to a known member wrong-password refusal, in BOTH directions (production bcrypt rounds)', async () => {
 		const prov = await provisioned();
 		await activate(prov.application.id, {}); // {} = package default = rounds 12, not FAST_HASH
 		const action = _createLoginAction(loginSeams());
@@ -321,19 +334,50 @@ describe('/login — no enumeration oracle (S12 acceptance)', () => {
 			return { ms: performance.now() - start, result };
 		};
 
-		const unknown = await timed({ identifier: `nobody-${randomUUID()}@example.org`, password: 'whatever-not-real' });
-		const wrong = await timed({ identifier: prov.application.email, password: 'definitely-the-wrong-password' });
+		const N = 10;
+		const unknownSamples: number[] = [];
+		const wrongSamples: number[] = [];
+		let lastUnknown: Awaited<ReturnType<typeof timed>> | undefined;
+		let lastWrong: Awaited<ReturnType<typeof timed>> | undefined;
 
-		expect(unknown.result).toHaveProperty('status', 401);
-		expect(wrong.result).toHaveProperty('status', 401);
-		expect(JSON.stringify(unknown.result)).toBe(JSON.stringify(wrong.result));
+		for (let i = 0; i < N; i++) {
+			// Interleaved, not two blocks — a monotonic drift (GC, thermal
+			// throttling, a neighboring process) would otherwise bias whichever
+			// class runs second, and a two-sided bound must not be fooled by that.
+			const unknown = await timed({ identifier: `nobody-${randomUUID()}@example.org`, password: 'whatever-not-real' });
+			const wrong = await timed({ identifier: prov.application.email, password: 'definitely-the-wrong-password' });
+			unknownSamples.push(unknown.ms);
+			wrongSamples.push(wrong.ms);
+			lastUnknown = unknown;
+			lastWrong = wrong;
+		}
 
-		// Before the fix this ratio was ~0.001-0.06 (the ~140-790x gap the
-		// review measured). A generous >=0.5x floor survives ordinary
-		// system-load jitter on both real bcrypt-12 compares while being
-		// flatly impossible for code that skips the compare on one side.
-		expect(unknown.ms).toBeGreaterThan(wrong.ms * 0.5);
-	}, 30_000);
+		expect(lastUnknown?.result).toHaveProperty('status', 401);
+		expect(lastWrong?.result).toHaveProperty('status', 401);
+		expect(JSON.stringify(lastUnknown?.result)).toBe(JSON.stringify(lastWrong?.result));
+
+		const median = (xs: number[]) => {
+			const sorted = [...xs].sort((a, b) => a - b);
+			const mid = Math.floor(sorted.length / 2);
+			return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+		};
+		const unknownMedian = median(unknownSamples);
+		const wrongMedian = median(wrongSamples);
+
+		// Before the fix, this ratio was ~0.001-0.06 (the ~140-790x "too fast"
+		// gap the original review measured). The double-compare mutant the
+		// round-2 review constructed instead pushes it to ~2.0-2.2 ("too
+		// slow", confirmed by re-running that exact mutant here: 4 runs
+		// clustered at 2.11-2.20). Correct-code runs at this N cluster at
+		// 1.05-1.29 (4 runs, this machine, under heavy concurrent load from
+		// other lanes sharing it — load average ~29 at measurement time).
+		// [0.6, 1.7] sits in the gap between those two clusters with margin
+		// on both sides — tighter than a naive [0.5, 2.0] would be (which
+		// measurably let the mutant through: one of the four mutant runs
+		// landed at a ratio this file's earlier draft did not catch).
+		expect(unknownMedian).toBeGreaterThan(wrongMedian * 0.6);
+		expect(unknownMedian).toBeLessThan(wrongMedian * 1.7);
+	}, 180_000);
 });
 
 describe('/login — rate limited, one constant body (S12 acceptance)', () => {

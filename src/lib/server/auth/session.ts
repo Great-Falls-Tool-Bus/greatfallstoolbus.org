@@ -202,8 +202,22 @@ export async function getUser(tx: DbTransaction, tenantId: string, userId: strin
  *
  * Not a secret: nothing legitimate is ever checked against it, and rotating
  * it would not change what it proves, so it never rotates.
+ *
+ * Exported — `_`-prefixed seam convention (PR #198 review E2 precedent) —
+ * so `session.test.ts` (`just check`'s DB-free unit lane) can pin its cost
+ * factor to whatever `hashPassword`'s own default actually is, rather than
+ * to the literal `12` this comment states. PR #198 round-2 review, ED-1: an
+ * automated dependency bump that moves `@tummycrypt/tinyland-auth`'s
+ * `DEFAULT_CONFIG.rounds` would silently re-arm the B1 oracle — this
+ * constant would still be well-formed and still be compared against on
+ * every unresolved-handle call, but at the WRONG cost, which is a perfect
+ * oracle, not a closed one. Nothing before this export caught that: the
+ * only guard on the fix lived in `login.integration.test.ts`, which is not
+ * in the unit lane and asserts wall-clock comparability, not cost-factor
+ * equality — a one-cost-step-cheaper dummy still passes that test (review
+ * measured AUC 0.000, fully separable, with the shipped test green).
  */
-const DUMMY_PASSWORD_HASH = '$2a$12$.i5wCCtre0Zn/Z.Ne8Ujle.QUg3vv/sC3xPQ0wOBGbywGc62I3lDG';
+export const _DUMMY_PASSWORD_HASH = '$2a$12$.i5wCCtre0Zn/Z.Ne8Ujle.QUg3vv/sC3xPQ0wOBGbywGc62I3lDG';
 
 /**
  * Verify a password and open a session. The same `AuthError` for an unknown
@@ -211,7 +225,7 @@ const DUMMY_PASSWORD_HASH = '$2a$12$.i5wCCtre0Zn/Z.Ne8Ujle.QUg3vv/sC3xPQ0wOBGbyw
  * (spec §6's non-enumeration rule, applied one layer down) — and, as of the
  * B1 fix above, not a TIMING oracle either: the bcrypt compare below always
  * runs, against the real hash when `user` resolves and against the fixed
- * `DUMMY_PASSWORD_HASH` when it does not, so the expensive step that
+ * `_DUMMY_PASSWORD_HASH` when it does not, so the expensive step that
  * dominates this function's wall-clock cost is paid on every call. This is
  * additive and behavior-preserving for both existing callers: neither can
  * ever present a handle that fails to resolve, so `targetHash` is always
@@ -235,7 +249,7 @@ export async function authenticate(
 	// stored boolean) in the guard below on purpose — a separate `usable`
 	// variable would sever TypeScript's narrowing of `user` for the rest of
 	// this function, the exact bug class B1's own fix must not introduce.
-	const targetHash = user && user.isActive ? user.passwordHash : DUMMY_PASSWORD_HASH;
+	const targetHash = user && user.isActive ? user.passwordHash : _DUMMY_PASSWORD_HASH;
 	const ok = await verifyPassword(input.password, targetHash);
 	if (!user || !user.isActive || !ok) throw refusal;
 	const session = await adapter.createSession(tenantId, user.id, user, input.metadata);

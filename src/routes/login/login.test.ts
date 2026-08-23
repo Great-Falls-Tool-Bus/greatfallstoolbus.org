@@ -30,7 +30,7 @@ describe('/login eligibility set (PR #198 review E2 — CI-detectable regression
 		expect(_LOGIN_ELIGIBLE_STATUSES.has('removed')).toBe(false);
 	});
 
-	it('includes paused (RA-2 / slices §1.9 row 11: pause preserves login)', () => {
+	it('includes paused (slices §1.9 acceptance / §2.2 row 11: pause preserves login)', () => {
 		expect(_LOGIN_ELIGIBLE_STATUSES.has('paused')).toBe(true);
 	});
 });
