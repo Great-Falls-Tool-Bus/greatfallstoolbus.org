@@ -74,12 +74,14 @@ import { fileURLToPath } from 'node:url';
  * @property {string[]} [allowedHosts]
  * @property {string[]} [allowedMailboxes]
  * @property {string[]} [excludeRuleIds] Rule ids to skip entirely for this
- *   call. Used by scripts/check-tracked-tree.mjs to exclude the bare-keyword
- *   infra rules (kubeconfig-fragment, cache-or-executor-endpoint,
- *   internal-hostname) from governance-decision PROSE, which legitimately
- *   discusses those concepts in the abstract while asserting their absence —
- *   see that script's header comment. Never used by the build-output scan,
- *   which applies every rule with no exclusions.
+ *   call. Used by scripts/check-tracked-tree.mjs to exclude
+ *   private-loopback-address from governance-decision PROSE that documents a
+ *   loopback-only-binding safety property — see that script's header
+ *   comment. Never used by the build-output scan, which applies every rule
+ *   with no exclusions.
+ * @property {boolean} [checkHosts] Default true. Set false to skip the
+ *   unreviewed-outbound-host check — used by scripts/leak-scan-src.mjs, see
+ *   its header for why.
  */
 
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -99,19 +101,54 @@ export const ALLOWED_HOSTS = rulesDocument.allowedHosts;
 export const ALLOWED_MAILBOXES = rulesDocument.allowedMailboxes;
 
 /**
- * Name forms this repo's operator has separately, publicly consented to
- * publish (e.g. a single initial), PLUS narrow, reviewed sentence-punctuation
- * false positives the shape-based private-personal-name rule cannot avoid
- * (an ordinary sentence like "...under mechanism A. See the next section"
- * matches the same "Initial. Capitalized-word" shape the rule exists to
- * catch — this is an inherent, documented tradeoff of a regex-shape
- * detector applied to long-form prose rather than to gftb-site's original
- * build-output surface; see the porting PR's limits section). Each entry
- * below is the exact matched string, not a real name.
- * @type {string[]}
+ * @typedef {object} PermittedName
+ * @property {string} file The exact `file` argument scanText was called with
+ *   (a repo-relative path) — the exception applies ONLY there, not globally.
+ *   A global allowlist would permit e.g. "A. See" (added for one AGENTS.md
+ *   sentence) inside build/index.html or any other file that happens to
+ *   contain the same shape, and "See" is a real surname.
+ * @property {string} text The exact matched string.
+ * @property {string} reason Why this exact match, in this exact file, is not
+ *   a private-name leak — either a reviewed sentence-punctuation artefact of
+ *   the shape-based regex, or a licensing-required public-domain/third-party
+ *   attribution credit (the file's own purpose is to publish it).
+ */
+
+/**
+ * Name forms permitted ONLY in the named file — never a blanket allowlist.
+ * Two categories, both narrow and reviewed:
+ *   1. Sentence-punctuation false positives the shape-based
+ *      private-personal-name rule cannot avoid (an ordinary sentence like
+ *      "...under mechanism A. See the next section" matches the same
+ *      "Initial. Capitalized-word" shape the rule exists to catch — an
+ *      inherent, documented tradeoff of a regex-shape detector applied to
+ *      long-form prose; see the porting PR's limits section).
+ *   2. Licensing-required public-domain/third-party attribution credits — the
+ *      opposite of a private-name leak: CC/public-domain terms require
+ *      naming the historical author/photographer, and the name is already
+ *      public (published decades ago, cited by exactly this repo's own
+ *      attribution doc). Scoping this per-file, per-string (rather than
+ *      exempting docs/attribution.md's private-personal-name rule entirely,
+ *      as an earlier revision of this file did) means a DIFFERENT, non-
+ *      attribution name accidentally added to the same file still fires.
+ * @type {PermittedName[]}
  */
 export const PERMITTED_NAME_FORMS = [
-	'A. See', // AGENTS.md: "...under mechanism A. See the \"Per-PR..." — sentence punctuation, not a name.
+	{
+		file: 'AGENTS.md',
+		text: 'A. See',
+		reason: 'sentence punctuation: "...under mechanism A. See the \\"Per-PR..." — not a name.',
+	},
+	{
+		file: 'docs/attribution.md',
+		text: 'Louis M. Roehl',
+		reason: '1922 public-domain author credit, licensing-required by the attribution doc itself.',
+	},
+	{
+		file: 'CHANGELOG.md',
+		text: 'Louis M. Roehl',
+		reason: 'same public-domain author credit as docs/attribution.md, cited in the changelog entry that added it.',
+	},
 ];
 
 /**
@@ -129,6 +166,11 @@ export const TEXT_EXTENSIONS = new Set([
 	'.xml',
 	'.md',
 	'.map',
+	// .ts and .svelte never appear in build/ (compiled away) or under
+	// docs/static (prose/binary only) — added for scripts/leak-scan-src.mjs,
+	// the only runner that walks src/**.
+	'.ts',
+	'.svelte',
 	'',
 ]);
 
@@ -180,7 +222,27 @@ function lineOf(text, index) {
 }
 
 /**
- * Redacted, bounded context so a finding is actionable without echoing a secret.
+ * Redacted, bounded context so a finding is actionable without echoing a
+ * secret. This is a public repo; this function's output reaches a public CI
+ * log, so it must be structurally incapable of printing the matched needle —
+ * not just at the reported occurrence, but at any OTHER occurrence the
+ * excerpt window happens to catch, and not even a truncated fragment of one.
+ *
+ * Two failure modes were found and fixed here, both by review:
+ *   1. A single-occurrence `String.prototype.replace(string, ...)` only
+ *      replaces the FIRST occurrence in the window, so a needle repeating
+ *      within ~24 characters of itself printed the real value at whichever
+ *      occurrence `replace` did not pick.
+ *   2. Redacting only WITHIN the already-sliced window can still print a
+ *      TRUNCATED fragment of a second occurrence that straddles the window
+ *      boundary (e.g. a 23-character needle sliced to its first 20
+ *      characters at the window edge) — not the full needle, but enough of
+ *      it to defeat the point.
+ *
+ * The fix for both: redact every occurrence of the needle across the WHOLE
+ * text first, then slice the window from the already-redacted text. No
+ * occurrence, whole or partial, of the original needle can survive a window
+ * boundary that is cut from text where the needle no longer exists at all.
  *
  * @param {string} text
  * @param {number} index
@@ -188,13 +250,35 @@ function lineOf(text, index) {
  * @returns {string}
  */
 function excerptAt(text, index, length) {
-	const start = Math.max(0, index - 24);
-	const end = Math.min(text.length, index + length + 24);
-	return text
-		.slice(start, end)
-		.replace(text.slice(index, index + length), '<<redacted>>')
-		.replace(/\s+/gu, ' ')
-		.trim();
+	const needle = text.slice(index, index + length);
+
+	// 1. Naive window, same as before.
+	let start = Math.max(0, index - 24);
+	let end = Math.min(text.length, index + length + 24);
+
+	// 2. Find every occurrence of the needle in the WHOLE text, then expand
+	// the window to fully swallow any occurrence it merely overlaps. A window
+	// that stops in the MIDDLE of an occurrence is exactly failure mode 2
+	// above: split/join below only recognizes a COMPLETE needle, so a
+	// partial one at the boundary would be left as plain, readable text.
+	if (needle) {
+		let cursor = 0;
+		for (;;) {
+			const at = text.indexOf(needle, cursor);
+			if (at === -1) break;
+			const occStart = at;
+			const occEnd = at + needle.length;
+			if (occStart < end && occEnd > start) {
+				start = Math.min(start, occStart);
+				end = Math.max(end, occEnd);
+			}
+			cursor = at + 1; // overlapping occurrences of the needle with itself still count
+		}
+	}
+
+	const window = text.slice(start, end);
+	const redacted = needle ? window.split(needle).join('<<redacted>>') : window;
+	return redacted.replace(/\s+/gu, ' ').trim();
 }
 
 /**
@@ -222,7 +306,11 @@ export function scanText(file, text, options = {}) {
 		const pattern = compile(rule);
 		for (const match of text.matchAll(pattern)) {
 			if (match.index === undefined) continue;
-			if (rule.id === 'private-personal-name' && PERMITTED_NAME_FORMS.includes(match[0].trim())) continue;
+			if (
+				rule.id === 'private-personal-name' &&
+				PERMITTED_NAME_FORMS.some((permitted) => permitted.file === file && permitted.text === match[0].trim())
+			)
+				continue;
 			findings.push({
 				file,
 				ruleId: rule.id,
@@ -250,18 +338,28 @@ export function scanText(file, text, options = {}) {
 		}
 	}
 
-	const allowedHosts = new Set(options.allowedHosts ?? ALLOWED_HOSTS);
-	URL_RE.lastIndex = 0;
-	for (const match of text.matchAll(URL_RE)) {
-		const host = match[1].toLowerCase().replace(/\.$/u, '');
-		if (allowedHosts.has(host) || RESERVED_DOC_HOST_RE.test(host) || SELF_DOMAIN_RE.test(host)) continue;
-		findings.push({
-			file,
-			ruleId: 'unreviewed-outbound-host',
-			description: `outbound host ${host} is not on the reviewed public allowlist`,
-			line: lineOf(text, match.index ?? 0),
-			excerpt: excerptAt(text, match.index ?? 0, match[0].length),
-		});
+	// checkHosts defaults true. scripts/leak-scan-src.mjs turns it off: src/**
+	// legitimately carries a large number of unreviewed-but-benign outbound
+	// URLs (API docs, upstream references, dev tooling) that would otherwise
+	// dilute this narrow gate's signal-to-noise the same way the FULL rule set
+	// does over that surface (see that script's header for the measured
+	// numbers) — the identity/consent classes this gate targets
+	// (private-personal-name, private-list-archive, unreviewed-mailbox) do not
+	// need the host check to do their job.
+	if (options.checkHosts ?? true) {
+		const allowedHosts = new Set(options.allowedHosts ?? ALLOWED_HOSTS);
+		URL_RE.lastIndex = 0;
+		for (const match of text.matchAll(URL_RE)) {
+			const host = match[1].toLowerCase().replace(/\.$/u, '');
+			if (allowedHosts.has(host) || RESERVED_DOC_HOST_RE.test(host) || SELF_DOMAIN_RE.test(host)) continue;
+			findings.push({
+				file,
+				ruleId: 'unreviewed-outbound-host',
+				description: `outbound host ${host} is not on the reviewed public allowlist`,
+				line: lineOf(text, match.index ?? 0),
+				excerpt: excerptAt(text, match.index ?? 0, match[0].length),
+			});
+		}
 	}
 
 	const allowedMailboxes = new Set((options.allowedMailboxes ?? ALLOWED_MAILBOXES).map((box) => box.toLowerCase()));

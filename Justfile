@@ -944,6 +944,15 @@ leak-scan-build: build
 leak-scan-tree:
     cd {{ root }} && node scripts/check-tracked-tree.mjs
 
+# Narrow identity/consent subset (private-personal-name, private-list-archive,
+# the mailbox allowlist check) over src/** application source and its test
+# fixtures. NOT the full rule set — that produces ~70 findings, nearly all
+# fixture noise (measured; see scripts/leak-scan-src.mjs's header). This is
+# the recipe that closes the historical gap `leak-scan-tree` alone leaves:
+# 3 of this repo's 5 consent redaction commits lived in src/**.
+leak-scan-src:
+    cd {{ root }} && node scripts/leak-scan-src.mjs
+
 # Run Vitest unit tests
 test-unit:
     cd {{ root }} && pnpm run test:unit
@@ -986,11 +995,12 @@ sbom out_dir="build/sbom":
         -o cyclonedx-json="{{ out_dir }}/greatfallstoolbus.org.cyclonedx.json" \
         -o spdx-json="{{ out_dir }}/greatfallstoolbus.org.spdx.json"
 
-# Run the complete pre-commit validation gate. leak-scan-tree runs early
-# (cheap, git-ls-files-scoped, alongside the other public-safety scans);
-# leak-scan-build runs last (it pays for a full `just build`) so a cheaper
-# failure surfaces first.
-check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints leak-scan-tree lint typecheck skills-validate skills-check source-map-check db-check test-unit leak-scan-build
+# Run the complete pre-commit validation gate. leak-scan-tree and
+# leak-scan-src run early (cheap, git-ls-files-scoped, alongside the other
+# public-safety scans); leak-scan-build runs last (it pays for a full
+# `just build`, ~4 minutes — the only step this gate added that was not
+# already part of `check`'s cost) so a cheaper failure surfaces first.
+check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints leak-scan-tree leak-scan-src lint typecheck skills-validate skills-check source-map-check db-check test-unit leak-scan-build
     @echo "All checks passed."
 
 # Probe the declared production hostnames at the public Cloudflare Access edge.

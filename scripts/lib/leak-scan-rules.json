@@ -60,8 +60,8 @@
 		},
 		{
 			"id": "kubeconfig-fragment",
-			"description": "kubeconfig or cluster credential fragment",
-			"pattern": "\\b(client-certificate-data|client-key-data|certificate-authority-data|current-context|kubeconfig|serviceaccount/token)\\b",
+			"description": "kubeconfig or cluster credential fragment (value-shaped: a bare mention of the field name, e.g. governance prose explaining that no kubeconfig lives in this repo, does not fire — only field-name-plus-value or the serviceaccount token mount path do)",
+			"pattern": "\\b(client-certificate-data|client-key-data|certificate-authority-data|current-context)\\s*:\\s*\\S{4,}|serviceaccount/token\\b",
 			"flags": "iu"
 		},
 		{
@@ -72,14 +72,20 @@
 		},
 		{
 			"id": "private-network-address",
-			"description": "RFC1918, link-local, or CGNAT address (loopback 127.0.0.0/8 is intentionally excluded — see the porting PR: this repo's own preview-tailnet docs cite 127.0.0.1 repeatedly to document a loopback-only-binding SAFETY property, and a bare loopback address never names an infra endpoint a remote reader could act on)",
+			"description": "RFC1918, link-local, or CGNAT address",
 			"pattern": "\\b(?:10(?:\\.\\d{1,3}){3}|172\\.(?:1[6-9]|2\\d|3[01])(?:\\.\\d{1,3}){2}|192\\.168(?:\\.\\d{1,3}){2}|169\\.254(?:\\.\\d{1,3}){2}|100\\.(?:6[4-9]|[7-9]\\d|1[01]\\d|12[0-7])(?:\\.\\d{1,3}){2})\\b",
 			"flags": "u"
 		},
 		{
+			"id": "private-loopback-address",
+			"description": "IPv4 loopback address (127.0.0.0/8) — SPLIT OUT of private-network-address on purpose, at the surface layer, not the rule layer: this rule applies to leak-scan-build with no exclusions (a loopback literal in published output can still name a specific machine's admin surface), but is excluded from leak-scan-tree only, because this repo's own docs/preview-tailnet.md cites 127.0.0.1 repeatedly to document a loopback-only-binding SAFETY property, not a leak",
+			"pattern": "\\b127(?:\\.\\d{1,3}){3}\\b",
+			"flags": "u"
+		},
+		{
 			"id": "cache-or-executor-endpoint",
-			"description": "build cache, remote executor, or gRPC endpoint literal",
-			"pattern": "(?:grpcs?://|https?://[^\\s\"'<>)]*(?:bazel-cache|remote-cache|reapi|executor|buildbarn|buildfarm))",
+			"description": "build cache, remote executor, or gRPC endpoint literal (value-shaped: grpc(s):// must be followed immediately by a host, so prose like \"grpc:// endpoints\" listing the forbidden shape as a category does not fire)",
+			"pattern": "(?:grpcs?://\\S|https?://[^\\s\"'<>)]*(?:bazel-cache|remote-cache|reapi|executor|buildbarn|buildfarm))",
 			"flags": "iu"
 		},
 		{
@@ -102,8 +108,8 @@
 		},
 		{
 			"id": "private-personal-name",
-			"description": "personal name shaped as an initial-plus-surname, beyond any operator-consented initial",
-			"pattern": "(?<=^|[\\s>\"'(])(?:[A-Z]\\.\\s*[A-Z][a-z]{2,}|[A-Z][a-z]{2,}\\s+[A-Z]\\.\\s*[A-Z][a-z]{2,})\\b",
+			"description": "personal name shaped as an initial-plus-surname, beyond any operator-consented initial (Unicode-aware: matches accented/non-ASCII letters, e.g. Nunez-with-tilde or Etienne-with-acute, not just A-Z/a-z)",
+			"pattern": "(?<=^|[\\s>\"'(])(?:\\p{Lu}\\.\\s*\\p{Lu}\\p{Ll}{2,}|\\p{Lu}\\p{Ll}{2,}\\s+\\p{Lu}\\.\\s*\\p{Lu}\\p{Ll}{2,})\\b",
 			"flags": "u"
 		},
 		{
@@ -131,6 +137,8 @@
 		"creativecommons.org",
 		"commons.wikimedia.org",
 		"upload.wikimedia.org",
+		"keepachangelog.com",
+		"semver.org",
 		"www.sitemaps.org",
 		"www.w3.org"
 	],

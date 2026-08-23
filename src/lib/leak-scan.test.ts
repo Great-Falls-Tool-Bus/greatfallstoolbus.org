@@ -64,8 +64,50 @@ describe('leak-scan rule set', () => {
 		// anything that looks like a real committed identifier rather than a
 		// regex primitive. A shape-based rule's pattern is built from character
 		// classes, anchors, and quantifiers, not literal names.
+		//
+		// Strengthened per review (F7): the previous version of this assertion
+		// only rejected a pattern consisting ENTIRELY of
+		// [A-Za-z0-9 .@_-] characters, so a literal name merely wrapped in
+		// trivial regex escapes (`\bJaneDoe\b`) would sail through undetected —
+		// the backslashes alone make `.not.toMatch(/^[A-Za-z0-9 .@_-]{6,}$/)`
+		// pass even though the pattern is still just a hardcoded identifier.
+		// Every rule must use REAL regex structure (a character class,
+		// quantifier, or alternation), not just escape characters around a
+		// literal run.
 		for (const rule of LEAK_RULES) {
 			expect(rule.pattern, `${rule.id} pattern should be a shape, not a literal`).not.toMatch(/^[A-Za-z0-9 .@_-]{6,}$/);
+			const hasRealStructure = /[[\]{}|+*?]|\\p\{[A-Za-z]+\}|\\[dsSwW]/u.test(rule.pattern);
+			expect(hasRealStructure, `${rule.id} pattern should contain a character class, quantifier, or alternation`).toBe(
+				true,
+			);
+		}
+	});
+
+	it('the two identity-sensitive rules carry no bare name-shaped literal in their own pattern source', () => {
+		// Targets the exact gap the previous test's heuristic missed: a rule
+		// like `\bJaneDoe\b` reads as "shape-based" to a naive escape-character
+		// check, but "JaneDoe" is still a real committed identifier once the
+		// regex syntax around it is stripped away. private-personal-name and
+		// private-list-archive are the two rules whose whole subject is
+		// identity/consent, so they are the ones a #187-style mistake would
+		// actually land in.
+		const identityRuleIds = ['private-personal-name', 'private-list-archive'];
+		const identityRules = LEAK_RULES.filter((rule) => identityRuleIds.includes(rule.id));
+		expect(identityRules.map((rule) => rule.id).sort()).toEqual([...identityRuleIds].sort());
+		for (const rule of identityRules) {
+			const stripped = rule.pattern
+				.replace(/\\p\{[A-Za-z]+\}/gu, '')
+				.replace(/\\[bBdsSwW]/gu, '')
+				.replace(/\(\?[:<=!][^)]*\)|[()[\]{}|+*?^$.]/gu, '')
+				.trim();
+			// A real name would survive stripping as an unbroken mixed-case run
+			// (e.g. "JaneDoe"); this rule's own structural fragments do not —
+			// they are lowercase, punctuation-joined literals like
+			// "hyperkitty/list/keyholders@".
+			expect(
+				stripped,
+				`${rule.id} residual literal text after stripping regex syntax: ${JSON.stringify(stripped)}`,
+			).not.toMatch(/[A-Z][a-z]{3,}[A-Z][a-z]{3,}/u);
 		}
 	});
 });
@@ -86,12 +128,22 @@ describe('leak-scan detections', () => {
 		expect(idsFiring('api_key = "s3cret-value-abcdefghij"')).toContain('secret-assignment');
 	});
 
+	// Assembled at run time, same technique as FAKE_FORGE_TOKEN above: this
+	// repo's OWN scan-endpoints (`scripts/scan-internal-endpoints.sh`) greps
+	// tracked source for contiguous cluster-hostname/RFC1918 shapes, and a
+	// contiguous fixture in THIS file previously red-lined that gate (a real
+	// incident: `just check` recipe 4 failed on this file at the PR head, see
+	// the porting PR's review history). No contiguous copy of either shape may
+	// appear in this file's source text.
+	const FAKE_CLUSTER_HOST = ['mailman-web.some-namespace', 'svc.cluster.local'].join('.');
+	const FAKE_RFC1918_HOST = ['10', '20', '30', '40'].join('.');
+
 	it('catches cluster and kubeconfig fragments', () => {
 		expect(idsFiring('client-certificate-data: LS0tLS1CRUdJTg==')).toContain('kubeconfig-fragment');
 		expect(idsFiring('current-context: production')).toContain('kubeconfig-fragment');
-		expect(idsFiring('mailman-web.some-namespace.svc.cluster.local')).toContain('internal-hostname');
+		expect(idsFiring(FAKE_CLUSTER_HOST)).toContain('internal-hostname');
 		expect(idsFiring('runner.example.ts.net')).toContain('internal-hostname');
-		expect(idsFiring('10.20.30.40')).toContain('private-network-address');
+		expect(idsFiring(FAKE_RFC1918_HOST)).toContain('private-network-address');
 		expect(idsFiring('100.101.102.103')).toContain('private-network-address');
 		expect(idsFiring('grpcs://cache.example.invalid')).toContain('cache-or-executor-endpoint');
 		expect(idsFiring('https://bazel-cache.example.invalid/x')).toContain('cache-or-executor-endpoint');
@@ -115,7 +167,7 @@ describe('leak-scan detections', () => {
 	});
 
 	it('permits only the explicitly reviewed name-shape exceptions', () => {
-		expect(PERMITTED_NAME_FORMS).toContain('A. See');
+		expect(PERMITTED_NAME_FORMS.some((p) => p.file === 'AGENTS.md' && p.text === 'A. See')).toBe(true);
 		// The review's hostile table (gftb-site E1, ported here), row by row:
 		// every real-name shape fires — WITH and WITHOUT the space after the
 		// initial — while a minified member access and a reviewed sentence-
@@ -129,12 +181,38 @@ describe('leak-scan detections', () => {
 		// = / ! / ; never fire) — ported from gftb-site's own hostile test.
 		expect(idsFiring('if(S===H.Started)return;u.current=d.current')).not.toContain('private-personal-name');
 		expect(idsFiring('let e=S===H.Started;S=H.Stopped')).not.toContain('private-personal-name');
-		// The reviewed sentence-punctuation exception (AGENTS.md), and ONLY
-		// that exact string — a nearby but different capital-letter sentence
-		// break still fires, proving this is a narrow literal exception, not a
-		// pattern weakening.
-		expect(idsFiring('under mechanism A. See the next section')).not.toContain('private-personal-name');
-		expect(idsFiring('under mechanism B. See the next section')).toContain('private-personal-name');
+	});
+
+	it('scopes the sentence-punctuation exception to the exact file it was reviewed for (F2)', () => {
+		// Fixed per review (F2): PERMITTED_NAME_FORMS used to be a flat string
+		// list, so an exception added for ONE sentence in AGENTS.md was
+		// permitted everywhere — in build/index.html, in every doc, anywhere
+		// the same shape happened to appear. "See" is a real surname, so a
+		// global pass is a real hole, not a cosmetic one. The exception is now
+		// (file, text) scoped: the exact string in the exact file it was
+		// reviewed for is silent; the identical string anywhere else still
+		// fires, and a nearby-but-different capital-letter break in the SAME
+		// file still fires too.
+		const inReviewedFile = scanText('AGENTS.md', 'under mechanism A. See the next section');
+		expect(inReviewedFile.map((f) => f.ruleId)).not.toContain('private-personal-name');
+
+		const sameTextElsewhere = scanText('docs/some-other-file.md', 'under mechanism A. See the next section');
+		expect(sameTextElsewhere.map((f) => f.ruleId)).toContain('private-personal-name');
+
+		const differentBreakSameFile = scanText('AGENTS.md', 'under mechanism B. See the next section');
+		expect(differentBreakSameFile.map((f) => f.ruleId)).toContain('private-personal-name');
+	});
+
+	it('permits the licensing-required historical attribution credit only where it is actually cited', () => {
+		const attribution = PERMITTED_NAME_FORMS.find((p) => p.file === 'docs/attribution.md');
+		expect(attribution).toBeDefined();
+		const inAttribution = scanText('docs/attribution.md', `photographed by ${attribution!.text} in 1922`);
+		expect(inAttribution.map((f) => f.ruleId)).not.toContain('private-personal-name');
+		// Same exact name string in an UNRELATED file (not a reviewed
+		// attribution credit there) still fires — the exception does not
+		// generalize to "this name is fine everywhere now".
+		const elsewhere = scanText('src/lib/data/mail-clients.ts', `photographed by ${attribution!.text} in 1922`);
+		expect(elsewhere.map((f) => f.ruleId)).toContain('private-personal-name');
 	});
 
 	it('catches the private keyholders list archive', () => {
@@ -183,6 +261,44 @@ describe('operator-supplied deniedLiterals (never committed)', () => {
 		expect(scanText('f.html', text)).toHaveLength(0);
 		const findings = scanText('f.html', text, { deniedLiterals: ['SYNTHETIC-DENY-FIXTURE'] });
 		expect(findings.map((f) => f.ruleId)).toContain('operator-denied-literal');
+	});
+
+	// Adversarial review finding (B3): a repeated needle within the excerpt
+	// window used to print the REAL, unredacted value — a public-repo, public-
+	// CI-log disclosure of exactly the thing this gate exists to protect,
+	// which for the GFTB_LEAK_SCAN_DENY path is a real operator-supplied
+	// private literal, not a synthetic rule shape. Two distinct failure modes,
+	// both must stay closed: (1) `String.prototype.replace(string, ...)`
+	// replaces only the FIRST occurrence, printing the second in full; (2)
+	// redacting only inside an already-sliced window can still print a
+	// TRUNCATED fragment of a second occurrence straddling the window edge —
+	// not the complete needle, but enough characters to defeat the point.
+	it('never prints the needle, whole or as a fragment, when it repeats near itself (B3)', () => {
+		const needle = 'SYNTHETIC-PRIVATE-NAME';
+		const text = `ask ${needle} or ${needle} today`; // two copies ~19 chars apart
+		const findings = scanText('f.html', text, { deniedLiterals: [needle] });
+		expect(findings.length).toBeGreaterThan(0);
+		for (const finding of findings) {
+			expect(finding.excerpt).not.toContain(needle);
+			// No fragment of length >= 4 of the needle may survive either —
+			// this is what catches failure mode 2 (a partial copy at a window
+			// boundary), which a whole-string `.includes(needle)` check alone
+			// would miss.
+			for (let len = needle.length; len >= 4; len -= 1) {
+				for (let start = 0; start + len <= needle.length; start += 1) {
+					expect(finding.excerpt).not.toContain(needle.slice(start, start + len));
+				}
+			}
+		}
+	});
+
+	it('never prints a repeated secret-shaped match either, not just deniedLiterals (B3)', () => {
+		const text = 'AKIAIOSFODNN7EXAMPLE and again AKIAIOSFODNN7EXAMPLE right here';
+		const findings = scanText('f.html', text);
+		expect(findings.map((f) => f.ruleId)).toContain('secret-cloud-access-key');
+		for (const finding of findings) {
+			expect(finding.excerpt).not.toContain('AKIAIOSFODNN7EXAMPLE');
+		}
 	});
 });
 
@@ -243,8 +359,20 @@ describe('collectFiles / UnclassifiedOutputError (fail-closed extension coverage
 		}
 	});
 
-	it('REPO_ROOT resolves to this repository, not the scripts/lib directory', () => {
-		expect(REPO_ROOT.endsWith('greatfallstoolbus.org') || REPO_ROOT.split('/').length > 0).toBe(true);
-		expect(REPO_ROOT).not.toContain('/scripts/lib');
+	it('REPO_ROOT resolves to this repository, not the scripts/lib directory', async () => {
+		// Strengthened per review (F7): `REPO_ROOT.split('/').length > 0` is
+		// tautologically true for any non-empty string, so the previous `||`
+		// made this assertion pass regardless of what REPO_ROOT actually
+		// resolved to. Assert real, falsifiable facts instead: a known
+		// repo-root file exists directly under REPO_ROOT, the module that
+		// exports REPO_ROOT is reachable at the expected repo-relative path
+		// from it, and REPO_ROOT itself does not end in scripts/ or lib/ (the
+		// exact off-by-one this check exists to catch).
+		const { existsSync } = await import('node:fs');
+		const path = await import('node:path');
+		expect(existsSync(path.join(REPO_ROOT, 'Justfile'))).toBe(true);
+		expect(existsSync(path.join(REPO_ROOT, 'scripts', 'lib', 'leak-scan.mjs'))).toBe(true);
+		expect(REPO_ROOT.endsWith(`${path.sep}scripts`)).toBe(false);
+		expect(REPO_ROOT.endsWith(`${path.sep}lib`)).toBe(false);
 	});
 });
