@@ -6,7 +6,13 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { INTAKE_RATE_LIMIT_MAX, INTAKE_RATE_LIMIT_WINDOW_MS, createRateLimiter } from './ratelimit';
+import {
+	INTAKE_RATE_LIMIT_MAX,
+	INTAKE_RATE_LIMIT_WINDOW_MS,
+	LOGIN_RATE_LIMIT_MAX,
+	LOGIN_RATE_LIMIT_WINDOW_MS,
+	createRateLimiter,
+} from './ratelimit';
 
 const T0 = new Date('2026-08-20T12:00:00Z');
 const at = (ms: number) => new Date(T0.getTime() + ms);
@@ -63,5 +69,12 @@ describe('createRateLimiter — sliding window over caller keys', () => {
 	it('documents the ASSUMPTION defaults (resolver Jess, sitting #2 umbrella)', () => {
 		expect(INTAKE_RATE_LIMIT_MAX).toBe(5);
 		expect(INTAKE_RATE_LIMIT_WINDOW_MS).toBe(15 * 60 * 1000);
+		// S12, PR #198 review E1(c): nothing else pinned this — mutating
+		// LOGIN_RATE_LIMIT_MAX left `just check` byte-identical. Login is
+		// DELIBERATELY more permissive than intake (10 > 5) on the same
+		// window; see the constant's own doc comment for why.
+		expect(LOGIN_RATE_LIMIT_MAX).toBe(10);
+		expect(LOGIN_RATE_LIMIT_WINDOW_MS).toBe(15 * 60 * 1000);
+		expect(LOGIN_RATE_LIMIT_MAX).toBeGreaterThan(INTAKE_RATE_LIMIT_MAX);
 	});
 });

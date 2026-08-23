@@ -56,10 +56,20 @@
  * THROWING inside the same `withTenant` transaction, so the just-minted
  * session row never survives the rollback: nothing commits, so nothing needs
  * an explicit revoke. `paused` is explicitly ALLOWED — slices §1.9
- * acceptance / TIN-3440: "Pause blocks new borrowing but preserves login,
- * mail, and discussion access" (RA-2) — `pauseMembership` never touches
+ * acceptance (`member-v0-executable-slices-2026-08-18.md:558`, quoting
+ * TIN-3440 verbatim: "Pause blocks new borrowing but preserves login, mail,
+ * and discussion access") and slices §2.2 row 11 ("**session stays
+ * valid**", `:709`) — `pauseMembership` (`transition.ts`) never touches
  * sessions and this route must not invent a restriction spec/slices do not
- * state. This refusal fires only AFTER a correct password proved account
+ * state.
+ *
+ * (PR #198 review N1: this used to cite "RA-2" — `decisions/0019` §5 —
+ * which is a real, DECIDED ruling, but about pause's list/mailbox/archive
+ * projection effects, not sessions; dropped as a dangling cross-reference in
+ * favor of the two citations above, which say the thing this comment
+ * actually needs.)
+ *
+ * This refusal fires only AFTER a correct password proved account
  * knowledge, so it creates no NEW enumeration oracle: nobody who lacks the
  * password can ever reach this branch, and its distinct body leaks nothing
  * about any OTHER account.
@@ -86,8 +96,18 @@ const INVALID = { code: 'invalid' } as const;
  *  password (see module doc: not a new enumeration surface). */
 const MEMBERSHIP_INACTIVE = { code: 'membership_inactive' } as const;
 
-/** The statuses a login is honored for (module doc: paused stays eligible). */
-const LOGIN_ELIGIBLE_STATUSES: ReadonlySet<string> = new Set(['active', 'paused']);
+/**
+ * The statuses a login is honored for (module doc: paused stays eligible).
+ * Exported — `_`-prefixed seam convention, PR #198 review E2 — so a plain
+ * unit test (`login.test.ts`, `just check`'s `test-unit`, no database) can
+ * pin its exact membership. The integration suite that actually exercises
+ * this branch against real PostgreSQL (`login.integration.test.ts`) is NOT
+ * one of this repo's required CI checks (see the PR body's Gates section);
+ * this export is what makes the ADR 0014 §4 regression the review measured —
+ * flipping `left`/`removed` back into this set — detectable by a check that
+ * genuinely runs on every PR.
+ */
+export const _LOGIN_ELIGIBLE_STATUSES: ReadonlySet<string> = new Set(['active', 'paused']);
 
 /**
  * Thrown INSIDE the `withTenant` transaction to abort it — the session
@@ -160,7 +180,7 @@ export function _createLoginAction(seams: LoginSeams = {}) {
 					? await tx.select().from(membership).where(eq(membership.personId, member.id)).orderBy(membership.createdAt)
 					: [];
 				const latest = memberships.at(-1);
-				if (!latest || !LOGIN_ELIGIBLE_STATUSES.has(latest.status)) {
+				if (!latest || !_LOGIN_ELIGIBLE_STATUSES.has(latest.status)) {
 					throw new MembershipInactiveError();
 				}
 				return session;

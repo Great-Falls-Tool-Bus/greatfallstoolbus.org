@@ -13,8 +13,15 @@
  *     attacker-supplied cookie is never adopted);
  *   - logout invalidates the session server-side;
  *   - `/login`'s load redirects an already-authed visitor to `/home`;
- *   - `paused` logs in (RA-2: pause preserves login); `left`/`removed` do
- *     not (ADR 0014 §4 / slices §2.3 invariant 3).
+ *   - `paused` logs in (slices §1.9 acceptance, quoting TIN-3440: "Pause
+ *     blocks new borrowing but preserves login, mail, and discussion
+ *     access"; slices §2.2 row 11: "session stays valid" — NOT `decisions/
+ *     0019`'s RA-2, which rules on pause's list/mailbox/archive projection
+ *     effects, a different question; PR #198 review N1); `left`/`removed`
+ *     do not (ADR 0014 §4 / slices §2.3 invariant 3);
+ *   - B1 fix (PR #198 review): the unknown-handle path in `authenticate()`
+ *     now runs a real bcrypt compare against a fixed dummy hash, closing the
+ *     member-existence timing oracle S12 armed.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -136,7 +143,16 @@ async function provisioned() {
 	);
 }
 
-async function activate(applicationId: string): Promise<ActivationResult> {
+/**
+ * `hashOptions` defaults to `FAST_HASH` (every pre-existing caller's
+ * behavior, unchanged) — the B1 timing test below is the one caller that
+ * passes `{}` for real production rounds (12), because that test's whole
+ * point is the bcrypt cost `FAST_HASH` would otherwise hide.
+ */
+async function activate(
+	applicationId: string,
+	hashOptions: { rounds?: number } = FAST_HASH,
+): Promise<ActivationResult> {
 	const minted = await withTenant(tenantId, (tx) => mintActivationToken(tx, applicationId), db);
 	return withTenant(
 		tenantId,
@@ -145,7 +161,7 @@ async function activate(applicationId: string): Promise<ActivationResult> {
 				token: minted.token,
 				password: PASSWORD,
 				agreementVersionId: agreementId,
-				hashOptions: FAST_HASH,
+				hashOptions,
 			}),
 		db,
 	);
@@ -277,6 +293,47 @@ describe('/login — no enumeration oracle (S12 acceptance)', () => {
 		expect(missingPassword).toHaveProperty('status', 400);
 		expect(missingPassword).toHaveProperty('data', { code: 'invalid' });
 	});
+
+	/**
+	 * B1 (PR #198 review): before this fix, `authenticate()` returned after
+	 * two cheap queries for an unknown handle, never reaching `verifyPassword`
+	 * — so an unknown identifier answered in single-digit milliseconds while a
+	 * known member's wrong-password refusal paid the full bcrypt compare
+	 * (measured against real PG at production rounds=12: unknown median
+	 * 4.0ms/worst 26.3ms vs known-wrong median 3183ms/best 426.8ms — bodies
+	 * identical, but ONE request classified one address). The fix
+	 * (`session.ts`'s `DUMMY_PASSWORD_HASH`) makes `authenticate()` run a real
+	 * bcrypt compare on EVERY call, known handle or not.
+	 *
+	 * This member is activated WITHOUT `FAST_HASH` — deliberately, at the
+	 * package's real production rounds (12) — because the property under test
+	 * IS the bcrypt cost; a rounds=4 fixture would hide exactly the gap this
+	 * test exists to close. Generous 30s timeout for the two real compares.
+	 */
+	it('an unknown identifier costs comparable wall-clock time to a known member wrong-password refusal (production bcrypt rounds)', async () => {
+		const prov = await provisioned();
+		await activate(prov.application.id, {}); // {} = package default = rounds 12, not FAST_HASH
+		const action = _createLoginAction(loginSeams());
+
+		const timed = async (fields: Record<string, string>) => {
+			const start = performance.now();
+			const result = await action(loginEvent(fields).event);
+			return { ms: performance.now() - start, result };
+		};
+
+		const unknown = await timed({ identifier: `nobody-${randomUUID()}@example.org`, password: 'whatever-not-real' });
+		const wrong = await timed({ identifier: prov.application.email, password: 'definitely-the-wrong-password' });
+
+		expect(unknown.result).toHaveProperty('status', 401);
+		expect(wrong.result).toHaveProperty('status', 401);
+		expect(JSON.stringify(unknown.result)).toBe(JSON.stringify(wrong.result));
+
+		// Before the fix this ratio was ~0.001-0.06 (the ~140-790x gap the
+		// review measured). A generous >=0.5x floor survives ordinary
+		// system-load jitter on both real bcrypt-12 compares while being
+		// flatly impossible for code that skips the compare on one side.
+		expect(unknown.ms).toBeGreaterThan(wrong.ms * 0.5);
+	}, 30_000);
 });
 
 describe('/login — rate limited, one constant body (S12 acceptance)', () => {
@@ -367,7 +424,7 @@ describe('/login — membership state governs eligibility, grounded in spec §4 
 		expect(isRedirect(outcome)).toBe(true);
 	});
 
-	it('a PAUSED member logs in — RA-2: pause preserves login, mail, and discussion access', async () => {
+	it('a PAUSED member logs in — slices §1.9 acceptance: pause preserves login, mail, and discussion access', async () => {
 		const s = await memberInState('paused');
 		const action = _createLoginAction(loginSeams());
 		const outcome = await action(loginEvent({ identifier: s.email, password: PASSWORD }).event).catch((e) => e);

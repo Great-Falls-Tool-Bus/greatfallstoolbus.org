@@ -95,8 +95,13 @@ export const intakeRateLimiter: RateLimiter = createRateLimiter();
 /**
  * Max login attempts per caller per window. ASSUMPTION — resolver Jess,
  * sitting #2, same footing as `INTAKE_RATE_LIMIT_MAX` above: no ratified
- * figure exists, tighter than intake's because a login attempt guesses a
- * credential rather than merely submitting a form.
+ * figure exists. DELIBERATELY MORE PERMISSIVE than intake's 5 (PR #198
+ * review, E1 — an earlier draft of this comment claimed the opposite, which
+ * was simply wrong against the numbers below): a legitimate member who
+ * mistypes their password a few times in a row is the common case here,
+ * where intake's 5 is shared across BOTH `/apply` and `/apply/verify`
+ * against the same `intakeRateLimiter` singleton. This is a NEW figure, not
+ * a preserved one — nothing about `INTAKE_RATE_LIMIT_MAX` constrains it.
  */
 export const LOGIN_RATE_LIMIT_MAX = 10;
 
