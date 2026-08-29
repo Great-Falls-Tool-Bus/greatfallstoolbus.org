@@ -70,3 +70,39 @@ description = "Tailscale auth, API, or client key"
 regex = '''tskey-(auth|api|client)-[A-Za-z0-9-]{40,}'''
 keywords = ["tskey-"]
 tags = ["tailscale", "tinyland"]
+
+# --- GFTB discuss-drafts staging: generic-class backstops -------------------
+# Naming-consent identity enforcement (private individuals' protected names)
+# lives entirely in code as a salted-hash gate (src/lib/naming-consent.ts) and
+# deliberately CANNOT be duplicated here: a gitleaks rule that matched a
+# protected string — even via a regex containing it — would itself be the
+# same public disclosure this design exists to prevent. See
+# docs/runbooks/discuss-to-svx-pipeline.md for the full design and its
+# stated limits. These two rules instead carry the generic classes gitleaks
+# CAN do leak-free: bare email addresses and phone-number shapes, scoped to
+# the discuss-drafts staging tree specifically (not repo-wide, so this does
+# not newly flag pre-existing, already-reviewed email literals elsewhere in
+# the site).
+
+[[rules]]
+id = "gftb-discuss-drafts-bare-email"
+description = "Bare email address staged for public repost under src/content/discuss-drafts/ (personal addresses must never be staged)"
+regex = '''[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'''
+path = '''(^|/)src/content/discuss-drafts/'''
+keywords = ["@"]
+tags = ["gftb", "discuss-drafts", "pii"]
+[rules.allowlist]
+description = "The two list addresses are schema-mandated literals (SOURCE_LIST/TARGET_LIST in discuss-draft-schema.ts) — frontmatter fields and the generator's provenance comment — not personal data."
+regexTarget = "line"
+regexes = [
+  '''sourceList:\s*'keyholders@latoolb\.us'''',
+  '''targetList:\s*'discuss@latoolb\.us'''',
+  '''provenance:\s*keyholders@latoolb\.us''',
+]
+
+[[rules]]
+id = "gftb-discuss-drafts-phone-shape"
+description = "NANP-shaped phone number staged for public repost under src/content/discuss-drafts/"
+regex = '''(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'''
+path = '''(^|/)src/content/discuss-drafts/'''
+tags = ["gftb", "discuss-drafts", "pii"]

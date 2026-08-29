@@ -957,6 +957,42 @@ leak-scan-src:
 test-unit:
     cd {{ root }} && pnpm run test:unit
 
+# [OPERATOR, local-only] Regenerate src/lib/naming-consent.hashes.json from
+# ~/.gftb/naming-consent.plain, keyed by ~/.gftb/naming-consent.key (created
+# automatically, mode 0600, on first run) — neither file is ever committed
+# or lives inside any repo. See scripts/generate-naming-consent-hashes.mjs
+# for the format and the security rationale, and
+# docs/runbooks/discuss-to-svx-pipeline.md for the full design this backs.
+naming-consent-hashes:
+    cd {{ root }} && pnpm exec tsx scripts/generate-naming-consent-hashes.mjs
+
+# [OPERATOR, local-only] Drift gate: recomputes the committed hash list from
+# ~/.gftb/naming-consent.plain + ~/.gftb/naming-consent.key and diffs it
+# against the committed src/lib/naming-consent.hashes.json. Skips loudly
+# (exit 0) when either operator-local file is absent — e.g. in CI, where
+# this is expected and not a failure. Wired into `just check`.
+naming-consent-hashes-verify:
+    cd {{ root }} && pnpm exec tsx scripts/verify-naming-consent-hashes.mjs
+
+# Stage one already-redacted keyholders@ export as a published:false
+# discuss-drafts .svx. NEVER sends mail. Usage:
+#   just discuss-to-svx -- --input path/to/export.json
+# See docs/runbooks/discuss-to-svx-pipeline.md.
+discuss-to-svx *args:
+    cd {{ root }} && pnpm exec tsx scripts/discuss-to-svx.mjs {{ args }}
+
+# Independently re-validate every staged draft under src/content/discuss-drafts/**
+# (naming-consent + address/phone gates against raw text AND filename, schema,
+# pending-notice comment, plus an unconditional hash-list shape-check). When
+# ~/.gftb/naming-consent.key is absent (expected in CI), the identity check
+# only skips loudly if src/content/discuss-drafts/** is UNCHANGED relative to
+# the base ref — if it changed, this fails closed instead (see
+# src/lib/discuss-drafts-ci-scope.ts and the runbook's "CI scope" section).
+# Every other check in this recipe always runs and always enforces. Wired
+# into `just check`.
+discuss-drafts-validate:
+    cd {{ root }} && pnpm exec tsx scripts/validate-discuss-drafts.mts
+
 # Ensure local Playwright browser cache exists; CI uses Nix Chromium instead
 playwright-ensure:
     cd {{ root }} && if [ "${CI:-}" = "true" ] && command -v nix >/dev/null 2>&1; then \
@@ -1000,7 +1036,7 @@ sbom out_dir="build/sbom":
 # public-safety scans); leak-scan-build runs last (it pays for a full
 # `just build`, ~4 minutes — the only step this gate added that was not
 # already part of `check`'s cost) so a cheaper failure surfaces first.
-check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints leak-scan-tree leak-scan-src lint typecheck skills-validate skills-check source-map-check db-check test-unit leak-scan-build
+check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints leak-scan-tree leak-scan-src lint typecheck discuss-drafts-validate naming-consent-hashes-verify skills-validate skills-check source-map-check db-check test-unit leak-scan-build
     @echo "All checks passed."
 
 # Probe the declared production hostnames at the public Cloudflare Access edge.

@@ -106,6 +106,14 @@ const PER_FILE_EXCEPTIONS = [
 		ruleId: 'private-personal-name',
 		reason: 'synthetic test fixture display name ("M. Ember"), not a real person.',
 	},
+	{
+		file: 'src/lib/naming-consent.ts',
+		ruleId: 'unreviewed-mailbox',
+		reason:
+			'schematic address-SHAPE example in the assertNoBareEmailAddress docstring ' +
+			'(the placeholder local-part/domain form the guard itself documents) — not a ' +
+			'mailbox. The docstring describing the mailbox guard necessarily names the shape.',
+	},
 ];
 
 function fail(message) {

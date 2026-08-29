@@ -165,6 +165,7 @@ export const TEXT_EXTENSIONS = new Set([
 	'.txt',
 	'.xml',
 	'.md',
+	'.svx',
 	'.map',
 	// .ts and .svelte never appear in build/ (compiled away) or under
 	// docs/static (prose/binary only) — added for scripts/leak-scan-src.mjs,
