@@ -2,8 +2,9 @@
 """Assert Bazel-only ingestion of every first-party package.
 
 TIN-2881 removes the npm-shadow rail. @tummycrypt/@tinyland packages must carry
-no package.json specifier and must be linked from the tinyland-inc/bazel-registry
-Bzlmod graph through each producer's public :pkg target.
+no package.json specifier or pnpm lockfile edge and must be linked from the
+tinyland-inc/bazel-registry Bzlmod graph through each producer's public :pkg
+target.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_JSON = ROOT / "package.json"
+PNPM_LOCK = ROOT / "pnpm-lock.yaml"
 MODULE_BAZEL = ROOT / "MODULE.bazel"
 BUILD_BAZEL = ROOT / "BUILD.bazel"
 IN_HOUSE_SCOPES = ("@tummycrypt/", "@tinyland/")
@@ -41,6 +43,18 @@ def load_inhouse_npm_specifiers() -> dict[str, str]:
             if name.startswith(IN_HOUSE_SCOPES):
                 specifiers[name] = str(version)
     return specifiers
+
+
+def load_inhouse_lock_references() -> list[int]:
+    """Return line numbers for any first-party edge retained in pnpm's lock."""
+    return [
+        line_number
+        for line_number, line in enumerate(
+            PNPM_LOCK.read_text(encoding="utf-8").splitlines(),
+            start=1,
+        )
+        if any(scope in line for scope in IN_HOUSE_SCOPES)
+    ]
 
 
 def load_graph_links() -> dict[str, str]:
@@ -85,6 +99,12 @@ def main() -> int:
             "first-party packages are Bazel-only"
         )
 
+    for line_number in load_inhouse_lock_references():
+        failures.append(
+            f"pnpm-lock.yaml:{line_number} retains a first-party npm edge; "
+            "first-party packages are Bazel-only"
+        )
+
     links = load_graph_links()
     bazel_deps = load_inhouse_bazel_deps()
     linked_modules = set(links.values())
@@ -119,7 +139,7 @@ def main() -> int:
 
     print(
         f"Bazel-only ingestion ok: {len(links)} first-party package(s), "
-        "0 npm specifiers, complete bazel_dep/:pkg links"
+        "0 package/lock sources, complete bazel_dep/:pkg links"
     )
     return 0
 
