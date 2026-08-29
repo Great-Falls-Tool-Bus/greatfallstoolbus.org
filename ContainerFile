@@ -100,6 +100,7 @@ RUN pnpm exec esbuild src/lib/server/worker.ts \
       --bundle --platform=node --format=esm --target=node22 \
       --outfile=build/worker.mjs \
       --external:pg-native --external:cloudflare:sockets \
+      '--alias:$lib=./src/lib' \
       --tsconfig-raw='{}' \
       --banner:js="import { createRequire as __gftbCreateRequire } from 'node:module'; const require = __gftbCreateRequire(import.meta.url);"
 
