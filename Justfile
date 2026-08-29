@@ -459,6 +459,42 @@ test-integration *args:
     echo "test-integration: using ${runtime} + postgres:16.15"
     pnpm exec vitest run --config vitest.integration.config.ts {{ args }}
 
+# One in-process, assertion-bearing Member v0 launch rehearsal. Bazel target
+# //:first_membership_rehearsal_test is manual/local/no-cache and never
+# Flywheel/RBE eligible. Unlike the general integration suite, this proof
+# FAILS when PostgreSQL is unavailable: exit zero means it actually ran.
+rehearsal-first-membership:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ root }}
+    if [ -z "${GFTB_TEST_PG_SUPERUSER_DSN:-}" ]; then
+        runtime=""
+        for candidate in docker podman; do
+            if command -v "$candidate" >/dev/null 2>&1 && "$candidate" info >/dev/null 2>&1; then
+                runtime="$candidate"; break
+            fi
+        done
+        if [ -z "$runtime" ]; then
+            echo "rehearsal-first-membership: ERROR — no responding docker or podman daemon, and" >&2
+            echo "  GFTB_TEST_PG_SUPERUSER_DSN is unset. This proof did not run." >&2
+            echo "  Re-run with a container runtime, or point GFTB_TEST_PG_SUPERUSER_DSN" >&2
+            echo "  at a PostgreSQL 16 superuser connection." >&2
+            exit 1
+        fi
+    fi
+    bazel_args=(
+        test
+        //:first_membership_rehearsal_test
+        --test_output=streamed
+        --nocache_test_results
+    )
+    for env_name in GFTB_TEST_PG_SUPERUSER_DSN DOCKER_HOST TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE TESTCONTAINERS_HOST_OVERRIDE; do
+        if [ -n "${!env_name:-}" ]; then
+            bazel_args+=("--test_env=${env_name}")
+        fi
+    done
+    bazelisk "${bazel_args[@]}"
+
 # ─────────────────────────────────────────────
 # Preview (tailnet; INTERIM lane — the ratified target is
 # staging.greatfallstoolbus.org promote-on-PR once the infra apply sitting
