@@ -22,10 +22,11 @@ concurrency:
 
 jobs:
   ci:
-    # Naming note: the template's `flywheel-test` matrix job runs the pure-pnpm
-    # `just check` lane (no Bazel involved). The name is owned by ci-templates'
-    # matrix — do not rename it here. Real Bazel cache attach happens in the
-    # `flywheel-build` / `bazel-graph` jobs.
+    # Naming note: the template's `flywheel-test` matrix job runs the
+    # `just check` lane. It may hydrate first-party packages from Bzlmod
+    # graph links; that is not cache attachment or remote-execution proof.
+    # The matrix name is owned by ci-templates — do not rename it here. Real
+    # Bazel cache attach happens in `flywheel-build` / `bazel-graph`.
     uses: tinyland-inc/ci-templates/.github/workflows/spoke-ci.yml@v3.1.0
     with:
       node_version: '22'
