@@ -272,13 +272,10 @@ export async function authenticate(
  * Production runs UTC end to end (adapter.ts), but this function does not
  * depend on that being true to be correct.
  *
- * BOUNDARY, PRECISELY (TIN-4217 review, ED-4, nit): this is a strict `<`, not
- * the old code's `<=`. At the exact expiry instant (`expires_at == now()`,
- * a sub-microsecond window in practice) the old code's `expiry <= Date.now()`
- * called the session expired; this reports `live`. Harmless — a session is
- * either still within its TTL or it is not, and no caller depends on the
- * exact instant either way — but it is a real, unannounced behavior change
- * at that boundary, so it is announced here.
+ * BOUNDARY, PRECISELY (TIN-4217 review, ED-4): `<=` preserves the previous
+ * contract at the exact expiry instant. A row whose `expires_at` equals the
+ * transaction clock is expired, not live; moving the comparison into SQL
+ * must not silently widen the session TTL even by one boundary instant.
  */
 async function sessionExpiryVerdict(
 	tx: DbTransaction,
@@ -286,7 +283,7 @@ async function sessionExpiryVerdict(
 	sessionId: string,
 ): Promise<'live' | 'expired' | 'absent'> {
 	const rows = await tx.execute(
-		sql`select (expires_at < (now() at time zone 'utc')) as expired
+		sql`select (expires_at <= (now() at time zone 'utc')) as expired
 		      from "auth"."sessions"
 		     where tenant_id = ${tenantId} and id = ${sessionId}`,
 	);
@@ -402,7 +399,7 @@ export async function reapExpiredSessions(
 	const deleted = await tx.execute(
 		sql`with candidates as (
 			select id from "auth"."sessions"
-			where tenant_id = ${tenantId} and expires_at < (now() at time zone 'utc')
+			where tenant_id = ${tenantId} and expires_at <= (now() at time zone 'utc')
 			order by expires_at asc
 			limit ${limit}
 		)
