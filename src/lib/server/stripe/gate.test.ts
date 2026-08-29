@@ -1,22 +1,25 @@
 /**
  * The live gate is a constant, not a flag (TIN-3818; spec §5 row 7 — the gate
- * FORM is PROPOSED in ADR 0016 §5.1, unsigned).
+ * FORM is ratified in ADR 0016 §5.1, signed 2026-08-20; individual gate-row
+ * receipts are a separate, still-absent fact per ADR 0016's Boundaries
+ * clause).
  */
 
 import { describe, expect, it } from 'vitest';
 import { LIVE_STRIPE_GATE, LiveModeRejectedError, assertTestModeEvent, liveGateOpen, testModeOnly } from './gate';
 
 describe('the seven-row live gate', () => {
-	it('is CLOSED, frozen, and names its authority honestly (PROPOSED, not ratified)', () => {
+	it('is CLOSED, frozen, and names its authority honestly (form ratified, rows unreceipted)', () => {
 		expect(liveGateOpen()).toBe(false);
 		expect(Object.isFrozen(LIVE_STRIPE_GATE)).toBe(true);
 		expect(LIVE_STRIPE_GATE.reason).toContain('ENABLE-LIVE-STRIPE');
 		expect(LIVE_STRIPE_GATE.reason).toContain('Jess');
-		// B1: the form is proposed in §5.1 and unsigned — the reason must say so,
-		// not claim a ratification that does not exist.
+		// B1, restated post-signature: the form is ratified in §5.1 (signed
+		// 2026-08-20) but that is not a receipt for any of rows 1-6 — the
+		// reason must say the rows lack receipts, not imply the form itself
+		// is what's missing.
 		expect(LIVE_STRIPE_GATE.reason).toContain('§5.1');
-		expect(LIVE_STRIPE_GATE.reason).toContain('unsigned');
-		expect(LIVE_STRIPE_GATE.reason.toLowerCase()).not.toContain('ratified');
+		expect(LIVE_STRIPE_GATE.reason.toLowerCase()).toContain('no row receipts');
 	});
 
 	it('has no writable escape hatch', () => {
