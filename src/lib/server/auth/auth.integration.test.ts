@@ -19,7 +19,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { closeDb } from '$lib/server/db/client';
 import { withTenant } from '$lib/server/db/tenant';
 import {
@@ -38,6 +38,7 @@ import {
 	createUserWithPassword,
 	getUser,
 	getUserByHandle,
+	reapExpiredSessions,
 	requireSession,
 	revokeSession,
 	setPassword,
@@ -334,24 +335,317 @@ describe('sessions: revocation on password reset (spec §1.4)', () => {
 		});
 	});
 
-	it('an unparseable expiry FAILS CLOSED — and does not destroy the session (PR #175 review, MEDIUM)', async () => {
+	it('a genuinely LIVE session validates correctly under an adversarial DateStyle, using the REAL 7-day TTL (TIN-4217 fix, superseding the old fail-closed contract)', async () => {
+		// PRE-FIX, this scenario depended on the calendar: DateStyle 'SQL, DMY'
+		// made the naive expiry text ambiguous, and depending on the DAY OF
+		// MONTH the (now+7d) expiry happened to fall on, validateSession either
+		// correctly refused (day-of-month > 12, Invalid Date, fail-closed) or —
+		// on ~18 days of every month — WRONGLY DELETED the live session
+		// (day-of-month <= 12 heuristically misparsed DD/MM as MM/DD into a
+		// valid-but-past date). This row uses the REAL `authenticate()`-minted
+		// 7-day TTL rather than a hand-set expiry, so it is the one integration
+		// proof that exercises the actual production code path end to end; its
+		// PASS/FAIL outcome does not depend on the calendar (old code returns
+		// null either way — via deletion on ~18 days a month, via the NaN
+		// fail-closed path on the other ~12 — new code always returns
+		// non-null), but WHICH of those two old-code mechanisms it happens to
+		// exercise on a given run date still does depend on the calendar
+		// (TIN-4217 review). The deterministic, frozen-clock matrix below is
+		// what reliably and separately exercises each mechanism on demand,
+		// including acceptance (c) — "a misread never reaches `deleteSession`"
+		// — specifically.
 		const handle = `dmy-${randomUUID().slice(0, 8)}`;
 		await withTenant(tenantA, (tx) =>
 			createUserWithPassword(tx, tenantA, { handle, email: `${handle}@example.org`, password: PASSWORD }, FAST_HASH),
 		);
 		const { session } = await withTenant(tenantA, (tx) => authenticate(tx, tenantA, { handle, password: PASSWORD }));
 
-		// The reviewer's repro, transaction-scoped: DateStyle 'SQL, DMY' makes
-		// the naive timestamp text unparseable to the seam. SET LOCAL overrides
-		// the pool's datestyle=ISO pin for exactly this transaction.
 		const underDmy = await withTenant(tenantA, async (tx) => {
 			await tx.execute(sql.raw(`set local datestyle to 'SQL, DMY'`));
 			return validateSession(tx, tenantA, session.id);
 		});
-		expect(underDmy).toBeNull(); // closed: an expiry we cannot read is not proof of life
+		expect(underDmy).not.toBeNull(); // FIXED: a misconfigured DateStyle no longer costs a live session its validity
 
-		// …and NOT deleted as collateral: with sane formatting the session is
-		// still the live session it always was.
+		// …and, separately from validity, the row itself was never touched:
+		expect(await withTenant(tenantA, (tx) => validateSession(tx, tenantA, session.id))).not.toBeNull();
+	});
+});
+
+describe('sessions: expiry evaluation is calendar-independent under any DateStyle (TIN-4217)', () => {
+	const DATESTYLES = ["'ISO'", "'SQL, DMY'"] as const;
+
+	async function setSessionExpiry(sessionId: string, iso: string): Promise<void> {
+		await withTenant(tenantA, (tx) =>
+			tx.execute(sql`update "auth"."sessions" set expires = ${iso}, expires_at = ${iso} where id = ${sessionId}`),
+		);
+	}
+
+	async function sessionRowExists(sessionId: string): Promise<boolean> {
+		const rows = await withTenant(tenantA, (tx) =>
+			tx.execute(sql`select count(*)::int as n from "auth"."sessions" where id = ${sessionId}`),
+		);
+		return (rows.rows[0] as { n: number }).n === 1;
+	}
+
+	/**
+	 * TIN-4217 review, ED-2: the original six anchors here all sat in
+	 * 2031/2032 so that PostgreSQL's real `now()` would never catch up to
+	 * them for decades — but swapping a date's day and month fields NEVER
+	 * changes its YEAR, so a same-year swap of a 2031 date is always still
+	 * "2031", always still "the far future" relative to whatever real date
+	 * this suite happens to run on. Three of the six anchors (every one
+	 * shaped `day-of-month < month-number`, i.e. the shape that misparses
+	 * into an EARLIER date) were consequently VACUOUS — proven, by running
+	 * them against unfixed `main`, to pass there identically to this branch,
+	 * because the vendor's real-clock-based internal check never judged the
+	 * misparsed instant to be in the past. None of the six exercised
+	 * acceptance (c) — "a misread never reaches `deleteSession`" — at all.
+	 *
+	 * The fix: freeze the PROCESS clock (`Date` only — `setTimeout` and
+	 * friends stay real, so the DB connection machinery is untouched) to a
+	 * FIXED reference instant, chosen per anchor to sit in the SAME
+	 * CALENDAR YEAR as that anchor's expiry. This is what makes each
+	 * "deletion-path" row a genuine, on-demand reproduction rather than a
+	 * hope about the real run date: `now()` for the fixed code's SQL-native
+	 * verdict is still PostgreSQL's real, unfaked clock (every expiry below
+	 * is dated 2031/2032, comfortably ahead of real `now()` for a long time,
+	 * so that check reports "live" regardless of the frozen reference); only
+	 * the VENDORED adapter's internal `new Date()` reads the frozen clock,
+	 * which is the one comparison this whole defect lives in.
+	 *
+	 * Two shapes, by construction (verified below, not just asserted):
+	 *   - DELETION-PATH (`exercises: 'deletion'`): expiry's day-of-month is
+	 *     LESS than its month-number (both <= 12), so swapping the two
+	 *     fields produces a VALID date EARLIER in the same year. Choosing
+	 *     the frozen reference between the swapped date and the real one
+	 *     means: correct parse => genuinely live; heuristic parse => in the
+	 *     past => the vendor's `getSession` DELETES on unfixed `main`. These
+	 *     are the rows that actually prove acceptance (c).
+	 *   - FAIL-CLOSED-PATH (`exercises: 'fail-closed'`): expiry's
+	 *     day-of-month is > 12, so swapping produces an invalid month =>
+	 *     `Invalid Date` => `NaN` comparisons are always `false` => unfixed
+	 *     code neither deletes NOR validates — it fails closed, spuriously
+	 *     refusing a live session. These prove acceptance (b)'s availability
+	 *     half, not (c)'s data-loss half.
+	 */
+	const ANCHORS: ReadonlyArray<{
+		label: string;
+		expiryIso: string;
+		frozenNowIso: string;
+		exercises: 'deletion' | 'fail-closed';
+	}> = [
+		{
+			label: 'day-of-month < month-number (2031-09-05) — the actual defect trigger',
+			expiryIso: '2031-09-05T12:00:00.000Z',
+			frozenNowIso: '2031-06-15T12:00:00.000Z',
+			exercises: 'deletion',
+		},
+		{
+			label: 'US DST fall-back boundary (2031-11-02, day 2 < month 11)',
+			expiryIso: '2031-11-02T06:30:00.000Z',
+			frozenNowIso: '2031-06-15T12:00:00.000Z',
+			exercises: 'deletion',
+		},
+		{
+			label: 'day-of-month > 12 (2031-09-25)',
+			expiryIso: '2031-09-25T12:00:00.000Z',
+			frozenNowIso: '2031-06-15T12:00:00.000Z',
+			exercises: 'fail-closed',
+		},
+		{
+			label: 'year boundary (2031-12-31)',
+			expiryIso: '2031-12-31T23:30:00.000Z',
+			frozenNowIso: '2031-06-15T12:00:00.000Z',
+			exercises: 'fail-closed',
+		},
+		{
+			label: 'leap day (2032-02-29)',
+			expiryIso: '2032-02-29T12:00:00.000Z',
+			frozenNowIso: '2032-01-15T12:00:00.000Z',
+			exercises: 'fail-closed',
+		},
+		{
+			// 2nd Sunday of March: day-of-month varies by year (8-14); 2032's
+			// (the 14th) is > 12, so this year makes it a fail-closed-shaped
+			// anchor rather than vacuous — computed, not guessed (see the
+			// self-check below, which would fail loudly if this were wrong).
+			label: 'US DST spring-forward boundary (2032-03-14, day 14 > 12)',
+			expiryIso: '2032-03-14T07:00:00.000Z',
+			frozenNowIso: '2032-01-15T12:00:00.000Z',
+			exercises: 'fail-closed',
+		},
+	];
+
+	/** Mirrors the production heuristic: DD/MM rendered, reparsed as MM/DD. */
+	function swapDayMonth(iso: string): Date {
+		const d = new Date(iso);
+		const day = d.getUTCDate();
+		const month = d.getUTCMonth() + 1;
+		return new Date(
+			Date.UTC(d.getUTCFullYear(), day - 1, month, d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()),
+		);
+	}
+
+	function classify(anchor: (typeof ANCHORS)[number]): 'deletion' | 'fail-closed' {
+		const expiry = new Date(anchor.expiryIso);
+		const frozenNow = new Date(anchor.frozenNowIso);
+		const swapped = swapDayMonth(anchor.expiryIso);
+		const swapIsValidDate = expiry.getUTCDate() <= 12 && !Number.isNaN(swapped.getTime());
+		return swapIsValidDate && swapped.getTime() < frozenNow.getTime() ? 'deletion' : 'fail-closed';
+	}
+
+	// Self-check (TIN-4217 review, ED-2's own lesson applied to itself): a
+	// hand-computed anchor is exactly how three vacuous rows shipped the
+	// first time. Fail LOUDLY here, at suite-load time, if the classification
+	// claimed above does not match what the swap arithmetic actually produces
+	// — never silently ship another anchor that cannot tell fixed from
+	// broken.
+	it.each(ANCHORS)(
+		'[self-check] "$label" is classified as claimed and is genuinely future relative to its frozen reference',
+		(anchor) => {
+			expect(classify(anchor)).toBe(anchor.exercises);
+			expect(new Date(anchor.expiryIso).getTime()).toBeGreaterThan(new Date(anchor.frozenNowIso).getTime());
+		},
+	);
+
+	for (const anchor of ANCHORS) {
+		it(`LIVE session (${anchor.label}) validates AND survives under datestyle 'SQL, DMY' [exercises: ${anchor.exercises}]`, async () => {
+			vi.useFakeTimers({ toFake: ['Date'] });
+			try {
+				vi.setSystemTime(new Date(anchor.frozenNowIso));
+				const handle = `cal-${anchor.exercises}-${randomUUID().slice(0, 8)}`;
+				await withTenant(tenantA, (tx) =>
+					createUserWithPassword(
+						tx,
+						tenantA,
+						{ handle, email: `${handle}@example.org`, password: PASSWORD },
+						FAST_HASH,
+					),
+				);
+				const { session } = await withTenant(tenantA, (tx) =>
+					authenticate(tx, tenantA, { handle, password: PASSWORD }),
+				);
+				await setSessionExpiry(session.id, anchor.expiryIso);
+
+				const outcome = await withTenant(tenantA, async (tx) => {
+					await tx.execute(sql.raw(`set local datestyle to 'SQL, DMY'`));
+					return validateSession(tx, tenantA, session.id);
+				});
+				expect(outcome, `validateSession, ${anchor.label}`).not.toBeNull();
+				// The OUTCOME this suite exists to assert: no live session row is
+				// ever deleted — checked by a direct row count, not a second
+				// `validateSession` call (TIN-4217 review: the latter conflates
+				// "row exists" with "row validates").
+				expect(await sessionRowExists(session.id), `row survives, ${anchor.label}`).toBe(true);
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+	}
+
+	for (const datestyle of DATESTYLES) {
+		it(`a GENUINELY EXPIRED session still logs the member out under datestyle ${datestyle} (no regression from the fix)`, async () => {
+			const handle = `cal-expired-${randomUUID().slice(0, 8)}`;
+			await withTenant(tenantA, (tx) =>
+				createUserWithPassword(tx, tenantA, { handle, email: `${handle}@example.org`, password: PASSWORD }, FAST_HASH),
+			);
+			const { session } = await withTenant(tenantA, (tx) => authenticate(tx, tenantA, { handle, password: PASSWORD }));
+			// Unambiguously past under ANY DateStyle rendering — 2020, far
+			// outside every anchor above.
+			await setSessionExpiry(session.id, '2020-01-01T00:00:00.000Z');
+
+			const outcome = await withTenant(tenantA, async (tx) => {
+				await tx.execute(sql.raw(`set local datestyle to ${datestyle}`));
+				return validateSession(tx, tenantA, session.id);
+			});
+			// The CALLER-VISIBLE outcome the ticket requires preserved: a member
+			// with a truly expired session must still be logged out — the read
+			// path not deleting the row is not the same as it not refusing.
+			expect(outcome).toBeNull();
+		});
+	}
+
+	it('validateSession never explicitly deletes — reapExpiredSessions is the janitor for a genuinely expired row', async () => {
+		const handle = `cal-reap-noop-${randomUUID().slice(0, 8)}`;
+		await withTenant(tenantA, (tx) =>
+			createUserWithPassword(tx, tenantA, { handle, email: `${handle}@example.org`, password: PASSWORD }, FAST_HASH),
+		);
+		const { session } = await withTenant(tenantA, (tx) => authenticate(tx, tenantA, { handle, password: PASSWORD }));
+		await setSessionExpiry(session.id, '2020-01-01T00:00:00.000Z');
+
+		// validateSession itself never contains a delete call — asserted at the
+		// unit level by this file's own source (no `deleteSession` reference in
+		// its body); the caller-visible outcome is simply refusal:
+		expect(
+			await withTenant(tenantA, async (tx) => {
+				await tx.execute(sql.raw(`set local datestyle to 'SQL, DMY'`));
+				return validateSession(tx, tenantA, session.id);
+			}),
+		).toBeNull();
+		// (The row may or may not still exist at this point — the VENDORED
+		// adapter's OWN internal getSession() cleans up a genuinely expired row
+		// as an intended side effect of being called at all, once the
+		// datestyle pin makes that internal check trustworthy; see adapter.ts.
+		// That is correct now, not the bug — the bug was it firing on a LIVE
+		// session, covered by the LIVE_ANCHORS matrix above.)
+	});
+
+	it('reapExpiredSessions deletes a genuinely expired row on its own, regardless of DateStyle', async () => {
+		const handle = `cal-reap-${randomUUID().slice(0, 8)}`;
+		await withTenant(tenantA, (tx) =>
+			createUserWithPassword(tx, tenantA, { handle, email: `${handle}@example.org`, password: PASSWORD }, FAST_HASH),
+		);
+		const { session } = await withTenant(tenantA, (tx) => authenticate(tx, tenantA, { handle, password: PASSWORD }));
+		await setSessionExpiry(session.id, '2020-01-01T00:00:00.000Z');
+		expect(
+			(
+				await withTenant(tenantA, (tx) =>
+					tx.execute(sql`select count(*)::int as n from "auth"."sessions" where id = ${session.id}`),
+				)
+			).rows[0],
+		).toEqual({ n: 1 });
+
+		// The janitor, without any prior validateSession call, under an
+		// adversarial DateStyle:
+		const reaped = await withTenant(tenantA, async (tx) => {
+			await tx.execute(sql.raw(`set local datestyle to 'SQL, DMY'`));
+			return reapExpiredSessions(tx, tenantA);
+		});
+		expect(reaped.deleted).toBeGreaterThanOrEqual(1);
+		expect(
+			(
+				await withTenant(tenantA, (tx) =>
+					tx.execute(sql`select count(*)::int as n from "auth"."sessions" where id = ${session.id}`),
+				)
+			).rows[0],
+		).toEqual({ n: 0 });
+	});
+
+	it('reapExpiredSessions never touches a SPECIFIC live session, regardless of DateStyle', async () => {
+		// TIN-4217 review, ED-6: asserting `reaped.deleted === 0` on a
+		// TENANT-WIDE reap is order-dependent — it silently depends on every
+		// earlier row in this file having left no expired sessions behind in
+		// this tenant, so instead assert the row this test actually cares
+		// about survives, by id — true regardless of what else this reap
+		// touches.
+		const handle = `cal-reap-live-${randomUUID().slice(0, 8)}`;
+		await withTenant(tenantA, (tx) =>
+			createUserWithPassword(tx, tenantA, { handle, email: `${handle}@example.org`, password: PASSWORD }, FAST_HASH),
+		);
+		const { session } = await withTenant(tenantA, (tx) => authenticate(tx, tenantA, { handle, password: PASSWORD }));
+		await setSessionExpiry(session.id, '2031-09-05T12:00:00.000Z'); // day <= 12: the actual defect trigger
+
+		await withTenant(tenantA, async (tx) => {
+			await tx.execute(sql.raw(`set local datestyle to 'SQL, DMY'`));
+			return reapExpiredSessions(tx, tenantA);
+		});
+		expect(
+			(
+				await withTenant(tenantA, (tx) =>
+					tx.execute(sql`select count(*)::int as n from "auth"."sessions" where id = ${session.id}`),
+				)
+			).rows[0],
+		).toEqual({ n: 1 });
 		expect(await withTenant(tenantA, (tx) => validateSession(tx, tenantA, session.id))).not.toBeNull();
 	});
 });

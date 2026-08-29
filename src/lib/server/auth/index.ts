@@ -27,6 +27,7 @@ export {
 	createUserWithPassword,
 	getUser,
 	getUserByHandle,
+	reapExpiredSessions,
 	requireSession,
 	revokeAllSessions,
 	revokeSession,
@@ -37,6 +38,8 @@ export {
 	type AuthenticateInput,
 	type NewUserInput,
 	type PasswordHashOptions,
+	type ReapExpiredSessionsOptions,
+	type ReapExpiredSessionsResult,
 } from './session';
 
 // The one package TYPE the door re-exports (S6): session metadata for the
