@@ -459,19 +459,11 @@ test-integration *args:
     echo "test-integration: using ${runtime} + postgres:16.15"
     pnpm exec vitest run --config vitest.integration.config.ts {{ args }}
 
-# Synthetic membership rehearsal harness (scripts/rehearsal/first-membership.mts):
-# a single scripted, narrated run of apply -> keyholder review/decision ->
-# operator agreement publish (S13) -> assent/activation -> login+session ->
-# contribution via both rails (cash/check + Stripe test-mode), against a real
-# database, driving the same real `_create*Action` factories the
-# `*.integration.test.ts` suites drive. Emits a stage -> evidence receipt
-# table. Deliberately NOT part of `just check`/`just ci` — it is a rehearsal
-# tool for a human to run before a real launch step, not a gate.
-#
-# Same GFTB_TEST_PG_SUPERUSER_DSN / testcontainer fallback as test-integration
-# above (SKIPS LOUDLY when neither is available). Pass an output path as the
-# first arg to also write the receipts table to a file.
-rehearsal-first-membership *args:
+# One in-process, assertion-bearing Member v0 launch rehearsal. Bazel target
+# //:first_membership_rehearsal_test is manual/local/no-cache and never
+# Flywheel/RBE eligible. Unlike the general integration suite, this proof
+# FAILS when PostgreSQL is unavailable: exit zero means it actually ran.
+rehearsal-first-membership:
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{ root }}
@@ -483,15 +475,25 @@ rehearsal-first-membership *args:
             fi
         done
         if [ -z "$runtime" ]; then
-            echo "rehearsal-first-membership: SKIP — no responding docker or podman daemon, and"
-            echo "  GFTB_TEST_PG_SUPERUSER_DSN is unset. Re-run with a container runtime, or"
-            echo "  point GFTB_TEST_PG_SUPERUSER_DSN at a PostgreSQL 16 superuser connection"
-            echo "  (a real local Postgres 16 works fine — see scripts/rehearsal/first-membership.mts"
-            echo "  header for how this was run without docker)."
-            exit 0
+            echo "rehearsal-first-membership: ERROR — no responding docker or podman daemon, and" >&2
+            echo "  GFTB_TEST_PG_SUPERUSER_DSN is unset. This proof did not run." >&2
+            echo "  Re-run with a container runtime, or point GFTB_TEST_PG_SUPERUSER_DSN" >&2
+            echo "  at a PostgreSQL 16 superuser connection." >&2
+            exit 1
         fi
     fi
-    pnpm exec tsx scripts/rehearsal/first-membership.mts {{ args }}
+    bazel_args=(
+        test
+        //:first_membership_rehearsal_test
+        --test_output=streamed
+        --nocache_test_results
+    )
+    for env_name in GFTB_TEST_PG_SUPERUSER_DSN DOCKER_HOST TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE TESTCONTAINERS_HOST_OVERRIDE; do
+        if [ -n "${!env_name:-}" ]; then
+            bazel_args+=("--test_env=${env_name}")
+        fi
+    done
+    bazelisk "${bazel_args[@]}"
 
 # ─────────────────────────────────────────────
 # Preview (tailnet; INTERIM lane — the ratified target is
