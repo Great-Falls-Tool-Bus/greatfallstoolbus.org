@@ -49,12 +49,38 @@ export function getPool(): pg.Pool {
 	if (!pool) {
 		pool = new pg.Pool({
 			connectionString: resolveConnectionString(),
-			// Pin the wire format for timestamps (TIN-3817 S2, PR #175 review):
-			// the vendored auth.* tables are timestamp-without-timezone, and the
-			// auth seam's parser recognises the ISO shape specifically. A role- or
-			// DSN-level DateStyle like 'SQL, DMY' would make every session
-			// timestamp unparseable — the seam fails CLOSED on that, so this pin
-			// is defence in depth for availability, not the safety mechanism.
+			// Pin the wire format for timestamps (TIN-3817 S2, PR #175 review;
+			// corrected TIN-4217 — the previous version of this comment had the
+			// safety claim BACKWARDS and is exactly the kind of line that invites
+			// removing a pin that is still load-bearing).
+			//
+			// This option only sets what a NEW connection's `datestyle` starts as.
+			// It is real defence against a ROLE- or DATABASE-level default (e.g.
+			// `ALTER ROLE gftb_app SET datestyle = 'SQL, DMY'`), which Postgres
+			// applies before a client's own startup options, so this pin wins over
+			// it. It is NOT a defence against a `SET`/`SET LOCAL datestyle` issued
+			// LATER in an already-open session or transaction — that is a strictly
+			// later configuration layer and overrides this one on the same
+			// connection. TIN-4217 measured exactly that vector against real
+			// PostgreSQL: `SET LOCAL datestyle TO 'SQL, DMY'` inside a transaction
+			// made a naive session timestamp render as `DD/MM/YYYY`, which both
+			// this module's own parser AND the vendored adapter's internal expiry
+			// check misread as a valid-but-wrong PAST date on ~12 days of every
+			// month — NOT the "fails closed on unparseable" outcome the old
+			// comment here promised, and NOT something this pool-level option
+			// prevents.
+			//
+			// The actual safety mechanisms now are (1) `validateSession`'s
+			// liveness verdict, which is SQL-native and does not depend on
+			// `datestyle` at all (src/lib/server/auth/session.ts,
+			// `sessionExpiryVerdict`), and (2) `PIN_ISO_DATESTYLE_SQL`
+			// (src/lib/server/auth/adapter.ts), a transaction-local re-pin issued
+			// immediately before the one remaining call that still requires a
+			// client-side parse of a naive timestamp (the vendored adapter's own
+			// `getSession`). This pool option is defence in depth for the common
+			// case and for availability — a role/database DateStyle slip no
+			// longer needs to be diagnosed as "why do all timestamps look wrong" —
+			// it is not, and was never sufficient to be, the safety mechanism.
 			options: '-c datestyle=ISO',
 		});
 	}

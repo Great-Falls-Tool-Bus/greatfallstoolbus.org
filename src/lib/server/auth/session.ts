@@ -38,7 +38,7 @@ import {
 import type { TenantScoped } from '@tummycrypt/tinyland-auth-pg';
 import { sql } from 'drizzle-orm';
 import type { DbTransaction } from '$lib/server/db/client';
-import { adapterFor, parseDbInstant, toUtcIso } from './adapter';
+import { PIN_ISO_DATESTYLE_SQL, adapterFor, toUtcIso } from './adapter';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -257,12 +257,67 @@ export async function authenticate(
 }
 
 /**
+ * SQL-NATIVE liveness verdict for one session row (TIN-4217 structural fix,
+ * item 1 of the fix ladder: "kill the ambiguity at the source"). The
+ * comparison runs entirely inside PostgreSQL, against its own internal
+ * timestamp representation — no instant is ever rendered to text and handed
+ * to a client-side parser for this decision, so no `datestyle` setting can
+ * make it ambiguous. `AT TIME ZONE 'UTC'` is not decorative: `now()` is a
+ * `timestamptz` (an absolute instant), and comparing it to a naive `timestamp`
+ * column implicitly converts it using the SESSION's `timezone` GUC first —
+ * measured directly (TIN-4217) to silently misjudge liveness on a
+ * non-UTC-timezone connection without this cast, since the naive column holds
+ * UTC WALL-CLOCK digits (adapter.ts's documented convention) while a bare
+ * `now()` comparison would convert to the session's local wall clock instead.
+ * Production runs UTC end to end (adapter.ts), but this function does not
+ * depend on that being true to be correct.
+ */
+async function sessionExpiryVerdict(
+	tx: DbTransaction,
+	tenantId: string,
+	sessionId: string,
+): Promise<'live' | 'expired' | 'absent'> {
+	const rows = await tx.execute(
+		sql`select (expires_at < (now() at time zone 'utc')) as expired
+		      from "auth"."sessions"
+		     where tenant_id = ${tenantId} and id = ${sessionId}`,
+	);
+	const row = rows.rows[0] as { expired: boolean } | undefined;
+	if (!row) return 'absent';
+	return row.expired ? 'expired' : 'live';
+}
+
+/**
  * Resolve a session id to a live session, or `null`.
  *
- * Expiry is enforced HERE, against the UTC-normalized `expiresAt`, in
- * addition to the adapter's internal check — the adapter parses the naive
- * column in local time (./adapter.ts), so on a non-UTC process its own check
- * can run hours late. Ours cannot.
+ * THE READ PATH NEVER DELETES (TIN-4217 structural fix, item 2). This
+ * function's only job is to answer "is this session valid right now?"; a
+ * misjudgment here can cost a spurious logout, never a destroyed row.
+ * Garbage-collecting genuinely expired sessions is `reapExpiredSessions`
+ * below — a separate unit of work, on its own schedule, that can afford to
+ * be conservative. The two used to be fused: the old `validateSession` both
+ * decided AND deleted, on the strength of a comment promising the delete was
+ * skipped whenever the expiry was unparseable. That promise did not hold —
+ * see the measured finding below — which is exactly the failure mode
+ * splitting verdict-from-delete is meant to make structurally impossible
+ * rather than a matter of vigilance.
+ *
+ * MEASURED FINDING (TIN-4217), and why this also re-pins `datestyle` before
+ * touching the adapter at all: the vendored `PgStorageAdapter.getSession()`
+ * called below has its OWN internal expiry check — a bare
+ * `new Date(session.expires) < new Date()` against driver-returned TEXT —
+ * and reproduction against real PostgreSQL proved THAT check independently
+ * deletes a live session under `datestyle = 'SQL, DMY'`, from inside
+ * `getSession`, before this function's own logic runs at all (the old
+ * `Number.isNaN`/`deleteSession` code below this point was, in that exact
+ * scenario, dead code: `session` was already `null`, the row already gone).
+ * We cannot patch a pinned dependency, so `PIN_ISO_DATESTYLE_SQL` removes the
+ * ambiguous input before the vendor's parser — or ours — ever sees it. This
+ * function's OWN verdict, separately, does not depend on that pin holding:
+ * `sessionExpiryVerdict` is SQL-native and immune to `datestyle` by
+ * construction (see its own doc comment), so even a future change that
+ * reordered or dropped the pin would fail closed into spurious logouts, not
+ * silent data loss.
  */
 export async function validateSession(
 	tx: DbTransaction,
@@ -277,24 +332,65 @@ export async function validateSession(
 	// and fail soft.
 	if (!UUID_RE.test(sessionId)) return null;
 	const adapter = adapterFor(tx);
+	await tx.execute(sql.raw(PIN_ISO_DATESTYLE_SQL));
 	const session = await adapter.getSession(tenantId, sessionId);
 	if (!session) return null;
-	const normalized = normalizeSessionInstants(session);
-	const expiry = parseDbInstant(normalized.expiresAt).getTime();
-	// FAIL CLOSED on an unparseable expiry (PR #175 review, MEDIUM): NaN
-	// compares false against everything, so `NaN <= now` alone would mean
-	// "never expires" — under a role/DSN DateStyle like 'SQL, DMY' a session
-	// expired ten years ago would validate. Unparseable ⇒ treated as not
-	// live. Deliberately WITHOUT the delete: destroying rows because a
-	// session-level setting confused a parser would let a config slip erase
-	// every session; refusing to honor them is closed enough, and the pool
-	// pins DateStyle=ISO as defence in depth (db/client.ts).
-	if (Number.isNaN(expiry)) return null;
-	if (expiry <= Date.now()) {
-		await adapter.deleteSession(tenantId, sessionId);
-		return null;
-	}
-	return normalized;
+	const verdict = await sessionExpiryVerdict(tx, tenantId, sessionId);
+	// 'expired' and 'absent' are both treated as "not live" — fail closed
+	// either way, and NEITHER branch deletes anything. A row `getSession`
+	// still returned but `sessionExpiryVerdict` calls expired is a residual
+	// disagreement window (e.g. the two queries straddling the exact expiry
+	// instant), not a parser failure, and reaping it is the janitor's job.
+	if (verdict !== 'live') return null;
+	return normalizeSessionInstants(session);
+}
+
+export interface ReapExpiredSessionsOptions {
+	/**
+	 * Hard cap on rows one invocation will delete (TIN-4217: conservatism —
+	 * the janitor affords what the read path cannot. A bug or a misconfigured
+	 * caller running this in a tight loop can delete at most `limit` rows per
+	 * transaction, never the whole table in one shot).
+	 */
+	readonly limit?: number;
+}
+
+export interface ReapExpiredSessionsResult {
+	readonly deleted: number;
+}
+
+/**
+ * Garbage-collect genuinely expired sessions — THE ONLY place in this module
+ * that deletes a session because it expired (TIN-4217 structural fix, item
+ * 2). Not wired to a schedule by this change; it ships the primitive a
+ * future worker/cron slice calls, the same way `validateSession` is a
+ * primitive `requireSession` composes.
+ *
+ * Liveness here is the identical SQL-native, `datestyle`-and-`timezone`-immune
+ * comparison `sessionExpiryVerdict` uses (see its doc comment) — no
+ * client-side parse of locale-rendered text is involved anywhere in this
+ * function, so there is no parser left for a `datestyle` misconfiguration to
+ * fool. `limit` bounds one invocation's blast radius regardless.
+ */
+export async function reapExpiredSessions(
+	tx: DbTransaction,
+	tenantId: string,
+	options: ReapExpiredSessionsOptions = {},
+): Promise<ReapExpiredSessionsResult> {
+	const limit = options.limit ?? 500;
+	const deleted = await tx.execute(
+		sql`with candidates as (
+			select id from "auth"."sessions"
+			where tenant_id = ${tenantId} and expires_at < (now() at time zone 'utc')
+			order by expires_at asc
+			limit ${limit}
+		)
+		delete from "auth"."sessions" as s
+		using candidates as c
+		where s.id = c.id and s.tenant_id = ${tenantId}
+		returning s.id`,
+	);
+	return { deleted: deleted.rows.length };
 }
 
 /** The guard a protected route calls: a live session or a thrown 401. */

@@ -57,20 +57,124 @@ import { FORBIDDEN_ADAPTER_METHODS, type ForbiddenAdapterMethod } from './fence'
  *
  * Residual, flagged rather than fixed: the adapter's own INTERNAL expiry
  * check (`getSession` compares `session.expires` to now before we ever see
- * the row) still does the local-time parse. West of UTC that check fires
- * LATE and our own expiry enforcement in `validateSession` wins; east of UTC
- * the adapter would delete sessions EARLY — annoying, not unsafe (fails
- * closed). Production runs UTC end to end; recorded in the PR for the
- * upstream fix.
+ * the row) still does the local-time parse (no 'Z' appended — see
+ * `parseDbInstant` below). West of UTC that check fires LATE and our own
+ * expiry enforcement in `validateSession` wins; east of UTC the adapter would
+ * delete sessions EARLY — annoying, not unsafe, PROVIDED the text it parses
+ * is at least in a format `new Date()` reads unambiguously. Production runs
+ * UTC end to end; recorded in the PR for the upstream fix.
+ *
+ * THAT PROVISO IS NOT FREE (TIN-4217, measured against real PostgreSQL). The
+ * adapter's internal check is `new Date(session.expires) < new Date()` on
+ * whatever TEXT the driver returns for the naive `expires` column — and that
+ * text is rendered per the CONNECTION's `datestyle`. Under `'SQL, DMY'` a
+ * naive timestamp renders `DD/MM/YYYY HH:MI:SS`; V8 heuristically reparses
+ * that as `MM/DD/YYYY`, which is Invalid Date when day-of-month > 12 (safe:
+ * the adapter's `NaN < now` is false, so it treats the row as live and does
+ * NOT delete) but a VALID, WRONG, generally-past date when day-of-month <= 12
+ * — and the adapter DOES delete on that, from inside `getSession`, before
+ * `validateSession` below ever runs its own logic. Reproduced directly
+ * against `dist/adapter.js` (bypassing this module's own parsing entirely):
+ * a live session's row count went from 1 to 0 after nothing but
+ * `adapterFor(tx).getSession(...)` under a transaction-local
+ * `SET LOCAL datestyle TO 'SQL, DMY'`. This is NOT a bug this module's own
+ * `parseDbInstant` could ever have caught by being stricter — the deletion
+ * happens one call inside a pinned dependency we cannot patch, before this
+ * module or session.ts sees the row at all.
+ *
+ * THE FIX IS TO REMOVE THE AMBIGUOUS INPUT, NOT TO OUT-PARSE IT.
+ * `PIN_ISO_DATESTYLE_SQL` below re-pins `datestyle` to `'ISO'`,
+ * TRANSACTION-LOCALLY, immediately before any call that hands a naive
+ * timestamp to either this module's parser or the vendored adapter's own —
+ * proven (same harness) to make the identical scenario report the session
+ * live and leave the row in place. `db/client.ts`'s pool-level
+ * `-c datestyle=ISO` startup option does NOT substitute for this: it only
+ * pins what a NEW connection starts with, and a `SET`/`SET LOCAL` issued
+ * later in an established session or transaction — the exact vector here —
+ * overrides it. See `db/client.ts` for the corrected account of what that
+ * pool option does and does not guarantee.
+ *
+ * `validateSession`'s OWN liveness verdict, separately, no longer trusts
+ * ANY client-side parse at all (its own or the adapter's): it is re-derived
+ * from a SQL-NATIVE comparison computed entirely inside PostgreSQL, which no
+ * `datestyle` or process/session `timezone` setting can perturb, because no
+ * instant crosses the wire as text for that decision. The parser below still
+ * matters for two things that are not that decision: normalizing
+ * `createdAt`/`expires`/`expiresAt` for display (`normalizeSessionInstants`),
+ * and `reauth.ts`'s fresh-reauthentication window, which has no SQL-native
+ * equivalent available at that call site.
  */
 const NAIVE_TIMESTAMP = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?$/;
 
-/** Parse a timestamp the adapter handed back, treating zoneless as UTC. */
-export function parseDbInstant(value: string | Date): Date {
-	if (value instanceof Date) return value;
+/**
+ * A full ISO-8601 instant carrying an explicit timezone designator (`Z` or
+ * `±HH:MM`) — unambiguous under ANY `datestyle`, because `datestyle` governs
+ * how PostgreSQL renders a value, and this shape is instead what THIS
+ * module's own `toUtcIso` produces (`Date.prototype.toISOString()`), or what
+ * a `timestamptz` column would send. Accepted so re-parsing an
+ * already-normalized value (exactly what `parseDbInstant` does when called a
+ * second time on its own output, e.g. via `isFreshlyAuthenticated`) keeps
+ * working under the strict parser below.
+ */
+const ISO_INSTANT_WITH_DESIGNATOR = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * Re-pin `datestyle` to the one format this module's parser (and, per the
+ * measurement above, the vendored adapter's OWN internal parser) reads
+ * correctly — transaction-local (`SET LOCAL`), so it borrows nothing from
+ * connection-time configuration and overrides whatever the ambient value was
+ * a moment ago. Execute this as the LAST statement before any read that will
+ * feed a naive-timestamp session column to a parser; nothing may run between
+ * the two, or a `SET LOCAL datestyle` racing in between would win. See the
+ * module comment above for the measured reason this exists.
+ */
+export const PIN_ISO_DATESTYLE_SQL = "set local datestyle to 'ISO'";
+
+/**
+ * The discriminated result `parseDbInstant` should have returned from the
+ * start (TIN-4217 acceptance (a)/(c)): a JS `Date` collapses "parsed to a
+ * trustworthy instant" and "parsing failed" into the SAME type, distinguished
+ * only by `Number.isNaN(d.getTime())` — a check every caller must remember to
+ * make, and NaN's own arithmetic (`NaN <= x` and `NaN > x` are both `false`)
+ * silently does the wrong thing for whichever caller forgets. `ok`/`err` make
+ * "expired" and "I could not trust this value" different TYPES; a caller
+ * that only handles the `ok` branch cannot accidentally fall through into
+ * treating an untrusted value as a comparable instant.
+ */
+export type ParsedInstant =
+	{ readonly ok: true; readonly instant: Date } | { readonly ok: false; readonly raw: string };
+
+/**
+ * Parse a timestamp the adapter (or a raw query) handed back, treating
+ * zoneless naive text as UTC — the vendored `auth.*` tables' documented
+ * convention (module comment above). STRICT (TIN-4217 acceptance (a)):
+ * exactly two shapes are accepted — the naive `auth.*` column shape, and a
+ * fully zone-qualified ISO instant (this module's own normalized output).
+ * Anything else is `{ ok: false }`, NEVER a heuristic re-parse through bare
+ * `new Date(text)` — that heuristic is precisely what let a DateStyle-
+ * rendered `DD/MM/YYYY` string silently become a valid-but-wrong `MM/DD/YYYY`
+ * instant instead of the detectable rejection this now is.
+ */
+export function tryParseDbInstant(value: string | Date): ParsedInstant {
+	if (value instanceof Date) {
+		return Number.isNaN(value.getTime()) ? { ok: false, raw: String(value) } : { ok: true, instant: value };
+	}
 	const trimmed = value.trim();
-	if (NAIVE_TIMESTAMP.test(trimmed)) return new Date(`${trimmed.replace(' ', 'T')}Z`);
-	return new Date(trimmed);
+	if (NAIVE_TIMESTAMP.test(trimmed)) return { ok: true, instant: new Date(`${trimmed.replace(' ', 'T')}Z`) };
+	if (ISO_INSTANT_WITH_DESIGNATOR.test(trimmed)) return { ok: true, instant: new Date(trimmed) };
+	return { ok: false, raw: trimmed };
+}
+
+/**
+ * Date-or-Invalid-Date view over `tryParseDbInstant`, kept for callers that
+ * predate the discriminated result (`toUtcIso` below). Prefer
+ * `tryParseDbInstant` for anything a safety decision turns on — an `Invalid
+ * Date` is exactly the silent NaN-arithmetic footgun (a) above exists to
+ * retire.
+ */
+export function parseDbInstant(value: string | Date): Date {
+	const parsed = tryParseDbInstant(value);
+	return parsed.ok ? parsed.instant : new Date(NaN);
 }
 
 /** ISO-normalize a timestamp field; leaves unparseable input untouched. */
