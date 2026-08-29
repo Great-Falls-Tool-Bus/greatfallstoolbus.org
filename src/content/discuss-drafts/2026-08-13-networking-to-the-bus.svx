@@ -1,0 +1,35 @@
+---
+subject: 'Reposting from the keyholders archive: networking to the bus (2026-08-13)'
+sourceList: 'keyholders@latoolb.us'
+sourceMessageId: 'HK id 27'
+sourceDate: '2026-08-13T17:47:00Z'
+targetList: 'discuss@latoolb.us'
+published: false
+preparedAt: '2026-08-20T23:15:00Z'
+---
+
+<!-- provenance: keyholders@latoolb.us archive, HK id 27 (private list; no email addresses recorded) -->
+<!-- pending discuss@ posting by operator; svx to be reconciled to the posted archive URL -->
+
+*(Repost to the public discuss list of a note originally sent to the
+keyholders list on 2026-08-13; lightly redacted for the public archive.)*
+
+Hey there!
+
+Heading out soon to bang around the bus after this rain shower clears, I've
+tentatively set some working hours for this week. If these times work I'll
+post them as working hours.
+
+Curious where we might be with lease + entity development - I'd be game to
+get networking routed to the bus if that seems sane.
+
+I think routing bidi simplex via a local ISP or similar would be the
+pragmatic / legally lowest profile path for near term networkies. If this
+sounds good, I can arrange this to completion once we have the various legal
+blessings sorted. 🐝 I can be reached here via email ^w^
+
+Other options could include WISPing or point-to-point links at considerably
+greater complexity / scope.
+
+-Jess
+Blog <https://transscendsurvival.org/> - Git <https://github.com/Jesssullivan>

@@ -810,6 +810,80 @@ export const auditEvent = pgTable(
 	],
 );
 
+/**
+ * The mail-delivery journal (TIN-4062; operator interview 2026-08-23: mail
+ * leg funded, delivery-off default). Records what the three application-mail
+ * outbox handlers (`application.receipt_email`, `application.decision_email`,
+ * `application.withdrawn_ack`) actually did — and doubles as their
+ * consumer-side idempotency receipt, the exact shape `outbox/schema.ts`'s
+ * `ClaimedJob` docstring calls for: "a receipt keyed on (kind,
+ * idempotency_key) before the effect."
+ *
+ * NOT AN AUDIT EVENT, DELIBERATELY. `audit_event`'s vocabulary
+ * (`src/lib/server/audit/schema.ts`) is a closed, ratified 14-name list
+ * (spec §6; slices §2.2 rows 2-14); `assertAuditInput` hard-rejects any
+ * other name, and "delivery gate is disabled" is operational machinery, not
+ * a member-lifecycle transition, so it gets its own append-only table
+ * instead — the same reasoning 0003 gave for refusing to ratify a role
+ * vocabulary by migration.
+ *
+ * TWO-PHASE, NOT ONE ROW UPDATED (PR #208 review E2). `phase` is `'intent'`
+ * (written and COMMITTED before `MailDelivery.send()` is ever called) or
+ * `'outcome'` (written and committed AFTER `send()` returns) — two INSERTs,
+ * never an UPDATE, so the append-only grant below (`REVOKE UPDATE`) still
+ * holds exactly. This is what lets the network call happen OUTSIDE any open
+ * PostgreSQL transaction: the intent row's commit is the durable "we are
+ * about to attempt this" fact, and the caller closes that transaction and
+ * releases the outbox lease's backing connection before touching a socket —
+ * a hung SMTP peer therefore blocks nothing but its own dispatch attempt,
+ * never a database transaction. See `mail/journal.ts` and
+ * `outbox/handlers/mail-shared.ts` for the read side of this contract: an
+ * `outcome` row present means fully done (idempotent no-op on replay,
+ * unchanged from the original design); an `intent` row present with NO
+ * matching `outcome` row is AMBIGUOUS — the prior attempt may have sent for
+ * real before crashing short of recording it — and the handler refuses to
+ * guess, throwing rather than sending again. `mode` is therefore nullable:
+ * it names the outcome (`'disabled'` — `DisabledDelivery` recorded a no-op;
+ * `'sent'` — `SmtpDelivery` actually transmitted, unreachable in this
+ * deployment absent an operator-attended env change, see
+ * `src/lib/server/mail/config.ts`) and is set if-and-only-if `phase =
+ * 'outcome'`, enforced by `mail_delivery_journal_mode_outcome_only` below.
+ * `template_approved` mirrors the approval-gate state at the moment of the
+ * write, so an operator reading the journal never has to cross-reference the
+ * in-code template registry to know whether a given row COULD have sent for
+ * real.
+ */
+export const mailDeliveryJournal = pgTable(
+	'mail_delivery_journal',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenant.tenantId),
+		outboxJobId: uuid('outbox_job_id')
+			.notNull()
+			.references(() => outboxJob.id),
+		kind: text('kind').notNull(),
+		idempotencyKey: text('idempotency_key').notNull(),
+		phase: text('phase').notNull(),
+		templateId: text('template_id').notNull(),
+		templateApproved: boolean('template_approved').notNull(),
+		mode: text('mode'),
+		detail: text('detail'),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	},
+	(t) => [
+		// One INTENT row and one OUTCOME row per (tenant, kind, idempotency_key)
+		// — the phase discriminator is part of the key, the outbox_job_idem_uniq
+		// shape extended for the two-phase write.
+		unique('mail_delivery_journal_idem_uniq').on(t.tenantId, t.kind, t.idempotencyKey, t.phase),
+		index('mail_delivery_journal_job').on(t.tenantId, t.outboxJobId),
+		check('mail_delivery_journal_phase', sql`${t.phase} in ('intent', 'outcome')`),
+		check('mail_delivery_journal_mode', sql`${t.mode} is null or ${t.mode} in ('disabled', 'sent')`),
+		check('mail_delivery_journal_mode_outcome_only', sql`(${t.phase} = 'outcome') = (${t.mode} is not null)`),
+	],
+);
+
 export type Tenant = typeof tenant.$inferSelect;
 export type NewTenant = typeof tenant.$inferInsert;
 export type OutboxJob = typeof outboxJob.$inferSelect;
@@ -842,3 +916,5 @@ export type Assent = typeof assent.$inferSelect;
 export type NewAssent = typeof assent.$inferInsert;
 export type AuditEvent = typeof auditEvent.$inferSelect;
 export type NewAuditEvent = typeof auditEvent.$inferInsert;
+export type MailDeliveryJournalRow = typeof mailDeliveryJournal.$inferSelect;
+export type NewMailDeliveryJournalRow = typeof mailDeliveryJournal.$inferInsert;

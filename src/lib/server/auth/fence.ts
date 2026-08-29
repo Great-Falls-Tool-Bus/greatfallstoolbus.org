@@ -113,6 +113,7 @@ export const DOOR_EXPORT_ALLOWLIST = [
 	'grantRole',
 	'hasRole',
 	'isFreshlyAuthenticated',
+	'reapExpiredSessions',
 	'reauthenticate',
 	'requireFreshReauth',
 	'requireSession',

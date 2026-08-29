@@ -164,6 +164,36 @@ vitest.vitest_test(
     visibility = ["//visibility:public"],
 )
 
+# Launch-day Member v0 rehearsal: one real PostgreSQL 16.15 test, intentionally
+# outside default CI and every Flywheel/RBE/cache lane. `manual` keeps broad
+# test suites from selecting it, `local` keeps the database/socket on the
+# operator host, and `no-cache` makes every successful invocation fresh proof.
+vitest.vitest_test(
+    name = "first_membership_rehearsal_test",
+    data = [
+        ":app_srcs",
+        ":node_modules",
+        ":node_modules/vitest",
+        "src/lib/server/membership/first-membership-rehearsal.integration.test.ts",
+        "vitest.integration.config.ts",
+    ],
+    args = [
+        "run",
+        "$(rootpath src/lib/server/membership/first-membership-rehearsal.integration.test.ts)",
+        "--reporter=verbose",
+        "--config",
+        "$(rootpath vitest.integration.config.ts)",
+    ],
+    tags = [
+        "integration",
+        "local",
+        "manual",
+        "no-cache",
+    ],
+    timeout = "long",
+    visibility = ["//visibility:public"],
+)
+
 js_test(
     name = "playwright_static_smoke",
     data = [

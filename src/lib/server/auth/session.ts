@@ -38,7 +38,7 @@ import {
 import type { TenantScoped } from '@tummycrypt/tinyland-auth-pg';
 import { sql } from 'drizzle-orm';
 import type { DbTransaction } from '$lib/server/db/client';
-import { adapterFor, parseDbInstant, toUtcIso } from './adapter';
+import { PIN_ISO_DATESTYLE_SQL, adapterFor, toUtcIso } from './adapter';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -178,9 +178,58 @@ export async function getUser(tx: DbTransaction, tenantId: string, userId: strin
 }
 
 /**
+ * A fixed bcrypt hash of an unguessable, never-issued string, generated
+ * offline at the SAME cost factor `createUserWithPassword` uses when no
+ * `hashOptions` override is passed (12 — `@tummycrypt/tinyland-auth`'s own
+ * `DEFAULT_CONFIG.rounds`, `dist/core/security/password.js`). bcrypt's
+ * compare cost is a function of that cost factor alone — not of the hash's
+ * specific bytes, nor of the password being checked against it — so
+ * comparing an unrecognized handle's password against THIS constant costs
+ * the same wall-clock work as comparing a real member's password against
+ * their real stored hash.
+ *
+ * THE BUG THIS CLOSES (PR #198 review, B1 — timing-based member-existence
+ * oracle): before this constant existed, an unknown handle refused at `:198`
+ * BEFORE `verifyPassword` ever ran, so its response was ~140-790x faster
+ * than a known handle's wrong-password refusal (measured against real
+ * PostgreSQL + production rounds: unknown ~4ms worst 26ms vs. known-wrong
+ * ~450-3183ms). `/login` (TIN-3440 S12) is the first caller that can drive
+ * this function with an attacker-chosen handle — the two pre-existing
+ * callers (`activate.ts`'s `activateMembership`/`convergeReplay`) always
+ * derive `handle` from an already-resolved row, never from wire input — so
+ * S12 is what ARMS the oracle spec §6:311 ("Public endpoints are
+ * rate-limited and return non-enumerating responses") forbids.
+ *
+ * Not a secret: nothing legitimate is ever checked against it, and rotating
+ * it would not change what it proves, so it never rotates.
+ *
+ * Exported — `_`-prefixed seam convention (PR #198 review E2 precedent) —
+ * so `session.test.ts` (`just check`'s DB-free unit lane) can pin its cost
+ * factor to whatever `hashPassword`'s own default actually is, rather than
+ * to the literal `12` this comment states. PR #198 round-2 review, ED-1: an
+ * automated dependency bump that moves `@tummycrypt/tinyland-auth`'s
+ * `DEFAULT_CONFIG.rounds` would silently re-arm the B1 oracle — this
+ * constant would still be well-formed and still be compared against on
+ * every unresolved-handle call, but at the WRONG cost, which is a perfect
+ * oracle, not a closed one. Nothing before this export caught that: the
+ * only guard on the fix lived in `login.integration.test.ts`, which is not
+ * in the unit lane and asserts wall-clock comparability, not cost-factor
+ * equality — a one-cost-step-cheaper dummy still passes that test (review
+ * measured AUC 0.000, fully separable, with the shipped test green).
+ */
+export const _DUMMY_PASSWORD_HASH = '$2a$12$.i5wCCtre0Zn/Z.Ne8Ujle.QUg3vv/sC3xPQ0wOBGbywGc62I3lDG';
+
+/**
  * Verify a password and open a session. The same `AuthError` for an unknown
  * handle and a wrong password, so the failure is not an existence oracle
- * (spec §6's non-enumeration rule, applied one layer down).
+ * (spec §6's non-enumeration rule, applied one layer down) — and, as of the
+ * B1 fix above, not a TIMING oracle either: the bcrypt compare below always
+ * runs, against the real hash when `user` resolves and against the fixed
+ * `_DUMMY_PASSWORD_HASH` when it does not, so the expensive step that
+ * dominates this function's wall-clock cost is paid on every call. This is
+ * additive and behavior-preserving for both existing callers: neither can
+ * ever present a handle that fails to resolve, so `targetHash` is always
+ * `user.passwordHash` for them, exactly as before.
  */
 export async function authenticate(
 	tx: DbTransaction,
@@ -195,20 +244,98 @@ export async function authenticate(
 	await lockUserRow(tx, tenantId, 'handle', input.handle);
 	const user = await adapter.getUserByHandle(tenantId, input.handle);
 	const refusal = new AuthError(401, 'bad_credentials', 'Unknown handle or wrong password.');
-	if (!user || !user.isActive) throw refusal;
-	const ok = await verifyPassword(input.password, user.passwordHash);
-	if (!ok) throw refusal;
+	// ALWAYS compare, known handle or not (B1): this decides WHICH hash to
+	// compare against, never WHETHER to compare. Re-tested (not reused via a
+	// stored boolean) in the guard below on purpose — a separate `usable`
+	// variable would sever TypeScript's narrowing of `user` for the rest of
+	// this function, the exact bug class B1's own fix must not introduce.
+	const targetHash = user && user.isActive ? user.passwordHash : _DUMMY_PASSWORD_HASH;
+	const ok = await verifyPassword(input.password, targetHash);
+	if (!user || !user.isActive || !ok) throw refusal;
 	const session = await adapter.createSession(tenantId, user.id, user, input.metadata);
 	return { user, session: normalizeSessionInstants(session) };
 }
 
 /**
+ * SQL-NATIVE liveness verdict for one session row (TIN-4217 structural fix,
+ * item 1 of the fix ladder: "kill the ambiguity at the source"). The
+ * comparison runs entirely inside PostgreSQL, against its own internal
+ * timestamp representation — no instant is ever rendered to text and handed
+ * to a client-side parser for this decision, so no `datestyle` setting can
+ * make it ambiguous. `AT TIME ZONE 'UTC'` is not decorative: `now()` is a
+ * `timestamptz` (an absolute instant), and comparing it to a naive `timestamp`
+ * column implicitly converts it using the SESSION's `timezone` GUC first —
+ * measured directly (TIN-4217) to silently misjudge liveness on a
+ * non-UTC-timezone connection without this cast, since the naive column holds
+ * UTC WALL-CLOCK digits (adapter.ts's documented convention) while a bare
+ * `now()` comparison would convert to the session's local wall clock instead.
+ * Production runs UTC end to end (adapter.ts), but this function does not
+ * depend on that being true to be correct.
+ *
+ * BOUNDARY, PRECISELY (TIN-4217 review, ED-4): `<=` preserves the previous
+ * contract at the exact expiry instant. A row whose `expires_at` equals the
+ * transaction clock is expired, not live; moving the comparison into SQL
+ * must not silently widen the session TTL even by one boundary instant.
+ */
+async function sessionExpiryVerdict(
+	tx: DbTransaction,
+	tenantId: string,
+	sessionId: string,
+): Promise<'live' | 'expired' | 'absent'> {
+	const rows = await tx.execute(
+		sql`select (expires_at <= (now() at time zone 'utc')) as expired
+		      from "auth"."sessions"
+		     where tenant_id = ${tenantId} and id = ${sessionId}`,
+	);
+	const row = rows.rows[0] as { expired: boolean } | undefined;
+	if (!row) return 'absent';
+	return row.expired ? 'expired' : 'live';
+}
+
+/**
  * Resolve a session id to a live session, or `null`.
  *
- * Expiry is enforced HERE, against the UTC-normalized `expiresAt`, in
- * addition to the adapter's internal check — the adapter parses the naive
- * column in local time (./adapter.ts), so on a non-UTC process its own check
- * can run hours late. Ours cannot.
+ * THIS FUNCTION'S OWN CODE NEVER DELETES (TIN-4217 structural fix, item 2) —
+ * stated precisely, because a broader claim here was reviewed and found
+ * false. There is no `deleteSession` call anywhere in this function's body;
+ * its only job is to answer "is this session valid right now?", and a
+ * misjudgment in ITS OWN logic can cost at most a spurious logout, never a
+ * destroyed row. Garbage-collecting genuinely expired sessions is
+ * `reapExpiredSessions` below — a separate unit of work, on its own
+ * schedule, that can afford to be conservative.
+ *
+ * WHAT THAT GUARANTEE DOES NOT COVER (TIN-4217 review, ED-1 — read this
+ * before trusting "never deletes" as an absolute property of calling this
+ * function). This function still calls the vendored
+ * `PgStorageAdapter.getSession()`, and THAT call retains its own internal
+ * delete-on-expiry side effect (`dist/adapter.js`, a bare
+ * `new Date(session.expires) < new Date()` against driver-returned TEXT).
+ * Two independent vectors reach that one line, and this PR closes exactly
+ * one of them:
+ *
+ *   - `datestyle` (the original TIN-4217 defect): CLOSED. `PIN_ISO_DATESTYLE_SQL`,
+ *     issued immediately before the call below, forces the text that vendor
+ *     check parses into the one shape it reads correctly — measured, on real
+ *     PostgreSQL, to turn the exact reported scenario (a live session
+ *     deleted under `datestyle = 'SQL, DMY'`) into a session that validates
+ *     and survives.
+ *   - process/session `TIMEZONE`: NOT CLOSED, and reaches the identical
+ *     vendor line by a different route (see adapter.ts's module comment).
+ *     Measured: with `datestyle` correctly `'ISO'` — this fix working
+ *     exactly as designed — and the process at `TZ=Asia/Tokyo`, a session
+ *     with three hours of life left was still deleted by the vendor's
+ *     internal check before this function's code ever ran. Not a
+ *     regression (identical on unfixed `main`); not addressed by anything
+ *     in this PR; recorded, not silently assumed away.
+ *
+ * So: calling this function cannot cause OUR code to delete a live session.
+ * It can still observe the VENDORED call delete one, on the TZ vector, the
+ * same as it always could. `sessionExpiryVerdict` below is deliberately
+ * SQL-native and immune to BOTH vectors for the decision this function
+ * returns — a misparse on either axis costs a spurious logout from this
+ * function's own logic, never a silent wrong answer — but it cannot retroactively
+ * un-delete a row the vendored call already removed before this function's
+ * own logic ran.
  */
 export async function validateSession(
 	tx: DbTransaction,
@@ -223,24 +350,65 @@ export async function validateSession(
 	// and fail soft.
 	if (!UUID_RE.test(sessionId)) return null;
 	const adapter = adapterFor(tx);
+	await tx.execute(sql.raw(PIN_ISO_DATESTYLE_SQL));
 	const session = await adapter.getSession(tenantId, sessionId);
 	if (!session) return null;
-	const normalized = normalizeSessionInstants(session);
-	const expiry = parseDbInstant(normalized.expiresAt).getTime();
-	// FAIL CLOSED on an unparseable expiry (PR #175 review, MEDIUM): NaN
-	// compares false against everything, so `NaN <= now` alone would mean
-	// "never expires" — under a role/DSN DateStyle like 'SQL, DMY' a session
-	// expired ten years ago would validate. Unparseable ⇒ treated as not
-	// live. Deliberately WITHOUT the delete: destroying rows because a
-	// session-level setting confused a parser would let a config slip erase
-	// every session; refusing to honor them is closed enough, and the pool
-	// pins DateStyle=ISO as defence in depth (db/client.ts).
-	if (Number.isNaN(expiry)) return null;
-	if (expiry <= Date.now()) {
-		await adapter.deleteSession(tenantId, sessionId);
-		return null;
-	}
-	return normalized;
+	const verdict = await sessionExpiryVerdict(tx, tenantId, sessionId);
+	// 'expired' and 'absent' are both treated as "not live" — fail closed
+	// either way, and NEITHER branch deletes anything. A row `getSession`
+	// still returned but `sessionExpiryVerdict` calls expired is a residual
+	// disagreement window (e.g. the two queries straddling the exact expiry
+	// instant), not a parser failure, and reaping it is the janitor's job.
+	if (verdict !== 'live') return null;
+	return normalizeSessionInstants(session);
+}
+
+export interface ReapExpiredSessionsOptions {
+	/**
+	 * Hard cap on rows one invocation will delete (TIN-4217: conservatism —
+	 * the janitor affords what the read path cannot. A bug or a misconfigured
+	 * caller running this in a tight loop can delete at most `limit` rows per
+	 * transaction, never the whole table in one shot).
+	 */
+	readonly limit?: number;
+}
+
+export interface ReapExpiredSessionsResult {
+	readonly deleted: number;
+}
+
+/**
+ * Garbage-collect genuinely expired sessions — THE ONLY place in this module
+ * that deletes a session because it expired (TIN-4217 structural fix, item
+ * 2). Not wired to a schedule by this change; it ships the primitive a
+ * future worker/cron slice calls, the same way `validateSession` is a
+ * primitive `requireSession` composes.
+ *
+ * Liveness here is the identical SQL-native, `datestyle`-and-`timezone`-immune
+ * comparison `sessionExpiryVerdict` uses (see its doc comment) — no
+ * client-side parse of locale-rendered text is involved anywhere in this
+ * function, so there is no parser left for a `datestyle` misconfiguration to
+ * fool. `limit` bounds one invocation's blast radius regardless.
+ */
+export async function reapExpiredSessions(
+	tx: DbTransaction,
+	tenantId: string,
+	options: ReapExpiredSessionsOptions = {},
+): Promise<ReapExpiredSessionsResult> {
+	const limit = options.limit ?? 500;
+	const deleted = await tx.execute(
+		sql`with candidates as (
+			select id from "auth"."sessions"
+			where tenant_id = ${tenantId} and expires_at <= (now() at time zone 'utc')
+			order by expires_at asc
+			limit ${limit}
+		)
+		delete from "auth"."sessions" as s
+		using candidates as c
+		where s.id = c.id and s.tenant_id = ${tenantId}
+		returning s.id`,
+	);
+	return { deleted: deleted.rows.length };
 }
 
 /** The guard a protected route calls: a live session or a thrown 401. */

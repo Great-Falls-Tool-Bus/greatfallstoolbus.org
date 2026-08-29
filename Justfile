@@ -459,6 +459,42 @@ test-integration *args:
     echo "test-integration: using ${runtime} + postgres:16.15"
     pnpm exec vitest run --config vitest.integration.config.ts {{ args }}
 
+# One in-process, assertion-bearing Member v0 launch rehearsal. Bazel target
+# //:first_membership_rehearsal_test is manual/local/no-cache and never
+# Flywheel/RBE eligible. Unlike the general integration suite, this proof
+# FAILS when PostgreSQL is unavailable: exit zero means it actually ran.
+rehearsal-first-membership:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ root }}
+    if [ -z "${GFTB_TEST_PG_SUPERUSER_DSN:-}" ]; then
+        runtime=""
+        for candidate in docker podman; do
+            if command -v "$candidate" >/dev/null 2>&1 && "$candidate" info >/dev/null 2>&1; then
+                runtime="$candidate"; break
+            fi
+        done
+        if [ -z "$runtime" ]; then
+            echo "rehearsal-first-membership: ERROR — no responding docker or podman daemon, and" >&2
+            echo "  GFTB_TEST_PG_SUPERUSER_DSN is unset. This proof did not run." >&2
+            echo "  Re-run with a container runtime, or point GFTB_TEST_PG_SUPERUSER_DSN" >&2
+            echo "  at a PostgreSQL 16 superuser connection." >&2
+            exit 1
+        fi
+    fi
+    bazel_args=(
+        test
+        //:first_membership_rehearsal_test
+        --test_output=streamed
+        --nocache_test_results
+    )
+    for env_name in GFTB_TEST_PG_SUPERUSER_DSN DOCKER_HOST TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE TESTCONTAINERS_HOST_OVERRIDE; do
+        if [ -n "${!env_name:-}" ]; then
+            bazel_args+=("--test_env=${env_name}")
+        fi
+    done
+    bazelisk "${bazel_args[@]}"
+
 # ─────────────────────────────────────────────
 # Preview (tailnet; INTERIM lane — the ratified target is
 # staging.greatfallstoolbus.org promote-on-PR once the infra apply sitting
@@ -957,6 +993,42 @@ leak-scan-src:
 test-unit:
     cd {{ root }} && pnpm run test:unit
 
+# [OPERATOR, local-only] Regenerate src/lib/naming-consent.hashes.json from
+# ~/.gftb/naming-consent.plain, keyed by ~/.gftb/naming-consent.key (created
+# automatically, mode 0600, on first run) — neither file is ever committed
+# or lives inside any repo. See scripts/generate-naming-consent-hashes.mjs
+# for the format and the security rationale, and
+# docs/runbooks/discuss-to-svx-pipeline.md for the full design this backs.
+naming-consent-hashes:
+    cd {{ root }} && pnpm exec tsx scripts/generate-naming-consent-hashes.mjs
+
+# [OPERATOR, local-only] Drift gate: recomputes the committed hash list from
+# ~/.gftb/naming-consent.plain + ~/.gftb/naming-consent.key and diffs it
+# against the committed src/lib/naming-consent.hashes.json. Skips loudly
+# (exit 0) when either operator-local file is absent — e.g. in CI, where
+# this is expected and not a failure. Wired into `just check`.
+naming-consent-hashes-verify:
+    cd {{ root }} && pnpm exec tsx scripts/verify-naming-consent-hashes.mjs
+
+# Stage one already-redacted keyholders@ export as a published:false
+# discuss-drafts .svx. NEVER sends mail. Usage:
+#   just discuss-to-svx -- --input path/to/export.json
+# See docs/runbooks/discuss-to-svx-pipeline.md.
+discuss-to-svx *args:
+    cd {{ root }} && pnpm exec tsx scripts/discuss-to-svx.mjs {{ args }}
+
+# Independently re-validate every staged draft under src/content/discuss-drafts/**
+# (naming-consent + address/phone gates against raw text AND filename, schema,
+# pending-notice comment, plus an unconditional hash-list shape-check). When
+# ~/.gftb/naming-consent.key is absent (expected in CI), the identity check
+# only skips loudly if src/content/discuss-drafts/** is UNCHANGED relative to
+# the base ref — if it changed, this fails closed instead (see
+# src/lib/discuss-drafts-ci-scope.ts and the runbook's "CI scope" section).
+# Every other check in this recipe always runs and always enforces. Wired
+# into `just check`.
+discuss-drafts-validate:
+    cd {{ root }} && pnpm exec tsx scripts/validate-discuss-drafts.mts
+
 # Ensure local Playwright browser cache exists; CI uses Nix Chromium instead
 playwright-ensure:
     cd {{ root }} && if [ "${CI:-}" = "true" ] && command -v nix >/dev/null 2>&1; then \
@@ -1000,7 +1072,7 @@ sbom out_dir="build/sbom":
 # public-safety scans); leak-scan-build runs last (it pays for a full
 # `just build`, ~4 minutes — the only step this gate added that was not
 # already part of `check`'s cost) so a cheaper failure surfaces first.
-check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints leak-scan-tree leak-scan-src lint typecheck skills-validate skills-check source-map-check db-check test-unit leak-scan-build
+check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints leak-scan-tree leak-scan-src lint typecheck discuss-drafts-validate naming-consent-hashes-verify skills-validate skills-check source-map-check db-check test-unit leak-scan-build
     @echo "All checks passed."
 
 # Probe the declared production hostnames at the public Cloudflare Access edge.
@@ -1119,16 +1191,6 @@ scaffold-doctor:
       bash scripts/scaffold-doctor-boundary.sh && \
       echo "" && echo "=== Conformance (run last; see AGENTS.md if red) ===" && \
       just conformance
-
-# Dry-run construct the Blahaj provision payload for a PR
-lane-dispatch pr filter="all":
-    cd {{ root }} && python3 scripts/lane-dispatch.py --pr {{ pr }} --filter "{{ filter }}"
-
-# Dry-run construct the Blahaj destroy payload for a PR (set REAP_CONFIRM=1 + pass --dispatch to actually send)
-lane-reap pr:
-    @cd {{ root }} && read -p "Construct reap payload for PR #{{ pr }}? [y/N] " ans; [ "$ans" = "y" ] || { echo "aborted."; exit 1; }
-    cd {{ root }} && python3 scripts/lane-dispatch.py --pr {{ pr }} --reap
-    @echo "(dry-run; set REAP_CONFIRM=1 and pass --dispatch to actually send)"
 
 # Run the spoke conformance checklist (docs/CI-SCHEMA.md §11), then the
 # GFTB-local addendum (scripts/check-conformance-local.sh) that restores the

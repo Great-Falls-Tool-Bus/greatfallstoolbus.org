@@ -146,10 +146,14 @@ acceptance, and image publication are never executor-eligible.
 | `tinyland-nix-kvm` | KVM-required proof |
 | `tinyland-nix-gpu` | GPU-required proof |
 | `tinyland-docker` / `tinyland-dind` | explicitly reviewed container job |
-| `ubuntu-latest` | pure control/API/source-scan escape hatch only |
 
-Do not create a runner or hosted fallback in a spoke. Enrollment binds a
-repository to an existing owner-approved pool.
+**No-hosted rule (TIN-3914):** no workflow in this repository may name a
+GitHub-hosted label (`ubuntu-*`, `macos-*`, `windows-*`) in `runs-on:`, at any
+nesting -- scalar, list item, or the `{group:, labels:}` mapping form. The
+former escape hatch for `gh api` calls, webhook dispatches, and pre-trust
+security gates is withdrawn by operator ruling 2026-08-19: those jobs run fine
+on the GF cache-fronted ARC fleet. Do not create a runner or hosted fallback in
+a spoke. Enrollment binds a repository to an existing owner-approved pool.
 
 ## 6. CI gates
 
@@ -241,6 +245,8 @@ source cannot observe.
 - [ ] Flywheel configuration is endpoint-free and target classes are allowed;
 - [ ] in-house packages are Bazel-only and exact-pinned;
 - [ ] gitleaks working-tree and history recipes exist;
+- [ ] no GitHub-hosted runner label (`ubuntu-*`, `macos-*`, `windows-*`) in any
+  `runs-on:` under `.github/workflows/`, at any nesting (TIN-3914);
 - [ ] SBOM posture matches the manifest;
 - [ ] `just substrate-boundary` reports zero direct application/PR receiver
   reaches;

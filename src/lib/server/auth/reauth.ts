@@ -26,7 +26,7 @@
 import { verifyPassword, type SessionMetadata } from '@tummycrypt/tinyland-auth';
 import { sql } from 'drizzle-orm';
 import type { DbTransaction } from '$lib/server/db/client';
-import { adapterFor, parseDbInstant } from './adapter';
+import { adapterFor, tryParseDbInstant } from './adapter';
 import { AuthError, normalizeSessionInstants, type AuthSession } from './session';
 
 /** ASSUMPTION (sitting #2): how recently created a session must be to count as fresh. */
@@ -47,10 +47,15 @@ export interface ReauthOptions {
 export function isFreshlyAuthenticated(session: AuthSession, options: ReauthOptions = {}): boolean {
 	const windowMs = options.windowMs ?? REAUTH_WINDOW_MS;
 	const now = options.now ?? new Date();
-	// parseDbInstant: a zoneless createdAt is a UTC instant (./adapter.ts).
-	const createdAt = parseDbInstant(session.createdAt);
-	if (Number.isNaN(createdAt.getTime())) return false;
-	const age = now.getTime() - createdAt.getTime();
+	// A zoneless createdAt is a UTC instant (./adapter.ts). Discriminated
+	// result (TIN-4217, same discipline as validateSession's fix): "could not
+	// trust this value" is a distinct state from "parsed to some instant",
+	// so an untrusted createdAt cannot silently participate in the age
+	// arithmetic below — it fails closed toward requiring reauth, never
+	// toward granting it.
+	const parsed = tryParseDbInstant(session.createdAt);
+	if (!parsed.ok) return false;
+	const age = now.getTime() - parsed.instant.getTime();
 	return age >= 0 && age <= windowMs;
 }
 

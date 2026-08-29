@@ -1,0 +1,52 @@
+---
+subject: 'Reposting from the keyholders archive: drafts for markup (2026-08-06)'
+sourceList: 'keyholders@latoolb.us'
+sourceMessageId: 'HK id 24'
+sourceDate: '2026-08-06T04:22:00Z'
+targetList: 'discuss@latoolb.us'
+published: false
+preparedAt: '2026-08-20T23:15:00Z'
+---
+
+<!-- provenance: keyholders@latoolb.us archive, HK id 24 (private list; no email addresses recorded) -->
+<!-- pending discuss@ posting by operator; svx to be reconciled to the posted archive URL -->
+
+*(Repost to the public discuss list of a note originally sent to the
+keyholders list on 2026-08-06; lightly redacted for the public archive.
+PDF attachments from the original are not included.)*
+
+Hi all,
+
+Find below and attached some minimal drafts intended for markup and ripping
+apart, ahead of some administrative next steps this week. Keen to hear
+y'alls feedback or find some time to chitchat over some nummies. Sorry for
+any radio silence, I been pretty heckin low energy lately.
+
+Comment or suggest directly in the Docs / email / snail mail / real human
+dialog in person™
+
+If you want direct GitHub access to the repository or join as a github
+administrator, reply and ask. Org: https://github.com/Great-Falls-Tool-Bus
+
+The other repos are public, but I've created a probate meta repository
+serving as the single source of truth for document revisions. The site prose
+is out of date / still in its lorem ipsum phase, still gated for keyholders.
+I love email.
+
+The hyperkitty mail list (the keyholders list) is also gated. I think it'd
+be awesome to get the mail, web and infra services running on solar
+electrical service at the bus itself.
+
+Excited to also share donor / bus initiative notes soonish too.
+
+The four drafts (links were to private working docs; ask on-list for
+access):
+
+1. Membership and money
+2. Power and hardware
+3. Lease, draft agreement
+4. Great Falls Tool Bus, LLC formation basics
+
+Cheers,
+Jess
+Blog <https://transscendsurvival.org/> - Git <https://github.com/Jesssullivan>

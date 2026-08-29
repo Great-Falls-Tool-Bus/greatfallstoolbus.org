@@ -1,0 +1,123 @@
+---
+subject: 'Reposting from the keyholders archive: bus updates, infrastructure & accessories (2026-08-06)'
+sourceList: 'keyholders@latoolb.us'
+sourceMessageId: 'HK id 26'
+sourceDate: '2026-08-06T21:16:00Z'
+targetList: 'discuss@latoolb.us'
+published: false
+preparedAt: '2026-08-20T23:15:00Z'
+---
+
+<!-- provenance: keyholders@latoolb.us archive, HK id 26 (private list; no email addresses recorded) -->
+<!-- pending discuss@ posting by operator; svx to be reconciled to the posted archive URL -->
+
+*(Repost to the public discuss list of a note originally sent to the
+keyholders list on 2026-08-06; lightly redacted for the public archive.)*
+
+Greetings bus friends! Follow up to the 4 PDF / docs I sent yesterday. Much
+activity, developments and glorious scope expansion underway for the Great
+Falls Tool Bus. Things Alex and I discussed today in reverse order of my
+excitement:
+
+- Alex is game to take the lead on lease drafting; plan is to snag some
+  good sounding clauses from recent lease-writing adventures
+- Alex is game to drive forward the SMLLC formation via a 3d party
+  registered agent to obtain EIN
+- We discussed the desire for donations / long term loans to be treated as
+  "buy in" collateral for members; providing a tool to the bus or making a
+  tool available as a lending library of sorts may shall be formalized such
+  that if a member withdraws, they can get their things back (ownership
+  transferred back from bus to individual)
+  - In the future, more sophisticated tax / board structures may be
+    considered, Alex and I are in agreement the MVP route to EIN and
+    respects a simple "bus is the entity", keyholders are separate from
+    registrants etc is probably the best way to go for now
+- Donor funds are apparently not gated
+  - Can this cover the towing fee?
+- Jess: We discussed color palette (bus purple, yellow, creme) and reusing
+  as much graphical data from the bus for the site; those with design skillz
+  please please help do logo, posters and help Jess with visual concept for
+  the site and digital feng shui
+- Alex will orchestrate towing the bus to its next site
+- Jess shall implement a sliding element to the reach out form for expressed
+  "pay what you can / pay what you want" yearly / monthly element and how,
+  so as part of the onboarding procedure / initial reach out; this can also
+  gather data about interest in donating or lending equipment as part of the
+  onboarding transaction
+- We discussed the MVP keyholder list flow and are in agreement about the
+  current setup / user story (user expresses interest, keyholders delegate
+  an in-person tour / vetting for sanity, can collect check / cash / etc in
+  person; punting digital currencies / digital membership a bit, as this
+  incurs additional fees. This is no problem to implement, just adds cost
+  and icky legalese.
+  - This supercedes my prior notes on payment operations on site as MVP
+    requirement for go live
+- Alex and Jess will meet to do some inventory DB design / member
+  storyboarding / tool lifecycle modeling on the big ass whiteboard sometime
+  in the next few weeks. Would love input / powow from Ripley, J., anyone
+  else too! WHOOT WHOOT
+- Jess will begin inventory management DB work and frontmatter updates to
+  reflect these notes this week; Will first experience the uhaul setup this
+  evening.
+
+Discussed inventory flow thus far:
+
+- The plan is to have the inventory / checkout / return flow to be driven
+  via phone camera, take picture of all the bits, any wear etc
+  - We can also use phone geolocation api to track / push user location when
+    using tool, as well as use this data to note where tool is during
+    repair. Glad to do this as an opt in, depending on how people feel about
+    privacy stuff.
+- This will extend / replace to some degree the current static tool cell
+  markdown block flow currently on the draft site; we agreed a full on
+  database with the ability to note things like location, tool status,
+  expected parts and ability to track over time images of tool and
+  associated contents is a really powerful suite of features and worth
+  having sooner than later. This will also simplify honesty / making things
+  right / fixing things / some semblance of accountability.
+- This will be driven via phone friendly web application. Base assumption is
+  members already have a personal email address and smartphone and are
+  willing to use said phone for photo tracking / maybe location tracking
+  tools. IF we get pushback on this, we'll happily design a suitable
+  non-smartphone system, but better to jump that bridge when we burn it.
+
+Reminder, all the application code AND infrastructure code is currently,
+already open source and public on github in the GFTB org.
+<https://github.com/Great-Falls-Tool-Bus> Note, given the joyous scope
+creep, I will likely take the web application repo private again while I
+iterate on these new features and the inventory DB stuff as we flesh things
+out. I am glad to add folks to the GH org. Let me know if anyone is having
+trouble accessing the hyperkitty boards or the website.
+
+User ID and infra stuff Jess will setup as discussed, in no particular
+order:
+
+- Jess will donate a low power computer / control unit to run mail, web
+  services, digital automata --- this can also tie into the dot matrix /
+  scrollers / bus electrical system and is equipt already with its own
+  LIFPO4 UPS and extensive IO for controlling all the things™
+  - It is already equipped with features like motion / rotation detection,
+    barcode scanning and lotsa other stuff.
+- Ripley offers to brush off solar panels in the winter to keep the mail
+  flowing
+- The member identifier shall be any of personal email, @latoolb.us email.
+  We will not do SMS / phone service cause we do not have super local phone
+  service and local PBX (yet)
+  - Auth will continue to be email / username / password as MVP, likely will
+    add login with oauth via github as well.
+  - Future: Jess is glad to integrate with popular oauth services too and
+    can do TOTP and CTAP2 / FIDO2 / webauthn as well, whatever tickles
+    folk's authentication pickle
+  - Jess's intent for auth will be simple username / password as MVP, and
+    the base user representation will be in the mail stack (we are using a
+    dovecot / postfix / hyperkitty / rspamd stack here, through which this
+    very email has been transmitted).
+- Members get a complimentary @latoolb.us email address cause fuck ya
+  googles
+  - Members shall be automatically, forcefully provided with autistically
+    detailed info on how to setup gpg and personal mail client for secure,
+    solar powered, literally local from bus email service OwO
+
+Cheers,
+-Jess
+Blog <https://transscendsurvival.org/> - Git <https://github.com/Jesssullivan>

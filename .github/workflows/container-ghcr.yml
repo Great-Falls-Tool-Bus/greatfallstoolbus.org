@@ -119,8 +119,21 @@ jobs:
           path: GloriousFlywheel
           ssh-key: ${{ secrets.GF_CORE_DEPLOY_KEY }}
           persist-credentials: false
+      # R331: retire the private-GF-coupled nix-job wrapper in favor of the
+      # public tinyland-inc/ci-templates nix-setup action, pinned to the
+      # v3.1.0 release commit, for Nix bootstrap + cache-hint detection on
+      # this self-hosted tinyland-nix runner. The pinned GloriousFlywheel
+      # core checkout above is UNCHANGED: `just container-image-publish`
+      # below still runs inside GF's `#ci` flake devShell (nix2container +
+      # skopeo toolchain), and no equivalent recipe exists outside it in
+      # either this repo or GloriousFlywheel's own top-level justfile — an
+      # attempt to fully decouple the build recipe itself was not made here
+      # without a verified portable replacement.
+      - name: Set up Nix (ci-templates)
+        uses: tinyland-inc/ci-templates/.github/actions/nix-setup@d8d178c022a0f84853d53a2c8fe0fc90115f0949 # v3.1.0
+
       - name: Build + push adapter-node image
-        uses: ./GloriousFlywheel/.github/actions/nix-job
+        shell: bash
         env:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -128,17 +141,12 @@ jobs:
           BUILD_COMMIT_SHA: ${{ github.sha }}
           BUILD_COMMIT_REF: ${{ github.ref_name }}
           BUILD_DATE: ${{ github.event.repository.updated_at }}
-        with:
-          # PR-branch / non-trusted lane: read the shared cache to accelerate the
-          # SvelteKit build inputs, but never WRITE it (GF_BAZEL_REMOTE_UPLOAD
-          # stays false). Cache-write is a trusted default-branch concern.
-          push-cache: 'false'
-          command: |
-            set -euo pipefail
-            cd overlay
-            export GF_CORE_PATH=../GloriousFlywheel
-            export GF_CORE_CI_PATH=../GloriousFlywheel#ci
-            nix develop ../GloriousFlywheel#ci -c just container-image-publish
+        run: |
+          set -euo pipefail
+          cd overlay
+          export GF_CORE_PATH=../GloriousFlywheel
+          export GF_CORE_CI_PATH=../GloriousFlywheel#ci
+          nix develop ../GloriousFlywheel#ci -c just container-image-publish
       - name: Record successful image publication
         id: publish
         run: echo "published=true" >> "$GITHUB_OUTPUT"
