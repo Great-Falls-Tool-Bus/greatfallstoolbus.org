@@ -1,13 +1,9 @@
 name: release
 
 on:
+  # changelog-gate is required branch protection; instantiate it for every PR.
   pull_request:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
-      - '!CHANGELOG.md'
-      - '!RELEASING.md'
   push:
     branches: [main]
 
