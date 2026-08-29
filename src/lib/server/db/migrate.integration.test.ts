@@ -89,6 +89,7 @@ describe('applying the checked-in migrations', () => {
 			'public.audit_event', // S6 (TIN-3440): the append-only audit spine, migration 0009
 			'public.contribution_agreement',
 			'public.finance_receipt',
+			'public.mail_delivery_journal', // TIN-4062: the disabled-delivery journal + idempotency receipt, migration 0010
 			'public.member_role_grant', // S2 (TIN-3817): the role-grant table rides migration 0003
 			'public.membership', // S6/S7 (TIN-3440): the membership aggregate, migration 0009
 			'public.outbox_job',

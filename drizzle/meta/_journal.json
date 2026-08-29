@@ -1,76 +1,83 @@
 {
-  "version": "7",
-  "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1787168086422,
-      "tag": "0000_app_tenant_foundation",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1787168100632,
-      "tag": "0001_auth_pg_vendored_0_2_4",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1787168101918,
-      "tag": "0002_rls_force_and_runtime_grants",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1787198143412,
-      "tag": "0003_member_role_grant",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1787198033658,
-      "tag": "0004_payment_rails_testmode",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1787198049935,
-      "tag": "0005_payment_rails_rls_grants",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1787200955688,
-      "tag": "0006_payment_rails_reversal_tenant_fk",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1787244807706,
-      "tag": "0007_application_intake",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1787246202276,
-      "tag": "0008_keyholder_review",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1787247294717,
-      "tag": "0009_member_activation",
-      "breakpoints": true
-    }
-  ]
+	"version": "7",
+	"dialect": "postgresql",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "7",
+			"when": 1787168086422,
+			"tag": "0000_app_tenant_foundation",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1787168100632,
+			"tag": "0001_auth_pg_vendored_0_2_4",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1787168101918,
+			"tag": "0002_rls_force_and_runtime_grants",
+			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "7",
+			"when": 1787198143412,
+			"tag": "0003_member_role_grant",
+			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "7",
+			"when": 1787198033658,
+			"tag": "0004_payment_rails_testmode",
+			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "7",
+			"when": 1787198049935,
+			"tag": "0005_payment_rails_rls_grants",
+			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "7",
+			"when": 1787200955688,
+			"tag": "0006_payment_rails_reversal_tenant_fk",
+			"breakpoints": true
+		},
+		{
+			"idx": 7,
+			"version": "7",
+			"when": 1787244807706,
+			"tag": "0007_application_intake",
+			"breakpoints": true
+		},
+		{
+			"idx": 8,
+			"version": "7",
+			"when": 1787246202276,
+			"tag": "0008_keyholder_review",
+			"breakpoints": true
+		},
+		{
+			"idx": 9,
+			"version": "7",
+			"when": 1787247294717,
+			"tag": "0009_member_activation",
+			"breakpoints": true
+		},
+		{
+			"idx": 10,
+			"version": "7",
+			"when": 1788022831003,
+			"tag": "0010_mail_delivery_journal",
+			"breakpoints": true
+		}
+	]
 }

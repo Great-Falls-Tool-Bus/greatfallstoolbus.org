@@ -64,32 +64,57 @@ import { createDisableMailboxHandler } from './outbox/handlers/disable-mailbox';
 import { createRemoveListsHandler } from './outbox/handlers/remove-lists';
 import { createProductionStripeProjectHandler, STRIPE_PROJECT_JOB_KIND } from './outbox/handlers/stripe-project';
 import { DEFAULT_BATCH_SIZE, DEFAULT_LEASE_SECONDS, type HandlerRegistry } from './outbox/schema';
+import { createDecisionEmailHandler, DECISION_EMAIL_JOB_KIND } from './outbox/handlers/application-decision-email';
+import { createReceiptEmailHandler, RECEIPT_EMAIL_JOB_KIND } from './outbox/handlers/application-receipt-email';
+import { createWithdrawnAckHandler, WITHDRAWN_ACK_JOB_KIND } from './outbox/handlers/application-withdrawn-ack';
+import { readMailConfig } from './mail/config';
+import { activationHazardWarning } from './mail/activation';
 
 /**
  * The production handler set: S7's three §2.3 offboarding projections
  * (`offboard.cancel_billing`, `offboard.remove_lists`,
- * `offboard.disable_mailbox`) plus S9's `stripe.project`
- * (`./outbox/handlers/stripe-project.ts`) — every kind that has landed, and
+ * `offboard.disable_mailbox`), S9's `stripe.project`
+ * (`./outbox/handlers/stripe-project.ts`), and — as of TIN-4062 — the three
+ * application-mail kinds (`application.receipt_email`,
+ * `application.decision_email`, `application.withdrawn_ack`,
+ * `./outbox/handlers/application-*.ts`). Every kind that has landed, and
  * NOTHING else; any other kind still dead-letters visibly through
- * `UnknownJobKindError` (the fail-closed posture, kept). The two mail
- * projections default to their gate-disabled recorded-no-op shape because
- * this repository holds no mail-plane credential, ever (AGENTS
- * non-negotiables); the infra-owned deployment injects real deliveries
- * through the handler seams when the mail gate opens.
+ * `UnknownJobKindError` (the fail-closed posture, kept).
+ *
+ * THE MAIL HANDLERS ALWAYS SEND FOR REAL ONLY IF THEY CAN. `readMailConfig(env)`
+ * below is a STARTUP VALIDATION call, same BLOCK-1 posture as
+ * `createProductionStripeProjectHandler(env)`: a half-configured
+ * `GFTB_MAIL_DELIVERY=enabled` with no transport DSN throws here and maps to
+ * exit 78 (EX_UNAVAILABLE) at the try/catch in `runWorker` below, rather than
+ * silently degrading. Its RESULT is unused — each handler resolves delivery
+ * for itself, per job, per kind (`mail/delivery.ts`'s `resolveDelivery`),
+ * because the template-approval gate is PER TEMPLATE: one template becoming
+ * operator-approved must never require redeploying to un-break the other two,
+ * and an unapproved template must never crash worker startup for kinds that
+ * have nothing to do with it. Absent an explicit, operator-attended
+ * `GFTB_MAIL_DELIVERY=enabled` + DSN + approved-template combination, every
+ * mail handler here resolves to `DisabledDelivery`: no network I/O, ever,
+ * from this deployment's default configuration — this repository holds no
+ * mail-plane credential (AGENTS non-negotiables), same posture the two
+ * offboarding mail projections below already carry.
  *
  * Built fresh per call (not a module constant) so it reads whichever `env`
  * the caller passed rather than always `process.env` — the same reason
- * `readStripeConfig` takes `env` as a parameter. `createProductionStripeProjectHandler(env)`
- * THROWS on a half-configured Stripe env (see the BLOCK-1 comment on its
- * caller below), which is exactly why this is a function and not a module
- * constant like `MEMBER_V0_REGISTRY` used to be.
+ * `readStripeConfig` takes `env` as a parameter.
  */
 function defaultRegistry(env: NodeJS.ProcessEnv): HandlerRegistry {
+	// BLOCK-1 posture: fail closed on a half-configured mail env at startup,
+	// before any job ever claims a mail kind. See the docstring above.
+	readMailConfig(env);
+
 	return createHandlerRegistry({
 		[STRIPE_PROJECT_JOB_KIND]: createProductionStripeProjectHandler(env),
 		'offboard.cancel_billing': cancelBillingHandler,
 		'offboard.remove_lists': createRemoveListsHandler(),
 		'offboard.disable_mailbox': createDisableMailboxHandler(),
+		[RECEIPT_EMAIL_JOB_KIND]: createReceiptEmailHandler({ env }),
+		[DECISION_EMAIL_JOB_KIND]: createDecisionEmailHandler({ env }),
+		[WITHDRAWN_ACK_JOB_KIND]: createWithdrawnAckHandler({ env }),
 	});
 }
 
@@ -113,11 +138,15 @@ Dispatches the transactional outbox (spec §3.1): claims bounded batches with
 FOR UPDATE SKIP LOCKED under a lease, runs the registered handler for each
 job's kind, retries failures with exponential full-jitter backoff, and
 dead-letters a job once its bounded attempt count is spent. At-least-once by
-contract; consumers are idempotent by contract. S9's "stripe.project" and
-S7's three offboarding kinds ("offboard.cancel_billing",
-"offboard.remove_lists", "offboard.disable_mailbox") are registered by
-default; any other job kind still dead-letters visibly rather than being
-absorbed by a placeholder.
+contract; consumers are idempotent by contract. S9's "stripe.project", S7's
+three offboarding kinds ("offboard.cancel_billing", "offboard.remove_lists",
+"offboard.disable_mailbox"), and TIN-4062's three application-mail kinds
+("application.receipt_email", "application.decision_email",
+"application.withdrawn_ack") are registered by default; any other job kind
+still dead-letters visibly rather than being absorbed by a placeholder. The
+mail kinds resolve to a disabled, no-network-I/O journal outcome unless
+GFTB_MAIL_DELIVERY=enabled, a transport DSN, and an operator-approved
+template all agree — see Environment below.
 
 Options:
   --help               Print this and exit 0. Never touches the database.
@@ -139,6 +168,23 @@ Environment:
   GFTB_WORKER_ID   Optional worker identity, for lease_owner OBSERVABILITY
                    only — safe to share across replicas; the completion guard
                    is a per-claim lease token, never this name.
+  GFTB_MAIL_DELIVERY, GFTB_MAIL_SMTP_URL, GFTB_MAIL_FROM_ADDRESS
+                   Mail delivery is DISABLED by default (operator interview
+                   2026-08-23) regardless of these. All three names, together,
+                   AND an operator-approved template are required to reach a
+                   real SMTP transport; see src/lib/server/mail/config.ts and
+                   src/lib/server/mail/delivery.ts. Half-configured (some but
+                   not all three set while GFTB_MAIL_DELIVERY=enabled) fails
+                   closed at startup, exit 78.
+                   ACTIVATION ORDER MATTERS: approve a template BEFORE
+                   enabling delivery. Enabling first strands every job of an
+                   unapproved kind in the dead-letter state (they refuse to
+                   send, loudly, per spec's fail-closed doctrine — never
+                   silently). Startup prints a WARNING (not a failure) when
+                   it detects this shape; see mail/activation.ts.
+  GFTB_PUBLIC_ORIGIN
+                   Optional override for the origin rendered links use.
+                   Defaults to the production public origin.
 
 Exit codes:
   ${WORKER_EXIT.OK}   --help, a clean --once cycle, or graceful shutdown
@@ -302,6 +348,18 @@ export async function runWorker(options: WorkerOptions = {}): Promise<number> {
 	} catch (error) {
 		io.stderr.write(`worker: ${(error as Error).message}\n`);
 		return WORKER_EXIT.UNAVAILABLE;
+	}
+
+	// PR #208 review E3: half-configured mail env already fails CLOSED above
+	// (defaultRegistry's readMailConfig call); this is the softer sibling —
+	// a VALID but hazardous shape (enabled, template(s) unapproved) does not
+	// fail startup, because it is a legitimate intermediate operator state,
+	// but it silently strands every job of an unapproved kind in `dead`
+	// unless someone is warned loudly, here, at the one moment a human is
+	// most likely watching (start/restart).
+	const mailActivationWarning = activationHazardWarning(env);
+	if (mailActivationWarning) {
+		io.stderr.write(`worker: WARNING: ${mailActivationWarning}\n`);
 	}
 
 	// Fail fast, with the migrator's manners: name what is missing and exit 78
