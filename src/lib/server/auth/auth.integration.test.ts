@@ -563,8 +563,8 @@ describe('sessions: expiry evaluation is calendar-independent under any DateStyl
 					return validateSession(tx, tenantA, session.id);
 				});
 				expect(outcome, `validateSession, ${anchor.label}`).not.toBeNull();
-				// The OUTCOME this suite exists to assert: no live session row is
-				// ever deleted — checked by a direct row count, not a second
+				// The OUTCOME this suite exists to assert: this live session row is
+				// not deleted by the DateStyle vector — checked by a direct row count, not a second
 				// `validateSession` call (TIN-4217 review: the latter conflates
 				// "row exists" with "row validates").
 				expect(await sessionRowExists(tenantA, session.id), `row survives, ${anchor.label}`).toBe(true);
