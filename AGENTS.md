@@ -25,6 +25,33 @@ duplicated merged #44/#37 on 2026-07-04):
    mail section) are owned by `just skills-build`; edit the source
    (`src/lib/data/mail-clients.ts`), never the outputs.
 
+### How we work: active-dialog + goal-ladder cadence (operator ruling 2026-08-29)
+
+When the operator is present and co-working, the coordinator session runs an
+active-dialog loop rather than batch-and-report:
+
+- **Operator dialog = the interview tool** (AskUserQuestion or equivalent) at
+  every genuine decision point — batched into few interviews, never blocking
+  running lanes; decided-by-default still governs (an interview is for
+  decisions primary sources cannot answer, and its rulings are recorded to
+  the durable board immediately).
+- **Agent dialog = intra-agent chat** (SendMessage or equivalent): peer seats
+  (e.g. the GF estate seat) get interlock requests with concrete asks and
+  get their constraints folded into lane briefs; lanes get resumable,
+  self-contained briefs and report back measured evidence.
+- **Goal ladders carry four horizons** — next 2h / next 4h / this
+  afternoon-or-evening / end-of-day — each row Linear-linked with its SLA,
+  under assumed massive agent parallelization (mythos delegation: fable
+  coordinates only; sonnet builds/recons; opus refutes; per-lane model set
+  explicitly).
+- **Session SLOs**: merges only SHA-guarded on adversarial LAND-class
+  verdicts; push→verdict ≤ 90 min; parked/killed lane rescue ≤ 15 min;
+  double-green where a known flake lives; zero signing bypasses; zero
+  consent-gate bypasses; a durable board receipt within 15 min of every
+  landing.
+- SSOT for the full doctrine: `prompts-enqueue/context/` (house agent
+  conventions + model routing); this section is the repo-local binding.
+
 ## GFTB Specifics
 
 This spoke is the **Great Falls Tool Bus** public monorepo (see

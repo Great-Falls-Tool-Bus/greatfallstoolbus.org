@@ -10,6 +10,10 @@ Claude Code-specific note:
 
 - Project skills resolve via `.claude/skills/*`, a symlink mirror of the
   canonical `.agents/skills/*`. Edit the canonical copy, not the mirror.
+- When the operator is present, run the active-dialog + goal-ladder cadence —
+  see `AGENTS.md` § "How we work: active-dialog + goal-ladder cadence"
+  (interview tool for operator decisions, intra-agent chat for lanes/peers,
+  2h/4h/afternoon/EoD ladders with Linear-linked SLAs).
 
 ## Consolidation status (TIN-2533)
 
