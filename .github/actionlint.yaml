@@ -1,3 +1,8 @@
+# Declare this repository's self-hosted runner labels so actionlint stops
+# treating them as typos of the GitHub-hosted set (TIN-3914). `tinyland-nix` is
+# the shared GloriousFlywheel capability label; for Great-Falls-Tool-Bus it is
+# published by the `great-falls-tool-bus-nix` ARC scale set. Mirrors
+# gftb-site/.github/actionlint.yaml.
 self-hosted-runner:
   labels:
     - tinyland-nix

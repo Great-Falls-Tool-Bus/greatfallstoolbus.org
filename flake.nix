@@ -32,6 +32,10 @@
           just
           git
           gh
+          # curl: scripts/production-health-probe.sh and other tinyland-nix
+          # jobs need it; the minimal ARC image doesn't preinstall it the way
+          # a hosted runner would (TIN-3914).
+          curl
           bazelisk
           gitleaks
           syft
