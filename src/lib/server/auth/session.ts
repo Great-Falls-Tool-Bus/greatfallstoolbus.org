@@ -178,9 +178,58 @@ export async function getUser(tx: DbTransaction, tenantId: string, userId: strin
 }
 
 /**
+ * A fixed bcrypt hash of an unguessable, never-issued string, generated
+ * offline at the SAME cost factor `createUserWithPassword` uses when no
+ * `hashOptions` override is passed (12 — `@tummycrypt/tinyland-auth`'s own
+ * `DEFAULT_CONFIG.rounds`, `dist/core/security/password.js`). bcrypt's
+ * compare cost is a function of that cost factor alone — not of the hash's
+ * specific bytes, nor of the password being checked against it — so
+ * comparing an unrecognized handle's password against THIS constant costs
+ * the same wall-clock work as comparing a real member's password against
+ * their real stored hash.
+ *
+ * THE BUG THIS CLOSES (PR #198 review, B1 — timing-based member-existence
+ * oracle): before this constant existed, an unknown handle refused at `:198`
+ * BEFORE `verifyPassword` ever ran, so its response was ~140-790x faster
+ * than a known handle's wrong-password refusal (measured against real
+ * PostgreSQL + production rounds: unknown ~4ms worst 26ms vs. known-wrong
+ * ~450-3183ms). `/login` (TIN-3440 S12) is the first caller that can drive
+ * this function with an attacker-chosen handle — the two pre-existing
+ * callers (`activate.ts`'s `activateMembership`/`convergeReplay`) always
+ * derive `handle` from an already-resolved row, never from wire input — so
+ * S12 is what ARMS the oracle spec §6:311 ("Public endpoints are
+ * rate-limited and return non-enumerating responses") forbids.
+ *
+ * Not a secret: nothing legitimate is ever checked against it, and rotating
+ * it would not change what it proves, so it never rotates.
+ *
+ * Exported — `_`-prefixed seam convention (PR #198 review E2 precedent) —
+ * so `session.test.ts` (`just check`'s DB-free unit lane) can pin its cost
+ * factor to whatever `hashPassword`'s own default actually is, rather than
+ * to the literal `12` this comment states. PR #198 round-2 review, ED-1: an
+ * automated dependency bump that moves `@tummycrypt/tinyland-auth`'s
+ * `DEFAULT_CONFIG.rounds` would silently re-arm the B1 oracle — this
+ * constant would still be well-formed and still be compared against on
+ * every unresolved-handle call, but at the WRONG cost, which is a perfect
+ * oracle, not a closed one. Nothing before this export caught that: the
+ * only guard on the fix lived in `login.integration.test.ts`, which is not
+ * in the unit lane and asserts wall-clock comparability, not cost-factor
+ * equality — a one-cost-step-cheaper dummy still passes that test (review
+ * measured AUC 0.000, fully separable, with the shipped test green).
+ */
+export const _DUMMY_PASSWORD_HASH = '$2a$12$.i5wCCtre0Zn/Z.Ne8Ujle.QUg3vv/sC3xPQ0wOBGbywGc62I3lDG';
+
+/**
  * Verify a password and open a session. The same `AuthError` for an unknown
  * handle and a wrong password, so the failure is not an existence oracle
- * (spec §6's non-enumeration rule, applied one layer down).
+ * (spec §6's non-enumeration rule, applied one layer down) — and, as of the
+ * B1 fix above, not a TIMING oracle either: the bcrypt compare below always
+ * runs, against the real hash when `user` resolves and against the fixed
+ * `_DUMMY_PASSWORD_HASH` when it does not, so the expensive step that
+ * dominates this function's wall-clock cost is paid on every call. This is
+ * additive and behavior-preserving for both existing callers: neither can
+ * ever present a handle that fails to resolve, so `targetHash` is always
+ * `user.passwordHash` for them, exactly as before.
  */
 export async function authenticate(
 	tx: DbTransaction,
@@ -195,9 +244,14 @@ export async function authenticate(
 	await lockUserRow(tx, tenantId, 'handle', input.handle);
 	const user = await adapter.getUserByHandle(tenantId, input.handle);
 	const refusal = new AuthError(401, 'bad_credentials', 'Unknown handle or wrong password.');
-	if (!user || !user.isActive) throw refusal;
-	const ok = await verifyPassword(input.password, user.passwordHash);
-	if (!ok) throw refusal;
+	// ALWAYS compare, known handle or not (B1): this decides WHICH hash to
+	// compare against, never WHETHER to compare. Re-tested (not reused via a
+	// stored boolean) in the guard below on purpose — a separate `usable`
+	// variable would sever TypeScript's narrowing of `user` for the rest of
+	// this function, the exact bug class B1's own fix must not introduce.
+	const targetHash = user && user.isActive ? user.passwordHash : _DUMMY_PASSWORD_HASH;
+	const ok = await verifyPassword(input.password, targetHash);
+	if (!user || !user.isActive || !ok) throw refusal;
 	const session = await adapter.createSession(tenantId, user.id, user, input.metadata);
 	return { user, session: normalizeSessionInstants(session) };
 }
