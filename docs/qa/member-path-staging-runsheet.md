@@ -38,6 +38,24 @@ That proves the closed serializer shape. It does not invent a deployed
 keyholder contribution projection, prove route authorization, or prove a real
 provider lifecycle.
 
+The registered negative-authorization grounding on current main is narrow and
+named rather than implied. The registered `just test-integration` lane includes
+`src/lib/server/application/review.integration.test.ts`, whose exact negative
+rows are `a non-keyholder is refused, mutating nothing (S5 acceptance row 4)`
+and `a grant revoked mid-request — session already validated — is refused in
+the SAME unit of work`; the second drives `_createClaimAction` and asserts
+`403/not_keyholder`. The same role vocabulary and live-grant mechanism are
+exercised against a finance-only actor by
+`src/lib/server/membership/offboarding-observability.integration.test.ts` row
+`a live FINANCE grant with no keyholder grant is refused, same as no grant at
+all`. `src/lib/server/membership/lifecycle.integration.test.ts` drives the real
+`_createRemoveAction` factory, but current main has no registered
+finance-only/non-keyholder `/remove` negative row. Do not invent one or turn
+that file's positive route coverage into one. These container-backed tests
+name code scope only; current remote CI does not run them. The deployed
+two-session POST controls below are therefore mandatory and may not be
+replaced by source tests.
+
 This document has the third job: prove one immutable deployed image and its
 runtime dependencies expose the ratified behavior to real users. A PR #212
 PASS never substitutes for a deployed observation. The registered closed-shape
@@ -170,7 +188,7 @@ cannot contaminate one another:
 - stripe-failure: real failed-renewal/past-due lifecycle;
 - withdraw: applicant withdrawal;
 - decline: keyholder decline;
-- race: approve versus withdrawal terminal race;
+- stale-withdraw: approval followed by stale withdrawal rejection;
 - remove: keyholder-forced removal.
 
 Keep actual addresses, bearer material, provider identifiers, and database
@@ -188,9 +206,23 @@ non-sensitive evidence reference.
   with 401.
 - With the keyholder-only session, confirm both finance routes refuse with
   403.
-- With the finance-only session, attempt the rendered /review claim and
-  decision actions and confirm the live keyholder-grant check refuses with
-  403. Finance alone must not claim, schedule, approve, decline, or remove.
+- Keep two isolated browser contexts on this same deployed origin: K is the
+  keyholder-only session and F is the finance-only session. Never transfer
+  cookies, passwords, bearer links, or a whole rendered page between them.
+- Keyholder forms do not render in F. When each eligible synthetic record
+  reaches its standing state later in this run, reload it in K immediately
+  before the probe and privately capture only the rendered action URL,
+  identifier, expectedVersion, and permitted non-secret form fields. In F,
+  replay that exact same-origin form POST under F's own session. For /remove,
+  F supplies F's own password and a permitted synthetic reason. Never copy
+  K's cookie or password, invent a version, or reuse a form from another
+  environment.
+- Apply that two-session capture/replay sequence to claim, schedule, approve,
+  decline, and remove at the points named below. Each F POST must return
+  403/not_keyholder. Reload in K and confirm the application or membership is
+  unchanged before K performs the intended positive action. Keep this row
+  BLOCKED until all five negative receipts exist; if the private two-context
+  handoff is unavailable, mark it BLOCKED.
 - Observe /review, /remove, and /offboarding as keyholder-only. Confirm they
   expose no amount, rail, cadence, processor/customer identifier, cash note,
   or billing failure detail.
@@ -209,8 +241,8 @@ Receipt:
 - Confirm the outbox/mail journal records disabled delivery without network
   transmission. Do not include the queued payload in evidence.
 - Obtain the verification link only through approved private token custody. If
-  unavailable, mark steps 3-17 BLOCKED rather than enabling mail or querying
-  production ad hoc.
+  unavailable, mark every dependent row, including steps 3-19, BLOCKED rather
+  than enabling mail or querying production ad hoc.
 
 Receipt:
 
@@ -236,11 +268,15 @@ Receipt:
 ### 5. Claim, tour, and approval (happy-leave)
 
 - Sign in at /login with the keyholder-only account.
-- Open /review, reload, and claim happy-leave using the rendered form.
-- Open /review/[id], reload, and schedule the tour using its page-provided
-  version.
-- After the real tour checkpoint, reload /review/[id] and approve. Do not
-  attach contribution information to the decision.
+- Open /review and reload. Run the step-1 F-context claim probe from that
+  freshly rendered form; after its 403, reload in K, confirm unchanged, and
+  claim happy-leave.
+- Open /review/[id] and reload. Run the same captured-form probe for schedule;
+  after its 403, reload in K, confirm unchanged, and schedule the tour using
+  the newly rendered version.
+- After the real tour checkpoint, reload /review/[id] and run the captured-form
+  approve probe. After its 403, reload in K, confirm unchanged, and approve.
+  Do not attach contribution information to the decision.
 - Confirm approved plus one pending_assent membership.
 - Obtain the activation link only through approved private token custody.
 
@@ -249,20 +285,22 @@ Receipt:
 ### 6. Decline with a recorded reason (decline)
 
 - Submit, verify, and claim a separate application.
-- Reload /review/[id].
-- Confirm decline without its required reason is refused.
-- Enter a permitted reason class in the rendered page and decline.
+- Reload /review/[id]. Run the step-1 F-context decline probe with a permitted
+  synthetic reason; after its 403, reload in K and confirm unchanged.
+- As K, confirm decline without its required reason is refused.
+- Enter a permitted reason class in the freshly rendered page and decline.
 - Confirm declined is terminal and no membership/contribution state exists.
 
 Receipt:
 
-### 7. Approval versus withdrawal race (race)
+### 7. Stale withdrawal after approval (stale-withdraw)
 
-- Submit and verify race, retaining its private withdrawal link.
+- Submit and verify stale-withdraw, retaining its private withdrawal link.
 - Claim, schedule, and approve through freshly rendered forms.
 - Only after approval commits, submit the standing withdrawal form.
-- Confirm withdrawal loses with not_withdrawable and exactly one terminal
-  decision remains. Do not reuse this identity for activation.
+- Confirm the stale withdrawal is refused with not_withdrawable and exactly
+  one terminal decision remains. This is an ordered stale-terminal rejection,
+  not a concurrency receipt. Do not reuse this identity for activation.
 
 Receipt:
 
@@ -416,7 +454,11 @@ Walk remove through verification, approval, assent, and activation first.
 
 - Sign in as keyholder-only and open /remove.
 - Reload immediately; the rendered form supplies membership ID and version.
-- Confirm omission of the recorded reason is refused.
+- Run the step-1 F-context remove probe from that exact capture, using F's own
+  password and a permitted synthetic reason. Confirm 403/not_keyholder, then
+  reload in K and confirm the membership, both sessions, and version are
+  unchanged.
+- As K, confirm omission of the recorded reason is refused.
 - Confirm missing or wrong keyholder password is refused without transition.
 - Submit with a permitted reason and correct password.
 - Confirm keyholder session rotation, removed, and open-obligation count.
@@ -435,7 +477,8 @@ Receipt:
 - Confirm keyholder-only sees job status but not billing failure detail.
 - Confirm finance-only sees an open cancellation obligation when one exists
   through read-only /offboarding-obligations.
-- Confirm finance-only still cannot perform review/removal actions.
+- Confirm the five step-1 finance-only POST receipts all show
+  403/not_keyholder and no application or membership mutation.
 - Confirm neither observation page exposes a mutation action.
 - For any Stripe subscription, pair the internal obligation state with the
   mandatory provider-side cancellation receipt. Otherwise mark BLOCKED.
@@ -447,8 +490,9 @@ Receipt:
 The deployed proof is complete only when every applicable row has a
 non-sensitive receipt and all of these are true:
 
-- TIN-3440: application, verification, withdrawal, terminal race, claim, tour,
-  approve/decline, assent/activation, login, pause/resume, voluntary leave,
+- TIN-3440: application, verification, withdrawal, stale-terminal rejection,
+  claim, tour, approve/decline, assent/activation, login, pause/resume,
+  voluntary leave,
   forced removal, immediate access revocation, and retryable offboarding are
   observed.
 - TIN-3818: choices remain post-approval and membership-independent; $0
