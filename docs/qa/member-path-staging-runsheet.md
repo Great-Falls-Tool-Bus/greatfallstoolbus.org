@@ -209,8 +209,8 @@ non-sensitive evidence reference.
 - Keep two isolated browser contexts on this same deployed origin: K is the
   keyholder-only session and F is the finance-only session. Never transfer
   cookies, passwords, bearer links, or a whole rendered page between them.
-- Keyholder forms do not render in F. When each eligible synthetic record
-  reaches its standing state later in this run, reload it in K immediately
+- The finance-only session never renders keyholder forms. After an eligible
+  synthetic record reaches its standing state later in this run, reload it in K immediately
   before the probe and privately capture only the rendered action URL,
   identifier, expectedVersion, and permitted non-secret form fields. In F,
   replay that exact same-origin form POST under F's own session. For /remove,
