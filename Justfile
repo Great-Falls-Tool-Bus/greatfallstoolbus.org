@@ -33,12 +33,27 @@ _house-hydrate:
     set -euo pipefail
     cd {{ root }}
     repo_root="$(git rev-parse --show-toplevel)"
-    if [[ "$PWD" != "$repo_root" ]] || [[ "$PWD" != "{{ root }}" ]]; then
+    physical_root="$(pwd -P)"
+    physical_repo_root="$(cd "$repo_root" && pwd -P)"
+    if [[ "$physical_root" != "$physical_repo_root" ]] || [[ "$PWD" != "{{ root }}" ]]; then
       echo "[house-hydrate] refusing outside the exact repository root." >&2
       exit 1
     fi
+    node_modules_root="$PWD/node_modules"
+    package_root="$node_modules_root/@tummycrypt"
+    for directory in "$node_modules_root" "$package_root"; do
+      if [[ -L "$directory" ]]; then
+        echo "[house-hydrate] refusing symlinked package root: $directory" >&2
+        exit 1
+      fi
+    done
+    mkdir -p -- "$package_root"
+    if [[ "$(cd "$package_root" && pwd -P)" != "$physical_root/node_modules/@tummycrypt" ]]; then
+      echo "[house-hydrate] package root escaped the repository: $package_root" >&2
+      exit 1
+    fi
     pkgs=(tinyland-auth tinyland-auth-pg tinyland-color-utils tinyvectors vite-plugin-a11y vite-plugin-skeleton-colors)
-    stamp="$PWD/node_modules/@tummycrypt/.gftb-bazel-hydrated"
+    stamp="$package_root/.gftb-bazel-hydrated"
     graph_key="$(git hash-object MODULE.bazel BUILD.bazel | tr '\n' ':')"
     if [[ -z "${FORCE_HOUSE_HYDRATE:-}" ]]; then
       have_all=1
@@ -54,15 +69,16 @@ _house-hydrate:
     targets=()
     for p in "${pkgs[@]}"; do targets+=("//:node_modules/@tummycrypt/$p"); done
     bazelisk "$root_flag" build "${targets[@]}"
-    package_root="$PWD/node_modules/@tummycrypt"
-    mkdir -p "$package_root"
     for p in "${pkgs[@]}"; do
-      if [[ -z "$p" ]]; then
-        echo "[house-hydrate] refusing an empty package name." >&2
-        exit 1
-      fi
+      case "$p" in
+        tinyland-auth|tinyland-auth-pg|tinyland-color-utils|tinyvectors|vite-plugin-a11y|vite-plugin-skeleton-colors) ;;
+        *)
+          echo "[house-hydrate] refusing non-allowlisted package name: $p" >&2
+          exit 1
+          ;;
+      esac
       target="$package_root/$p"
-      if [[ "$target" != "$PWD/node_modules/@tummycrypt/$p" ]]; then
+      if [[ "$target" == "$package_root" ]] || [[ "${target#"$package_root"/}" != "$p" ]]; then
         echo "[house-hydrate] refusing unexpected cleanup target: $target" >&2
         exit 1
       fi
