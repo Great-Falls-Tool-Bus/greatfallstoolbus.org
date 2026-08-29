@@ -459,6 +459,40 @@ test-integration *args:
     echo "test-integration: using ${runtime} + postgres:16.15"
     pnpm exec vitest run --config vitest.integration.config.ts {{ args }}
 
+# Synthetic membership rehearsal harness (scripts/rehearsal/first-membership.mts):
+# a single scripted, narrated run of apply -> keyholder review/decision ->
+# operator agreement publish (S13) -> assent/activation -> login+session ->
+# contribution via both rails (cash/check + Stripe test-mode), against a real
+# database, driving the same real `_create*Action` factories the
+# `*.integration.test.ts` suites drive. Emits a stage -> evidence receipt
+# table. Deliberately NOT part of `just check`/`just ci` — it is a rehearsal
+# tool for a human to run before a real launch step, not a gate.
+#
+# Same GFTB_TEST_PG_SUPERUSER_DSN / testcontainer fallback as test-integration
+# above (SKIPS LOUDLY when neither is available). Pass an output path as the
+# first arg to also write the receipts table to a file.
+rehearsal-first-membership *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ root }}
+    if [ -z "${GFTB_TEST_PG_SUPERUSER_DSN:-}" ]; then
+        runtime=""
+        for candidate in docker podman; do
+            if command -v "$candidate" >/dev/null 2>&1 && "$candidate" info >/dev/null 2>&1; then
+                runtime="$candidate"; break
+            fi
+        done
+        if [ -z "$runtime" ]; then
+            echo "rehearsal-first-membership: SKIP — no responding docker or podman daemon, and"
+            echo "  GFTB_TEST_PG_SUPERUSER_DSN is unset. Re-run with a container runtime, or"
+            echo "  point GFTB_TEST_PG_SUPERUSER_DSN at a PostgreSQL 16 superuser connection"
+            echo "  (a real local Postgres 16 works fine — see scripts/rehearsal/first-membership.mts"
+            echo "  header for how this was run without docker)."
+            exit 0
+        fi
+    fi
+    pnpm exec tsx scripts/rehearsal/first-membership.mts {{ args }}
+
 # ─────────────────────────────────────────────
 # Preview (tailnet; INTERIM lane — the ratified target is
 # staging.greatfallstoolbus.org promote-on-PR once the infra apply sitting
