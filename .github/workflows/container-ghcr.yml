@@ -158,7 +158,7 @@ jobs:
           export GF_CORE_PATH=../GloriousFlywheel
           export GF_CORE_CI_PATH=../GloriousFlywheel#ci
           nix develop ../GloriousFlywheel#ci -c just container-image-publish
-          digest="$(tr -d '\\r\\n' < "${IMAGE_DIGEST_FILE}")"
+          digest="$(tr -d '\r\n' < "${IMAGE_DIGEST_FILE}")"
           if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "::error::publisher returned an invalid image digest: ${digest}"
             exit 1
