@@ -18,7 +18,28 @@ import { defineConfig } from 'vitest/config';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Keep integration transformation independent of SvelteKit's generated
+// `.svelte-kit/tsconfig.json`. Vite 8's Oxc transformer supports an inline
+// tsconfig, but Vite intentionally omits that one field from its public Oxc
+// type; spreading it beside a typed option preserves type checking for the
+// rest of the configuration. `$lib` resolution remains the explicit alias
+// below. This makes manual Bazel integration targets hermetic without making
+// two actions copy the whole app source tree into the same output paths.
+const inlineOxcTsconfig = {
+	tsconfig: {
+		compilerOptions: {
+			strict: true,
+			target: 'esnext',
+			verbatimModuleSyntax: true,
+		},
+	},
+} as const;
+
 export default defineConfig({
+	oxc: {
+		target: 'esnext',
+		...inlineOxcTsconfig,
+	},
 	resolve: {
 		alias: {
 			$lib: path.resolve(__dirname, 'src/lib'),
