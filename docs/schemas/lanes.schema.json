@@ -88,10 +88,9 @@
 				"tinyland-nix-kvm",
 				"tinyland-nix-gpu",
 				"tinyland-docker",
-				"tinyland-dind",
-				"ubuntu-latest"
+				"tinyland-dind"
 			],
-			"description": "GitHub Actions runs-on label. Cluster classes require runner-pool ACL grant via tinyland-infra/modules/spoke/runner-binding. `ubuntu-latest` is permitted only for jobs whose entire purpose is a `gh api` call."
+			"description": "GitHub Actions runs-on label. Cluster classes require runner-pool ACL grant via tinyland-infra/modules/spoke/runner-binding."
 		},
 		"laneTrigger": {
 			"enum": ["pull_request", "merge_main", "release_tag", "manual"],
