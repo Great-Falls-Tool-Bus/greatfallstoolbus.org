@@ -20,6 +20,36 @@ function read(relative: string): string {
 	return readFileSync(path.join(repoRoot, relative), 'utf8');
 }
 
+/** Every numbered migration that actually creates a tenant policy. */
+function rlsMigrations(): string[] {
+	return readPlannedMigrations(migrationsDir)
+		.map(({ filename }) => `drizzle/${filename}`)
+		.filter((file) => /^CREATE POLICY/gm.test(read(file)));
+}
+
+/** Normalize an optionally schema-qualified PostgreSQL relation. */
+function relationName(schema: string | undefined, table: string): string {
+	return (schema ?? 'public') + '.' + table;
+}
+
+/** Extract the unique relation names from one class of RLS statement. */
+function rlsTables(sql: string, action: 'ENABLE' | 'FORCE'): string[] {
+	const pattern = /^ALTER TABLE (?:"([^"]+)"\.)?"([^"]+)" (ENABLE|FORCE) ROW LEVEL SECURITY;$/gm;
+	return [
+		...new Set(
+			[...sql.matchAll(pattern)]
+				.filter((match) => match[3] === action)
+				.map((match) => relationName(match[1], match[2])),
+		),
+	].sort();
+}
+
+/** Extract every unique relation targeted by a tenant policy. */
+function policyTables(sql: string): string[] {
+	const pattern = /^CREATE POLICY "[^"]+" ON (?:"([^"]+)"\.)?"([^"]+)"/gm;
+	return [...new Set([...sql.matchAll(pattern)].map((match) => relationName(match[1], match[2])))].sort();
+}
+
 /** Justfile lines with `#` comments stripped, so prose about `push` is not mistaken for a call. */
 function justfileCommands(): string {
 	return read('Justfile')
@@ -65,11 +95,7 @@ describe('the migration tree is checked in', () => {
 		// `current_setting(…, true)` returns '' (not NULL) for a GUC that was set
 		// and then reset, and ''::uuid RAISES. A policy missing the nullif turns a
 		// finished session into an error factory instead of an empty result.
-		for (const file of [
-			'drizzle/0001_auth_pg_vendored_0_2_4.sql',
-			'drizzle/0002_rls_force_and_runtime_grants.sql',
-			'drizzle/0005_payment_rails_rls_grants.sql',
-		]) {
+		for (const file of rlsMigrations()) {
 			const sql = read(file);
 			// Anchored to the start of a line so the prose explaining the rule is
 			// not counted as an instance of it.
@@ -88,18 +114,17 @@ describe('the migration tree is checked in', () => {
 	});
 
 	it('forces row-level security on every table it enables it for', () => {
-		for (const file of [
-			'drizzle/0001_auth_pg_vendored_0_2_4.sql',
-			'drizzle/0002_rls_force_and_runtime_grants.sql',
-			'drizzle/0005_payment_rails_rls_grants.sql',
-		]) {
+		for (const file of rlsMigrations()) {
 			const sql = read(file);
-			const enabled = sql.match(/^ALTER TABLE .* ENABLE ROW LEVEL SECURITY;$/gm) ?? [];
-			const forced = sql.match(/^ALTER TABLE .* FORCE ROW LEVEL SECURITY;$/gm) ?? [];
+			const enabled = rlsTables(sql, 'ENABLE');
+			const forced = rlsTables(sql, 'FORCE');
+			const policyTargets = policyTables(sql);
 			expect(enabled.length).toBeGreaterThan(0);
 			// Without FORCE the table owner — the migration role — bypasses every
-			// policy, and the isolation is decorative.
-			expect(forced).toHaveLength(enabled.length);
+			// policy, and the isolation is decorative. Comparing the target set as
+			// well prevents a policy typo from protecting the wrong table.
+			expect(forced).toEqual(enabled);
+			expect(policyTargets).toEqual(enabled);
 		}
 	});
 });
@@ -119,7 +144,7 @@ describe('drizzle push is banned, not merely discouraged', () => {
 	it('is not what drizzle.config.ts is wired for', () => {
 		const config = read('drizzle.config.ts');
 		expect(config).toContain("out: './drizzle'");
-		expect(config).toContain("schema: './src/lib/server/db/schema.ts'");
+		expect(config).toContain("schema: ['./src/lib/server/db/schema.ts', './src/lib/server/inventory/schema.ts']");
 	});
 });
 
