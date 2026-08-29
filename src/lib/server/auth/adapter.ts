@@ -55,14 +55,30 @@ import { FORBIDDEN_ADAPTER_METHODS, type ForbiddenAdapterMethod } from './fence'
  * pg-global parser. Hence `parseDbInstant` + `normalizeSessionInstants`,
  * applied in session.ts/reauth.ts to every session that crosses OUR seam.
  *
- * Residual, flagged rather than fixed: the adapter's own INTERNAL expiry
- * check (`getSession` compares `session.expires` to now before we ever see
- * the row) still does the local-time parse (no 'Z' appended — see
- * `parseDbInstant` below). West of UTC that check fires LATE and our own
- * expiry enforcement in `validateSession` wins; east of UTC the adapter would
- * delete sessions EARLY — annoying, not unsafe, PROVIDED the text it parses
- * is at least in a format `new Date()` reads unambiguously. Production runs
- * UTC end to end; recorded in the PR for the upstream fix.
+ * Residual, flagged rather than fixed, and CORRECTED HERE (TIN-4217 review):
+ * the adapter's own INTERNAL expiry check (`getSession` compares
+ * `session.expires` to now before we ever see the row) still does the
+ * local-time parse (no 'Z' appended — see `parseDbInstant` below), keyed off
+ * the PROCESS's own `TZ`, not `datestyle`. The previous version of this note
+ * called the east-of-UTC direction "annoying, not unsafe" — MEASURED FALSE
+ * (TIN-4217 review). Reproduced directly against `dist/adapter.js`, with
+ * `datestyle` correctly pinned to `'ISO'` (this PR's own fix working exactly
+ * as designed) and the process at `TZ=Asia/Tokyo` (+9): a session with THREE
+ * HOURS OF LIFE LEFT (`expires_at` naive UTC digits read three hours ahead of
+ * real `now`) was DELETED — `new Date('...naive UTC digits...')` under
+ * `TZ=Asia/Tokyo` interprets those digits as Tokyo-local, i.e. nine hours
+ * EARLIER in UTC terms than they actually mean, which is enough to read a
+ * still-live session as already expired. West of UTC the same misread runs
+ * the other way (late, not early) and is genuinely harmless, backstopped by
+ * `sessionExpiryVerdict`'s SQL-native check in `session.ts`, which this
+ * vendor call cannot see and cannot be delayed by. Reproduced identically
+ * against unfixed `main` — this is NOT a regression this PR introduces, and
+ * `PIN_ISO_DATESTYLE_SQL` below does not close it: that pin addresses
+ * `datestyle` only, and this vector is `TZ`, a completely different GUC/env
+ * axis reaching the exact same vendor line. Production runs UTC end to end,
+ * which is why this has not been observed operationally; it remains an open
+ * gap in the vendored dependency, recorded here for the upstream fix, not
+ * something this repository can close short of forking the package.
  *
  * THAT PROVISO IS NOT FREE (TIN-4217, measured against real PostgreSQL). The
  * adapter's internal check is `new Date(session.expires) < new Date()` on
@@ -127,6 +143,35 @@ const ISO_INSTANT_WITH_DESIGNATOR = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)
  * feed a naive-timestamp session column to a parser; nothing may run between
  * the two, or a `SET LOCAL datestyle` racing in between would win. See the
  * module comment above for the measured reason this exists.
+ *
+ * WHAT THIS DOES NOT CLOSE (TIN-4217 review, ED-1/ED-3/ED-5 — read before
+ * relying on this beyond `session.ts`'s one call site):
+ *
+ *   - It is `datestyle`-only. The process/session `TIMEZONE` vector that
+ *     reaches the identical vendored line is a SEPARATE GUC/env axis this
+ *     statement does nothing about — see the module comment's east-of-UTC
+ *     paragraph above. There is no `SET LOCAL timezone` equivalent shipped
+ *     here; that gap is open and recorded, not silently assumed closed.
+ *   - It BLEEDS FORWARD, on purpose but worth stating: `SET LOCAL` persists
+ *     for the rest of the enclosing transaction, not just the one statement
+ *     after it. Measured: a transaction that had `datestyle = 'SQL, DMY'`
+ *     before calling `validateSession` observes `datestyle = 'ISO, DMY'`
+ *     afterward, for the remainder of that unit of work — `'ISO'` rewrites
+ *     only the OUTPUT-format field, leaving the INPUT-order field (`DMY`)
+ *     exactly as it was. Benign for every current caller (ISO output is
+ *     unambiguous for `new Date()` regardless of input order, and nothing
+ *     in this codebase re-parses ambiguous DMY-ORDERED INPUT text through
+ *     this seam), but it means a read-shaped function silently mutates
+ *     transaction-scoped configuration state for whatever runs after it in
+ *     the same `withTenant` unit of work. A future caller that also needs a
+ *     non-ISO input order for some other reason, in the same transaction,
+ *     after `validateSession` has run, would be surprised by this.
+ *   - `SET LOCAL` is a no-op — with a `WARNING`, not an error — outside a
+ *     transaction block. `withTenant` always opens a real transaction and
+ *     `DbTransaction` is the only type this is ever called with, so that
+ *     mode is unreachable today; worth naming so it stays that way rather
+ *     than becoming a silent, undetected failure if that assumption ever
+ *     changes.
  */
 export const PIN_ISO_DATESTYLE_SQL = "set local datestyle to 'ISO'";
 

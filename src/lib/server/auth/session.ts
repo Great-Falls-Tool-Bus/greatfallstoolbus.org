@@ -271,6 +271,14 @@ export async function authenticate(
  * `now()` comparison would convert to the session's local wall clock instead.
  * Production runs UTC end to end (adapter.ts), but this function does not
  * depend on that being true to be correct.
+ *
+ * BOUNDARY, PRECISELY (TIN-4217 review, ED-4, nit): this is a strict `<`, not
+ * the old code's `<=`. At the exact expiry instant (`expires_at == now()`,
+ * a sub-microsecond window in practice) the old code's `expiry <= Date.now()`
+ * called the session expired; this reports `live`. Harmless — a session is
+ * either still within its TTL or it is not, and no caller depends on the
+ * exact instant either way — but it is a real, unannounced behavior change
+ * at that boundary, so it is announced here.
  */
 async function sessionExpiryVerdict(
 	tx: DbTransaction,
@@ -290,34 +298,47 @@ async function sessionExpiryVerdict(
 /**
  * Resolve a session id to a live session, or `null`.
  *
- * THE READ PATH NEVER DELETES (TIN-4217 structural fix, item 2). This
- * function's only job is to answer "is this session valid right now?"; a
- * misjudgment here can cost a spurious logout, never a destroyed row.
- * Garbage-collecting genuinely expired sessions is `reapExpiredSessions`
- * below — a separate unit of work, on its own schedule, that can afford to
- * be conservative. The two used to be fused: the old `validateSession` both
- * decided AND deleted, on the strength of a comment promising the delete was
- * skipped whenever the expiry was unparseable. That promise did not hold —
- * see the measured finding below — which is exactly the failure mode
- * splitting verdict-from-delete is meant to make structurally impossible
- * rather than a matter of vigilance.
+ * THIS FUNCTION'S OWN CODE NEVER DELETES (TIN-4217 structural fix, item 2) —
+ * stated precisely, because a broader claim here was reviewed and found
+ * false. There is no `deleteSession` call anywhere in this function's body;
+ * its only job is to answer "is this session valid right now?", and a
+ * misjudgment in ITS OWN logic can cost at most a spurious logout, never a
+ * destroyed row. Garbage-collecting genuinely expired sessions is
+ * `reapExpiredSessions` below — a separate unit of work, on its own
+ * schedule, that can afford to be conservative.
  *
- * MEASURED FINDING (TIN-4217), and why this also re-pins `datestyle` before
- * touching the adapter at all: the vendored `PgStorageAdapter.getSession()`
- * called below has its OWN internal expiry check — a bare
- * `new Date(session.expires) < new Date()` against driver-returned TEXT —
- * and reproduction against real PostgreSQL proved THAT check independently
- * deletes a live session under `datestyle = 'SQL, DMY'`, from inside
- * `getSession`, before this function's own logic runs at all (the old
- * `Number.isNaN`/`deleteSession` code below this point was, in that exact
- * scenario, dead code: `session` was already `null`, the row already gone).
- * We cannot patch a pinned dependency, so `PIN_ISO_DATESTYLE_SQL` removes the
- * ambiguous input before the vendor's parser — or ours — ever sees it. This
- * function's OWN verdict, separately, does not depend on that pin holding:
- * `sessionExpiryVerdict` is SQL-native and immune to `datestyle` by
- * construction (see its own doc comment), so even a future change that
- * reordered or dropped the pin would fail closed into spurious logouts, not
- * silent data loss.
+ * WHAT THAT GUARANTEE DOES NOT COVER (TIN-4217 review, ED-1 — read this
+ * before trusting "never deletes" as an absolute property of calling this
+ * function). This function still calls the vendored
+ * `PgStorageAdapter.getSession()`, and THAT call retains its own internal
+ * delete-on-expiry side effect (`dist/adapter.js`, a bare
+ * `new Date(session.expires) < new Date()` against driver-returned TEXT).
+ * Two independent vectors reach that one line, and this PR closes exactly
+ * one of them:
+ *
+ *   - `datestyle` (the original TIN-4217 defect): CLOSED. `PIN_ISO_DATESTYLE_SQL`,
+ *     issued immediately before the call below, forces the text that vendor
+ *     check parses into the one shape it reads correctly — measured, on real
+ *     PostgreSQL, to turn the exact reported scenario (a live session
+ *     deleted under `datestyle = 'SQL, DMY'`) into a session that validates
+ *     and survives.
+ *   - process/session `TIMEZONE`: NOT CLOSED, and reaches the identical
+ *     vendor line by a different route (see adapter.ts's module comment).
+ *     Measured: with `datestyle` correctly `'ISO'` — this fix working
+ *     exactly as designed — and the process at `TZ=Asia/Tokyo`, a session
+ *     with three hours of life left was still deleted by the vendor's
+ *     internal check before this function's code ever ran. Not a
+ *     regression (identical on unfixed `main`); not addressed by anything
+ *     in this PR; recorded, not silently assumed away.
+ *
+ * So: calling this function cannot cause OUR code to delete a live session.
+ * It can still observe the VENDORED call delete one, on the TZ vector, the
+ * same as it always could. `sessionExpiryVerdict` below is deliberately
+ * SQL-native and immune to BOTH vectors for the decision this function
+ * returns — a misparse on either axis costs a spurious logout from this
+ * function's own logic, never a silent wrong answer — but it cannot retroactively
+ * un-delete a row the vendored call already removed before this function's
+ * own logic ran.
  */
 export async function validateSession(
 	tx: DbTransaction,
