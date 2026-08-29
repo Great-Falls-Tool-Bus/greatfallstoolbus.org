@@ -105,6 +105,11 @@ jobs:
       # reviewed consumer; TIN-3899 removed the signal-cd job that used to gate
       # a deploy on it, so nothing downstream reads it inside this repository.
       published: ${{ steps.publish.outputs.published }}
+      # Written by skopeo during the registry copy, not reconstructed later
+      # from a mutable tag or a second registry lookup.
+      digest: ${{ steps.image.outputs.digest }}
+      immutable_ref: ${{ steps.image.outputs.immutable_ref }}
+      source_sha: ${{ github.sha }}
     steps:
       - name: Checkout overlay
         uses: actions/checkout@v7
@@ -133,6 +138,7 @@ jobs:
         uses: tinyland-inc/ci-templates/.github/actions/nix-setup@d8d178c022a0f84853d53a2c8fe0fc90115f0949 # v3.1.0
 
       - name: Build + push adapter-node image
+        id: image
         shell: bash
         env:
           GHCR_USER: ${{ github.actor }}
@@ -143,10 +149,47 @@ jobs:
           BUILD_DATE: ${{ github.event.repository.updated_at }}
         run: |
           set -euo pipefail
+          umask 077
+          digest_dir="$(mktemp -d "${RUNNER_TEMP}/greatfallstoolbus-image-digest.XXXXXXXX")"
+          if [[ ! -d "${digest_dir}" || -L "${digest_dir}" ]]; then
+            echo "::error::digest carrier directory is not a private real directory: ${digest_dir}"
+            exit 1
+          fi
+          chmod 700 "${digest_dir}"
+          export IMAGE_DIGEST_FILE="${digest_dir}/manifest.digest"
+          if [[ -e "${IMAGE_DIGEST_FILE}" || -L "${IMAGE_DIGEST_FILE}" ]]; then
+            echo "::error::refusing pre-existing digest carrier: ${IMAGE_DIGEST_FILE}"
+            exit 1
+          fi
           cd overlay
           export GF_CORE_PATH=../GloriousFlywheel
           export GF_CORE_CI_PATH=../GloriousFlywheel#ci
           nix develop ../GloriousFlywheel#ci -c just container-image-publish
+          if [[ ! -f "${IMAGE_DIGEST_FILE}" || -L "${IMAGE_DIGEST_FILE}" ]]; then
+            echo "::error::publisher digest carrier is not a regular non-symlink file: ${IMAGE_DIGEST_FILE}"
+            exit 1
+          fi
+          digest="$(tr -d '\r\n' < "${IMAGE_DIGEST_FILE}")"
+          if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::publisher returned an invalid image digest: ${digest}"
+            exit 1
+          fi
+          image_ref="$(printf '%s' "${IMAGE_REF}" | tr '[:upper:]' '[:lower:]')"
+          immutable_ref="${image_ref}@${digest}"
+          {
+            echo "digest=${digest}"
+            echo "immutable_ref=${immutable_ref}"
+            echo "digest_file=${IMAGE_DIGEST_FILE}"
+          } >> "${GITHUB_OUTPUT}"
+          echo "Published immutable image ${immutable_ref}"
+
+      - name: Upload immutable publisher digest carrier
+        uses: actions/upload-artifact@v4
+        with:
+          name: greatfallstoolbus-org-image-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.image.outputs.digest_file }}
+          if-no-files-found: error
+
       - name: Record successful image publication
         id: publish
         run: echo "published=true" >> "$GITHUB_OUTPUT"
