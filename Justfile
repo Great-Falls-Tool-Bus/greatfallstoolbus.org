@@ -411,9 +411,15 @@ worker-bundle:
         --bundle --platform=node --format=esm --target=node22 \
         --outfile=build/worker.mjs \
         --external:pg-native --external:cloudflare:sockets \
+        '--alias:$lib=./src/lib' \
         --tsconfig-raw='{}' \
         --banner:js="import { createRequire as __gftbCreateRequire } from 'node:module'; const require = __gftbCreateRequire(import.meta.url);"
     @echo "wrote build/worker.mjs (the /bin/worker payload)"
+
+# Compile the standalone payloads that the default Svelte/Vite build and
+# current Bazel targets do not traverse.
+platform-bundles-check: db-migrator-bundle worker-bundle
+    @echo "platform bundles OK: migrator, worker"
 
 # PostgreSQL suite: RLS, FORCE, advisory lock, ledger drift, runtime-role grants.
 #
@@ -1072,7 +1078,7 @@ sbom out_dir="build/sbom":
 # public-safety scans); leak-scan-build runs last (it pays for a full
 # `just build`, ~4 minutes — the only step this gate added that was not
 # already part of `check`'s cost) so a cheaper failure surfaces first.
-check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints leak-scan-tree leak-scan-src lint typecheck discuss-drafts-validate naming-consent-hashes-verify skills-validate skills-check source-map-check db-check test-unit leak-scan-build
+check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints leak-scan-tree leak-scan-src lint typecheck discuss-drafts-validate naming-consent-hashes-verify skills-validate skills-check source-map-check db-check platform-bundles-check test-unit leak-scan-build
     @echo "All checks passed."
 
 # Probe the declared production hostnames at the public Cloudflare Access edge.
