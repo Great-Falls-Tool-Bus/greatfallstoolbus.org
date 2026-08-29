@@ -86,15 +86,21 @@ describe('applying the checked-in migrations', () => {
 			'public.application_decision', // S5 (TIN-3440): the immutable decision record, migration 0008
 			'public.application_email_token', // S4 (TIN-3440): hashed single-use tokens, migration 0007
 			'public.assent', // S6 (TIN-3440): the immutable assent record, migration 0009
+			'public.asset', // Inventory I1 (TIN-3814): tool asset aggregate, migration 0011
+			'public.asset_component', // Inventory I1: expected contents and consumables, migration 0011
 			'public.audit_event', // S6 (TIN-3440): the append-only audit spine, migration 0009
 			'public.contribution_agreement',
 			'public.finance_receipt',
+			'public.inspection', // Inventory I1: checkout and return evidence, migration 0011
+			'public.loan', // Inventory I1: custody lifecycle, migration 0011
+			'public.location_observation', // Inventory I1: consented one-shot location, migration 0011
 			'public.mail_delivery_journal', // TIN-4062: the disabled-delivery journal + idempotency receipt, migration 0010
 			'public.member_role_grant', // S2 (TIN-3817): the role-grant table rides migration 0003
 			'public.membership', // S6/S7 (TIN-3440): the membership aggregate, migration 0009
 			'public.outbox_job',
 			'public.person', // S6 (TIN-3440): immutable person identity, migration 0009
 			'public.person_email', // S6 (TIN-3440): address history, migration 0009
+			'public.repair_case', // Inventory I1: repair custody record, migration 0011
 			'public.stripe_event_inbox',
 			'public.tenant',
 		]);

@@ -78,6 +78,13 @@
 			"when": 1788022831003,
 			"tag": "0010_mail_delivery_journal",
 			"breakpoints": true
+		},
+		{
+			"idx": 11,
+			"version": "7",
+			"when": 1788038544961,
+			"tag": "0011_inventory_schema_foundation",
+			"breakpoints": true
 		}
 	]
 }

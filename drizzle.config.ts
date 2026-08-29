@@ -13,13 +13,18 @@
  * No credential is baked here. `dbCredentials` reads the runtime name
  * `DATABASE_URL`, and every recipe this repository ships (`generate`, `check`)
  * is offline and never dereferences it.
+ *
+ * The schema list is explicit rather than a broad glob. That keeps each
+ * bounded context independently reviewable while making every table part of
+ * the one generated migration graph. Adding another schema module is a
+ * deliberate config diff, not an accidental filesystem discovery.
  */
 
 import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
 	dialect: 'postgresql',
-	schema: './src/lib/server/db/schema.ts',
+	schema: ['./src/lib/server/db/schema.ts', './src/lib/server/inventory/schema.ts'],
 	out: './drizzle',
 	casing: 'snake_case',
 	strict: true,
