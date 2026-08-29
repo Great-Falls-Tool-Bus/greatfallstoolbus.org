@@ -5,6 +5,7 @@ static
 *.md
 pnpm-lock.yaml
 flake.lock
+.gstack
 
 # Generated + hand-written SQL migrations (TIN-3817 S1). Prettier must never
 # reformat these: a migration's bytes ARE its ledger hash, so a whitespace
