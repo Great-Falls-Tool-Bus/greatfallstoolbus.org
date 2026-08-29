@@ -92,7 +92,8 @@ clean-all: clean
 # .github/workflows/container-ghcr.yml on tinyland-nix via the nix-job action).
 # Required env (supplied by CI, never committed): GHCR_USER, GHCR_TOKEN.
 # Optional env: IMAGE_REF (default ghcr.io/great-falls-tool-bus/greatfallstoolbus.org),
-# BUILD_COMMIT_SHA, BUILD_COMMIT_REF, BUILD_DATE.
+# BUILD_COMMIT_SHA, BUILD_COMMIT_REF, BUILD_DATE; IMAGE_DIGEST_FILE (when set,
+# skopeo writes the immutable destination manifest digest there during publish).
 container-image-publish: platform-entrypoints-check
     #!/usr/bin/env bash
     set -euo pipefail
@@ -153,7 +154,11 @@ container-image-publish: platform-entrypoints-check
     #    skopeo. copyToRegistry derives docker://${IMAGE_REF}:${tag} from the image
     #    name/tag; --dest-creds carries the ambient GITHUB_TOKEN (no new secret).
     #    Image assembly/push is NOT executor-eligible (skill rule 8).
-    nix run --impure .#image.copyToRegistry -- --dest-creds "${GHCR_USER}:${GHCR_TOKEN}"
+    digestfile_args=()
+    if [[ -n "${IMAGE_DIGEST_FILE:-}" ]]; then
+        digestfile_args=(--digestfile "${IMAGE_DIGEST_FILE}")
+    fi
+    nix run --impure .#image.copyToRegistry -- --dest-creds "${GHCR_USER}:${GHCR_TOKEN}" "${digestfile_args[@]}"
     echo "pushed ${IMAGE_REF}:${tag}"
 
 # Local daemonless image build (no push): writes a docker-archive tarball you
