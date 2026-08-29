@@ -27,9 +27,11 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import net from 'node:net';
+import tls from 'node:tls';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { KEYHOLDER_ROLE, claimApplication, scheduleTour } from '../../application/claim';
 import { approveApplication, declineApplication, withdrawApplication } from '../../application/decide';
 import { RECEIPT_EMAIL_JOB_KIND, submitApplication, validateSubmission, verifyEmail } from '../../application/intake';
@@ -163,25 +165,57 @@ async function resetToPending(tenantId: string, jobId: string) {
 }
 
 /**
- * Scoped by `kind` as well as `aggregateId`: `tourScheduled`/`submitted`
- * always leaves a pending `application.receipt_email` job behind it (A2's
- * own enqueue), so a decision/withdrawn-ack test's dispatch cycle
- * legitimately claims and journals THAT job too when its handler is also
- * registered — scoping by kind keeps each test's assertion about the kind
- * under test.
+ * Scoped to `phase = 'outcome'` (PR #208 review E2: a completed job now
+ * writes an `intent` row AND an `outcome` row, two INSERTs — this helper
+ * keeps testing exactly what it always tested, "what happened," and stays
+ * blind to the intermediate `intent` row) and by `kind` as well as
+ * `aggregateId`: `tourScheduled`/`submitted` always leaves a pending
+ * `application.receipt_email` job behind it (A2's own enqueue), so a
+ * decision/withdrawn-ack test's dispatch cycle legitimately claims and
+ * journals THAT job too when its handler is also registered — scoping by
+ * kind keeps each test's assertion about the kind under test.
  */
 async function journalRows(tenantId: string, applicationId: string, kind?: string) {
+	return journalPhaseRows(tenantId, applicationId, 'outcome', kind);
+}
+
+/** As `journalRows`, but able to see `intent` rows too — for the E2 ambiguous-state proof. */
+async function journalPhaseRows(tenantId: string, applicationId: string, phase: 'intent' | 'outcome', kind?: string) {
 	return asTenant(fixture.runtimeDsn, tenantId, async (client) => {
 		const { rows } = await client.query(
-			`select j.mode, j.template_id, j.template_approved, j.idempotency_key
+			`select j.mode, j.phase, j.template_id, j.template_approved, j.idempotency_key
 			 from mail_delivery_journal j
 			 join outbox_job o on o.id = j.outbox_job_id
-			 where o.aggregate_id = $1 and ($2::text is null or j.kind = $2)
+			 where o.aggregate_id = $1 and j.phase = $2 and ($3::text is null or j.kind = $3)
 			 order by j.created_at`,
-			[applicationId, kind ?? null],
+			[applicationId, phase, kind ?? null],
 		);
-		return rows as { mode: string; template_id: string; template_approved: boolean; idempotency_key: string }[];
+		return rows as {
+			mode: string | null;
+			phase: string;
+			template_id: string;
+			template_approved: boolean;
+			idempotency_key: string;
+		}[];
 	});
+}
+
+/** Insert a bare `intent` row directly — simulates a prior attempt that committed intent and crashed before an outcome. */
+async function seedOrphanIntent(
+	tenantId: string,
+	jobId: string,
+	kind: string,
+	idempotencyKey: string,
+	templateId: string,
+) {
+	await asTenant(fixture.runtimeDsn, tenantId, (client) =>
+		client.query(
+			`insert into mail_delivery_journal
+			   (tenant_id, outbox_job_id, kind, idempotency_key, phase, template_id, template_approved)
+			 values ($1, $2, $3, $4, 'intent', $5, false)`,
+			[tenantId, jobId, kind, idempotencyKey, templateId],
+		),
+	);
 }
 
 async function tokenCount(tenantId: string, applicationId: string, purpose: string): Promise<number> {
@@ -367,5 +401,137 @@ describe('dead-letter on template-unapproved + delivery-enabled — and the defa
 		expect(rows).toHaveLength(1);
 		// mode: 'sent' would mean SmtpDelivery reached a server; it never does here.
 		expect(rows[0].mode).toBe('disabled');
+	});
+});
+
+describe('E2 — the two-phase journal: send outside any open transaction, no double-send on an ambiguous replay', () => {
+	it('a successful run writes BOTH an intent row and an outcome row, in that order', async () => {
+		const tenantId = await newTenant();
+		const app = await submitted(tenantId);
+		const registry = createHandlerRegistry({
+			[RECEIPT_EMAIL_JOB_KIND]: createReceiptEmailHandler({ db, env: DISABLED_ENV }),
+		});
+		await dispatchOnce({ tenantId, worker: 'test', registry, db });
+
+		const intentRows = await journalPhaseRows(tenantId, app.id, 'intent', RECEIPT_EMAIL_JOB_KIND);
+		const outcomeRows = await journalPhaseRows(tenantId, app.id, 'outcome', RECEIPT_EMAIL_JOB_KIND);
+		expect(intentRows).toHaveLength(1);
+		expect(outcomeRows).toHaveLength(1);
+		expect(intentRows[0].mode).toBeNull();
+		expect(outcomeRows[0].mode).toBe('disabled');
+	});
+
+	it('an intent row with NO matching outcome (a prior attempt crashed between commit-intent and commit-outcome) refuses to send again — dead-letters, never re-sends, never re-mints', async () => {
+		const tenantId = await newTenant();
+		const app = await submitted(tenantId);
+		const job = await pendingJob(tenantId, RECEIPT_EMAIL_JOB_KIND, app.id);
+		await setMaxAttempts(tenantId, job.id, 1);
+
+		// Simulate exactly the crash window E2 exists to guard: intent
+		// committed, outcome never recorded — WITHOUT ever calling send().
+		await seedOrphanIntent(tenantId, job.id, RECEIPT_EMAIL_JOB_KIND, job.idempotency_key, 'application.receipt_email');
+
+		let sendCalls = 0;
+		const registry = createHandlerRegistry({
+			[RECEIPT_EMAIL_JOB_KIND]: createReceiptEmailHandler({
+				db,
+				env: DISABLED_ENV,
+				deliveryFactory: () => ({
+					send: async () => {
+						sendCalls += 1;
+						return { mode: 'disabled' as const, detail: 'must never run — the intent is ambiguous' };
+					},
+				}),
+			}),
+		});
+
+		const summary = await dispatchOnce({ tenantId, worker: 'test', registry, db });
+
+		// AmbiguousDeliveryStateError is an ordinary handler failure to the
+		// dispatcher: with max_attempts=1 it dead-letters on the first attempt.
+		expect(summary).toMatchObject({ claimed: 1, dead: 1, done: 0 });
+		expect(await jobStatus(tenantId, job.id)).toBe('dead');
+		expect(sendCalls).toBe(0);
+		// render() never ran either — no second token minted alongside the orphan intent.
+		expect(await tokenCount(tenantId, app.id, 'verify_email')).toBe(0);
+		expect(await tokenCount(tenantId, app.id, 'withdraw')).toBe(0);
+		// Still exactly the one (seeded) intent row; no outcome row was ever written.
+		expect(await journalPhaseRows(tenantId, app.id, 'intent', RECEIPT_EMAIL_JOB_KIND)).toHaveLength(1);
+		expect(await journalPhaseRows(tenantId, app.id, 'outcome', RECEIPT_EMAIL_JOB_KIND)).toHaveLength(0);
+	});
+});
+
+describe('E5 — structural no-transport proof, runtime half: a socket-spy patched to throw', () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('the disabled-path dispatch never calls net.connect / net.createConnection / tls.connect — patched to throw, the whole default-env flow still succeeds', async () => {
+		// Set up and WARM the pg pool's own connection(s) BEFORE the spy goes
+		// up: `pg` itself dials through `net`/`tls`, so the spy must only be
+		// live around the exact call this test is about, never around pool
+		// setup — otherwise a pool cache miss would fail the test for a reason
+		// that has nothing to do with mail delivery.
+		const tenantId = await newTenant();
+		const app = await submitted(tenantId);
+		const registry = createHandlerRegistry({
+			[RECEIPT_EMAIL_JOB_KIND]: createReceiptEmailHandler({ db, env: DISABLED_ENV }),
+		});
+
+		const netConnect = vi.spyOn(net, 'connect').mockImplementation(() => {
+			throw new Error('E5 guard: net.connect must never be called under DisabledDelivery');
+		});
+		const netCreateConnection = vi.spyOn(net, 'createConnection').mockImplementation(() => {
+			throw new Error('E5 guard: net.createConnection must never be called under DisabledDelivery');
+		});
+		const tlsConnect = vi.spyOn(tls, 'connect').mockImplementation(() => {
+			throw new Error('E5 guard: tls.connect must never be called under DisabledDelivery');
+		});
+
+		const summary = await dispatchOnce({ tenantId, worker: 'test', registry, db });
+		vi.restoreAllMocks();
+
+		expect(summary).toMatchObject({ claimed: 1, done: 1, retried: 0, dead: 0 });
+		expect(netConnect).not.toHaveBeenCalled();
+		expect(netCreateConnection).not.toHaveBeenCalled();
+		expect(tlsConnect).not.toHaveBeenCalled();
+		expect((await journalRows(tenantId, app.id))[0]?.mode).toBe('disabled');
+	});
+
+	it('reproduces the reviewer mutation and shows it caught: a DisabledDelivery that opens a real socket turns this test RED', async () => {
+		// Same warm-before-spy discipline as the test above.
+		const tenantId = await newTenant();
+		const app = await submitted(tenantId);
+		const job = await pendingJob(tenantId, RECEIPT_EMAIL_JOB_KIND, app.id);
+		await setMaxAttempts(tenantId, job.id, 1);
+
+		const registry = createHandlerRegistry({
+			[RECEIPT_EMAIL_JOB_KIND]: createReceiptEmailHandler({
+				db,
+				env: DISABLED_ENV,
+				deliveryFactory: () => ({
+					send: async () => {
+						// The mutation: open a socket, exactly as the review's report
+						// describes, before returning the SAME disabled-shaped outcome.
+						net.connect({ host: 'localhost', port: 1 });
+						return { mode: 'disabled', detail: 'mutated: opened a real socket' };
+					},
+				}),
+			}),
+		});
+
+		const netConnect = vi.spyOn(net, 'connect').mockImplementation(() => {
+			throw new Error('E5 guard: net.connect must never be called under DisabledDelivery');
+		});
+
+		const summary = await dispatchOnce({ tenantId, worker: 'test', registry, db });
+		vi.restoreAllMocks();
+
+		// The mutation is caught: net.connect threw INSIDE the handler's send(),
+		// which the dispatcher counts as an ordinary handler failure — the job
+		// does NOT complete as 'done', proving the spy converts the reviewer's
+		// silent mutation into a hard, measured failure.
+		expect(summary.done).toBe(0);
+		expect(netConnect).toHaveBeenCalled();
 	});
 });

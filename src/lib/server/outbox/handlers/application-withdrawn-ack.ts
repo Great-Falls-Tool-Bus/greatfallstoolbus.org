@@ -12,7 +12,8 @@
  */
 
 import { eq } from 'drizzle-orm';
-import { WITHDRAWN_ACK_EMAIL_TEMPLATE, type WithdrawnAckEmailData } from '../../mail/templates';
+import type { MailDelivery } from '../../mail/delivery';
+import { WITHDRAWN_ACK_EMAIL_TEMPLATE, type WithdrawnAckEmailData, type MailTemplate } from '../../mail/templates';
 import { application } from '../../db/schema';
 import { createApplicationMailHandler, type MailRenderResult } from './mail-shared';
 import type { Db, DbTransaction } from '../../db/client';
@@ -29,6 +30,8 @@ async function render(tx: DbTransaction, applicationId: string): Promise<MailRen
 export interface CreateWithdrawnAckHandlerOptions {
 	env?: NodeJS.ProcessEnv;
 	db?: Db;
+	/** Test seam: forwarded verbatim to `createApplicationMailHandler` — see its own docstring. */
+	deliveryFactory?: (template: MailTemplate<WithdrawnAckEmailData>, env: NodeJS.ProcessEnv) => MailDelivery;
 }
 
 export function createWithdrawnAckHandler(options: CreateWithdrawnAckHandlerOptions = {}) {
@@ -37,5 +40,6 @@ export function createWithdrawnAckHandler(options: CreateWithdrawnAckHandlerOpti
 		render,
 		env: options.env,
 		db: options.db,
+		deliveryFactory: options.deliveryFactory,
 	});
 }

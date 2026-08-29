@@ -1,5 +1,6 @@
 /**
- * The mail-delivery journal write seam (TIN-4062).
+ * The mail-delivery journal write seam (TIN-4062; PR #208 review E2:
+ * two-phase, network send outside any open transaction).
  *
  * WHY A DEDICATED TABLE, NOT AN AUDIT EVENT. `AUDIT_EVENTS`
  * (`src/lib/server/audit/schema.ts`) is a CLOSED, ratified 14-name
@@ -12,16 +13,33 @@
  * the exact S3 outbox precedent (`outbox/schema.ts` "this file declares no
  * table"; the table lives in `db/schema.ts`, migration-generated).
  *
- * THE RECEIPT DOUBLES AS THE IDEMPOTENCY RECEIPT. A handler runs AT LEAST
- * once (spec §3.1); `mail_delivery_journal`'s unique
- * `(tenant_id, kind, idempotency_key)` is the exact `outbox_job_idem_uniq`
- * shape. `findMailJournalReceipt` lets a handler check "did I already do
- * this" BEFORE minting a token or touching a transport; `writeMailJournal`
- * inserts the receipt in the SAME transaction as the effect, so a replayed
- * job either finds the standing receipt and no-ops, or writes it exactly
- * once.
+ * TWO PHASES, TWO INSERTS, NEVER AN UPDATE.
+ *   - `writeMailIntent` — committed BEFORE `MailDelivery.send()` is ever
+ *     called. This is the durable "we are about to attempt this" fact, and
+ *     its commit is what lets the caller CLOSE its transaction before
+ *     touching a socket: a hung SMTP peer (see `./delivery.ts`'s
+ *     `readResponse` timeout) then blocks only its own dispatch attempt,
+ *     never a held PostgreSQL transaction or the connection backing it.
+ *   - `writeMailOutcome` — committed AFTER `send()` returns, in a FRESH
+ *     transaction. Recording the intent and recording the outcome are
+ *     therefore two separate commits, which is exactly what makes "the
+ *     network call happens outside any open transaction" true rather than
+ *     aspirational.
+ *   - `findMailJournalPhase` is the read side both phases and the caller's
+ *     idempotency check use: an `outcome` row present means fully done
+ *     (converge, no-op — replaying mints no second token, sends nothing
+ *     twice); an `intent` row present with NO matching `outcome` is
+ *     AMBIGUOUS — the prior attempt may have sent for real and crashed
+ *     before recording it — and `outbox/handlers/mail-shared.ts` refuses to
+ *     guess, throwing `AmbiguousDeliveryStateError` rather than sending
+ *     again. This is the spec §3.1 fail-closed doctrine applied to a side
+ *     effect the queue cannot undo: "a projection failure is visible and
+ *     retryable" is the outbox's promise for retry-safe effects, and an
+ *     already-possibly-sent email is deliberately NOT treated as one — the
+ *     job dead-letters visibly (an operator resolves it) instead of risking
+ *     a second copy of a real message reaching a real person.
  *
- * TENANT COMES FROM THE TRANSACTION, exactly like `enqueue(tx, job)`: the
+ * TENANT COMES FROM THE TRANSACTION, exactly like `enqueue(tx, job)`: each
  * row's `tenant_id` is read back from the `app.tenant_id` GUC `withTenant`
  * pinned, so a caller cannot express "journal for another tenant."
  *
@@ -37,6 +55,7 @@ import { mailDeliveryJournal, type MailDeliveryJournalRow } from '../db/schema';
 import { currentTenantId } from '../db/tenant';
 
 export type MailDeliveryMode = 'disabled' | 'sent';
+export type MailJournalPhase = 'intent' | 'outcome';
 
 const TOKEN_SHAPE_RE = /[A-Za-z0-9_-]{32,}/;
 const URL_SHAPE_RE = /(?:[a-z][a-z0-9+.-]*:\/\/|www\.)/i;
@@ -54,7 +73,15 @@ export class InvalidMailJournalInputError extends Error {
 	}
 }
 
-export interface WriteMailJournalInput {
+export interface WriteMailIntentInput {
+	outboxJobId: string;
+	kind: string;
+	idempotencyKey: string;
+	templateId: string;
+	templateApproved: boolean;
+}
+
+export interface WriteMailOutcomeInput {
 	outboxJobId: string;
 	kind: string;
 	idempotencyKey: string;
@@ -89,11 +116,12 @@ async function requireTenant(tx: DbTransaction): Promise<string> {
 	return tenantId;
 }
 
-/** Look up an existing receipt for this exact job replay — the idempotency check, done BEFORE any effect. */
-export async function findMailJournalReceipt(
+/** Look up an existing row for this exact (kind, idempotencyKey, phase) — the read side of both phases. */
+export async function findMailJournalPhase(
 	tx: DbTransaction,
 	kind: string,
 	idempotencyKey: string,
+	phase: MailJournalPhase,
 ): Promise<MailDeliveryJournalRow | null> {
 	const tenantId = await requireTenant(tx);
 	const rows = await tx
@@ -104,6 +132,7 @@ export async function findMailJournalReceipt(
 				eq(mailDeliveryJournal.tenantId, tenantId),
 				eq(mailDeliveryJournal.kind, kind),
 				eq(mailDeliveryJournal.idempotencyKey, idempotencyKey),
+				eq(mailDeliveryJournal.phase, phase),
 			),
 		)
 		.limit(1);
@@ -111,17 +140,59 @@ export async function findMailJournalReceipt(
 }
 
 /**
- * Write the receipt, inside the same transaction as the effect it records.
- * First write wins (`ON CONFLICT DO NOTHING`, then read back) — the same
- * idempotent shape `enqueue(tx, job)` uses, because two racing replays of the
- * same at-least-once job must converge on one row, not error.
+ * Write the `intent` row — BEFORE `send()` is ever called, inside the SAME
+ * transaction as the render/mint step. First write wins
+ * (`ON CONFLICT DO NOTHING`, then read back), the same idempotent shape
+ * `enqueue(tx, job)` uses.
  */
-export async function writeMailJournal(
+export async function writeMailIntent(tx: DbTransaction, input: WriteMailIntentInput): Promise<MailDeliveryJournalRow> {
+	return insertPhaseRow(tx, {
+		outboxJobId: input.outboxJobId,
+		kind: input.kind,
+		idempotencyKey: input.idempotencyKey,
+		phase: 'intent',
+		templateId: input.templateId,
+		templateApproved: input.templateApproved,
+		mode: null,
+		detail: null,
+	});
+}
+
+/**
+ * Write the `outcome` row — AFTER `send()` returns, in a FRESH transaction
+ * (never the one the intent row committed in). First write wins, same shape
+ * as `writeMailIntent`.
+ */
+export async function writeMailOutcome(
 	tx: DbTransaction,
-	input: WriteMailJournalInput,
+	input: WriteMailOutcomeInput,
 ): Promise<MailDeliveryJournalRow> {
-	const tenantId = await requireTenant(tx);
 	const detail = input.detail === undefined ? null : assertDetail(input.detail);
+	return insertPhaseRow(tx, {
+		outboxJobId: input.outboxJobId,
+		kind: input.kind,
+		idempotencyKey: input.idempotencyKey,
+		phase: 'outcome',
+		templateId: input.templateId,
+		templateApproved: input.templateApproved,
+		mode: input.mode,
+		detail,
+	});
+}
+
+interface InsertPhaseRowInput {
+	outboxJobId: string;
+	kind: string;
+	idempotencyKey: string;
+	phase: MailJournalPhase;
+	templateId: string;
+	templateApproved: boolean;
+	mode: MailDeliveryMode | null;
+	detail: string | null;
+}
+
+async function insertPhaseRow(tx: DbTransaction, input: InsertPhaseRowInput): Promise<MailDeliveryJournalRow> {
+	const tenantId = await requireTenant(tx);
 
 	const inserted = await tx
 		.insert(mailDeliveryJournal)
@@ -130,25 +201,31 @@ export async function writeMailJournal(
 			outboxJobId: input.outboxJobId,
 			kind: input.kind,
 			idempotencyKey: input.idempotencyKey,
+			phase: input.phase,
 			templateId: input.templateId,
 			templateApproved: input.templateApproved,
 			mode: input.mode,
-			detail,
+			detail: input.detail,
 		})
 		.onConflictDoNothing({
-			target: [mailDeliveryJournal.tenantId, mailDeliveryJournal.kind, mailDeliveryJournal.idempotencyKey],
+			target: [
+				mailDeliveryJournal.tenantId,
+				mailDeliveryJournal.kind,
+				mailDeliveryJournal.idempotencyKey,
+				mailDeliveryJournal.phase,
+			],
 		})
 		.returning();
 
 	if (inserted.length === 1) return inserted[0];
 
-	const existing = await findMailJournalReceipt(tx, input.kind, input.idempotencyKey);
+	const existing = await findMailJournalPhase(tx, input.kind, input.idempotencyKey, input.phase);
 	if (!existing) {
 		// Unreachable unless the conflicting row was deleted between the insert
 		// and this read — the journal is append-only (gftb_app holds no
 		// DELETE), so surface it rather than inventing a row.
 		throw new Error(
-			`mail journal: ON CONFLICT absorbed (${input.kind}, ${input.idempotencyKey}) but the standing row is gone`,
+			`mail journal: ON CONFLICT absorbed (${input.kind}, ${input.idempotencyKey}, ${input.phase}) but the standing row is gone`,
 		);
 	}
 	return existing;

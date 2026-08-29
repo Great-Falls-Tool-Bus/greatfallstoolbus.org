@@ -69,6 +69,7 @@ describe('resolveDelivery — the one door', () => {
 class FakeSmtpSocket extends EventEmitter {
 	written: string[] = [];
 	private script: string[];
+	private timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
 	constructor(script: string[]) {
 		super();
@@ -88,7 +89,15 @@ class FakeSmtpSocket extends EventEmitter {
 		return super.off(event, listener as never);
 	}
 
+	/** Models `net.Socket#setTimeout`: (re)arms an idle timer that emits `'timeout'`; `0` disarms it. */
+	setTimeout(ms: number): this {
+		if (this.timeoutHandle) clearTimeout(this.timeoutHandle);
+		this.timeoutHandle = ms > 0 ? setTimeout(() => this.emit('timeout'), ms) : null;
+		return this;
+	}
+
 	destroy(): void {
+		if (this.timeoutHandle) clearTimeout(this.timeoutHandle);
 		this.emit('close');
 	}
 
@@ -167,5 +176,90 @@ describe('SmtpDelivery — a real SMTP dialogue over an injected fake socket', (
 		await expect(delivery.send({ to: 'nobody@example.invalid', subject: 's', text: 't' })).rejects.toThrow(
 			/SMTP command failed/,
 		);
+	});
+
+	it('E1: a silent peer (accepts the connection, then sends nothing) settles with an error — measured, not a hang', async () => {
+		// The reviewer's exact scenario: `connect()` resolves (the peer accepted
+		// the TCP connection) and then never sends a byte — no greeting, ever.
+		// Before E1, `send()` had not settled after 5005ms; this test proves a
+		// bounded, measured settlement instead, using a short override so the
+		// suite itself does not have to wait out the real 30s production default.
+		const socket = new FakeSmtpSocket([]); // never scripted to emit anything
+		const connect = vi.fn().mockImplementation(() => Promise.resolve(socket as unknown as import('node:net').Socket));
+		// No socket.greet() call: the peer stays silent forever.
+
+		const SHORT_TIMEOUT_MS = 75;
+		const delivery = new SmtpDelivery(
+			{ enabled: true, transportUrl: 'smtps://mail.example.invalid:465', fromAddress: 'noreply@example.invalid' },
+			connect,
+			SHORT_TIMEOUT_MS,
+		);
+
+		const start = Date.now();
+		await expect(delivery.send({ to: 'nobody@example.invalid', subject: 's', text: 't' })).rejects.toThrow(
+			/no complete SMTP response within 75ms/,
+		);
+		const elapsed = Date.now() - start;
+
+		// Bounded well under the reviewer's reported 5005ms — and well under a
+		// generous multiple of the configured timeout, proving this settled
+		// because the timer fired, not because of some unrelated coincidence.
+		expect(elapsed).toBeLessThan(1000);
+		expect(elapsed).toBeGreaterThanOrEqual(SHORT_TIMEOUT_MS - 5);
+	});
+
+	it('E1: the idle timer is per-response, not cumulative — a peer that replies slowly-but-within-budget on EVERY step still succeeds', async () => {
+		// Guards against an overcorrection: a naive "one timeout for the whole
+		// dialogue" implementation would fail a peer that is merely slow, not
+		// hung. Nine responses, each delivered just under a short timeout
+		// budget that would NOT survive if it applied to the sum of all nine.
+		const RESPONSES = [
+			'250-mail.example.invalid\r\n250 AUTH LOGIN\r\n',
+			'334 VXNlcm5hbWU6\r\n',
+			'334 UGFzc3dvcmQ6\r\n',
+			'235 Authentication successful\r\n',
+			'250 OK\r\n',
+			'250 OK\r\n',
+			'354 Start mail input\r\n',
+			'250 OK: queued\r\n',
+			'221 Bye\r\n',
+		];
+		const PER_STEP_DELAY_MS = 40;
+		const PER_STEP_TIMEOUT_MS = 150; // each step comfortably clears its own budget…
+		// …but nine steps at 40ms would sum to 360ms, which would NOT clear a
+		// single cumulative 150ms budget — proving re-arming, not summing.
+		expect(RESPONSES.length * PER_STEP_DELAY_MS).toBeGreaterThan(PER_STEP_TIMEOUT_MS);
+
+		class SlowSmtpSocket extends FakeSmtpSocket {
+			private remaining: string[];
+			constructor(script: string[]) {
+				super([]);
+				this.remaining = script;
+			}
+			write(data: string): boolean {
+				this.written.push(data);
+				const next = this.remaining.shift();
+				if (next !== undefined) setTimeout(() => this.emit('data', Buffer.from(next)), PER_STEP_DELAY_MS);
+				return true;
+			}
+		}
+
+		const socket = new SlowSmtpSocket(RESPONSES);
+		const connect = vi.fn().mockImplementation(() => {
+			setTimeout(() => socket.emit('data', Buffer.from('220 mail.example.invalid ESMTP\r\n')), PER_STEP_DELAY_MS);
+			return Promise.resolve(socket as unknown as import('node:net').Socket);
+		});
+		const delivery = new SmtpDelivery(
+			{
+				enabled: true,
+				transportUrl: 'smtps://user:pass@mail.example.invalid:465',
+				fromAddress: 'noreply@example.invalid',
+			},
+			connect,
+			PER_STEP_TIMEOUT_MS,
+		);
+
+		const outcome = await delivery.send({ to: 'applicant@example.invalid', subject: 's', text: 't' });
+		expect(outcome.mode).toBe('sent');
 	});
 });

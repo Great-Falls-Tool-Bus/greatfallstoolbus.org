@@ -4,33 +4,42 @@
  * `application-decision-email.ts`, and `application-withdrawn-ack.ts` each
  * configure with their own template and row-render function.
  *
- * THE PIPELINE, IN ORDER, MIRRORS TWO EXISTING PRECEDENTS AT ONCE.
- *   1. Resolve delivery BEFORE opening a transaction or touching the
- *      database — the same "poison caught before I/O" discipline
- *      `stripe-project.ts`'s `parseEventId` establishes. When
- *      `GFTB_MAIL_DELIVERY` is not exactly `"enabled"` this returns
- *      `DisabledDelivery` and nothing more happens here; when it IS enabled
- *      but the template is not operator-approved, `resolveDelivery` throws
- *      `TemplateNotApprovedError` here, before any token is minted or any
- *      journal row written — the dispatcher's ordinary handler-failure path
- *      then retries and eventually dead-letters the job (spec §3.1), and NO
- *      transport was ever constructed for the attempt.
- *   2. Inside `withTenant`, check `findMailJournalReceipt` FIRST — the
- *      consumer-side idempotency receipt `ClaimedJob`'s own docstring
- *      requires ("a receipt keyed on (kind, idempotency_key) before the
- *      effect"). A replay that already has a receipt no-ops immediately:
- *      no second token mint, no second send attempt, no second journal row.
- *   3. Only then does `render` run — reading the application (and, for
- *      decisions, the decision) row and minting whatever bearer token the
- *      kind requires, exactly as `application/tokens.ts`'s docstring always
- *      promised: "the MAIL HANDLER mints the verify/withdraw tokens at
- *      render time."
- *   4. `delivery.send` — `DisabledDelivery` by default: no network I/O,
- *      returns a generic disabled outcome. `SmtpDelivery`, when reachable,
- *      actually transmits.
- *   5. `writeMailJournal` — the durable record and the idempotency receipt
- *      for the NEXT replay, committed in the SAME transaction as the render
- *      and the send.
+ * THREE PHASES, ONLY THE MIDDLE ONE TOUCHES A SOCKET (PR #208 review E2 —
+ * the send used to run INSIDE the phase-1 transaction; it no longer does).
+ *
+ *   PHASE 1 — one transaction (`withTenant`), commits BEFORE any I/O:
+ *     1. Resolve delivery BEFORE opening the transaction at all — the same
+ *        "poison caught before I/O" discipline `stripe-project.ts`'s
+ *        `parseEventId` establishes. `DisabledDelivery` by default;
+ *        `TemplateNotApprovedError` here (no transaction ever opened) when
+ *        delivery is enabled but the template is not operator-approved.
+ *     2. Check for an existing `outcome` row FIRST — the consumer-side
+ *        idempotency receipt `ClaimedJob`'s own docstring requires. Found →
+ *        return immediately: no second render, no second send, no second
+ *        journal row.
+ *     3. Check for an existing `intent` row with NO matching `outcome`.
+ *        Found → this is AMBIGUOUS: a prior attempt recorded "about to try"
+ *        and never recorded what happened, which can only mean it crashed
+ *        somewhere between committing that intent and committing an
+ *        outcome — possibly AFTER a real `send()` returned. Refuse to guess:
+ *        throw `AmbiguousDeliveryStateError` (no further transaction
+ *        mutation), which is the dispatcher's ordinary retry/dead-letter
+ *        path — an operator resolves it, exactly the spec §3.1 fail-closed
+ *        doctrine applied to a side effect the queue cannot undo.
+ *     4. Otherwise: render (mint whatever token the kind needs — the
+ *        `application/tokens.ts` docstring's long-standing promise), write
+ *        the `intent` row, COMMIT.
+ *
+ *   PHASE 2 — `delivery.send(message)`, OUTSIDE any open transaction and
+ *     after phase 1's transaction has already committed and closed. A hung
+ *     peer (see `../../mail/delivery.ts`'s `readResponse` timeout) therefore
+ *     blocks only this one dispatch attempt — never a held PostgreSQL
+ *     transaction or the connection/lease behind it.
+ *
+ *   PHASE 3 — a FRESH transaction: write the `outcome` row and commit. If
+ *     this phase fails to commit, the NEXT claim of this job hits phase 1
+ *     step 3 above (intent-without-outcome) and dead-letters loudly rather
+ *     than re-sending.
  *
  * A missing application/decision row is DETERMINISTIC POISON (spec §3.1),
  * not a soft "skip": application rows are never deleted (migration 0007's
@@ -42,7 +51,7 @@
 import type { Db, DbTransaction } from '../../db/client';
 import { withTenant } from '../../db/tenant';
 import { resolveDelivery, type MailDelivery, type MailMessage } from '../../mail/delivery';
-import { findMailJournalReceipt, writeMailJournal } from '../../mail/journal';
+import { findMailJournalPhase, writeMailIntent, writeMailOutcome } from '../../mail/journal';
 import type { MailTemplate } from '../../mail/templates';
 import type { ClaimedJob, OutboxHandler } from '../schema';
 
@@ -51,6 +60,27 @@ export class MailHandlerPayloadError extends Error {
 	constructor(message: string) {
 		super(message);
 		this.name = 'MailHandlerPayloadError';
+	}
+}
+
+/**
+ * An `intent` row exists with no matching `outcome` row: the prior attempt
+ * may have sent for real before crashing short of recording it. The handler
+ * refuses to send again — dead-lettering (after retries) is the correct,
+ * visible, operator-resolvable outcome; a silent resend risks a duplicate
+ * real message, which the outbox's ordinary at-least-once/idempotent-
+ * consumer contract cannot safely paper over for a side effect this
+ * repository cannot undo.
+ */
+export class AmbiguousDeliveryStateError extends Error {
+	constructor(kind: string, idempotencyKey: string) {
+		super(
+			`mail handler: (${kind}, ${idempotencyKey}) has an intent row with no outcome — a prior attempt may have ` +
+				'sent for real and crashed before recording it. Refusing to send again; an operator must resolve this ' +
+				'manually (confirm with the transport/provider, then journal the outcome by hand) before this job can ' +
+				'be replayed safely.',
+		);
+		this.name = 'AmbiguousDeliveryStateError';
 	}
 }
 
@@ -84,6 +114,8 @@ export interface MailHandlerDeps<TData> {
 	deliveryFactory?: (template: MailTemplate<TData>, env: NodeJS.ProcessEnv) => MailDelivery;
 }
 
+type Phase1Result<TData> = { done: true } | { done: false; to: string; data: TData };
+
 /**
  * Build the shared `OutboxHandler` for one application-mail kind. The
  * returned function is what `worker.ts`'s registry and every handler test in
@@ -97,20 +129,24 @@ export function createApplicationMailHandler<TData>(deps: MailHandlerDeps<TData>
 	return async function applicationMailHandler(job: ClaimedJob): Promise<void> {
 		const applicationId = parseApplicationId(job);
 
-		// Step 1 — resolve delivery BEFORE any I/O. May throw
-		// TemplateNotApprovedError; that throw propagates straight out of this
-		// handler (no transaction was ever opened), which is the dispatcher's
-		// ordinary retry/dead-letter path.
+		// Resolve delivery BEFORE any I/O. May throw TemplateNotApprovedError;
+		// that throw propagates straight out of this handler (no transaction
+		// was ever opened), which is the dispatcher's ordinary retry/dead-letter
+		// path.
 		const delivery = deliveryFactory(deps.template, env);
 
-		await withTenant(
+		// PHASE 1 — one transaction, commits before any network I/O.
+		const phase1 = await withTenant<Phase1Result<TData>>(
 			job.tenantId,
 			async (tx) => {
-				// Step 2 — the idempotency receipt, checked before any effect.
-				const existing = await findMailJournalReceipt(tx, job.kind, job.idempotencyKey);
-				if (existing) return;
+				const outcome = await findMailJournalPhase(tx, job.kind, job.idempotencyKey, 'outcome');
+				if (outcome) return { done: true };
 
-				// Step 3 — render (reads the aggregate, mints whatever token the kind needs).
+				const intent = await findMailJournalPhase(tx, job.kind, job.idempotencyKey, 'intent');
+				if (intent) {
+					throw new AmbiguousDeliveryStateError(job.kind, job.idempotencyKey);
+				}
+
 				const rendered = await deps.render(tx, applicationId, env);
 				if (rendered === 'not_found') {
 					throw new MailHandlerPayloadError(
@@ -118,17 +154,35 @@ export function createApplicationMailHandler<TData>(deps: MailHandlerDeps<TData>
 					);
 				}
 
-				const message: MailMessage = {
-					to: rendered.to,
-					subject: deps.template.subject(rendered.data),
-					text: deps.template.text(rendered.data),
-				};
+				await writeMailIntent(tx, {
+					outboxJobId: job.id,
+					kind: job.kind,
+					idempotencyKey: job.idempotencyKey,
+					templateId: deps.template.id,
+					templateApproved: deps.template.approved,
+				});
 
-				// Step 4 — DisabledDelivery by default; SmtpDelivery only when reachable.
-				const outcome = await delivery.send(message);
+				return { done: false, to: rendered.to, data: rendered.data };
+			},
+			deps.db,
+		);
 
-				// Step 5 — the durable record, same transaction as the render + send.
-				await writeMailJournal(tx, {
+		if (phase1.done) return;
+
+		const message: MailMessage = {
+			to: phase1.to,
+			subject: deps.template.subject(phase1.data),
+			text: deps.template.text(phase1.data),
+		};
+
+		// PHASE 2 — the network call. No transaction is open here.
+		const outcome = await delivery.send(message);
+
+		// PHASE 3 — a FRESH transaction, after send() has already returned.
+		await withTenant(
+			job.tenantId,
+			(tx) =>
+				writeMailOutcome(tx, {
 					outboxJobId: job.id,
 					kind: job.kind,
 					idempotencyKey: job.idempotencyKey,
@@ -136,8 +190,7 @@ export function createApplicationMailHandler<TData>(deps: MailHandlerDeps<TData>
 					templateApproved: deps.template.approved,
 					mode: outcome.mode,
 					detail: outcome.detail,
-				});
-			},
+				}),
 			deps.db,
 		);
 	};

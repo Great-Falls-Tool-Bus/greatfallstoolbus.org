@@ -25,8 +25,9 @@
 
 import { eq } from 'drizzle-orm';
 import { mintToken } from '../../application/tokens';
+import type { MailDelivery } from '../../mail/delivery';
 import { readPublicOrigin } from '../../mail/config';
-import { DECISION_EMAIL_TEMPLATE, type DecisionEmailData } from '../../mail/templates';
+import { DECISION_EMAIL_TEMPLATE, type DecisionEmailData, type MailTemplate } from '../../mail/templates';
 import { application, applicationDecision } from '../../db/schema';
 import { createApplicationMailHandler, type MailRenderResult } from './mail-shared';
 import type { Db, DbTransaction } from '../../db/client';
@@ -69,6 +70,8 @@ async function render(
 export interface CreateDecisionEmailHandlerOptions {
 	env?: NodeJS.ProcessEnv;
 	db?: Db;
+	/** Test seam: forwarded verbatim to `createApplicationMailHandler` — see its own docstring. */
+	deliveryFactory?: (template: MailTemplate<DecisionEmailData>, env: NodeJS.ProcessEnv) => MailDelivery;
 }
 
 export function createDecisionEmailHandler(options: CreateDecisionEmailHandlerOptions = {}) {
@@ -77,5 +80,6 @@ export function createDecisionEmailHandler(options: CreateDecisionEmailHandlerOp
 		render,
 		env: options.env,
 		db: options.db,
+		deliveryFactory: options.deliveryFactory,
 	});
 }

@@ -16,8 +16,9 @@
 
 import { eq } from 'drizzle-orm';
 import { mintToken } from '../../application/tokens';
+import type { MailDelivery } from '../../mail/delivery';
 import { readPublicOrigin } from '../../mail/config';
-import { RECEIPT_EMAIL_TEMPLATE, type ReceiptEmailData } from '../../mail/templates';
+import { RECEIPT_EMAIL_TEMPLATE, type ReceiptEmailData, type MailTemplate } from '../../mail/templates';
 import { application } from '../../db/schema';
 import { createApplicationMailHandler, type MailRenderResult } from './mail-shared';
 import type { Db } from '../../db/client';
@@ -51,6 +52,8 @@ async function render(
 export interface CreateReceiptEmailHandlerOptions {
 	env?: NodeJS.ProcessEnv;
 	db?: Db;
+	/** Test seam: forwarded verbatim to `createApplicationMailHandler` — see its own docstring. */
+	deliveryFactory?: (template: MailTemplate<ReceiptEmailData>, env: NodeJS.ProcessEnv) => MailDelivery;
 }
 
 export function createReceiptEmailHandler(options: CreateReceiptEmailHandlerOptions = {}) {
@@ -59,5 +62,6 @@ export function createReceiptEmailHandler(options: CreateReceiptEmailHandlerOpti
 		render,
 		env: options.env,
 		db: options.db,
+		deliveryFactory: options.deliveryFactory,
 	});
 }

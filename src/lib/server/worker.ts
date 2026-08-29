@@ -68,6 +68,7 @@ import { createDecisionEmailHandler, DECISION_EMAIL_JOB_KIND } from './outbox/ha
 import { createReceiptEmailHandler, RECEIPT_EMAIL_JOB_KIND } from './outbox/handlers/application-receipt-email';
 import { createWithdrawnAckHandler, WITHDRAWN_ACK_JOB_KIND } from './outbox/handlers/application-withdrawn-ack';
 import { readMailConfig } from './mail/config';
+import { activationHazardWarning } from './mail/activation';
 
 /**
  * The production handler set: S7's three §2.3 offboarding projections
@@ -175,6 +176,12 @@ Environment:
                    src/lib/server/mail/delivery.ts. Half-configured (some but
                    not all three set while GFTB_MAIL_DELIVERY=enabled) fails
                    closed at startup, exit 78.
+                   ACTIVATION ORDER MATTERS: approve a template BEFORE
+                   enabling delivery. Enabling first strands every job of an
+                   unapproved kind in the dead-letter state (they refuse to
+                   send, loudly, per spec's fail-closed doctrine — never
+                   silently). Startup prints a WARNING (not a failure) when
+                   it detects this shape; see mail/activation.ts.
   GFTB_PUBLIC_ORIGIN
                    Optional override for the origin rendered links use.
                    Defaults to the production public origin.
@@ -341,6 +348,18 @@ export async function runWorker(options: WorkerOptions = {}): Promise<number> {
 	} catch (error) {
 		io.stderr.write(`worker: ${(error as Error).message}\n`);
 		return WORKER_EXIT.UNAVAILABLE;
+	}
+
+	// PR #208 review E3: half-configured mail env already fails CLOSED above
+	// (defaultRegistry's readMailConfig call); this is the softer sibling —
+	// a VALID but hazardous shape (enabled, template(s) unapproved) does not
+	// fail startup, because it is a legitimate intermediate operator state,
+	// but it silently strands every job of an unapproved kind in `dead`
+	// unless someone is warned loudly, here, at the one moment a human is
+	// most likely watching (start/restart).
+	const mailActivationWarning = activationHazardWarning(env);
+	if (mailActivationWarning) {
+		io.stderr.write(`worker: WARNING: ${mailActivationWarning}\n`);
 	}
 
 	// Fail fast, with the migrator's manners: name what is missing and exit 78

@@ -99,11 +99,32 @@ function writeLine(socket: net.Socket | tls.TLSSocket, line: string): void {
 }
 
 /**
+ * How long ONE response wait may take before the peer is treated as hung
+ * (PR #208 review E1). Node sockets have NO default read timeout — a peer
+ * that accepts the TCP connection and then sends nothing would otherwise
+ * leave `send()` pending forever. `socket.setTimeout(ms)` arms an IDLE
+ * timer that `readResponse` re-arms on every call and disarms
+ * (`setTimeout(0)`) the moment it settles, so this bounds EACH
+ * command-response round trip individually, not the whole SMTP dialogue
+ * cumulatively — a slow-but-progressing peer is never penalised for the sum
+ * of its replies. 30s is an ASSUMPTION (same posture as the outbox's lease/
+ * batch/backoff numbers in `outbox/schema.ts`): generous enough for a real
+ * SMTP relay under load, short enough that a hung peer cannot hold the
+ * dispatch attempt past the outbox lease that already bounds it.
+ */
+export const SMTP_RESPONSE_TIMEOUT_MS = 30_000;
+
+/**
  * Read one full SMTP response (possibly multi-line: `250-…` continuations
  * ending in `250 …`). Rejects on socket error/close/timeout so a hung server
- * cannot wedge the caller forever.
+ * cannot wedge the caller forever — the timeout is a REAL `socket.setTimeout`
+ * idle timer (PR #208 review E1: the docstring used to make this promise
+ * without the code keeping it), not a comment.
  */
-function readResponse(socket: net.Socket | tls.TLSSocket): Promise<{ code: number; lines: string[] }> {
+function readResponse(
+	socket: net.Socket | tls.TLSSocket,
+	timeoutMs: number = SMTP_RESPONSE_TIMEOUT_MS,
+): Promise<{ code: number; lines: string[] }> {
 	return new Promise((resolve, reject) => {
 		let buffer = '';
 		const onData = (chunk: Buffer): void => {
@@ -125,20 +146,40 @@ function readResponse(socket: net.Socket | tls.TLSSocket): Promise<{ code: numbe
 			cleanup();
 			reject(new Error('mail delivery: connection closed before a complete SMTP response arrived'));
 		};
+		const onTimeout = (): void => {
+			cleanup();
+			socket.destroy();
+			reject(
+				new Error(
+					`mail delivery: no complete SMTP response within ${timeoutMs}ms — treating the peer as hung and closing`,
+				),
+			);
+		};
 		const cleanup = (): void => {
 			socket.off('data', onData);
 			socket.off('error', onError);
 			socket.off('close', onClose);
+			socket.off('timeout', onTimeout);
+			// Disarm the idle timer so it cannot fire against a LATER wait after
+			// this one has already settled.
+			socket.setTimeout(0);
 		};
+		socket.setTimeout(timeoutMs);
 		socket.on('data', onData);
 		socket.on('error', onError);
 		socket.on('close', onClose);
+		socket.on('timeout', onTimeout);
 	});
 }
 
-async function command(socket: net.Socket | tls.TLSSocket, line: string, expect: number[]): Promise<string[]> {
+async function command(
+	socket: net.Socket | tls.TLSSocket,
+	line: string,
+	expect: number[],
+	timeoutMs?: number,
+): Promise<string[]> {
 	writeLine(socket, line);
-	const { code, lines } = await readResponse(socket);
+	const { code, lines } = await readResponse(socket, timeoutMs);
 	if (!expect.includes(code)) {
 		throw new Error(`mail delivery: SMTP command failed (expected ${expect.join('/')}, got ${code})`);
 	}
@@ -163,35 +204,37 @@ export class SmtpDelivery implements MailDelivery {
 	constructor(
 		private readonly config: Extract<MailRuntimeConfig, { enabled: true }>,
 		private readonly connect: (parsed: ParsedSmtpUrl) => Promise<net.Socket | tls.TLSSocket> = defaultConnect,
+		/** Test seam: a short override so a silent-peer test settles in milliseconds, not {@link SMTP_RESPONSE_TIMEOUT_MS}. */
+		private readonly timeoutMs: number = SMTP_RESPONSE_TIMEOUT_MS,
 	) {}
 
 	async send(message: MailMessage): Promise<MailDeliveryOutcome> {
 		const parsed = parseSmtpUrl(this.config.transportUrl);
 		const socket = await this.connect(parsed);
 		try {
-			await readResponse(socket); // server greeting (220)
+			await readResponse(socket, this.timeoutMs); // server greeting (220)
 			let active = socket;
-			const ehlo = await command(active, `EHLO ${localHostname()}`, [250]);
+			const ehlo = await command(active, `EHLO ${localHostname()}`, [250], this.timeoutMs);
 
 			if (!parsed.implicitTls && ehlo.some((l) => /STARTTLS/i.test(l))) {
-				await command(active, 'STARTTLS', [220]);
+				await command(active, 'STARTTLS', [220], this.timeoutMs);
 				active = tls.connect({ socket: active, host: parsed.host, servername: parsed.host });
 				await new Promise<void>((resolve, reject) => {
 					active.once('secureConnect', () => resolve());
 					active.once('error', reject);
 				});
-				await command(active, `EHLO ${localHostname()}`, [250]);
+				await command(active, `EHLO ${localHostname()}`, [250], this.timeoutMs);
 			}
 
 			if (parsed.user && parsed.pass) {
-				await command(active, 'AUTH LOGIN', [334]);
-				await command(active, Buffer.from(parsed.user, 'utf8').toString('base64'), [334]);
-				await command(active, Buffer.from(parsed.pass, 'utf8').toString('base64'), [235]);
+				await command(active, 'AUTH LOGIN', [334], this.timeoutMs);
+				await command(active, Buffer.from(parsed.user, 'utf8').toString('base64'), [334], this.timeoutMs);
+				await command(active, Buffer.from(parsed.pass, 'utf8').toString('base64'), [235], this.timeoutMs);
 			}
 
-			await command(active, `MAIL FROM:<${this.config.fromAddress}>`, [250]);
-			await command(active, `RCPT TO:<${message.to}>`, [250, 251]);
-			await command(active, 'DATA', [354]);
+			await command(active, `MAIL FROM:<${this.config.fromAddress}>`, [250], this.timeoutMs);
+			await command(active, `RCPT TO:<${message.to}>`, [250, 251], this.timeoutMs);
+			await command(active, 'DATA', [354], this.timeoutMs);
 
 			const headers = [
 				`From: <${this.config.fromAddress}>`,
@@ -202,9 +245,9 @@ export class SmtpDelivery implements MailDelivery {
 				'Content-Type: text/plain; charset=utf-8',
 			].join('\r\n');
 			const body = `${headers}\r\n\r\n${dotStuff(message.text)}`;
-			await command(active, `${body}\r\n.`, [250]);
+			await command(active, `${body}\r\n.`, [250], this.timeoutMs);
 
-			await command(active, 'QUIT', [221]);
+			await command(active, 'QUIT', [221], this.timeoutMs);
 			return { mode: 'sent', detail: `transmitted via ${parsed.host}:${parsed.port}` };
 		} finally {
 			socket.destroy();

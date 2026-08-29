@@ -1,5 +1,5 @@
 {
-  "id": "626412ec-41b4-4bc4-8367-b937ce0ba0d4",
+  "id": "2b5f9efe-ee49-45af-b1fb-3cc769242bb4",
   "prevId": "5c82c148-94a0-480c-9f1f-3489716a338e",
   "version": "7",
   "dialect": "postgresql",
@@ -1169,6 +1169,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "phase": {
+          "name": "phase",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "template_id": {
           "name": "template_id",
           "type": "text",
@@ -1185,7 +1191,7 @@
           "name": "mode",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "detail": {
           "name": "detail",
@@ -1260,15 +1266,24 @@
           "columns": [
             "tenant_id",
             "kind",
-            "idempotency_key"
+            "idempotency_key",
+            "phase"
           ]
         }
       },
       "policies": {},
       "checkConstraints": {
+        "mail_delivery_journal_phase": {
+          "name": "mail_delivery_journal_phase",
+          "value": "\"mail_delivery_journal\".\"phase\" in ('intent', 'outcome')"
+        },
         "mail_delivery_journal_mode": {
           "name": "mail_delivery_journal_mode",
-          "value": "\"mail_delivery_journal\".\"mode\" in ('disabled', 'sent')"
+          "value": "\"mail_delivery_journal\".\"mode\" is null or \"mail_delivery_journal\".\"mode\" in ('disabled', 'sent')"
+        },
+        "mail_delivery_journal_mode_outcome_only": {
+          "name": "mail_delivery_journal_mode_outcome_only",
+          "value": "(\"mail_delivery_journal\".\"phase\" = 'outcome') = (\"mail_delivery_journal\".\"mode\" is not null)"
         }
       },
       "isRLSEnabled": false
