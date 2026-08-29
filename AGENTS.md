@@ -201,22 +201,22 @@ repository as private or renamed** in code, comments, docs, or image refs.
 
 ## Bazel Posture
 
-- Bazel exists for **module-graph integrity proofs**, cache-first package
-  authority, and future RBE pipeline acceleration. The canonical app build
-  remains `pnpm run build` until a spoke proves the matching Bazel target class.
+- Bazel is the **graph of record** for module integrity, cache-first
+  package authority, Flywheel acceleration, and all first-party package
+  ingestion. TIN-2881 graph-links the six `@tummycrypt/*` public `:pkg` targets
+  from Bzlmod; `package.json` and `pnpm-lock.yaml` carry no first-party source
+  edge.
 - Registry order: `tinyland-inc/bazel-registry` first, then BCR.
-- Local smoke: `just bazel-graph` may inspect module-graph health inside the
-  Nix dev shell.
-- Flywheel-backed build/test/fetch work goes through
-  `scripts/gloriousflywheel-bazel.sh` or the `just flywheel-*` wrappers. The
-  wrapper chooses cache-only vs executor-backed mode from validated environment;
-  raw Bazel config flags are not the scaffold contract.
-- In-house `@tummycrypt/*` / `@tinyland/*` npm dependencies are compatibility
-  edges for pnpm/Vite until the static build moves fully under Bazel. Their
-  versions must be either an exact semver matching the corresponding
-  `bazel_dep` version or the registry-named GitHub tag-archive URL whose repo
-  matches the package and whose tag version matches that `bazel_dep`
-  (TIN-3165 npm retirement).
+- Node-compatible Just entrypoints (`setup`, Vite/check/test, and image build
+  lanes) run `just _house-hydrate` to materialize those graph outputs into
+  `node_modules`. A graph-key stamp prevents a stale pre-cutover npm directory
+  from satisfying hydration.
+- Flywheel-backed build/test/fetch work still goes only through
+  `scripts/gloriousflywheel-bazel.sh` or the `just flywheel-*` wrappers. Their
+  endpoint authority remains environment-driven; `.bazelrc.flywheel` remains
+  endpoint-free. Hydration is layout materialization, not RBE proof.
+- `just inhouse-package-parity` enforces zero `@tummycrypt/*` / `@tinyland/*`
+  npm specifiers plus complete `bazel_dep` ↔ `npm_link_package :pkg` edges.
 
 ## GloriousFlywheel Cache Enrollment (cache-first, TIN-2119)
 
@@ -227,8 +227,9 @@ repository as private or renamed** in code, comments, docs, or image refs.
   substrate; `vite build` + `svelte-check` + `vitest` are wrapped as
   flywheel-eligible CAS-cacheable Bazel actions (`//:build`,
   `//:sveltekit_types`, `//:svelte_check_test`, `//:unit_tests`).
-  Naming note: `flywheel-test` is the template's matrix name for the pure-pnpm
-  `just check` lane (no Bazel); real Bazel cache attach lives in
+  Naming note: `flywheel-test` is the template's matrix name for the
+  Node-compatible `just check` lane; it may hydrate first-party Bzlmod packages
+  before pnpm-based checks. Cache-attached Bazel proof still lives in
   `flywheel-build` / `bazel-graph`.
 - **Do NOT create runners.** Enrollment attaches to the existing in-cluster
   `tinyland-nix` ARC pool. Hosted / repo-shaped runner fallback is rejected
@@ -305,9 +306,10 @@ After `gh repo create --template tinyland-inc/site.scaffold`:
   This platform repo may own that behavior; it still may not own cluster apply,
   edge credentials, or secret values.
 - Don't fork tinyland-color-utils / tinyvectors / vite plugins per-site.
-  Pin via the BCR.
-- Don't add in-house npm package ranges or allow `package.json` to drift from
-  `MODULE.bazel`; use `just inhouse-package-parity` or `just conformance`.
+  Pin their modules through `tinyland-inc/bazel-registry`.
+- Don't add any in-house npm source specifier. Keep every first-party
+  `bazel_dep` graph-linked through `npm_link_package :pkg`; verify with
+  `just inhouse-package-parity` or `just conformance`.
 - Don't bypass `Justfile` in CI or local, DX/AX must stay homogenous.
 - Don't unpin Skeleton or Tailwind v4-compat shim without coordination.
 

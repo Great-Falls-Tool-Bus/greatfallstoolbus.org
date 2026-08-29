@@ -6,6 +6,7 @@ Bazel owns finite graphable targets for Flywheel cache/RBE proof surfaces.
 """
 
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_run_binary", "js_test")
+load("@aspect_rules_js//npm:defs.bzl", "npm_link_package")
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@npm//:eslint/package_json.bzl", eslint_bin = "bin")
 load("@npm//:prettier/package_json.bzl", prettier_bin = "bin")
@@ -13,6 +14,44 @@ load("@npm//:vitest/package_json.bzl", vitest = "bin")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 
 npm_link_all_packages(name = "node_modules")
+
+# TIN-2881: the six first-party packages are ingested only through the
+# tinyland-inc/bazel-registry Bzlmod graph. package.json and pnpm-lock.yaml
+# contain no @tummycrypt/@tinyland source edge; each module's public :pkg target
+# is linked into the Node-compatible layout used by the finite consumer targets.
+npm_link_package(
+    name = "node_modules/@tummycrypt/tinyland-auth",
+    src = "@tummycrypt_tinyland_auth//:pkg",
+)
+npm_link_package(
+    name = "node_modules/@tummycrypt/tinyland-auth-pg",
+    src = "@tummycrypt_tinyland_auth_pg//:pkg",
+)
+npm_link_package(
+    name = "node_modules/@tummycrypt/tinyland-color-utils",
+    src = "@tummycrypt_tinyland_color_utils//:pkg",
+)
+npm_link_package(
+    name = "node_modules/@tummycrypt/tinyvectors",
+    src = "@tummycrypt_tinyvectors//:pkg",
+)
+npm_link_package(
+    name = "node_modules/@tummycrypt/vite-plugin-a11y",
+    src = "@tummycrypt_vite_plugin_a11y//:pkg",
+)
+npm_link_package(
+    name = "node_modules/@tummycrypt/vite-plugin-skeleton-colors",
+    src = "@tummycrypt_vite_plugin_skeleton_colors//:pkg",
+)
+
+TINYLAND_HOUSE_PACKAGES = [
+    ":node_modules/@tummycrypt/tinyland-auth",
+    ":node_modules/@tummycrypt/tinyland-auth-pg",
+    ":node_modules/@tummycrypt/tinyland-color-utils",
+    ":node_modules/@tummycrypt/tinyvectors",
+    ":node_modules/@tummycrypt/vite-plugin-a11y",
+    ":node_modules/@tummycrypt/vite-plugin-skeleton-colors",
+]
 
 filegroup(
     name = "app_srcs",
@@ -59,7 +98,7 @@ filegroup(
 
 js_binary(
     name = "sveltekit_sync_bin",
-    data = [":node_modules"],
+    data = [":node_modules"] + TINYLAND_HOUSE_PACKAGES,
     entry_point = "scripts/bazel/run-sveltekit-sync.mjs",
 )
 
@@ -73,7 +112,7 @@ js_run_binary(
 
 js_binary(
     name = "svelte_check_bin",
-    data = [":node_modules"],
+    data = [":node_modules"] + TINYLAND_HOUSE_PACKAGES,
     entry_point = "scripts/bazel/run-svelte-check.mjs",
 )
 
@@ -83,7 +122,7 @@ js_test(
         ":app_srcs",
         ":node_modules",
         ":sveltekit_types",
-    ],
+    ] + TINYLAND_HOUSE_PACKAGES,
     entry_point = "scripts/bazel/run-svelte-check.mjs",
     tags = ["flywheel-eligible"],
     timeout = "long",
@@ -100,7 +139,7 @@ eslint_bin.eslint_test(
         ":node_modules",
         ":sveltekit_types",
         "eslint.config.ts",
-    ],
+    ] + TINYLAND_HOUSE_PACKAGES,
     tags = ["flywheel-eligible"],
     timeout = "moderate",
 )
@@ -119,14 +158,14 @@ prettier_bin.prettier_test(
         ":node_modules",
         ".prettierignore",
         ".prettierrc",
-    ],
+    ] + TINYLAND_HOUSE_PACKAGES,
     tags = ["flywheel-eligible"],
     timeout = "short",
 )
 
 js_binary(
     name = "vite_build_bin",
-    data = [":node_modules"],
+    data = [":node_modules"] + TINYLAND_HOUSE_PACKAGES,
     entry_point = "scripts/bazel/run-vite-build.mjs",
 )
 
@@ -150,7 +189,7 @@ vitest.vitest_test(
         ":node_modules",
         ":node_modules/vitest",
         "vitest.config.ts",
-    ],
+    ] + TINYLAND_HOUSE_PACKAGES,
     args = [
         "run",
         "--reporter=verbose",
@@ -176,7 +215,7 @@ vitest.vitest_test(
         ":node_modules/vitest",
         "src/lib/server/membership/first-membership-rehearsal.integration.test.ts",
         "vitest.integration.config.ts",
-    ],
+    ] + TINYLAND_HOUSE_PACKAGES,
     args = [
         "run",
         "$(rootpath src/lib/server/membership/first-membership-rehearsal.integration.test.ts)",
@@ -201,7 +240,7 @@ js_test(
         ":e2e_srcs",
         ":node_modules",
         "scripts/bazel/run-playwright-static-smoke.mjs",
-    ],
+    ] + TINYLAND_HOUSE_PACKAGES,
     entry_point = "scripts/bazel/run-playwright-static-smoke.mjs",
     tags = [
         "gloriousflywheel-rbe-candidate",

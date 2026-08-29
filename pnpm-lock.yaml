@@ -23,30 +23,33 @@ importers:
       '@lucide/svelte':
         specifier: ^1.33.0
         version: 1.33.0(svelte@5.56.10(@typescript-eslint/types@8.67.0))
+      '@neondatabase/serverless':
+        specifier: ^0.10.4
+        version: 0.10.4
       '@sveltejs/adapter-node':
         specifier: ^5.5.7
         version: 5.5.7(@sveltejs/kit@2.70.3(@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.10(@typescript-eslint/types@8.67.0))(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)))(svelte@5.56.10(@typescript-eslint/types@8.67.0))(typescript@6.0.3)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)))
-      '@tummycrypt/tinyland-auth':
-        specifier: 0.3.3
-        version: 0.3.3(@sveltejs/kit@2.70.3(@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.10(@typescript-eslint/types@8.67.0))(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)))(svelte@5.56.10(@typescript-eslint/types@8.67.0))(typescript@6.0.3)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)))(svelte@5.56.10(@typescript-eslint/types@8.67.0))
-      '@tummycrypt/tinyland-auth-pg':
-        specifier: 0.2.4
-        version: 0.2.4(@tummycrypt/tinyland-auth@0.3.3(@sveltejs/kit@2.70.3(@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.10(@typescript-eslint/types@8.67.0))(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)))(svelte@5.56.10(@typescript-eslint/types@8.67.0))(typescript@6.0.3)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)))(svelte@5.56.10(@typescript-eslint/types@8.67.0)))(@types/pg@8.23.1)
-      '@tummycrypt/tinyland-color-utils':
-        specifier: 0.2.3
-        version: 0.2.3
-      '@tummycrypt/tinyvectors':
-        specifier: https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.6.tar.gz
-        version: https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.6.tar.gz(svelte@5.56.10(@typescript-eslint/types@8.67.0))
+      bcryptjs:
+        specifier: ^2.4.3
+        version: 2.4.3
       drizzle-orm:
         specifier: 0.39.3
         version: 0.39.3(@neondatabase/serverless@0.10.4)(@types/pg@8.23.1)(pg@8.23.0)
       effect:
         specifier: ^3.22.1
         version: 3.22.1
+      nanoid:
+        specifier: ^5.0.7
+        version: 5.1.16
+      otplib:
+        specifier: ^12.0.1
+        version: 12.0.1
       pg:
         specifier: ^8.20.0
         version: 8.23.0
+      qrcode:
+        specifier: ^1.5.3
+        version: 1.5.4
       stripe:
         specifier: ^22.5.0
         version: 22.5.0(@types/node@22.20.1)
@@ -75,12 +78,6 @@ importers:
       '@testcontainers/postgresql':
         specifier: ^12.1.0
         version: 12.1.0
-      '@tummycrypt/vite-plugin-a11y':
-        specifier: 0.2.2
-        version: 0.2.2(svelte@5.56.10(@typescript-eslint/types@8.67.0))(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
-      '@tummycrypt/vite-plugin-skeleton-colors':
-        specifier: 0.2.2
-        version: 0.2.2(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
       '@types/node':
         specifier: ^22.20.1
         version: 22.20.1
@@ -108,6 +105,9 @@ importers:
       globals:
         specifier: ^17.11.0
         version: 17.11.0
+      magic-string:
+        specifier: ^0.30.0
+        version: 0.30.21
       mdsvex:
         specifier: 0.12.8
         version: 0.12.8(svelte@5.56.10(@typescript-eslint/types@8.67.0))
@@ -1415,47 +1415,6 @@ packages:
 
   '@testcontainers/postgresql@12.1.0':
     resolution: {integrity: sha512-Pjf2VSVNirEPfz36nidyrVAnZvc2YhajOznY4VgyEsvfTd5qiMNOuPq96drREvxAUtXl5SFLX7vXj7sSq4aTcA==}
-
-  '@tummycrypt/tinyland-auth-pg@0.2.4':
-    resolution: {integrity: sha512-Z4n8R4iD7+CWqmwEDDu919jIWwiW66Oq/48YSrdKQ+rqO61+ZiPfnEA7G++aMaVU3G96DkK46+KNtbOY4ZffKw==}
-    peerDependencies:
-      '@tummycrypt/tinyland-auth': ^0.2.0 || ^0.3.0
-
-  '@tummycrypt/tinyland-auth@0.3.3':
-    resolution: {integrity: sha512-iasiCFu5INZBQgbX2c8Oano4T1T/fyugLrxMmlZdb0HWpmKdawMpnkhViA9CvEPWvVk33RHJxK7r71riDpbiGQ==}
-    engines: {node: '>=22.0.0'}
-    peerDependencies:
-      '@sveltejs/kit': ^2.0.0
-      svelte: ^5.0.0
-    peerDependenciesMeta:
-      '@sveltejs/kit':
-        optional: true
-      svelte:
-        optional: true
-
-  '@tummycrypt/tinyland-color-utils@0.2.3':
-    resolution: {integrity: sha512-0BBLLmwdRqlcEp2XCHlK8SoXrXGxhO8oLfYPUyqg9xkQ1HZMD04xf+X6uNQFtA6h+dcGJunFRiPHOJmBHbh5Hg==}
-    engines: {node: '>=22.0.0'}
-
-  '@tummycrypt/tinyvectors@https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.6.tar.gz':
-    resolution: {tarball: https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.6.tar.gz}
-    version: 0.3.6
-    engines: {node: '>=22.0.0'}
-    peerDependencies:
-      svelte: '>=5.20.0'
-
-  '@tummycrypt/vite-plugin-a11y@0.2.2':
-    resolution: {integrity: sha512-EQXQPvMclutoB/6ALoIMWezdUsNWo8CR6svNR9ghNjzfu8tdP19xCYnkQtiYIAAVl+LxwwbCgEgSeNYX9tVtfg==}
-    engines: {node: '>=22.0.0'}
-    peerDependencies:
-      svelte: ^4.0.0 || ^5.0.0
-      vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
-
-  '@tummycrypt/vite-plugin-skeleton-colors@0.2.2':
-    resolution: {integrity: sha512-COnll7BMU8YQA5tH7Rqbrpmf+9hpwKD9WmuhaQYQEZdOCP3TKble8Zr26MeeIm5XCTQTUCFZL+exyfeLORhHdg==}
-    engines: {node: '>=22.0.0'}
-    peerDependencies:
-      vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -4937,66 +4896,6 @@ snapshots:
       - bare-buffer
       - react-native-b4a
       - supports-color
-
-  '@tummycrypt/tinyland-auth-pg@0.2.4(@tummycrypt/tinyland-auth@0.3.3(@sveltejs/kit@2.70.3(@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.10(@typescript-eslint/types@8.67.0))(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)))(svelte@5.56.10(@typescript-eslint/types@8.67.0))(typescript@6.0.3)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)))(svelte@5.56.10(@typescript-eslint/types@8.67.0)))(@types/pg@8.23.1)':
-    dependencies:
-      '@neondatabase/serverless': 0.10.4
-      '@tummycrypt/tinyland-auth': 0.3.3(@sveltejs/kit@2.70.3(@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.10(@typescript-eslint/types@8.67.0))(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)))(svelte@5.56.10(@typescript-eslint/types@8.67.0))(typescript@6.0.3)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)))(svelte@5.56.10(@typescript-eslint/types@8.67.0))
-      drizzle-orm: 0.39.3(@neondatabase/serverless@0.10.4)(@types/pg@8.23.1)(pg@8.23.0)
-      pg: 8.23.0
-    transitivePeerDependencies:
-      - '@aws-sdk/client-rds-data'
-      - '@cloudflare/workers-types'
-      - '@electric-sql/pglite'
-      - '@libsql/client'
-      - '@libsql/client-wasm'
-      - '@op-engineering/op-sqlite'
-      - '@opentelemetry/api'
-      - '@planetscale/database'
-      - '@prisma/client'
-      - '@tidbcloud/serverless'
-      - '@types/better-sqlite3'
-      - '@types/pg'
-      - '@types/sql.js'
-      - '@vercel/postgres'
-      - '@xata.io/client'
-      - better-sqlite3
-      - bun-types
-      - expo-sqlite
-      - knex
-      - kysely
-      - mysql2
-      - pg-native
-      - postgres
-      - prisma
-      - sql.js
-      - sqlite3
-
-  '@tummycrypt/tinyland-auth@0.3.3(@sveltejs/kit@2.70.3(@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.10(@typescript-eslint/types@8.67.0))(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)))(svelte@5.56.10(@typescript-eslint/types@8.67.0))(typescript@6.0.3)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)))(svelte@5.56.10(@typescript-eslint/types@8.67.0))':
-    dependencies:
-      bcryptjs: 2.4.3
-      nanoid: 5.1.16
-      otplib: 12.0.1
-      qrcode: 1.5.4
-    optionalDependencies:
-      '@sveltejs/kit': 2.70.3(@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.10(@typescript-eslint/types@8.67.0))(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)))(svelte@5.56.10(@typescript-eslint/types@8.67.0))(typescript@6.0.3)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
-      svelte: 5.56.10(@typescript-eslint/types@8.67.0)
-
-  '@tummycrypt/tinyland-color-utils@0.2.3': {}
-
-  '@tummycrypt/tinyvectors@https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.6.tar.gz(svelte@5.56.10(@typescript-eslint/types@8.67.0))':
-    dependencies:
-      svelte: 5.56.10(@typescript-eslint/types@8.67.0)
-
-  '@tummycrypt/vite-plugin-a11y@0.2.2(svelte@5.56.10(@typescript-eslint/types@8.67.0))(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))':
-    dependencies:
-      magic-string: 0.30.21
-      svelte: 5.56.10(@typescript-eslint/types@8.67.0)
-      vite: 8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
-
-  '@tummycrypt/vite-plugin-skeleton-colors@0.2.2(vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))':
-    dependencies:
-      vite: 8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
 
   '@types/chai@5.2.3':
     dependencies:

@@ -88,8 +88,10 @@ nix develop --command just repo-manifest-validate
 nix develop --command just conformance
 ```
 
-The local build/test recipes execute finite Bazel targets. This is an entrypoint
-claim, not remote-execution proof.
+Finite Bazel targets remain the build/test proof graph. Node-compatible
+pnpm/Vite/check/image recipes first hydrate first-party packages from Bzlmod
+`npm_link_package :pkg` outputs; that materialization is neither an npm source
+rail nor remote-execution proof.
 
 ## 4. GloriousFlywheel binding
 
@@ -168,7 +170,8 @@ The source gates cover:
 - finite Bazel graph/build/test products;
 - cache attachment where declared;
 - no direct application/PR receiver reach;
-- package/module parity and static-spoke conformance.
+- zero first-party npm sources, complete bazel_dep/npm_link_package edges,
+  and role-aware spoke conformance.
 
 Runtime QA and production admission are product-owned gates. The scaffold does
 not ship a receiver-coupled admission workflow. A product may require an
@@ -243,7 +246,8 @@ source cannot observe.
 - [ ] lanes validate as metadata;
 - [ ] reusable CI references are immutable/versioned;
 - [ ] Flywheel configuration is endpoint-free and target classes are allowed;
-- [ ] in-house packages are Bazel-only and exact-pinned;
+- [ ] in-house packages have zero npm specifiers and complete exact-pinned
+  `bazel_dep` / `npm_link_package :pkg` edges;
 - [ ] gitleaks working-tree and history recipes exist;
 - [ ] no GitHub-hosted runner label (`ubuntu-*`, `macos-*`, `windows-*`) in any
   `runs-on:` under `.github/workflows/`, at any nesting (TIN-3914);

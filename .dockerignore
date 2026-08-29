@@ -4,7 +4,11 @@
 .direnv
 .svelte-kit
 build
-node_modules
+# Only the Bazel-hydrated first-party package directories may enter the
+# local ContainerFile context; the builder installs every third-party dep.
+node_modules/**
+!node_modules/@tummycrypt/
+!node_modules/@tummycrypt/**
 bazel-*
 e2e
 playwright-report

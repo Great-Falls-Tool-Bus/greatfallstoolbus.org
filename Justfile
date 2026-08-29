@@ -17,17 +17,68 @@ _default:
 # Development
 # ─────────────────────────────────────────────
 
-# Install dependencies (frozen lockfile)
+# Install third-party dependencies, then materialize the Bazel-only house packages.
 setup:
     cd {{ root }} && pnpm install --frozen-lockfile
+    @just _house-hydrate
     @echo "Setup complete. Run 'just dev' to start."
 
+# TIN-2881: materialize the six first-party Bzlmod :pkg targets into the
+# Node-compatible layout required by pnpm/Vite/check and image entrypoints.
+# package.json and pnpm-lock.yaml cannot supply these packages. The graph-key
+# stamp distinguishes this copy from a stale pre-cutover npm node_modules and
+# invalidates it whenever MODULE.bazel or BUILD.bazel changes.
+_house-hydrate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ root }}
+    repo_root="$(git rev-parse --show-toplevel)"
+    if [[ "$PWD" != "$repo_root" ]] || [[ "$PWD" != "{{ root }}" ]]; then
+      echo "[house-hydrate] refusing outside the exact repository root." >&2
+      exit 1
+    fi
+    pkgs=(tinyland-auth tinyland-auth-pg tinyland-color-utils tinyvectors vite-plugin-a11y vite-plugin-skeleton-colors)
+    stamp="$PWD/node_modules/@tummycrypt/.gftb-bazel-hydrated"
+    graph_key="$(git hash-object MODULE.bazel BUILD.bazel | tr '\n' ':')"
+    if [[ -z "${FORCE_HOUSE_HYDRATE:-}" ]]; then
+      have_all=1
+      for p in "${pkgs[@]}"; do
+        [[ -f "$PWD/node_modules/@tummycrypt/$p/package.json" ]] || have_all=0
+      done
+      if [[ "$have_all" == "1" ]] && [[ -f "$stamp" ]] && [[ "$(cat "$stamp")" == "$graph_key" ]]; then
+        echo "[house-hydrate] six Bazel-linked @tummycrypt/* packages already match the current graph."
+        exit 0
+      fi
+    fi
+    root_flag="--output_user_root=${BAZEL_OUTPUT_USER_ROOT:-${TMPDIR:-/tmp}/gftb-bazel-user-root}"
+    targets=()
+    for p in "${pkgs[@]}"; do targets+=("//:node_modules/@tummycrypt/$p"); done
+    bazelisk "$root_flag" build "${targets[@]}"
+    package_root="$PWD/node_modules/@tummycrypt"
+    mkdir -p "$package_root"
+    for p in "${pkgs[@]}"; do
+      if [[ -z "$p" ]]; then
+        echo "[house-hydrate] refusing an empty package name." >&2
+        exit 1
+      fi
+      target="$package_root/$p"
+      if [[ "$target" != "$PWD/node_modules/@tummycrypt/$p" ]]; then
+        echo "[house-hydrate] refusing unexpected cleanup target: $target" >&2
+        exit 1
+      fi
+      rm -rf -- "$target"
+      cp -RL "bazel-bin/node_modules/@tummycrypt/$p" "$target"
+      chmod -R u+w "$target"
+    done
+    printf '%s\n' "$graph_key" > "$stamp"
+    echo "[house-hydrate] graph-linked ${#pkgs[@]} @tummycrypt/* packages into node_modules."
+
 # Start the Vite dev server
-dev:
+dev: _house-hydrate
     cd {{ root }} && pnpm run dev
 
 # Start the dev server and open browser
-dev-open:
+dev-open: _house-hydrate
     cd {{ root }} && pnpm run dev -- --open
 
 # ─────────────────────────────────────────────
@@ -37,7 +88,7 @@ dev-open:
 # Production static build (adapter-static -> build/). Runs the image
 # pipeline first when static/photos has assets; otherwise the committed
 # static/image-manifest.json fallback carries the build.
-build: _optimize-images-if-photos
+build: _house-hydrate _optimize-images-if-photos
     cd {{ root }} && pnpm run build
 
 # Chain optimize-images into the build path only when there is something to
@@ -57,7 +108,7 @@ preview: build
     cd {{ root }} && pnpm run preview
 
 # Preview without rebuilding
-preview-only:
+preview-only: _house-hydrate
     cd {{ root }} && pnpm run preview
 
 # Remove build artifacts
@@ -123,6 +174,7 @@ container-image-publish: platform-entrypoints-check
     #    to surface /discuss. Default `just build` (adapter-static) is left WITHOUT
     #    it on purpose.
     ADAPTER=node pnpm install --frozen-lockfile
+    just _house-hydrate
     # BUG (TIN-2224 fallout): this recipe calls `pnpm run build` directly,
     # bypassing the default `build` recipe's dependency on
     # _optimize-images-if-photos. static/optimized/ is gitignored and only
@@ -169,6 +221,7 @@ container-image-build: platform-entrypoints-check
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{ root }}
+    just _house-hydrate
     export IMAGE_REF="$(printf '%s' "${IMAGE_REF:-ghcr.io/great-falls-tool-bus/greatfallstoolbus.org}" | tr '[:upper:]' '[:lower:]')"
     export BUILD_COMMIT_SHA="${BUILD_COMMIT_SHA:-$(git rev-parse HEAD)}"
     export BUILD_COMMIT_REF="${BUILD_COMMIT_REF:-$(git rev-parse --abbrev-ref HEAD)}"
@@ -263,6 +316,7 @@ container-image-smoke:
     if [ -z "$ref" ]; then
         ref="greatfallstoolbus.org:smoke"
         echo "container-image-smoke: building ${ref} from ContainerFile"
+        just _house-hydrate
         "$runtime" build -f ContainerFile -t "$ref" .
     fi
     echo "container-image-smoke: image ${ref}"
@@ -343,7 +397,7 @@ container-image-smoke:
 # supplied by great-falls-tool-bus-infra; this repository is public.
 
 # Regenerate the checked-in migration SQL and its source-level hash manifest.
-db-generate:
+db-generate: _house-hydrate
     cd {{ root }} && pnpm exec drizzle-kit generate
     cd {{ root }} && pnpm exec tsx src/lib/server/db/ledger-manifest.ts write drizzle
 
@@ -391,7 +445,7 @@ db-check: db-generate
     echo "db-check: OK — generated SQL committed, hashes match, push absent."
 
 # Apply the checked-in migrations against $DATABASE_URL (the real migrator).
-db-migrate *args:
+db-migrate *args: _house-hydrate
     cd {{ root }} && pnpm exec tsx src/lib/server/db/migrate.ts {{ args }}
 
 # Bundle the migrator for the platform image: one file, no node_modules.
@@ -399,7 +453,7 @@ db-migrate *args:
 # inlines the web server's deps), so the migrator's single dependency — pg — is
 # inlined the same way. The createRequire banner is required: pg is CommonJS and
 # reaches node builtins through require(), which bare ESM output cannot do.
-db-migrator-bundle:
+db-migrator-bundle: _house-hydrate
     cd {{ root }} && pnpm exec esbuild src/lib/server/db/migrate.ts \
         --bundle --platform=node --format=esm --target=node22 \
         --outfile=build/migrator.mjs \
@@ -411,7 +465,7 @@ db-migrator-bundle:
 # Bundle the outbox worker for the platform image (TIN-3817 S3): one file, no
 # node_modules — same contract as db-migrator-bundle, same createRequire banner
 # (pg is CommonJS), with drizzle-orm inlined alongside it.
-worker-bundle:
+worker-bundle: _house-hydrate
     cd {{ root }} && pnpm exec esbuild src/lib/server/worker.ts \
         --bundle --platform=node --format=esm --target=node22 \
         --outfile=build/worker.mjs \
@@ -440,7 +494,7 @@ platform-bundles-check: db-migrator-bundle worker-bundle
 # container-image-smoke, and for the same reason. The daemon probe is
 # `<runtime> info` rather than `command -v`, because the docker CLI is present
 # on the operator's macOS host while the daemon is not running.
-test-integration *args:
+test-integration *args: _house-hydrate
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{ root }}
@@ -744,6 +798,7 @@ preview-tailnet:
         node scripts/optimize-images.js
     fi
     ADAPTER=node pnpm install --frozen-lockfile
+    just _house-hydrate
     ADAPTER=node pnpm run build
 
     tailnet_dns="$(tailscale status --json | jq -r '.Self.DNSName | rtrimstr(".")')"
@@ -928,19 +983,19 @@ preview-tailnet-down:
 # ─────────────────────────────────────────────
 
 # svelte-check + tsc (delegates to package.json `check`)
-typecheck:
+typecheck: _house-hydrate
     cd {{ root }} && pnpm run check
 
 # ESLint flat config across the repo
-lint:
+lint: _house-hydrate
     cd {{ root }} && pnpm run lint
 
 # Prettier write
-format:
+format: _house-hydrate
     cd {{ root }} && pnpm run format
 
 # Prettier check (no writes)
-format-check:
+format-check: _house-hydrate
     cd {{ root }} && pnpm run format:check
 
 # Gitleaks scan of working tree files
@@ -1001,7 +1056,7 @@ leak-scan-src:
     cd {{ root }} && node scripts/leak-scan-src.mjs
 
 # Run Vitest unit tests
-test-unit:
+test-unit: _house-hydrate
     cd {{ root }} && pnpm run test:unit
 
 # [OPERATOR, local-only] Regenerate src/lib/naming-consent.hashes.json from
@@ -1010,7 +1065,7 @@ test-unit:
 # or lives inside any repo. See scripts/generate-naming-consent-hashes.mjs
 # for the format and the security rationale, and
 # docs/runbooks/discuss-to-svx-pipeline.md for the full design this backs.
-naming-consent-hashes:
+naming-consent-hashes: _house-hydrate
     cd {{ root }} && pnpm exec tsx scripts/generate-naming-consent-hashes.mjs
 
 # [OPERATOR, local-only] Drift gate: recomputes the committed hash list from
@@ -1018,14 +1073,14 @@ naming-consent-hashes:
 # against the committed src/lib/naming-consent.hashes.json. Skips loudly
 # (exit 0) when either operator-local file is absent — e.g. in CI, where
 # this is expected and not a failure. Wired into `just check`.
-naming-consent-hashes-verify:
+naming-consent-hashes-verify: _house-hydrate
     cd {{ root }} && pnpm exec tsx scripts/verify-naming-consent-hashes.mjs
 
 # Stage one already-redacted keyholders@ export as a published:false
 # discuss-drafts .svx. NEVER sends mail. Usage:
 #   just discuss-to-svx -- --input path/to/export.json
 # See docs/runbooks/discuss-to-svx-pipeline.md.
-discuss-to-svx *args:
+discuss-to-svx *args: _house-hydrate
     cd {{ root }} && pnpm exec tsx scripts/discuss-to-svx.mjs {{ args }}
 
 # Independently re-validate every staged draft under src/content/discuss-drafts/**
@@ -1037,11 +1092,11 @@ discuss-to-svx *args:
 # src/lib/discuss-drafts-ci-scope.ts and the runbook's "CI scope" section).
 # Every other check in this recipe always runs and always enforces. Wired
 # into `just check`.
-discuss-drafts-validate:
+discuss-drafts-validate: _house-hydrate
     cd {{ root }} && pnpm exec tsx scripts/validate-discuss-drafts.mts
 
 # Ensure local Playwright browser cache exists; CI uses Nix Chromium instead
-playwright-ensure:
+playwright-ensure: _house-hydrate
     cd {{ root }} && if [ "${CI:-}" = "true" ] && command -v nix >/dev/null 2>&1; then \
       echo "Using Nix chromium from the Playwright dev shell"; \
     else \
@@ -1049,7 +1104,7 @@ playwright-ensure:
     fi
 
 # Run Playwright E2E tests
-test-e2e: playwright-ensure
+test-e2e: _house-hydrate playwright-ensure
     cd {{ root }} && if [ "${CI:-}" = "true" ] && command -v nix >/dev/null 2>&1; then \
       nix develop .#playwright --command pnpm run test:e2e; \
     else \
@@ -1057,7 +1112,7 @@ test-e2e: playwright-ensure
     fi
 
 # Install Playwright browser binaries
-playwright-install browser="chromium":
+playwright-install browser="chromium": _house-hydrate
     cd {{ root }} && pnpm exec playwright install {{ browser }}
 
 # Run all tests (unit + e2e)
@@ -1107,7 +1162,7 @@ ci-quick: check
 # ─────────────────────────────────────────────
 
 # Validate a checked-in Tinyland static projection snapshot
-validate-static-projection snapshot spoke="" actor="" require_signature="":
+validate-static-projection snapshot spoke="" actor="" require_signature="": _house-hydrate
     cd {{ root }} && args=(scripts/static-projection-snapshot.mts validate "{{ snapshot }}" --expected-source-authority tinyland.dev); \
       if [ -n "{{ spoke }}" ]; then args+=(--expected-spoke "{{ spoke }}"); fi; \
       if [ -n "{{ actor }}" ]; then args+=(--actor-document "{{ actor }}" --expected-actor-id "{{ actor }}" --expected-actor-key-id "{{ actor }}#main-key"); fi; \
@@ -1115,7 +1170,7 @@ validate-static-projection snapshot spoke="" actor="" require_signature="":
       pnpm exec tsx "${args[@]}"
 
 # Copy a reviewed Tinyland static projection snapshot into this repo after validation
-sync-static-projection source target spoke="" actor="" require_signature="":
+sync-static-projection source target spoke="" actor="" require_signature="": _house-hydrate
     cd {{ root }} && args=(scripts/static-projection-snapshot.mts sync "{{ source }}" "{{ target }}" --expected-source-authority tinyland.dev); \
       if [ -n "{{ spoke }}" ]; then args+=(--expected-spoke "{{ spoke }}"); fi; \
       if [ -n "{{ actor }}" ]; then args+=(--actor-document "{{ actor }}" --expected-actor-id "{{ actor }}" --expected-actor-key-id "{{ actor }}#main-key"); fi; \
@@ -1123,7 +1178,7 @@ sync-static-projection source target spoke="" actor="" require_signature="":
       pnpm exec tsx "${args[@]}"
 
 # Alias for static Pulse snapshot ingestion; still produces a checked-in JSON file only
-pulse-ingest source target spoke="" actor="" require_signature="":
+pulse-ingest source target spoke="" actor="" require_signature="": _house-hydrate
     cd {{ root }} && args=(scripts/static-projection-snapshot.mts sync "{{ source }}" "{{ target }}" --expected-source-authority tinyland.dev); \
       if [ -n "{{ spoke }}" ]; then args+=(--expected-spoke "{{ spoke }}"); fi; \
       if [ -n "{{ actor }}" ]; then args+=(--actor-document "{{ actor }}" --expected-actor-id "{{ actor }}" --expected-actor-key-id "{{ actor }}#main-key"); fi; \
@@ -1168,7 +1223,7 @@ skills-validate:
     cd {{ root }} && python3 scripts/validate-skills.py
 
 # Derive the mail lace-up skills + llms.txt mail section from src/lib/data/mail-clients.ts.
-skills-build:
+skills-build: _house-hydrate
     cd {{ root }} && pnpm exec tsx scripts/build-agent-skills.mjs
 
 # Drift guard: regenerate derived skills, then fail if the tree changed.
@@ -1177,7 +1232,7 @@ skills-check: skills-build
 
 # Derive the page source map (route id -> repo-relative +page.svelte) that
 # SourceLink.svelte reads to render the "View source" / "Edit this page" affordance.
-source-map-build:
+source-map-build: _house-hydrate
     cd {{ root }} && pnpm exec tsx scripts/build-source-map.mjs
 
 # Drift guard: regenerate the source map, then fail if the generated file changed.
@@ -1216,7 +1271,7 @@ conformance:
     rc2=0; bash scripts/check-conformance-local.sh || rc2=$?
     [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ]
 
-# Verify @tummycrypt/@tinyland npm package versions match MODULE.bazel.
+# Verify zero first-party npm specifiers and complete bazel_dep/npm_link_package edges.
 inhouse-package-parity:
     cd {{ root }} && python3 scripts/check-inhouse-package-parity.py
 
@@ -1464,11 +1519,11 @@ tofu-validate:
 # ─────────────────────────────────────────────
 
 # Sync SvelteKit types
-sync:
+sync: _house-hydrate
     cd {{ root }} && pnpm exec svelte-kit sync
 
 # Build with bundle analyzer (emits .bundle-stats/stats.html treemap)
-analyze:
+analyze: _house-hydrate
     cd {{ root }} && ANALYZE=1 pnpm run build
 
 # Optimize static images: sharp -> webp/avif responsive widths, svgo -> SVG,
