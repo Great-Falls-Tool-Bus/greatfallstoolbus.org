@@ -212,9 +212,23 @@ js_test(
     visibility = ["//visibility:public"],
 )
 
+# Pure, finite custody/deletion negative controls. Cacheable in the Bazel
+# graph, but not an approved remote-execution target class.
+sh_test(
+    name = "preview_tailnet_state_contract_test",
+    srcs = ["scripts/preview-tailnet-state.test.sh"],
+    data = ["scripts/preview-tailnet-state.sh"],
+    tags = [
+        "gloriousflywheel-cache-only",
+        "no-remote-exec",
+        "security-contract",
+    ],
+)
+
 test_suite(
     name = "ci_validation_suite",
     tests = [
+        ":preview_tailnet_state_contract_test",
         ":svelte_check_test",
         ":unit_tests",
     ],

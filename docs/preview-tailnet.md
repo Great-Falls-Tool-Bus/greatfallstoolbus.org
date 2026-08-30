@@ -89,11 +89,14 @@ killed, not just matched by `pgrep -f`.
 
 - **Single host.** One operator, one machine, one running preview at a time
   — fixed ports (`8443` for web/tailscale-serve, `55446` for Postgres), no
-  concurrency handling. State lives under `${TMPDIR:-/tmp}`; on this
-  project's macOS operator hosts `TMPDIR` is per-user private, but the
-  `/tmp` fallback is a predictable, shared path on other OSes, so the
-  recipe refuses outright if its Postgres data directory or state directory
-  is ever a symlink rather than a plain directory.
+  concurrency handling. State lives in the canonical physical directory for
+  `${TMPDIR:-/tmp}`, under one fixed `gftb-preview-tailnet` child. The state
+  directory must be owned by the invoking uid, mode `0700`, and carry a
+  non-symlink marker binding that exact repository path and uid. A state
+  directory, marker, data directory, log, or pidfile symlink is refused.
+  Teardown only recursively removes the validated `pgdata` child; it unlinks
+  the fixed log/pid/marker files and finishes with non-recursive `rmdir`, so
+  an unexpected top-level entry makes teardown fail closed.
 - **Serializes PRs.** Two branches cannot be previewed simultaneously on the
   same host; switch branches, rebuild, relaunch.
 - **No tunnel/Access parity with production.** Production sits behind

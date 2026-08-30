@@ -545,22 +545,14 @@ preview-tailnet:
     cd {{ root }}
     root_dir="$PWD"
 
-    state_dir="${TMPDIR:-/tmp}/gftb-preview-tailnet"
+    # Establish uid/mode/marker custody before using any state child.
+    state_dir="$(bash scripts/preview-tailnet-state.sh prepare "$root_dir")"
     pgdata="$state_dir/pgdata"
     pg_port=55446
     web_port=8443
     db_name=gftb_preview
     web_marker="${root_dir}/server.js"
     worker_marker="--worker-id gftb-preview-tailnet"
-    mkdir -p "$state_dir"
-
-    # Refuse to run initdb/pg_ctl against a planted symlink under a shared
-    # TMPDIR/tmp (this host's TMPDIR is per-user private, but the /tmp
-    # fallback is not on every OS — see docs/preview-tailnet.md).
-    if [ -L "$pgdata" ] || [ -L "$state_dir" ]; then
-        echo "preview-tailnet: ${pgdata} or ${state_dir} is a symlink — refusing to follow it. Remove it and re-run." >&2
-        exit 1
-    fi
 
     # Structural command validator: does PID's ACTUAL command line look like
     # something this recipe launched, not merely a process whose argv happens
@@ -841,7 +833,11 @@ preview-tailnet-down:
     cd {{ root }}
     root_dir="$PWD"
 
-    state_dir="${TMPDIR:-/tmp}/gftb-preview-tailnet"
+    # Validate state custody before process, tailscale, Postgres, or filesystem teardown.
+    state_dir="$(bash scripts/preview-tailnet-state.sh path "$root_dir")"
+    if [ -e "$state_dir" ] || [ -L "$state_dir" ]; then
+        bash scripts/preview-tailnet-state.sh validate "$root_dir" "$state_dir"
+    fi
     pgdata="$state_dir/pgdata"
     web_port=8443
     web_marker="${root_dir}/server.js"
@@ -920,7 +916,7 @@ preview-tailnet-down:
         fi
     fi
 
-    rm -rf "$state_dir"
+    bash scripts/preview-tailnet-state.sh cleanup "$root_dir" "$state_dir"
     echo "preview-tailnet-down: done — web/worker process groups stopped, tailscale serve mapping removed, Postgres stopped, ${state_dir} deleted."
 
 # ─────────────────────────────────────────────
@@ -1083,8 +1079,12 @@ sbom out_dir="build/sbom":
 # public-safety scans); leak-scan-build runs last (it pays for a full
 # `just build`, ~4 minutes — the only step this gate added that was not
 # already part of `check`'s cost) so a cheaper failure surfaces first.
-check: flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints leak-scan-tree leak-scan-src lint typecheck discuss-drafts-validate naming-consent-hashes-verify skills-validate skills-check source-map-check db-check platform-bundles-check test-unit leak-scan-build
+check: preview-tailnet-state-contract-check flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints leak-scan-tree leak-scan-src lint typecheck discuss-drafts-validate naming-consent-hashes-verify skills-validate skills-check source-map-check db-check platform-bundles-check test-unit leak-scan-build
     @echo "All checks passed."
+
+# Fail-closed state-path and cleanup contract for the operator-only tailnet preview.
+preview-tailnet-state-contract-check:
+    cd {{ root }} && bash scripts/preview-tailnet-state.test.sh
 
 # Probe the declared production hostnames at the public Cloudflare Access edge.
 production-health-probe:
