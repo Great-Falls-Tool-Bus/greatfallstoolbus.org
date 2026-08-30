@@ -395,7 +395,10 @@ describe('correct action append-only composition', () => {
 				throw error;
 			}
 		});
-		mocks.recordCashCheckReceipt.mockRejectedValueOnce(domainError);
+		mocks.recordCashCheckReceipt.mockImplementationOnce(async () => {
+			mocks.callOrder.push('record');
+			throw domainError;
+		});
 
 		const action = route._createCorrectAction({ env: CONFIGURED_ENV });
 		await expect(action(event(CORRECT_FORM))).resolves.toMatchObject({
