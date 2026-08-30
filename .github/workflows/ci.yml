@@ -54,7 +54,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: tinyland-inc/ci-templates/.github/actions/nix-setup@0555af061d9d3afc1d9da0265f8fd9de94f06ca3
+      - uses: tinyland-inc/ci-templates/.github/actions/nix-setup@d8d178c022a0f84853d53a2c8fe0fc90115f0949
       - name: Run cache-only, no-remote-exec custody proof
         env:
           GF_FLYWHEEL_PROFILE_STATE: shared-cache-backed

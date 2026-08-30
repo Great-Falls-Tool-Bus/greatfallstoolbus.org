@@ -1084,15 +1084,16 @@ check: preview-tailnet-state-contract-check flywheel-enrollment-contract-check p
 preview-tailnet-state-contract-check:
     cd {{ root }} && bash scripts/preview-tailnet-state.test.sh
 
-# CI-only exact Bazel-label proof. RUNNER_TEMP must resolve outside both the
-# exported and passwd-database HOME. The private test base is created here,
-# passed as TEST_TMPDIR, and removed only by non-recursive rmdir when empty.
+# CI-only exact Bazel-label proof. RUNNER_TEMP is preferred, but only when its
+# physical path is outside both HOME roots and has acceptable custody. ARC may
+# place RUNNER_TEMP under account HOME, so root-owned sticky /var/tmp or /tmp is
+# the bounded fallback. The selected parent receives one uid-owned 0700 child,
+# passed as TEST_TMPDIR and removed only by non-recursive rmdir when empty.
 # Shared-cache reads are allowed; cache writes and remote execution are not.
 preview-tailnet-state-contract-bazel:
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{ root }}
-    : "${RUNNER_TEMP:?RUNNER_TEMP is required for the remote exact-label proof}"
     canonical_dir() {
         local input="$1"
         [[ -n "$input" && "$input" == /* && -d "$input" ]]
@@ -1102,19 +1103,44 @@ preview-tailnet-state-contract-bazel:
         local candidate="$1" parent="$2"
         [[ "$candidate" == "$parent" || "$candidate" == "$parent"/* ]]
     }
-    runner_temp="$(canonical_dir "$RUNNER_TEMP")"
+    owner_mode() {
+        case "$(uname -s)" in
+            Darwin) stat -f '%u %Lp' "$1" ;;
+            *) stat -c '%u %a' "$1" ;;
+        esac
+    }
     env_home="$(canonical_dir "${HOME:?HOME is required}")"
     account_home_raw="$(python3 -c 'import os, pwd; print(pwd.getpwuid(os.getuid()).pw_dir)')"
     account_home="$(canonical_dir "$account_home_raw")"
-    ! within "$runner_temp" "$env_home" || {
-        echo "preview-tailnet-state-contract-bazel: RUNNER_TEMP is inside HOME" >&2
+    repo_real="$(canonical_dir "$PWD")"
+    uid="$(id -u)"
+    proof_parent=""
+    for candidate in "${RUNNER_TEMP:-}" /var/tmp /tmp; do
+        [[ -n "$candidate" && -d "$candidate" ]] || continue
+        candidate_real="$(canonical_dir "$candidate")"
+        [[ "$candidate_real" != / ]] || continue
+        ! within "$candidate_real" "$env_home" || continue
+        ! within "$candidate_real" "$account_home" || continue
+        ! within "$candidate_real" "$repo_real" || continue
+        [[ -w "$candidate_real" && -x "$candidate_real" ]] || continue
+        read -r owner mode <<<"$(owner_mode "$candidate_real")"
+        mode="${mode#0}"
+        [[ "$owner" =~ ^[0-9]+$ && "$mode" =~ ^[0-7]{3,4}$ ]] || continue
+        mode_value=$((8#${mode}))
+        if [[ "$owner" == "$uid" ]]; then
+            (( (mode_value & 0022) == 0 )) || continue
+        else
+            [[ "$owner" == 0 ]] || continue
+            (( (mode_value & 01000) != 0 )) || continue
+        fi
+        proof_parent="$candidate_real"
+        break
+    done
+    [[ -n "$proof_parent" ]] || {
+        echo "preview-tailnet-state-contract-bazel: no allowed temp base outside HOME/account HOME/repository" >&2
         exit 70
     }
-    ! within "$runner_temp" "$account_home" || {
-        echo "preview-tailnet-state-contract-bazel: RUNNER_TEMP is inside account HOME" >&2
-        exit 70
-    }
-    proof_tmp="$(mktemp -d "${runner_temp}/gftb-preview-state-contract.XXXXXX")"
+    proof_tmp="$(mktemp -d "${proof_parent}/gftb-preview-state-contract.XXXXXX")"
     chmod 700 "$proof_tmp"
     rc=0
     TEST_TMPDIR="$proof_tmp" \
