@@ -47,3 +47,19 @@ jobs:
       heavy_runner_class: tinyland-nix
       kvm_runner_class: tinyland-nix
     secrets: inherit
+
+  preview-tailnet-state-contract:
+    name: preview-tailnet state / exact Bazel label
+    runs-on: tinyland-nix
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: tinyland-inc/ci-templates/.github/actions/nix-setup@d8d178c022a0f84853d53a2c8fe0fc90115f0949
+      - name: Run cache-only, no-remote-exec custody proof
+        env:
+          GF_FLYWHEEL_PROFILE_STATE: shared-cache-backed
+          GF_BAZEL_SUBSTRATE_MODE: shared-cache-backed
+          GF_BAZEL_REMOTE_UPLOAD: 'false'
+          BAZEL_REMOTE_EXECUTOR: ''
+          GF_BAZEL_RUNNER_LABELS: ${{ join(runner.labels, ',') }}
+        run: nix develop --command just preview-tailnet-state-contract-bazel
