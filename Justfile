@@ -822,7 +822,7 @@ preview-tailnet:
 # `--https=8443 off`, never a blanket `tailscale serve reset`;
 # `preview-tailnet` itself already refuses to start on top of an unrelated
 # pre-existing handler on this port, so this never removes a mapping the
-# lane didn't create). Stops Postgres and preserves the validated private
+# lane didn't create). Attempts a clean Postgres stop and preserves the validated private
 # state directory, marker, logs, and pgdata for a later reuse.
 #
 # Stop the tailnet preview while retaining its validated private state for reuse.
@@ -1149,6 +1149,7 @@ preview-tailnet-state-contract-bazel:
       bash scripts/gloriousflywheel-bazel.sh test \
         --test_tmpdir="$proof_tmp" \
         --test_env=GFTB_EXPECTED_TEST_TMP_ROOT="$proof_tmp" \
+        --test_env=HOME="$env_home" \
         --nocache_test_results \
         --test_output=errors \
         //:preview_tailnet_state_contract_test || rc=$?

@@ -18,7 +18,7 @@ the meantime — it is not meant to outlive that sitting.
 
 ```bash
 just preview-tailnet        # one command: PG + migrations + web + worker + tailscale serve
-just preview-tailnet-down   # tear it all down
+just preview-tailnet-down   # stop the preview; retain private state
 ```
 
 The first run prints instructions (and a ready-to-paste `psql` command) for
@@ -31,8 +31,9 @@ against a nonexistent tenant).
 `just preview-tailnet` is re-runnable: it kills its own stale web/worker
 processes and restarts, but keeps the same on-disk Postgres cluster between
 runs, so a seeded tenant survives a rebuild-and-relaunch. `just
-preview-tailnet-down` stops web, worker, Postgres, and the serve mapping while
-retaining the private marked state and Postgres cluster for the next run.
+preview-tailnet-down` stops web and worker, removes the serve mapping, attempts
+a clean Postgres stop, and retains the private marked state and cluster for the
+next run.
 
 ## What it is
 
