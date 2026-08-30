@@ -171,7 +171,7 @@ describe('exactly one drizzle-orm, at exactly the version the adapter forces (sp
 		expect([...versions]).toEqual(['0.39.3']);
 	});
 
-"	it('package.json keeps first-party packages out of pnpm and pins drizzle-orm exactly', () => {
+	it('package.json keeps first-party packages out of pnpm and pins drizzle-orm exactly', () => {
 		const pkg = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
 		const firstPartyDependencies = Object.keys({
 			...(pkg.dependencies ?? {}),
@@ -182,7 +182,7 @@ describe('exactly one drizzle-orm, at exactly the version the adapter forces (sp
 
 		expect(firstPartyDependencies).toEqual([]);
 		expect(pkg.dependencies['drizzle-orm']).toBe('0.39.3');
-	});"
+	});
 });
 
 describe('no override-as-proof (spec §4)', () => {
