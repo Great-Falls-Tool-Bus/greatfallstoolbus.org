@@ -619,7 +619,7 @@ preview-tailnet:
     # 2. Resolve a PostgreSQL 16 toolchain. This repo's flake devShell does
     #    not carry `postgresql` — `just test-integration` reaches for a
     #    testcontainer or an operator-named server instead (see
-    #    src/lib/server/db/integration-support.ts) — and a throwaway *local*
+    #    src/lib/server/db/integration-support.ts) — and an operator-local
     #    preview has neither. Borrow the same `nix-shell -p postgresql_16`
     #    convenience already used ad hoc for local DB work on this project.
     #    `tail -n 1`: some shells print a devShell banner ahead of the real
@@ -654,7 +654,7 @@ preview-tailnet:
         exit 1
     fi
 
-    # 4. Start (or reuse) the throwaway cluster. Loopback-only listen address
+    # 4. Start (or reuse) the private operator-local cluster. Loopback-only listen address
     #    and trust auth: the only network exposure of this whole lane is
     #    tailscale-serve HTTPS — Postgres itself never leaves 127.0.0.1. Note
     #    trust auth also means the role passwords below buy no LOCAL
@@ -662,7 +662,7 @@ preview-tailnet:
     #    entirely) — the role split's real job is only to make the app
     #    processes run as gftb_app so RLS actually applies to them.
     if [ ! -d "$pgdata" ]; then
-        echo "preview-tailnet: initializing throwaway PostgreSQL cluster at ${pgdata}"
+        echo "preview-tailnet: initializing private PostgreSQL cluster at ${pgdata}"
         "${pg_bindir}/initdb" --pgdata="$pgdata" --username=postgres --auth=trust --no-locale --encoding=UTF8 >/dev/null
     fi
     if "${pg_bindir}/pg_ctl" status -D "$pgdata" >/dev/null 2>&1; then
