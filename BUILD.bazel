@@ -251,9 +251,37 @@ js_test(
     visibility = ["//visibility:public"],
 )
 
+# Pure, finite custody/preservation negative controls. Keep tracked scripts
+# non-executable and invoke them explicitly through Bash. Native sh_test
+# requires one executable src, so a finite launcher is generated for Bazel.
+# The generated runtime line is single-quoted: genrule's build shell must emit,
+# not expand, TEST_SRCDIR/TEST_WORKSPACE for the eventual test process.
+genrule(
+    name = "preview_tailnet_state_contract_test_runner",
+    outs = ["preview-tailnet-state-contract-test-runner.sh"],
+    cmd = "printf '%s\\n' '#!/usr/bin/env bash' 'exec bash \"$${TEST_SRCDIR}/$${TEST_WORKSPACE}/scripts/preview-tailnet-state.test.sh\" \"$${TEST_SRCDIR}/$${TEST_WORKSPACE}/scripts/preview-tailnet-state.sh\" \"$${TEST_SRCDIR}/$${TEST_WORKSPACE}/Justfile\"' > \"$@\" && chmod 0555 \"$@\"",
+    executable = True,
+)
+
+sh_test(
+    name = "preview_tailnet_state_contract_test",
+    srcs = [":preview_tailnet_state_contract_test_runner"],
+    data = [
+        "Justfile",
+        "scripts/preview-tailnet-state.sh",
+        "scripts/preview-tailnet-state.test.sh",
+    ],
+    tags = [
+        "gloriousflywheel-cache-only",
+        "no-remote-exec",
+        "security-contract",
+    ],
+)
+
 test_suite(
     name = "ci_validation_suite",
     tests = [
+        ":preview_tailnet_state_contract_test",
         ":svelte_check_test",
         ":unit_tests",
     ],

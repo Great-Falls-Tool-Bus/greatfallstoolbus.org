@@ -18,7 +18,7 @@ the meantime — it is not meant to outlive that sitting.
 
 ```bash
 just preview-tailnet        # one command: PG + migrations + web + worker + tailscale serve
-just preview-tailnet-down   # tear it all down
+just preview-tailnet-down   # stop the preview; retain private state
 ```
 
 The first run prints instructions (and a ready-to-paste `psql` command) for
@@ -31,11 +31,13 @@ against a nonexistent tenant).
 `just preview-tailnet` is re-runnable: it kills its own stale web/worker
 processes and restarts, but keeps the same on-disk Postgres cluster between
 runs, so a seeded tenant survives a rebuild-and-relaunch. `just
-preview-tailnet-down` is what actually deletes the cluster.
+preview-tailnet-down` attempts web/worker stops, serve-mapping removal, and a
+clean Postgres stop; it retains the private marked state and cluster for the
+next run.
 
 ## What it is
 
-- A throwaway local PostgreSQL 16 cluster (`nix-shell -p postgresql_16`;
+- An operator-local PostgreSQL 16 cluster (`nix-shell -p postgresql_16`;
   `initdb` + `pg_ctl` under a tempdir), with the same migrator/`gftb_app`
   runtime-role split the integration suite's external-server fixture uses
   (`src/lib/server/db/integration-support.ts`) — so this preview exercises
@@ -89,11 +91,15 @@ killed, not just matched by `pgrep -f`.
 
 - **Single host.** One operator, one machine, one running preview at a time
   — fixed ports (`8443` for web/tailscale-serve, `55446` for Postgres), no
-  concurrency handling. State lives under `${TMPDIR:-/tmp}`; on this
-  project's macOS operator hosts `TMPDIR` is per-user private, but the
-  `/tmp` fallback is a predictable, shared path on other OSes, so the
-  recipe refuses outright if its Postgres data directory or state directory
-  is ever a symlink rather than a plain directory.
+  concurrency handling. State lives in the canonical physical directory for
+  `${TMPDIR:-/tmp}`, under one fixed `gftb-preview-tailnet` child. The state
+  directory must be outside both environment and account HOME, owned by the
+  invoking uid, mode `0700`, and carry a non-symlink marker binding that
+  exact repository path and uid. A state
+  directory, marker, data directory, log, or pidfile symlink is refused.
+  Teardown is intentionally non-destructive: after validating custody, it
+  retains the state directory, marker, logs, and complete `pgdata` tree for
+  reuse. An unexpected top-level entry still makes validation fail closed.
 - **Serializes PRs.** Two branches cannot be previewed simultaneously on the
   same host; switch branches, rebuild, relaunch.
 - **No tunnel/Access parity with production.** Production sits behind
