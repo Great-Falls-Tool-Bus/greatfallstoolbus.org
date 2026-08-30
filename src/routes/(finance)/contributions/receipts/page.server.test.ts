@@ -174,6 +174,21 @@ describe('/contributions/receipts route surface', () => {
 		expect(source).not.toMatch(/\b(?:reauthenticate|verifyPassword|SESSION_COOKIE)\b/);
 		expect(source).not.toMatch(/\.\s*(?:update|delete)\s*\(/);
 	});
+
+	it('keeps both check-reference render constraints literal and one-to-four digits', () => {
+		const source = readFileSync(fileURLToPath(new URL('./+page.svelte', import.meta.url)), 'utf8');
+		const patterns = [...source.matchAll(/pattern=\{'([^']+)'\}/g)].map((match) => match[1]);
+
+		expect(patterns).toEqual(['[0-9]{1,4}', '[0-9]{1,4}']);
+		for (const pattern of patterns) {
+			const bounded = new RegExp('^(?:' + pattern + ')$');
+			expect(bounded.test('1')).toBe(true);
+			expect(bounded.test('1234')).toBe(true);
+			expect(bounded.test('')).toBe(false);
+			expect(bounded.test('12345')).toBe(false);
+			expect(bounded.test('12a')).toBe(false);
+		}
+	});
 });
 
 describe('authentication and availability ordering', () => {
