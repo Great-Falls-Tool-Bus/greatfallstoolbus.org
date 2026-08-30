@@ -62,7 +62,6 @@ state_path() {
     fi
 
     state="${base_real}/gftb-preview-tailnet"
-    [[ -n "$state" && "$state" != / && "$state" != "$home_real" && "$state" != "$root_real" ]] || fail 'state path crossed a protected root'
     [[ -n "$state" && "$state" != / && "$state" != "$home_real" && "$state" != "$account_home_real" && "$state" != "$root_real" ]] || fail 'state path crossed a protected root'
     [[ "${state%/*}" == "$base_real" ]] || fail 'state path escaped the canonical temporary base'
     printf '%s\n' "$state"

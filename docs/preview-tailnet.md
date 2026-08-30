@@ -91,8 +91,9 @@ killed, not just matched by `pgrep -f`.
   — fixed ports (`8443` for web/tailscale-serve, `55446` for Postgres), no
   concurrency handling. State lives in the canonical physical directory for
   `${TMPDIR:-/tmp}`, under one fixed `gftb-preview-tailnet` child. The state
-  directory must be owned by the invoking uid, mode `0700`, and carry a
-  non-symlink marker binding that exact repository path and uid. A state
+  directory must be outside both environment and account HOME, owned by the
+  invoking uid, mode `0700`, and carry a non-symlink marker binding that
+  exact repository path and uid. A state
   directory, marker, data directory, log, or pidfile symlink is refused.
   Teardown only recursively removes the validated `pgdata` child; it unlinks
   the fixed log/pid/marker files and finishes with non-recursive `rmdir`, so
