@@ -44,6 +44,23 @@ pass 'preview-tailnet-down delegates to non-destructive cleanup and contains no 
 
 scratch_parent="${TEST_TMPDIR:-${TMPDIR:-/tmp}}"
 scratch_parent="$(cd -P -- "$scratch_parent" && pwd -P)"
+if [[ -n "${GFTB_EXPECTED_TEST_TMP_ROOT:-}" ]]; then
+    expected_test_tmp_root="$(cd -P -- "$GFTB_EXPECTED_TEST_TMP_ROOT" && pwd -P)"
+    case "$scratch_parent" in
+        "$expected_test_tmp_root" | "$expected_test_tmp_root"/*) ;;
+        *) fail "Bazel TEST_TMPDIR escaped the remote recipe's private root: ${scratch_parent}" ;;
+    esac
+    original_home="$(cd -P -- "${HOME:?HOME is required}" && pwd -P)"
+    original_account_home="$(python3 -c 'import os, pwd; print(pwd.getpwuid(os.getuid()).pw_dir)')"
+    original_account_home="$(cd -P -- "$original_account_home" && pwd -P)"
+    case "$scratch_parent" in
+        "$original_home" | "$original_home"/*) fail 'Bazel TEST_TMPDIR is inside exported HOME' ;;
+    esac
+    case "$scratch_parent" in
+        "$original_account_home" | "$original_account_home"/*) fail 'Bazel TEST_TMPDIR is inside account HOME' ;;
+    esac
+    pass 'Bazel TEST_TMPDIR is confined to the remote recipe root outside both HOME roots'
+fi
 test_root="$(mktemp -d "${scratch_parent}/gftb-preview-state-test.XXXXXX")"
 chmod 700 "$test_root"
 repo_root="${test_root}/repo"

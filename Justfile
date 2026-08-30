@@ -1143,15 +1143,15 @@ preview-tailnet-state-contract-bazel:
     proof_tmp="$(mktemp -d "${proof_parent}/gftb-preview-state-contract.XXXXXX")"
     chmod 700 "$proof_tmp"
     rc=0
-    TEST_TMPDIR="$proof_tmp" \
-      GF_BAZEL_SUBSTRATE_MODE=shared-cache-backed \
+    GF_BAZEL_SUBSTRATE_MODE=shared-cache-backed \
       GF_BAZEL_REMOTE_UPLOAD=false \
       BAZEL_REMOTE_EXECUTOR= \
       bash scripts/gloriousflywheel-bazel.sh test \
-        //:preview_tailnet_state_contract_test \
-        --test_env=TEST_TMPDIR="$proof_tmp" \
+        --test_tmpdir="$proof_tmp" \
+        --test_env=GFTB_EXPECTED_TEST_TMP_ROOT="$proof_tmp" \
         --nocache_test_results \
-        --test_output=errors || rc=$?
+        --test_output=errors \
+        //:preview_tailnet_state_contract_test || rc=$?
     rmdir -- "$proof_tmp" 2>/dev/null || true
     exit "$rc"
 
