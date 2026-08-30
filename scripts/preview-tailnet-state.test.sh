@@ -61,6 +61,8 @@ assert_exists 'outside sentinel survives rejected candidates' "${outside}/sentin
 
 mkdir -m 700 "${fake_home}/tmp"
 expect_fail 'refuses temp base inside HOME' env TMPDIR="${fake_home}/tmp" bash "$helper" path "$repo_root"
+account_home="$(python3 -c 'import os, pwd; print(pwd.getpwuid(os.getuid()).pw_dir)')"
+expect_fail 'forged HOME cannot hide the account HOME boundary' env HOME="$fake_home" TMPDIR="$account_home" bash "$helper" path "$repo_root"
 mkdir -m 700 "${repo_root}/tmp"
 expect_fail 'refuses temp base inside repository' env TMPDIR="${repo_root}/tmp" bash "$helper" path "$repo_root"
 expect_fail 'refuses filesystem root as temp base' env TMPDIR=/ bash "$helper" path "$repo_root"

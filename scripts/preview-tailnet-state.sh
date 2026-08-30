@@ -36,16 +36,19 @@ marker_body() {
 }
 
 state_path() {
-    local root_real home_real base_real uid facts owner mode mode_value state
+    local root_real home_real account_home_raw account_home_real base_real uid facts owner mode mode_value state
     root_real="$(canonical_dir "$1" 'repository root')"
     [[ -n "${HOME:-}" ]] || fail 'HOME is unset; cannot prove state is outside it'
     home_real="$(canonical_dir "$HOME" HOME)"
+    account_home_raw="$(python3 -c 'import os, pwd; print(pwd.getpwuid(os.getuid()).pw_dir)')" || fail 'cannot resolve account HOME'
+    account_home_real="$(canonical_dir "$account_home_raw" 'account HOME')"
     base_real="$(canonical_dir "${TMPDIR:-/tmp}" 'temporary base')"
     uid="$(id -u)" || fail 'cannot resolve invoking uid'
     [[ "$uid" =~ ^[0-9]+$ ]] || fail 'invoking uid is not numeric'
 
     [[ "$base_real" != / ]] || fail 'temporary base resolved to filesystem root'
     ! path_is_within "$base_real" "$home_real" || fail "temporary base is HOME or inside it: ${base_real}"
+    ! path_is_within "$base_real" "$account_home_real" || fail "temporary base is account HOME or inside it: ${base_real}"
     ! path_is_within "$base_real" "$root_real" || fail "temporary base is the repository or inside it: ${base_real}"
     [[ -w "$base_real" && -x "$base_real" ]] || fail "temporary base is not writable/searchable: ${base_real}"
 
@@ -60,6 +63,7 @@ state_path() {
 
     state="${base_real}/gftb-preview-tailnet"
     [[ -n "$state" && "$state" != / && "$state" != "$home_real" && "$state" != "$root_real" ]] || fail 'state path crossed a protected root'
+    [[ -n "$state" && "$state" != / && "$state" != "$home_real" && "$state" != "$account_home_real" && "$state" != "$root_real" ]] || fail 'state path crossed a protected root'
     [[ "${state%/*}" == "$base_real" ]] || fail 'state path escaped the canonical temporary base'
     printf '%s\n' "$state"
 }
