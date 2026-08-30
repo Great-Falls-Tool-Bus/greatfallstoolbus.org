@@ -31,11 +31,12 @@ against a nonexistent tenant).
 `just preview-tailnet` is re-runnable: it kills its own stale web/worker
 processes and restarts, but keeps the same on-disk Postgres cluster between
 runs, so a seeded tenant survives a rebuild-and-relaunch. `just
-preview-tailnet-down` is what actually deletes the cluster.
+preview-tailnet-down` stops web, worker, Postgres, and the serve mapping while
+retaining the private marked state and Postgres cluster for the next run.
 
 ## What it is
 
-- A throwaway local PostgreSQL 16 cluster (`nix-shell -p postgresql_16`;
+- An operator-local PostgreSQL 16 cluster (`nix-shell -p postgresql_16`;
   `initdb` + `pg_ctl` under a tempdir), with the same migrator/`gftb_app`
   runtime-role split the integration suite's external-server fixture uses
   (`src/lib/server/db/integration-support.ts`) — so this preview exercises
@@ -95,9 +96,9 @@ killed, not just matched by `pgrep -f`.
   invoking uid, mode `0700`, and carry a non-symlink marker binding that
   exact repository path and uid. A state
   directory, marker, data directory, log, or pidfile symlink is refused.
-  Teardown only recursively removes the validated `pgdata` child; it unlinks
-  the fixed log/pid/marker files and finishes with non-recursive `rmdir`, so
-  an unexpected top-level entry makes teardown fail closed.
+  Teardown is intentionally non-destructive: after validating custody, it
+  retains the state directory, marker, logs, and complete `pgdata` tree for
+  reuse. An unexpected top-level entry still makes validation fail closed.
 - **Serializes PRs.** Two branches cannot be previewed simultaneously on the
   same host; switch branches, rebuild, relaunch.
 - **No tunnel/Access parity with production.** Production sits behind

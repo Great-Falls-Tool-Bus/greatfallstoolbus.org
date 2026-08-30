@@ -535,7 +535,7 @@ rehearsal-first-membership:
 # (validated + backstopped, not a bare pidfile trust), then restarts
 # Postgres against the SAME on-disk cluster (not re-initdb'd), so a tenant
 # seeded on a previous run survives a re-run after a code change.
-# `just preview-tailnet-down` throws the cluster away for good.
+# `just preview-tailnet-down` stops the lane but retains its private cluster for reuse.
 #
 # One-command tailnet preview (Postgres + migrations + web + worker) fronted by tailscale serve — HTTPS only, never funnel.
 preview-tailnet:
@@ -797,7 +797,7 @@ preview-tailnet:
     echo "preview-tailnet: up."
     echo "  Web:      ${origin}/  (tailnet identity required; no other network exposure)"
     echo "  Worker:   ${worker_state}"
-    echo "  Postgres: 127.0.0.1:${pg_port}/${db_name} (throwaway — 'just preview-tailnet-down' deletes it)"
+    echo "  Postgres: 127.0.0.1:${pg_port}/${db_name} (private state retained by 'just preview-tailnet-down' for reuse)"
     echo "  Logs:     ${state_dir}/{web,worker,postgres}.log"
     echo "  Down:     just preview-tailnet-down"
     echo ""
@@ -822,11 +822,10 @@ preview-tailnet:
 # `--https=8443 off`, never a blanket `tailscale serve reset`;
 # `preview-tailnet` itself already refuses to start on top of an unrelated
 # pre-existing handler on this port, so this never removes a mapping the
-# lane didn't create). Stops Postgres and deletes the throwaway cluster —
-# even when Postgres cannot be stopped cleanly, the on-disk state is still
-# deleted rather than left running with no trace.
+# lane didn't create). Stops Postgres and preserves the validated private
+# state directory, marker, logs, and pgdata for a later reuse.
 #
-# Tear down the tailnet preview: stop web/worker, remove the tailscale serve mapping, stop Postgres, delete the cluster.
+# Stop the tailnet preview while retaining its validated private state for reuse.
 preview-tailnet-down:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -902,22 +901,21 @@ preview-tailnet-down:
     echo "preview-tailnet-down: removing tailscale serve mapping (https=${web_port})"
     tailscale serve --https="${web_port}" off 2>/dev/null || true
 
-    # This whole block must never abort before the rm -rf below — a failed
-    # nix-shell resolution should not leave Postgres running with no trace
-    # and no diagnosis. `|| true` neutralizes `set -e` on the assignment the
-    # same way `preview-tailnet` does, and `2>&1` (not `2>/dev/null`) keeps
-    # the real nix error visible if resolution does fail.
+    # A failed nix-shell resolution must not hide the stop failure. `|| true`
+    # neutralizes `set -e` on the assignment the same way `preview-tailnet`
+    # does, and `2>&1` (not `2>/dev/null`) keeps the real nix error visible.
+    # State remains private and marked either way; this recipe never deletes it.
     if [ -d "$pgdata" ]; then
         pg_bindir="$(nix-shell -p postgresql_16 --run 'dirname "$(command -v pg_ctl)"' 2>&1 | tail -n 1)" || true
         if [ -x "${pg_bindir}/pg_ctl" ] && "${pg_bindir}/pg_ctl" status -D "$pgdata" >/dev/null 2>&1; then
             "${pg_bindir}/pg_ctl" stop -D "$pgdata" -m fast -w >/dev/null 2>&1 || true
         elif [ ! -x "${pg_bindir}/pg_ctl" ]; then
-            echo "preview-tailnet-down: could not resolve postgresql_16 to stop Postgres cleanly (nix-shell said: ${pg_bindir}) — deleting the cluster's on-disk state anyway." >&2
+            echo "preview-tailnet-down: could not resolve postgresql_16 to stop Postgres cleanly (nix-shell said: ${pg_bindir}) — retaining the cluster's private on-disk state." >&2
         fi
     fi
 
     bash scripts/preview-tailnet-state.sh cleanup "$root_dir" "$state_dir"
-    echo "preview-tailnet-down: done — web/worker process groups stopped, tailscale serve mapping removed, Postgres stopped, ${state_dir} deleted."
+    echo "preview-tailnet-down: done — web/worker process groups stopped, tailscale serve mapping removed, Postgres stop attempted, ${state_dir} retained for reuse."
 
 # ─────────────────────────────────────────────
 # Validation
@@ -1082,9 +1080,54 @@ sbom out_dir="build/sbom":
 check: preview-tailnet-state-contract-check flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints leak-scan-tree leak-scan-src lint typecheck discuss-drafts-validate naming-consent-hashes-verify skills-validate skills-check source-map-check db-check platform-bundles-check test-unit leak-scan-build
     @echo "All checks passed."
 
-# Fail-closed state-path and cleanup contract for the operator-only tailnet preview.
+# Fail-closed state-path and non-destructive preservation contract for the operator-only tailnet preview.
 preview-tailnet-state-contract-check:
     cd {{ root }} && bash scripts/preview-tailnet-state.test.sh
+
+# CI-only exact Bazel-label proof. RUNNER_TEMP must resolve outside both the
+# exported and passwd-database HOME. The private test base is created here,
+# passed as TEST_TMPDIR, and removed only by non-recursive rmdir when empty.
+# Shared-cache reads are allowed; cache writes and remote execution are not.
+preview-tailnet-state-contract-bazel:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ root }}
+    : "${RUNNER_TEMP:?RUNNER_TEMP is required for the remote exact-label proof}"
+    canonical_dir() {
+        local input="$1"
+        [[ -n "$input" && "$input" == /* && -d "$input" ]]
+        (cd -P -- "$input" && pwd -P)
+    }
+    within() {
+        local candidate="$1" parent="$2"
+        [[ "$candidate" == "$parent" || "$candidate" == "$parent"/* ]]
+    }
+    runner_temp="$(canonical_dir "$RUNNER_TEMP")"
+    env_home="$(canonical_dir "${HOME:?HOME is required}")"
+    account_home_raw="$(python3 -c 'import os, pwd; print(pwd.getpwuid(os.getuid()).pw_dir)')"
+    account_home="$(canonical_dir "$account_home_raw")"
+    ! within "$runner_temp" "$env_home" || {
+        echo "preview-tailnet-state-contract-bazel: RUNNER_TEMP is inside HOME" >&2
+        exit 70
+    }
+    ! within "$runner_temp" "$account_home" || {
+        echo "preview-tailnet-state-contract-bazel: RUNNER_TEMP is inside account HOME" >&2
+        exit 70
+    }
+    proof_tmp="$(mktemp -d "${runner_temp}/gftb-preview-state-contract.XXXXXX")"
+    chmod 700 "$proof_tmp"
+    rc=0
+    TEST_TMPDIR="$proof_tmp" \
+      GF_BAZEL_SUBSTRATE_MODE=shared-cache-backed \
+      GF_BAZEL_REMOTE_UPLOAD=false \
+      BAZEL_REMOTE_EXECUTOR= \
+      bash scripts/gloriousflywheel-bazel.sh test \
+        //:preview_tailnet_state_contract_test \
+        --test_env=TEST_TMPDIR="$proof_tmp" \
+        --nocache_test_results \
+        --test_output=errors || rc=$?
+    rmdir -- "$proof_tmp" 2>/dev/null || true
+    exit "$rc"
 
 # Probe the declared production hostnames at the public Cloudflare Access edge.
 production-health-probe:

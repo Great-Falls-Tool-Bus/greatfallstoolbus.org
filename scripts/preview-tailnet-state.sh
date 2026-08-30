@@ -55,10 +55,16 @@ state_path() {
     facts="$(owner_mode "$base_real")" || fail "cannot inspect temporary-base custody: ${base_real}"
     read -r owner mode <<<"$facts"
     mode="${mode#0}"
-    if [[ "$owner" != "$uid" ]]; then
-        [[ "$mode" =~ ^[0-7]{3,4}$ ]] || fail "temporary-base mode is not octal: ${mode}"
-        mode_value=$((8#${mode}))
-        (( (mode_value & 01000) != 0 )) || fail "temporary base is neither uid-owned nor sticky: ${base_real}"
+    [[ "$owner" =~ ^[0-9]+$ && "$mode" =~ ^[0-7]{3,4}$ ]] || fail "temporary-base ownership or mode is invalid: ${base_real}"
+    mode_value=$((8#${mode}))
+    if [[ "$owner" == "$uid" ]]; then
+        (( (mode_value & 0022) == 0 )) ||
+            fail "uid-owned temporary base must not be group/other-writable: ${base_real}"
+    else
+        [[ "$owner" == 0 ]] ||
+            fail "temporary base must be uid-owned or root-owned sticky: ${base_real}"
+        (( (mode_value & 01000) != 0 )) ||
+            fail "root-owned temporary base must carry the sticky bit: ${base_real}"
     fi
 
     state="${base_real}/gftb-preview-tailnet"
@@ -138,33 +144,14 @@ prepare_state() {
 }
 
 cleanup_state() {
-    local root_real expected state pgdata name child marker
+    local root_real expected state
     root_real="$(canonical_dir "$1" 'repository root')"
     expected="$(state_path "$root_real")"
     state="${2:-}"
     [[ -n "$state" && "$state" == "$expected" ]] || fail "cleanup candidate is not the exact state path: ${state:-<empty>}"
     [[ -e "$state" || -L "$state" ]] || return 0
     validate_state "$root_real" "$state"
-
-    pgdata="${state}/pgdata"
-    [[ "$pgdata" == "${expected}/pgdata" ]] || fail 'pgdata target escaped the exact state directory'
-    if [[ -e "$pgdata" || -L "$pgdata" ]]; then
-        [[ ! -L "$pgdata" && -d "$pgdata" ]] || fail 'pgdata target is not a plain directory'
-        rm -rf -- "$pgdata" || fail 'cannot remove validated pgdata child'
-    fi
-
-    for name in postgres.log web.log worker.log web.pid worker.pid; do
-        child="${state}/${name}"
-        if [[ -e "$child" || -L "$child" ]]; then
-            [[ ! -L "$child" && -f "$child" ]] || fail "fixed child changed type: ${name}"
-            rm -f -- "$child" || fail "cannot remove fixed child: ${name}"
-        fi
-    done
-
-    marker="${state}/.gftb-preview-tailnet-owner-v1"
-    [[ ! -L "$marker" && -f "$marker" ]] || fail 'custody marker changed before final cleanup'
-    rm -f -- "$marker" || fail 'cannot remove custody marker'
-    rmdir -- "$state" || fail 'state directory was not empty after exact-child cleanup'
+    printf 'preview-tailnet-state: validated and retained private state at %s\n' "$state" >&2
 }
 
 command="${1:-}"

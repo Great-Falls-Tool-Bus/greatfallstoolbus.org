@@ -3,6 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 helper="${1:-${script_dir}/preview-tailnet-state.sh}"
+justfile="${2:-${script_dir}/../Justfile}"
 passes=0
 fail() { printf 'preview-tailnet-state.test: FAIL: %s\n' "$1" >&2; exit 1; }
 pass() { passes=$((passes + 1)); printf 'ok %d - %s\n' "$passes" "$1"; }
@@ -23,6 +24,24 @@ assert_exists() {
     pass "$label"
 }
 
+if grep -Eq '(^|[[:space:]])(rm|unlink|rmdir|find|xargs)([[:space:]]|$)' "$helper"; then
+    fail 'state helper contains a filesystem deletion primitive'
+fi
+pass 'state helper contains no filesystem deletion primitive'
+
+down_source="$(awk '
+    /^preview-tailnet-down:/ { capture=1 }
+    capture { print }
+    capture && /^# Validation$/ { exit }
+' "$justfile")"
+[[ -n "$down_source" ]] || fail 'could not locate preview-tailnet-down source'
+if grep -Eq 'rm[[:space:]]+-[^[:space:]]*r|find([^[:space:]]|[[:space:]])*-delete|xargs[^\n]*rm' <<<"$down_source"; then
+    fail 'preview-tailnet-down contains a recursive deletion primitive'
+fi
+[[ "$down_source" == *'preview-tailnet-state.sh cleanup "$root_dir" "$state_dir"'* ]] ||
+    fail 'preview-tailnet-down no longer delegates state preservation to the custody helper'
+pass 'preview-tailnet-down delegates to non-destructive cleanup and contains no recursive delete'
+
 scratch_parent="${TEST_TMPDIR:-${TMPDIR:-/tmp}}"
 scratch_parent="$(cd -P -- "$scratch_parent" && pwd -P)"
 test_root="$(mktemp -d "${scratch_parent}/gftb-preview-state-test.XXXXXX")"
@@ -31,8 +50,12 @@ repo_root="${test_root}/repo"
 fake_home="${test_root}/home"
 base_real="${test_root}/base-real"
 base_link="${test_root}/base-link"
+insecure_base="${test_root}/insecure-base"
+sticky_base="${test_root}/sticky-base"
 outside="${test_root}/outside"
-mkdir -m 700 "$repo_root" "$fake_home" "$base_real" "$outside"
+mkdir -m 700 "$repo_root" "$fake_home" "$base_real" "$insecure_base" "$sticky_base" "$outside"
+chmod 0777 "$insecure_base"
+chmod 1777 "$sticky_base"
 ln -s "$base_real" "$base_link"
 printf 'outside-sentinel\n' >"${outside}/sentinel"
 export HOME="$fake_home"
@@ -40,6 +63,11 @@ export TMPDIR="$base_link"
 uid="$(id -u)"
 state="${base_real}/gftb-preview-tailnet"
 marker="${state}/.gftb-preview-tailnet-owner-v1"
+
+expect_fail 'refuses uid-owned mode 0777 temporary base' env TMPDIR="$insecure_base" bash "$helper" path "$repo_root"
+if [[ "$uid" != 0 ]]; then
+    expect_fail 'refuses non-root sticky temporary base' env TMPDIR="$sticky_base" bash "$helper" path "$repo_root"
+fi
 
 expect_eq 'canonicalizes temp base before appending fixed child' "$state" "$(bash "$helper" path "$repo_root")"
 expect_eq 'creates only the computed state directory' "$state" "$(bash "$helper" prepare "$repo_root")"
@@ -70,6 +98,9 @@ expect_fail 'refuses filesystem root as temp base' env TMPDIR=/ bash "$helper" p
 chmod 755 "$state"
 expect_fail 'refuses state directory not mode 0700' bash "$helper" validate "$repo_root" "$state"
 chmod 700 "$state"
+chmod 0644 "$marker"
+expect_fail 'refuses marker mode 0644' bash "$helper" validate "$repo_root" "$state"
+chmod 0600 "$marker"
 printf 'schema=1\nrepo=%s\nuid=not-current\n' "$canonical_repo" >"$marker"
 expect_fail 'refuses marker not bound to invoking uid' bash "$helper" validate "$repo_root" "$state"
 printf '%s\n' "$expected_marker" >"$marker"
@@ -102,16 +133,23 @@ mkdir -m 700 "${state}/pgdata"
 printf 'nested\n' >"${state}/pgdata/nested"
 for child in postgres.log web.log worker.log web.pid worker.pid; do printf 'known\n' >"${state}/${child}"; done
 bash "$helper" cleanup "$repo_root" "$state"
-[[ ! -e "$state" && ! -L "$state" ]] || fail 'valid cleanup did not finish with non-recursive rmdir'
-pass 'valid cleanup removes fixed children and final directory'
-assert_exists 'outside sentinel survives exact-child cleanup' "${outside}/sentinel"
+assert_exists 'cleanup preserves the private state directory' "$state"
+assert_exists 'cleanup preserves custody marker' "$marker"
+assert_exists 'cleanup preserves pgdata directory' "${state}/pgdata"
+assert_exists 'cleanup preserves nested pgdata sentinel' "${state}/pgdata/nested"
+for child in postgres.log web.log worker.log web.pid worker.pid; do
+    assert_exists "cleanup preserves ${child}" "${state}/${child}"
+done
+assert_exists 'outside sentinel survives non-destructive cleanup' "${outside}/sentinel"
 
+for child in postgres.log web.log worker.log web.pid worker.pid; do rm -f -- "${state}/${child}"; done
+rm -f -- "${state}/pgdata/nested" "$marker"
+rmdir -- "${state}/pgdata" "$state"
 ln -s "$outside" "$state"
-expect_fail 'refuses symlink in place of state directory' bash "$helper" cleanup "$repo_root" "$state"
-assert_exists 'outside sentinel survives state symlink rejection' "${outside}/sentinel"
+expect_fail 'refuses replacement symlink in place of state directory' bash "$helper" cleanup "$repo_root" "$state"
+assert_exists 'outside sentinel survives state replacement' "${outside}/sentinel"
 rm -f -- "$state"
 
-# Every test cleanup below is non-recursive and names a path created above.
 rm -f -- "${fake_home}/sentinel" "${outside}/sentinel" "$base_link"
-rmdir -- "${fake_home}/tmp" "${repo_root}/tmp" "$outside" "$base_real" "$fake_home" "$repo_root" "$test_root"
+rmdir -- "${fake_home}/tmp" "${repo_root}/tmp" "$outside" "$sticky_base" "$insecure_base" "$base_real" "$fake_home" "$repo_root" "$test_root"
 printf 'preview-tailnet-state.test: %d checks passed\n' "$passes"
