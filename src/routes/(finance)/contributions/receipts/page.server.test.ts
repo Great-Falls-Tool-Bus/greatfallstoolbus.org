@@ -50,10 +50,7 @@ vi.mock('$lib/server/contribution/receipt', async (importOriginal) => {
 });
 
 import { AuthError } from '$lib/server/auth';
-import {
-	IdempotencyConflictError,
-	ReceiptValidationError,
-} from '$lib/server/contribution/receipt';
+import { IdempotencyConflictError, ReceiptValidationError } from '$lib/server/contribution/receipt';
 import * as readRoute from '../+page.server';
 import * as route from './+page.server';
 
@@ -305,44 +302,47 @@ describe('record action authority and idempotency', () => {
 });
 
 describe('correct action append-only composition', () => {
-	it('runs reversal then replacement in one transaction with stable distinct keys and server-derived identity', async () => {
-		const action = route._createCorrectAction({ env: CONFIGURED_ENV });
-		const malicious = {
-			...CORRECT_FORM,
-			personId: '88888888-8888-4888-8888-888888888888',
-			tenantId: 'attacker-tenant',
-			rail: 'stripe',
-			recordedBy: 'attacker-recorder',
-		};
+	it(
+		'runs reversal then replacement in one transaction with stable distinct keys and server-derived identity',
+		async () => {
+			const action = route._createCorrectAction({ env: CONFIGURED_ENV });
+			const malicious = {
+				...CORRECT_FORM,
+				personId: '88888888-8888-4888-8888-888888888888',
+				tenantId: 'attacker-tenant',
+				rail: 'stripe',
+				recordedBy: 'attacker-recorder',
+			};
 
-		await expect(action(event(malicious))).resolves.toMatchObject({
-			corrected: true,
-			reversalId: REVERSAL_ID,
-			replacementId: REPLACEMENT_ID,
-			deduplicated: false,
-		});
+			await expect(action(event(malicious))).resolves.toMatchObject({
+				corrected: true,
+				reversalId: REVERSAL_ID,
+				replacementId: REPLACEMENT_ID,
+				deduplicated: false,
+			});
 
-		expect(mocks.requireFinance).toHaveBeenCalledWith(mocks.tx, FINANCE_ID);
-		expect(mocks.reverseReceipt).toHaveBeenCalledWith(mocks.tx, {
-			tenantId: TENANT_ID,
-			receiptId: ORIGINAL_ID,
-			recordedBy: FINANCE_ID,
-			note: 'entry correction',
-			idempotencyKey: 'correct:' + OPERATION_ID + ':reverse',
-		});
-		expect(mocks.getAgreement).toHaveBeenCalledWith(mocks.tx, MEMBER_ID);
-		expect(mocks.recordCashCheckReceipt).toHaveBeenCalledWith(
-			mocks.tx,
-			expect.objectContaining({
+			expect(mocks.requireFinance).toHaveBeenCalledWith(mocks.tx, FINANCE_ID);
+			expect(mocks.reverseReceipt).toHaveBeenCalledWith(mocks.tx, {
 				tenantId: TENANT_ID,
-				personId: MEMBER_ID,
-				rail: 'cash',
+				receiptId: ORIGINAL_ID,
 				recordedBy: FINANCE_ID,
-				idempotencyKey: 'correct:' + OPERATION_ID + ':replacement',
-			}),
-		);
-		expect(mocks.callOrder).toEqual(['finance', 'reverse', 'agreement', 'record']);
-	});
+				note: 'entry correction',
+				idempotencyKey: 'correct:' + OPERATION_ID + ':reverse',
+			});
+			expect(mocks.getAgreement).toHaveBeenCalledWith(mocks.tx, MEMBER_ID);
+			expect(mocks.recordCashCheckReceipt).toHaveBeenCalledWith(
+				mocks.tx,
+				expect.objectContaining({
+					tenantId: TENANT_ID,
+					personId: MEMBER_ID,
+					rail: 'cash',
+					recordedBy: FINANCE_ID,
+					idempotencyKey: 'correct:' + OPERATION_ID + ':replacement',
+				}),
+			);
+			expect(mocks.callOrder).toEqual(['finance', 'reverse', 'agreement', 'record']);
+		},
+	);
 
 	it('keeps both correction keys stable on replay and reports domain deduplication', async () => {
 		mocks.reverseReceipt

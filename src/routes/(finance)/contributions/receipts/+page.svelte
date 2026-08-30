@@ -111,8 +111,12 @@
 										· reversal of {receipt.reversesId.slice(0, 8)}…
 									{/if}
 								</p>
-								{#if receipt.note}<p class="meta">{receipt.note}</p>{/if}
-								{#if receipt.checkRefLast4}<p class="meta">Check reference ending {receipt.checkRefLast4}</p>{/if}
+								{#if receipt.note}
+									<p class="meta">{receipt.note}</p>
+								{/if}
+								{#if receipt.checkRefLast4}
+									<p class="meta">Check reference ending {receipt.checkRefLast4}</p>
+								{/if}
 
 								{#if receipt.correctable}
 									<details>
