@@ -86,7 +86,7 @@
 								type="text"
 								name="checkRefLast4"
 								inputmode="numeric"
-								pattern="[0-9]{1,4}"
+								pattern="[0-9]{(1, 4)}"
 								maxlength="4"
 								autocomplete="off"
 							/>
@@ -156,7 +156,7 @@
 														name="checkRefLast4"
 														value={receipt.checkRefLast4 ?? ''}
 														inputmode="numeric"
-														pattern="[0-9]{1,4}"
+														pattern="[0-9]{(1, 4)}"
 														maxlength="4"
 														autocomplete="off"
 													/>
