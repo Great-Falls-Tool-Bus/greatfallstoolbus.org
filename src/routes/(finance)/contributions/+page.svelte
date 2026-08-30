@@ -21,6 +21,7 @@
 
 <main class="finance">
 	<h1>Contributions</h1>
+	<p><a href="/contributions/receipts">Record or correct cash/check receipts</a></p>
 
 	{#if !data.available}
 		<p>This page is not available on this build.</p>
