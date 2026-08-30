@@ -212,12 +212,24 @@ js_test(
     visibility = ["//visibility:public"],
 )
 
-# Pure, finite custody/deletion negative controls. Cacheable in the Bazel
-# graph, but not an approved remote-execution target class.
+# Pure, finite custody/deletion negative controls. Keep tracked scripts
+# non-executable and invoke them explicitly through Bash. Native sh_test
+# requires one executable src, so a finite launcher is generated for Bazel;
+# the test body remains the same file the Just recipe invokes.
+genrule(
+    name = "preview_tailnet_state_contract_test_runner",
+    outs = ["preview-tailnet-state-contract-test-runner.sh"],
+    cmd = "printf %s\\n \"#!/usr/bin/env bash\" \"exec bash \\\"$${TEST_SRCDIR}/$${TEST_WORKSPACE}/scripts/preview-tailnet-state.test.sh\\\" \\\"$${TEST_SRCDIR}/$${TEST_WORKSPACE}/scripts/preview-tailnet-state.sh\\\"\" > \"$@\" && chmod 0555 \"$@\"",
+    executable = True,
+)
+
 sh_test(
     name = "preview_tailnet_state_contract_test",
-    srcs = ["scripts/preview-tailnet-state.test.sh"],
-    data = ["scripts/preview-tailnet-state.sh"],
+    srcs = [":preview_tailnet_state_contract_test_runner"],
+    data = [
+        "scripts/preview-tailnet-state.sh",
+        "scripts/preview-tailnet-state.test.sh",
+    ],
     tags = [
         "gloriousflywheel-cache-only",
         "no-remote-exec",

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 script_dir="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-helper="${script_dir}/preview-tailnet-state.sh"
+helper="${1:-${script_dir}/preview-tailnet-state.sh}"
 passes=0
 fail() { printf 'preview-tailnet-state.test: FAIL: %s\n' "$1" >&2; exit 1; }
 pass() { passes=$((passes + 1)); printf 'ok %d - %s\n' "$passes" "$1"; }
@@ -72,6 +72,19 @@ printf 'schema=1\nrepo=%s\nuid=not-current\n' "$canonical_repo" >"$marker"
 expect_fail 'refuses marker not bound to invoking uid' bash "$helper" validate "$repo_root" "$state"
 printf '%s\n' "$expected_marker" >"$marker"
 chmod 600 "$marker"
+
+rm -f -- "$marker"
+ln -s "${outside}/sentinel" "$marker"
+expect_fail 'refuses symlinked custody marker' bash "$helper" cleanup "$repo_root" "$state"
+assert_exists 'outside sentinel survives marker-symlink rejection' "${outside}/sentinel"
+rm -f -- "$marker"
+printf '%s\n' "$expected_marker" >"$marker"
+chmod 600 "$marker"
+
+ln -s "$outside" "${state}/pgdata"
+expect_fail 'refuses symlinked pgdata child' bash "$helper" cleanup "$repo_root" "$state"
+assert_exists 'outside sentinel survives pgdata-symlink rejection' "${outside}/sentinel"
+rm -f -- "${state}/pgdata"
 
 printf 'unexpected\n' >"${state}/unexpected"
 expect_fail 'refuses unknown top-level child' bash "$helper" cleanup "$repo_root" "$state"
