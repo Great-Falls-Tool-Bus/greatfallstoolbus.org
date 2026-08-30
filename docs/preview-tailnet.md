@@ -31,8 +31,8 @@ against a nonexistent tenant).
 `just preview-tailnet` is re-runnable: it kills its own stale web/worker
 processes and restarts, but keeps the same on-disk Postgres cluster between
 runs, so a seeded tenant survives a rebuild-and-relaunch. `just
-preview-tailnet-down` stops web and worker, removes the serve mapping, attempts
-a clean Postgres stop, and retains the private marked state and cluster for the
+preview-tailnet-down` attempts web/worker stops, serve-mapping removal, and a
+clean Postgres stop; it retains the private marked state and cluster for the
 next run.
 
 ## What it is

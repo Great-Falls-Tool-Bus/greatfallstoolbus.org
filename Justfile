@@ -815,17 +815,17 @@ preview-tailnet:
     echo "    just preview-tailnet   # re-run; the worker will now dispatch for this tenant"
     echo ""
 
-# Kill web/worker by whole process group (validated + pgrep-backstopped —
+# Attempt to stop web/worker by whole process group (validated + pgrep-backstopped —
 # same `kill_lane_group` shape as `preview-tailnet`'s own stale-kill step;
 # see that recipe's header comment for why a bare pidfile pid cannot be
-# trusted here). Removes the tailscale serve mapping (scoped
+# trusted here). Attempts to remove the tailscale serve mapping (scoped
 # `--https=8443 off`, never a blanket `tailscale serve reset`;
 # `preview-tailnet` itself already refuses to start on top of an unrelated
-# pre-existing handler on this port, so this never removes a mapping the
-# lane didn't create). Attempts a clean Postgres stop and preserves the validated private
+# pre-existing handler on this port, so the attempt never targets a mapping
+# the lane didn't create). Attempts a clean Postgres stop and preserves the validated private
 # state directory, marker, logs, and pgdata for a later reuse.
 #
-# Stop the tailnet preview while retaining its validated private state for reuse.
+# Attempt to stop the tailnet preview while retaining its validated private state for reuse.
 preview-tailnet-down:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -898,7 +898,7 @@ preview-tailnet-down:
     kill_lane_group web "$web_marker"
     kill_lane_group worker "$worker_marker"
 
-    echo "preview-tailnet-down: removing tailscale serve mapping (https=${web_port})"
+    echo "preview-tailnet-down: attempting to remove tailscale serve mapping (https=${web_port})"
     tailscale serve --https="${web_port}" off 2>/dev/null || true
 
     # A failed nix-shell resolution must not hide the stop failure. `|| true`
@@ -915,7 +915,7 @@ preview-tailnet-down:
     fi
 
     bash scripts/preview-tailnet-state.sh cleanup "$root_dir" "$state_dir"
-    echo "preview-tailnet-down: done — web/worker process groups stopped, tailscale serve mapping removed, Postgres stop attempted, ${state_dir} retained for reuse."
+    echo "preview-tailnet-down: done — web/worker process-group stops attempted, tailscale serve mapping removal attempted, Postgres stop attempted; ${state_dir} retained for reuse."
 
 # ─────────────────────────────────────────────
 # Validation
