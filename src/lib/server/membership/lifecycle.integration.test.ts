@@ -272,7 +272,7 @@ async function isolateTenant(): Promise<void> {
 /** Apply `event` to the scenario through the real transition functions. */
 async function applyEvent(s: Scenario, event: MembershipEvent) {
 	switch (event) {
-		case 'assent_and_activate':
+		case 'activate':
 			return activate(s.applicationId);
 		case 'pause':
 			return withTenant(

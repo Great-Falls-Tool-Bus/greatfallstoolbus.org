@@ -1,8 +1,7 @@
 /**
- * `/assent` — M1 `assent_and_activate` (TIN-3440 slice S6; spec §4
- * "Activation requires an approved application, assent to the current
- * agreement version, password/session creation, and an audit commit";
- * slices §2.2 row 10).
+ * `/assent` — the legacy link path for M1 activation (TIN-3440 slice S6;
+ * decision 0024). Activation itself records the exact agreement version shown;
+ * there is no separate checkbox or second assent event.
  *
  * The decision email's activation link is a GET carrying `?token=…`; GET
  * renders the CURRENT agreement text and the password form and MUTATES
@@ -108,12 +107,8 @@ export function _createActivateAction(seams: AssentSeams = {}) {
 		const password = form.get('password');
 		const confirm = form.get('confirmPassword');
 		const versionRaw = form.get('agreementVersionId');
-		const assented = form.get('assent');
 
 		if (typeof token !== 'string' || token.trim().length === 0) return fail(400, INVALID);
-		// The assent checkbox is REQUIRED and unchecked by default — assent is
-		// an act, never a form default (the S4 attestation posture).
-		if (assented !== 'true') return fail(400, { code: 'assent_required' as const });
 		if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
 			return fail(400, { code: 'password_too_short' as const, minLength: MIN_PASSWORD_LENGTH });
 		}

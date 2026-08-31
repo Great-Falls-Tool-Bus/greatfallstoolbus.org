@@ -11,12 +11,12 @@
 </script>
 
 <svelte:head>
-	<title>Membership agreement — Great Falls Tool Bus</title>
+	<title>Activate membership — Great Falls Tool Bus</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
 <main class="assent">
-	<h1>Membership agreement</h1>
+	<h1>Activate membership</h1>
 
 	{#if form && 'activated' in form}
 		<p>Your membership is active. Welcome aboard.</p>
@@ -39,8 +39,6 @@
 					Please choose a longer password.
 				{:else if form.code === 'password_mismatch'}
 					The passwords do not match.
-				{:else if form.code === 'assent_required'}
-					Please read and agree to the membership agreement to continue.
 				{:else}
 					Activation could not be completed. Please try again or reply to your approval email.
 				{/if}
@@ -66,11 +64,6 @@
 			<input type="hidden" name="agreementVersionId" value={data.agreement.id} />
 
 			<label>
-				<input type="checkbox" name="assent" value="true" />
-				I have read and agree to the membership agreement above.
-			</label>
-
-			<label>
 				Choose a password
 				<input type="password" name="password" autocomplete="new-password" required minlength="12" />
 			</label>
@@ -80,7 +73,7 @@
 			</label>
 
 			<button type="submit" disabled={submitting}>
-				{submitting ? 'Activating…' : 'Agree and activate membership'}
+				{submitting ? 'Activating…' : 'Activate membership'}
 			</button>
 		</form>
 	{/if}
