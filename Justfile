@@ -140,10 +140,21 @@ _house-hydrate:
     fi
 
     graph_key_before="$(graph_key_now)"
-    root_flag="--output_user_root=${BAZEL_OUTPUT_USER_ROOT:-${TMPDIR:-/tmp}/gftb-bazel-user-root}"
+    # Hydration shares the AMBIENT Bazel root by default. Forcing a private
+    # --output_user_root here cost twice: (1) a policy-managed macOS seat that
+    # pins its own Bazel root rejects any caller override, so every recipe that
+    # depends on _house-hydrate (dev/build/typecheck/lint/test-unit/...) fails
+    # before it starts; (2) in CI it stands up a SECOND Bazel install base,
+    # output base, and JVM server beside the one ci-templates' flywheel-bazel
+    # action already runs in the same ephemeral runner. Honor an explicit
+    # BAZEL_OUTPUT_USER_ROOT and otherwise pass nothing.
+    root_args=()
+    if [[ -n "${BAZEL_OUTPUT_USER_ROOT:-}" ]]; then
+      root_args+=("--output_user_root=${BAZEL_OUTPUT_USER_ROOT}")
+    fi
     targets=()
     for p in "${pkgs[@]}"; do targets+=("//:node_modules/@tummycrypt/$p"); done
-    bazelisk "$root_flag" build "${targets[@]}"
+    bazelisk ${root_args[@]+"${root_args[@]}"} build "${targets[@]}"
 
     # A long Bazel build must not create a stale attestation: re-read all four
     # graph inputs before trusting any output or publishing the stamp.
