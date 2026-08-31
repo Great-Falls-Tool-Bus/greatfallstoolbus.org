@@ -111,10 +111,7 @@ export interface SubmissionInput {
  * `pick`, `amount`, payment, or Stripe fields are never forwarded to the
  * validator, database, reviewer projection, or outbox.
  */
-export function applicationSubmissionFromForm(
-	form: FormData,
-	idempotencyKey?: string,
-): Record<string, unknown> {
+export function applicationSubmissionFromForm(form: FormData, idempotencyKey?: string): Record<string, unknown> {
 	const submission: Record<string, unknown> = {
 		displayName: form.get('displayName') ?? '',
 		email: form.get('email') ?? '',
