@@ -6,6 +6,7 @@
  * through. Database-bound behaviour lives in application.integration.test.ts.
  */
 
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
 	InvalidSubmissionError,
@@ -27,6 +28,15 @@ function input(overrides: Record<string, unknown> = {}): Record<string, unknown>
 	};
 }
 
+function markupBetween(source: string, start: string, end: string): string {
+	const startIndex = source.indexOf(start);
+	const endIndex = source.indexOf(end, startIndex);
+	if (startIndex < 0 || endIndex < startIndex) {
+		throw new Error(`expected markup from ${JSON.stringify(start)} through ${JSON.stringify(end)}`);
+	}
+	return source.slice(startIndex, endIndex + end.length);
+}
+
 function failedFields(raw: Record<string, unknown>): readonly string[] {
 	try {
 		validateSubmission(raw);
@@ -38,6 +48,32 @@ function failedFields(raw: Record<string, unknown>): readonly string[] {
 }
 
 describe('applicationSubmissionFromForm — the read-only preview cannot enter A2', () => {
+	it('the no-script native form serializes only application fields; preview controls are unsuccessful', () => {
+		const source = readFileSync(new URL('../../../routes/apply/+page.svelte', import.meta.url), 'utf8');
+		const preview = markupBetween(source, '<fieldset class="contribution-preview"', '</fieldset>');
+		const applicationForm = markupBetween(source, '<form', '</form>');
+
+		expect(source.indexOf(preview)).toBeLessThan(source.indexOf(applicationForm));
+		expect(preview).toContain('type="range"');
+		expect(preview).not.toMatch(/\bname\s*=/);
+		expect(applicationForm).toContain('method="POST"');
+
+		const successfulControlNames = [
+			...applicationForm.matchAll(/<(?:input|textarea|select)\b[^>]*\bname=["']([^"']+)["']/g),
+		].map((match) => match[1]);
+		expect(successfulControlNames).toEqual([
+			'displayName',
+			'email',
+			'interestsHelpOffer',
+			'tourAvailability',
+			'disclosures',
+			'ageAttested',
+		]);
+		expect(successfulControlNames).not.toEqual(
+			expect.arrayContaining(['pick', 'amount', 'helpRequested', 'paymentIntent', 'stripeToken']),
+		);
+	});
+
 	it('projects exactly the application fields and drops hostile money-shaped controls', () => {
 		const form = new FormData();
 		for (const [key, value] of Object.entries({

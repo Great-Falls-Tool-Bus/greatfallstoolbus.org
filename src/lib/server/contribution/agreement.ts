@@ -4,8 +4,10 @@
  *
  * The choice set is EXACTLY spec §5's: $0, the $5/$10/$20/$50 monthly presets,
  * server-validated integer-cent custom amounts ($5–$500 monthly or $60–$6,000
- * annually), cash, and check. The visual slider — when a UI exists — is never
- * payment authority (ADR 0014 §5); this module is.
+ * annually), cash, and check. The application surface may preview those
+ * choices, but a durable choice, its recording, and every processor handoff
+ * remain available only after approval and Active membership (ADR 0014 §5.1).
+ * The visual slider is never payment authority; this module is.
  *
  * Every write here takes the transaction handle `withTenant` hands out, so a
  * call site structurally cannot touch another tenant's agreement: the RLS
@@ -20,20 +22,19 @@ import { eq, sql } from 'drizzle-orm';
 import type { DbTransaction } from '../db/client';
 import { contributionAgreement, type ContributionAgreement } from '../db/schema';
 
-/** $5, $10, $20, $50 — the monthly presets, in integer cents. */
-export const MONTHLY_PRESETS_CENTS = Object.freeze([500, 1000, 2000, 5000]);
+import {
+	CUSTOM_ANNUAL_CENTS,
+	CUSTOM_MONTHLY_CENTS,
+	MONTHLY_PRESETS_CENTS,
+	type ContributionChoice,
+} from './offer-contract';
 
-/** Custom monthly bounds, integer cents: $5–$500 (spec §5). */
-export const CUSTOM_MONTHLY_CENTS = Object.freeze({ min: 500, max: 50_000 });
-
-/** Custom annual bounds, integer cents: $60–$6,000 (spec §5). */
-export const CUSTOM_ANNUAL_CENTS = Object.freeze({ min: 6_000, max: 600_000 });
-
-export type ContributionChoice =
-	| { kind: 'zero' }
-	| { kind: 'cash' }
-	| { kind: 'check' }
-	| { kind: 'stripe'; cadence: 'monthly' | 'annual'; amountCents: number };
+export {
+	CUSTOM_ANNUAL_CENTS,
+	CUSTOM_MONTHLY_CENTS,
+	MONTHLY_PRESETS_CENTS,
+	type ContributionChoice,
+} from './offer-contract';
 
 export class ContributionChoiceError extends Error {}
 

@@ -13,11 +13,15 @@
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let submitting = $state(false);
 
-	const cardPresets = data.contributionPreview.presetsCents.filter((cents) => cents > 0);
-	let previewCents = $state(
-		cardPresets[Math.floor(cardPresets.length / 2)] ?? data.contributionPreview.customMonthlyCents.min,
+	const cardPresetDollars = data.contributionPreview.presetsCents
+		.filter((cents) => cents > 0)
+		.map((cents) => cents / 100);
+	const previewMinimumDollars = data.contributionPreview.customMonthlyCents.min / 100;
+	const previewMaximumDollars = data.contributionPreview.customMonthlyCents.max / 100;
+	let previewDollars = $state(
+		cardPresetDollars[Math.floor(cardPresetDollars.length / 2)] ?? previewMinimumDollars,
 	);
-	const dollars = (cents: number) => (cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`);
+	const dollars = (amount: number) => (Number.isInteger(amount) ? `$${amount}` : `$${amount.toFixed(2)}`);
 </script>
 
 <svelte:head>
@@ -66,30 +70,42 @@
 		<fieldset class="contribution-preview" aria-describedby="contribution-preview-note">
 			<legend>Optional contribution preview</legend>
 			<p id="contribution-preview-note">
-				This preview is not part of your application. Moving the slider records nothing and starts no payment. If your
-				membership becomes active, you can choose then or skip this step.
+				This preview is not part of your application. It records nothing and starts no payment. A durable choice, its
+				recording, and every processor handoff are available only after approval and Active membership.
 			</p>
 
-			<label for="contribution-preview-slider">
-				Card amount preview: <output>{dollars(previewCents)} per month</output>
+			<label id="contribution-preview-slider-label" for="contribution-preview-slider">
+				<span>Card amount preview</span>
+				<output id="contribution-preview-value" for="contribution-preview-slider" aria-live="polite">
+					{dollars(previewDollars)} per month
+				</output>
 			</label>
 			<input
 				id="contribution-preview-slider"
 				type="range"
-				min={data.contributionPreview.customMonthlyCents.min}
-				max={data.contributionPreview.customMonthlyCents.max}
-				step="100"
-				bind:value={previewCents}
+				min={previewMinimumDollars}
+				max={previewMaximumDollars}
+				step="1"
+				bind:value={previewDollars}
+				aria-labelledby="contribution-preview-slider-label contribution-preview-value"
+				aria-describedby="contribution-preview-note contribution-preview-no-script"
+				aria-valuetext={`${dollars(previewDollars)} per month`}
 			/>
+			<p id="contribution-preview-no-script">
+				Without scripting, moving the native slider does not update the amount shown. It still submits and records
+				nothing.
+			</p>
 
 			<ul class="contribution-choices" aria-label="Available contribution choices">
 				<li><strong>$0</strong> — no payment</li>
 				<li>
 					<strong>Card</strong> — monthly presets
-					{cardPresets.map(dollars).join(', ')}, or a custom amount
+					{cardPresetDollars.map(dollars).join(', ')}, or a custom amount
 				</li>
 				{#each data.contributionPreview.rails as rail (rail)}
-					<li><strong>{rail === 'cash' ? 'Cash' : 'Check'}</strong> — arranged after activation</li>
+					<li>
+						<strong>{rail === 'cash' ? 'Cash' : 'Check'}</strong> — available after approval and Active membership
+					</li>
 				{/each}
 			</ul>
 		</fieldset>

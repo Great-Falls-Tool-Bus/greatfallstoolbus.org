@@ -5,9 +5,9 @@
  * A grep-shaped assertion: no module under `src/lib/server/membership/` may
  * import from `src/lib/server/contribution/` or `src/lib/server/stripe/`.
  * The membership rows now exist, so both directions bind live. The one
- * pre-approval exception is presentation-only: `/apply` may import the pure
- * `contributionOfferShape`, but never the parser, writer, Stripe gateway, or
- * checkout path.
+ * application exception is presentation-only: `/apply` may import only the
+ * zero-import offer contract, never the parser, writer, schema, Stripe
+ * gateway, or checkout path.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -36,14 +36,27 @@ function importsIn(file: string): string[] {
 	return [...source.matchAll(/(?:from\s+|import\s*\(\s*)['"]([^'"]+)['"]/g)].map((m) => m[1]);
 }
 
-describe('the pre-approval contribution preview is presentation-only', () => {
-	it('/apply imports only the canonical pure shape and no writer or payment rail', () => {
+describe('the application contribution preview is presentation-only', () => {
+	it('the canonical offer contract has zero imports or writer/payment dependencies', () => {
+		const contract = path.join(serverRoot, 'contribution', 'offer-contract.ts');
+		const source = readFileSync(contract, 'utf8');
+
+		// Zero direct imports means there is no transitive path from this
+		// application-readable module into the database or payment graph.
+		expect(importsIn(contract)).toEqual([]);
+		expect(source).toContain('contributionOfferShape');
+		expect(source).not.toMatch(
+			/\b(?:drizzle|DbTransaction|ContributionAgreement|chooseContribution|parseOfferForm|createStripeGateway)\b|\/db\/|\/stripe\//,
+		);
+	});
+
+	it('/apply imports only the zero-import contract and no writer or payment rail', () => {
 		const applyServer = path.resolve(serverRoot, '../../routes/apply/+page.server.ts');
 		const source = readFileSync(applyServer, 'utf8');
 		const imports = importsIn(applyServer);
 
 		expect(imports.filter((specifier) => specifier.includes('/contribution/'))).toEqual([
-			'$lib/server/contribution/offer',
+			'$lib/server/contribution/offer-contract',
 		]);
 		expect(imports.filter((specifier) => specifier.includes('/stripe/'))).toEqual([]);
 		expect(source).toContain('contributionOfferShape()');

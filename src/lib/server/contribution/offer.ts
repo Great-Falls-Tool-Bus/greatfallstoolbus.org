@@ -2,26 +2,24 @@
  * The member-facing contribution OFFER (TIN-3818 presentation contract;
  * spec §5:230–232; ADR 0014 §5).
  *
- * This module is the one place the offer's shape and the form-to-choice
- * parsing live, so the page and the validator cannot drift apart: the page
- * renders exactly what `contributionOfferShape()` serves, and every submitted
+ * The dependency-free `offer-contract.ts` owns the presentation shape.
+ * This module owns the form-to-choice parser: every submitted active-member
  * form runs through `parseOfferForm` → `validateChoice` — the server is
  * payment authority, "the visual slider is never payment authority"
- * (ADR 0014 §5).
+ * (ADR 0014 §5.1).
  *
  * The choice set is EXACTLY TIN-3818's: $0/$5/$10/$20/$50 monthly presets,
  * custom monthly $5–$500, custom annual $60–$6,000 (integer cents,
  * server-validated), cash, and check — cash and check first-class rails,
  * equal to card in every membership consequence (ADR 0016 §3.1).
  *
- * PRESENTATION / RECORDING SPLIT (TIN-4227 ruling, replacing ADR 0014 §5's
- * stale "offer appears only after approval" wording): the pure
- * `contributionOfferShape()` may render before approval as a read-only
- * preview. No preview value is submitted or retained. Parsing, recording a
- * durable choice, and every payment rail remain behind the ACTIVE-membership
- * route (member-projection-flow.mmd hangs that mutation off Active). Skipping
- * the durable offer is valid; $0 is a real recorded choice once chosen there,
- * not an absence.
+ * PRESENTATION / RECORDING SPLIT (ADR 0014 §5.1; TIN-4227): the pure
+ * `contributionOfferShape()` may render during application as a read-only
+ * preview. It submits no contribution field and creates no state or provider
+ * object. A durable choice, its recording, and every processor handoff remain
+ * available only after approval and Active membership. Skipping the durable
+ * offer is valid; $0 is a real recorded choice once chosen there, not an
+ * absence.
  *
  * Copy rule (ADR 0014 §0.6 / ADR 0016 §2): "contribution", never "donation".
  *
@@ -35,32 +33,11 @@ import {
 	CUSTOM_ANNUAL_CENTS,
 	CUSTOM_MONTHLY_CENTS,
 	MONTHLY_PRESETS_CENTS,
-	ContributionChoiceError,
-	validateChoice,
 	type ContributionChoice,
-} from './agreement';
+} from './offer-contract';
+import { ContributionChoiceError, validateChoice } from './agreement';
 
-/**
- * The closed shape the offer page renders, served by the server so the UI
- * has no numeric authority of its own. `presetsCents` includes 0: TIN-3818
- * names the presets "$0, $5, $10, $20, $50 monthly" — $0 is a preset in the
- * presentation and the `zero` kind in the aggregate.
- */
-export interface ContributionOfferShape {
-	presetsCents: readonly number[];
-	customMonthlyCents: { readonly min: number; readonly max: number };
-	customAnnualCents: { readonly min: number; readonly max: number };
-	rails: readonly ['cash', 'check'];
-}
-
-export function contributionOfferShape(): ContributionOfferShape {
-	return {
-		presetsCents: Object.freeze([0, ...MONTHLY_PRESETS_CENTS]),
-		customMonthlyCents: CUSTOM_MONTHLY_CENTS,
-		customAnnualCents: CUSTOM_ANNUAL_CENTS,
-		rails: ['cash', 'check'],
-	};
-}
+export { contributionOfferShape, type ContributionOfferShape } from './offer-contract';
 
 /**
  * A member's read of their OWN contribution — their data, their session.

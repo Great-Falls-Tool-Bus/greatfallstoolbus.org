@@ -14,8 +14,9 @@
  *     fails loudly rather than being dropped silently), and the table has no
  *     such column. The read-only contribution preview on `/apply` is
  *     presentation-only: its controls never enter the application form or
- *     this payload. "Applicants have no contribution state before approval"
- *     remains true (TIN-3440; contract A2 guard: "no contribution field
+ *     this payload. A durable choice, its recording, and every processor
+ *     handoff remain available only after approval and Active membership
+ *     (ADR 0014 §5.1; TIN-3440 contract A2 guard: "no contribution field
  *     accepted, structurally").
  *   - Approval logic. Claim/decide are S5's (`application/{claim,decide}.ts`);
  *     nothing here reads or writes past `email_verified`.
