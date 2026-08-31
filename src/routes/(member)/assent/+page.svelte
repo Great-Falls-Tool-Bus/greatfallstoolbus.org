@@ -50,6 +50,14 @@
 			<p class="digest">Version {data.agreement.id}</p>
 		</section>
 
+		<!-- Decision 0024 §2: activation IS the assent. This sentence is the
+		     member-facing statement of that; there is no separate checkbox and
+		     no second consent event. -->
+		<p class="agreement-notice">
+			Completing activation records your agreement to version {data.agreement.id} above. Your member account will show
+			that exact version.
+		</p>
+
 		<form
 			method="POST"
 			use:enhance={() => {
