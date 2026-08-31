@@ -54,8 +54,8 @@
 		     member-facing statement of that; there is no separate checkbox and
 		     no second consent event. -->
 		<p class="agreement-notice">
-			Completing activation records your agreement to version {data.agreement.id} above. Your member account will show
-			that exact version.
+			Completing activation records your agreement to version {data.agreement.id} above. Your member account will show that
+			exact version.
 		</p>
 
 		<form
