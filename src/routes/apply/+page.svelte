@@ -18,7 +18,9 @@
 		.map((cents) => cents / 100);
 	const previewMinimumDollars = data.contributionPreview.customMonthlyCents.min / 100;
 	const previewMaximumDollars = data.contributionPreview.customMonthlyCents.max / 100;
-	let previewDollars = $state(cardPresetDollars[Math.floor(cardPresetDollars.length / 2)] ?? previewMinimumDollars);
+	let previewDollars = $state(
+		cardPresetDollars[Math.floor(cardPresetDollars.length / 2)] ?? previewMinimumDollars,
+	);
 	const dollars = (amount: number) => (Number.isInteger(amount) ? `$${amount}` : `$${amount.toFixed(2)}`);
 </script>
 
