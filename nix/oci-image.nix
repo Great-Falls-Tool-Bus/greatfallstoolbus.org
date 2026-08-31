@@ -31,22 +31,22 @@
 # packaging/push is never remote-execution eligible (skill rule 8;
 # `container-image-and-push` is blocked at the GF manifest layer).
 #
-# adapter-node bundles the project's (pure-JS) production dependencies into the
-# server output, so the runtime image needs only build/ + package.json + a Node
-# runtime — it does not ship node_modules (unlike the belt-and-suspenders local
-# ContainerFile). If a future native runtime dependency appears, add the
-# production node_modules here.
+# adapter-node externalizes package.json dependencies. The fallback therefore
+# receives the same frozen pnpm + Bazel-hydrated node_modules tree as the primary
+# flake image. First-party packages remain Bzlmod :pkg outputs; this adds no npm
+# source rail.
 #
 # nixpkgs resolves from the ambient GloriousFlywheel `#ci` devshell (`<nixpkgs>`
 # on NIX_PATH); no endpoint, token, or cache authority is embedded here.
 {
   # `throw` defaults (not bare required args) so that `-A skopeo` — which resolves
   # skopeo from this file's pinned pkgs and does NOT reference the app layers —
-  # can be evaluated WITHOUT `--arg appBuild/appPackageJson`. Nix is lazy: these
+  # can be evaluated without appBuild/appNodeModules/appPackageJson arguments. Nix is lazy: these
   # throws only fire if the `image` attr is forced (via appRoot) without the args
   # being supplied, giving a clear message instead of the opaque "argument without
-  # a value" error. `-A image` passes both via `--arg`, overriding these defaults.
+  # a value" error. `-A image` passes all runtime inputs explicitly, overriding these defaults.
   appBuild ? throw "nix/oci-image.nix: building the 'image' attr requires --arg appBuild \"$PWD/build\" (the ADAPTER=node output); it is not needed for -A skopeo.",
+  appNodeModules ? throw "nix/oci-image.nix: building the 'image' attr requires --arg appNodeModules \"$PWD/node_modules\" after Bazel-only hydration; it is not needed for -A skopeo.",
   appPackageJson ? throw "nix/oci-image.nix: building the 'image' attr requires --arg appPackageJson \"$PWD/package.json\"; it is not needed for -A skopeo.",
   # server.js (TIN-3959): the custom adapter-node entrypoint that wraps
   # build/handler.js with the Cache-Control/ETag fix — see server.js's own
@@ -66,6 +66,7 @@ let
   appRoot = pkgs.runCommand "greatfallstoolbus-app" { } ''
     mkdir -p "$out/app"
     cp -a ${appBuild} "$out/app/build"
+    cp -a ${appNodeModules} "$out/app/node_modules"
     cp -a ${appPackageJson} "$out/app/package.json"
     cp -a ${appServer} "$out/app/server.js"
     cp -a ${appMigrations} "$out/app/drizzle"
@@ -81,6 +82,16 @@ let
       echo "  Run 'just worker-bundle' before building the image." >&2
       exit 1
     }
+    for required_package in \
+      @tummycrypt/tinyland-auth \
+      @tummycrypt/tinyland-auth-pg \
+      drizzle-orm \
+      pg; do
+      test -f "$out/app/node_modules/$required_package/package.json" || {
+        echo "nix/oci-image.nix: external runtime package is missing: $required_package" >&2
+        exit 1
+      }
+    done
   '';
 
   # ONE image, THREE stable process names (spec §6, TIN-3815 S0) — mirrors the

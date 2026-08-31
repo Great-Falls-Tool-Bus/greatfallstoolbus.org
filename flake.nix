@@ -130,22 +130,32 @@
         # never flips a live route; the infra apply plane owns promotion.
         n2c = nix2container.packages.${system}.nix2container;
 
-        # The adapter-node build/ output is produced IMPERATIVELY by
-        # `ADAPTER=node pnpm run build` (kept as the GloriousFlywheel
-        # cache-accelerated input, NOT a hermetic Nix build) and imported via the
-        # APP_BUILD env under `--impure`. build/ is gitignored, so it cannot ride
-        # the flake source tree; getEnv is the deliberate escape hatch. The commit
-        # metadata rides the same impure channel. All default gates (format, lint,
-        # typecheck, test-unit, build) leave `.#image` unforced, so pure eval never
-        # touches these throws.
+        # The adapter-node build/ output is produced imperatively by
+        # ADAPTER=node pnpm run build (kept as the GloriousFlywheel
+        # cache-accelerated input, not a hermetic Nix build) and imported via
+        # APP_BUILD under --impure. adapter-node externalizes packages listed
+        # in package.json dependencies, so the complete Node layout produced by
+        # frozen pnpm plus Bazel-only _house-hydrate is separately imported via
+        # APP_NODE_MODULES. Both paths are gitignored and cannot ride the flake
+        # source tree. Default gates leave these attributes unforced; the
+        # protected runtime-closure proof and image recipes supply both paths.
         appBuildEnv = builtins.getEnv "APP_BUILD";
         appBuild =
           if appBuildEnv == "" then
-            throw "flake .#image requires APP_BUILD=$PWD/build (the ADAPTER=node output); build it via `just container-image-publish` / `just container-image-build`, which run `nix run --impure`."
+            throw "flake image/runtime proof requires APP_BUILD=$PWD/build (the ADAPTER=node output); use a container-image Just recipe, which runs nix with --impure."
           else
             builtins.path {
               name = "gftb-adapter-node-build";
               path = appBuildEnv;
+            };
+        appNodeModulesEnv = builtins.getEnv "APP_NODE_MODULES";
+        appNodeModules =
+          if appNodeModulesEnv == "" then
+            throw "flake image/runtime proof requires APP_NODE_MODULES=$PWD/node_modules after frozen pnpm install and Bazel-only house hydration."
+          else
+            builtins.path {
+              name = "gftb-adapter-node-runtime-node-modules";
+              path = appNodeModulesEnv;
             };
         envOr = name: default: let v = builtins.getEnv name; in if v == "" then default else v;
         commitSha = envOr "BUILD_COMMIT_SHA" "unknown";
@@ -222,37 +232,111 @@
           pathsToLink = [ "/bin" "/etc" "/share" "/lib" ];
         };
 
-        # FAST layer: the small, frequently-changing adapter-node bundle at /app.
-        # adapter-node bundles the (pure-JS) production deps into build/, so the
-        # runtime needs only build/ + package.json + a Node runtime; no node_modules.
+        # FAST layer: adapter-node build output plus its complete external runtime
+        # closure at /app. adapter-node deliberately externalizes package.json
+        # dependencies; in particular, tinyland-auth-pg stays external so it and
+        # the app share one drizzle-orm instance. APP_NODE_MODULES is the frozen
+        # third-party layout after _house-hydrate has copied the six Bzlmod :pkg
+        # outputs into it. Copying that exact layout preserves Bazel/BCR authority
+        # without restoring any first-party npm source edge.
         #
         # drizzle/ rides along (TIN-3817 S1) because /bin/migrator reads the
-        # checked-in migration SQL and hashes its EXACT bytes against the ledger.
-        # It comes from the flake source tree rather than from APP_BUILD, so the
-        # migrations in the image are the ones in the commit — not whatever
-        # happened to be in a working directory at build time. build/migrator.mjs
-        # (the applier, bundled by `just db-migrator-bundle`) rides inside
-        # APP_BUILD alongside the web server.
-        appLayer = n2c.buildLayer {
-          copyToRoot = pkgs.runCommand "gftb-app" { } ''
-            mkdir -p "$out/app"
-            cp -a ${appBuild} "$out/app/build"
-            cp -a ${./package.json} "$out/app/package.json"
-            cp -a ${./server.js} "$out/app/server.js"
-            cp -a ${./drizzle} "$out/app/drizzle"
-            test -f "$out/app/build/migrator.mjs" || {
-              echo "flake .#image: build/migrator.mjs is missing from APP_BUILD." >&2
-              echo "  /bin/migrator would exit 70 (malformed image) at runtime." >&2
-              echo "  Run 'just db-migrator-bundle' before importing APP_BUILD." >&2
+        # checked-in migration SQL and hashes its exact bytes against the ledger.
+        appRoot = pkgs.runCommand "gftb-app" { } ''
+          mkdir -p "$out/app"
+          cp -a ${appBuild} "$out/app/build"
+          cp -a ${appNodeModules} "$out/app/node_modules"
+          cp -a ${./package.json} "$out/app/package.json"
+          cp -a ${./server.js} "$out/app/server.js"
+          cp -a ${./drizzle} "$out/app/drizzle"
+          test -f "$out/app/build/migrator.mjs" || {
+            echo "flake .#image: build/migrator.mjs is missing from APP_BUILD." >&2
+            echo "  /bin/migrator would exit 70 (malformed image) at runtime." >&2
+            echo "  Run 'just db-migrator-bundle' before importing APP_BUILD." >&2
+            exit 1
+          }
+          test -f "$out/app/build/worker.mjs" || {
+            echo "flake .#image: build/worker.mjs is missing from APP_BUILD." >&2
+            echo "  /bin/worker would exit 70 (malformed image) at runtime." >&2
+            echo "  Run 'just worker-bundle' before importing APP_BUILD." >&2
+            exit 1
+          }
+          for required_package in \
+            @tummycrypt/tinyland-auth \
+            @tummycrypt/tinyland-auth-pg \
+            drizzle-orm \
+            pg; do
+            test -f "$out/app/node_modules/$required_package/package.json" || {
+              echo "flake .#image: external runtime package is missing: $required_package" >&2
               exit 1
             }
-            test -f "$out/app/build/worker.mjs" || {
-              echo "flake .#image: build/worker.mjs is missing from APP_BUILD." >&2
-              echo "  /bin/worker would exit 70 (malformed image) at runtime." >&2
-              echo "  Run 'just worker-bundle' before importing APP_BUILD." >&2
-              exit 1
+          done
+        '';
+
+        # A real startup/import proof over the same appRoot used by the image.
+        # It imports the external auth/DB closure, starts the custom adapter-node
+        # server, and fetches localhost. It never assembles or pushes an image and
+        # is intentionally a Nix/Just proof, not an RBE-eligible Bazel action.
+        runtimeImportProof = pkgs.writeText "gftb-runtime-import-proof.mjs" ''
+          import { createRequire } from "node:module";
+          const require = createRequire("${appRoot}/app/package.json");
+          await import(require.resolve("@tummycrypt/tinyland-auth"));
+          await import(require.resolve("@tummycrypt/tinyland-auth-pg"));
+          await import(require.resolve("drizzle-orm"));
+          await import(require.resolve("pg"));
+        '';
+        runtimeClosureProof = pkgs.writeShellApplication {
+          name = "gftb-runtime-closure-proof";
+          runtimeInputs = [
+            pkgs.coreutils
+            pkgs.curl
+          ];
+          text = ''
+            app_root="${appRoot}/app"
+            ${pkgs.nodejs_22}/bin/node ${runtimeImportProof}
+
+            export HOST=127.0.0.1
+            export PORT="$((20000 + ($$ % 20000)))"
+            export NODE_ENV=production
+            ${pkgs.nodejs_22}/bin/node "$app_root/server.js" &
+            server_pid=$!
+
+            cleanup() {
+              if kill -0 "$server_pid" 2>/dev/null; then
+                kill "$server_pid" 2>/dev/null || true
+              fi
+              wait "$server_pid" 2>/dev/null || true
             }
+            trap cleanup EXIT INT TERM
+
+            ready=0
+            for attempt in $(seq 1 100); do
+              if ! kill -0 "$server_pid" 2>/dev/null; then
+                if wait "$server_pid"; then status=0; else status=$?; fi
+                if [[ "$status" == "0" ]]; then status=1; fi
+                echo "runtime closure proof: adapter-node server exited before readiness (status $status)." >&2
+                exit "$status"
+              fi
+              if curl --connect-timeout 1 --max-time 2 --silent --output /dev/null \
+                "http://$HOST:$PORT/"; then
+                ready=1
+                break
+              fi
+              sleep 0.1
+            done
+            if [[ "$ready" != "1" ]]; then
+              echo "runtime closure proof: adapter-node server did not answer localhost." >&2
+              exit 1
+            fi
+
+            cleanup
+            trap - EXIT INT TERM
+            echo "runtime closure proof OK: imports resolved and adapter-node answered localhost."
           '';
+        };
+
+        appLayer = n2c.buildLayer {
+          copyToRoot = appRoot;
         };
 
         image = n2c.buildImage {
@@ -339,6 +423,7 @@
           web = webEntrypoint;
           worker = workerEntrypoint;
           migrator = migratorEntrypoint;
+          "runtime-closure-proof" = runtimeClosureProof;
         };
 
         formatter = pkgs.nixpkgs-fmt;

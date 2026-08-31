@@ -278,9 +278,37 @@ sh_test(
     ],
 )
 
+# Finite Bazel enrollment for the fail-closed first-party package authority gate.
+# The launcher keeps Python toolchain selection in the Nix/Flywheel runner and
+# makes every source file the checker reads an explicit action input.
+genrule(
+    name = "inhouse_package_parity_test_runner",
+    outs = ["inhouse-package-parity-test-runner.sh"],
+    cmd = "printf '%s\\n' '#!/usr/bin/env bash' 'exec python3 \"$${TEST_SRCDIR}/$${TEST_WORKSPACE}/scripts/check-inhouse-package-parity.py\"' > \"$@\" && chmod 0555 \"$@\"",
+    executable = True,
+)
+
+sh_test(
+    name = "inhouse_package_parity_test",
+    srcs = [":inhouse_package_parity_test_runner"],
+    data = [
+        "BUILD.bazel",
+        "MODULE.bazel",
+        "package.json",
+        "pnpm-lock.yaml",
+        "scripts/check-inhouse-package-parity.py",
+    ],
+    tags = [
+        "gloriousflywheel-cache-only",
+        "no-remote-exec",
+        "supply-chain-contract",
+    ],
+)
+
 test_suite(
     name = "ci_validation_suite",
     tests = [
+        ":inhouse_package_parity_test",
         ":preview_tailnet_state_contract_test",
         ":svelte_check_test",
         ":unit_tests",

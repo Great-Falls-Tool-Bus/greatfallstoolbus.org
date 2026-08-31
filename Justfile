@@ -25,9 +25,10 @@ setup:
 
 # TIN-2881: materialize the six first-party Bzlmod :pkg targets into the
 # Node-compatible layout required by pnpm/Vite/check and image entrypoints.
-# package.json and pnpm-lock.yaml cannot supply these packages. The graph-key
-# stamp distinguishes this copy from a stale pre-cutover npm node_modules and
-# invalidates it whenever MODULE.bazel or BUILD.bazel changes.
+# package.json and pnpm-lock.yaml cannot supply these packages. The stamp binds
+# the complete checked-in resolution carrier: registry pin, module declaration,
+# module lock, and graph links. Existing or stale package paths are refused; this
+# recipe never recursively deletes a package tree.
 _house-hydrate:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -39,36 +40,78 @@ _house-hydrate:
       echo "[house-hydrate] refusing outside the exact repository root." >&2
       exit 1
     fi
+
     node_modules_root="$PWD/node_modules"
     package_root="$node_modules_root/@tummycrypt"
-    for directory in "$node_modules_root" "$package_root"; do
-      if [[ -L "$directory" ]]; then
-        echo "[house-hydrate] refusing symlinked package root: $directory" >&2
-        exit 1
-      fi
-    done
-    mkdir -p -- "$package_root"
-    if [[ "$(cd "$package_root" && pwd -P)" != "$physical_root/node_modules/@tummycrypt" ]]; then
-      echo "[house-hydrate] package root escaped the repository: $package_root" >&2
+    if [[ ! -d "$node_modules_root" ]] || [[ -L "$node_modules_root" ]]; then
+      echo "[house-hydrate] node_modules must be a real directory; run 'just setup' from a clean tree." >&2
       exit 1
     fi
+    if [[ "$(cd "$node_modules_root" && pwd -P)" != "$physical_root/node_modules" ]]; then
+      echo "[house-hydrate] node_modules escaped the repository." >&2
+      exit 1
+    fi
+
     pkgs=(tinyland-auth tinyland-auth-pg tinyland-color-utils tinyvectors vite-plugin-a11y vite-plugin-skeleton-colors)
+    graph_inputs=(.bazelrc MODULE.bazel MODULE.bazel.lock BUILD.bazel)
+    for graph_input in "${graph_inputs[@]}"; do
+      [[ -f "$graph_input" && ! -L "$graph_input" ]] || {
+        echo "[house-hydrate] missing or symlinked graph input: $graph_input" >&2
+        exit 1
+      }
+    done
+    graph_key="$(git hash-object "${graph_inputs[@]}" | tr '\n' ':')"
     stamp="$package_root/.gftb-bazel-hydrated"
-    graph_key="$(git hash-object MODULE.bazel BUILD.bazel | tr '\n' ':')"
-    if [[ -z "${FORCE_HOUSE_HYDRATE:-}" ]]; then
+
+    if [[ -e "$package_root" || -L "$package_root" ]]; then
+      if [[ ! -d "$package_root" ]] || [[ -L "$package_root" ]] ||
+         [[ "$(cd "$package_root" && pwd -P)" != "$physical_root/node_modules/@tummycrypt" ]]; then
+        echo "[house-hydrate] refusing an unmanaged or escaped package root: $package_root" >&2
+        exit 1
+      fi
       have_all=1
       for p in "${pkgs[@]}"; do
-        [[ -f "$PWD/node_modules/@tummycrypt/$p/package.json" ]] || have_all=0
+        target="$package_root/$p"
+        if [[ ! -d "$target" ]] || [[ -L "$target" ]] || [[ ! -f "$target/package.json" ]]; then
+          have_all=0
+        fi
       done
-      if [[ "$have_all" == "1" ]] && [[ -f "$stamp" ]] && [[ "$(cat "$stamp")" == "$graph_key" ]]; then
-        echo "[house-hydrate] six Bazel-linked @tummycrypt/* packages already match the current graph."
+      if [[ -z "${FORCE_HOUSE_HYDRATE:-}" ]] &&
+         [[ "$have_all" == "1" ]] &&
+         [[ -f "$stamp" ]] && [[ ! -L "$stamp" ]] &&
+         [[ "$(cat "$stamp")" == "$graph_key" ]]; then
+        echo "[house-hydrate] six Bazel-linked @tummycrypt/* packages match the complete graph carrier."
         exit 0
       fi
+      echo "[house-hydrate] refusing stale or unmanaged first-party paths; no recursive cleanup is permitted." >&2
+      echo "[house-hydrate] node_modules is disposable: run 'just clean-all', then 'just setup'." >&2
+      exit 1
     fi
+
     root_flag="--output_user_root=${BAZEL_OUTPUT_USER_ROOT:-${TMPDIR:-/tmp}/gftb-bazel-user-root}"
     targets=()
     for p in "${pkgs[@]}"; do targets+=("//:node_modules/@tummycrypt/$p"); done
     bazelisk "$root_flag" build "${targets[@]}"
+
+    # Re-establish custody after the potentially long Bazel build and before
+    # creating any package path. Every target directory is created by this
+    # invocation; a collision refuses instead of overwriting or deleting.
+    if [[ ! -d "$node_modules_root" ]] || [[ -L "$node_modules_root" ]] ||
+       [[ "$(cd "$node_modules_root" && pwd -P)" != "$physical_root/node_modules" ]]; then
+      echo "[house-hydrate] node_modules custody changed during the Bazel build." >&2
+      exit 1
+    fi
+    if [[ -e "$package_root" || -L "$package_root" ]]; then
+      echo "[house-hydrate] package root appeared during the Bazel build; refusing." >&2
+      exit 1
+    fi
+    mkdir -- "$package_root"
+    if [[ -L "$package_root" ]] ||
+       [[ "$(cd "$package_root" && pwd -P)" != "$physical_root/node_modules/@tummycrypt" ]]; then
+      echo "[house-hydrate] package root escaped during creation." >&2
+      exit 1
+    fi
+
     for p in "${pkgs[@]}"; do
       case "$p" in
         tinyland-auth|tinyland-auth-pg|tinyland-color-utils|tinyvectors|vite-plugin-a11y|vite-plugin-skeleton-colors) ;;
@@ -77,16 +120,33 @@ _house-hydrate:
           exit 1
           ;;
       esac
+      source_path="$PWD/bazel-bin/node_modules/@tummycrypt/$p"
       target="$package_root/$p"
-      if [[ "$target" == "$package_root" ]] || [[ "${target#"$package_root"/}" != "$p" ]]; then
-        echo "[house-hydrate] refusing unexpected cleanup target: $target" >&2
+      [[ -d "$source_path" ]] || {
+        echo "[house-hydrate] Bazel package output missing: $source_path" >&2
+        exit 1
+      }
+      if [[ -e "$target" || -L "$target" ]]; then
+        echo "[house-hydrate] package target appeared during materialization: $target" >&2
         exit 1
       fi
-      rm -rf -- "$target"
-      cp -RL "bazel-bin/node_modules/@tummycrypt/$p" "$target"
+      mkdir -- "$target"
+      if [[ -L "$target" ]] ||
+         [[ "$(cd "$target" && pwd -P)" != "$physical_root/node_modules/@tummycrypt/$p" ]]; then
+        echo "[house-hydrate] package target escaped during creation: $target" >&2
+        exit 1
+      fi
+      cp -RL "$source_path/." "$target/"
       chmod -R u+w "$target"
+      [[ -f "$target/package.json" ]] || {
+        echo "[house-hydrate] materialized package lacks package.json: $target" >&2
+        exit 1
+      }
     done
-    printf '%s\n' "$graph_key" > "$stamp"
+
+    stamp_tmp="$(mktemp "$package_root/.gftb-bazel-hydrated.XXXXXXXX")"
+    printf '%s\n' "$graph_key" > "$stamp_tmp"
+    mv "$stamp_tmp" "$stamp"
     echo "[house-hydrate] graph-linked ${#pkgs[@]} @tummycrypt/* packages into node_modules."
 
 # Start the Vite dev server
@@ -218,6 +278,7 @@ container-image-publish: platform-entrypoints-check
     just db-migrator-bundle
     just worker-bundle
     export APP_BUILD="$PWD/build"
+    export APP_NODE_MODULES="$PWD/node_modules"
     # 2. Build the nix2container image and push it to GHCR through the n2c-patched
     #    skopeo. copyToRegistry derives docker://${IMAGE_REF}:${tag} from the image
     #    name/tag; --dest-creds carries the ambient GITHUB_TOKEN (no new secret).
@@ -267,8 +328,24 @@ container-image-build: platform-entrypoints-check
     just db-migrator-bundle
     just worker-bundle
     export APP_BUILD="$PWD/build"
+    export APP_NODE_MODULES="$PWD/node_modules"
     nix run --impure .#image.copyTo -- docker-archive:greatfallstoolbus-oci.tar
     echo "wrote greatfallstoolbus-oci.tar"
+
+# Build the exact adapter-node application layer, import its Bazel-hydrated
+# runtime closure through flake.nix, start the custom server, and fetch root.
+# This is build/read-only proof: it never assembles, pushes, deploys, or applies.
+container-image-runtime-proof: platform-entrypoints-check _house-hydrate
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ root }}
+    source_sha="$(git rev-parse HEAD)"
+    ADAPTER=node PUBLIC_ARCHIVE_LIVE=true PUBLIC_BUILD_SHA="$source_sha" pnpm run build
+    just db-migrator-bundle
+    just worker-bundle
+    export APP_BUILD="$PWD/build"
+    export APP_NODE_MODULES="$PWD/node_modules"
+    nix run --impure .#runtime-closure-proof
 
 # Per-entrypoint proof (TIN-3815 S0). Runs the EXACT derivations the OCI image
 # installs at /bin/web, /bin/worker, and /bin/migrator, so the three stable
@@ -1148,7 +1225,7 @@ sbom out_dir="build/sbom":
 # public-safety scans); leak-scan-build runs last (it pays for a full
 # `just build`, ~4 minutes — the only step this gate added that was not
 # already part of `check`'s cost) so a cheaper failure surfaces first.
-check: preview-tailnet-state-contract-check flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints leak-scan-tree leak-scan-src lint typecheck discuss-drafts-validate naming-consent-hashes-verify skills-validate skills-check source-map-check db-check platform-bundles-check test-unit leak-scan-build
+check: preview-tailnet-state-contract-check flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints inhouse-package-parity leak-scan-tree leak-scan-src lint typecheck discuss-drafts-validate naming-consent-hashes-verify skills-validate skills-check source-map-check db-check platform-bundles-check container-image-runtime-proof test-unit leak-scan-build
     @echo "All checks passed."
 
 # Fail-closed state-path and non-destructive preservation contract for the operator-only tailnet preview.
