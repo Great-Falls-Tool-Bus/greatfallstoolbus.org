@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { base } from '$app/paths';
 	import { page } from '$app/state';
-	import { Menu, X } from '@lucide/svelte';
+	import { Menu, Smartphone, X } from '@lucide/svelte';
 	import BusMark from '$lib/components/BusMark.svelte';
 	import Wordmark from '$lib/components/Wordmark.svelte';
 	import SEOHead from '$lib/components/SEOHead.svelte';
@@ -21,6 +21,44 @@
 
 	let mobileOpen = $state(false);
 
+	// TinyVectors device-motion permission handshake (operator ruling
+	// 2026-08-31: the blobs must bounce and ask for motion access properly). The component itself already does the hard
+	// part: on iOS Safari it leaves permissionState at 'prompt' and never
+	// starts listening until requestDeviceMotionPermission() is called from a
+	// user gesture; on Android/desktop it self-starts with no prompt; and
+	// prefers-reduced-motion is honored internally (respectReducedMotion
+	// defaults true, and DeviceMotion.initialize()/requestPermission() both
+	// refuse to listen while the media query matches). All this layout needs
+	// to add is the gesture: an unobtrusive control that only renders when the
+	// bound instance reports iOS actually needs one.
+	let tinyVectorsRef: ReturnType<typeof TinyVectors> | undefined = $state();
+	// Capability half of the gate: true only where the browser actually gates
+	// device motion behind an explicit request (iOS Safari). Sampled once at
+	// mount because it is pure feature detection and cannot change afterwards.
+	let motionControlAvailable = $state(false);
+	// Preference half of the gate, kept live: a visitor who turns on Reduce
+	// Motion after load must lose the control, not be left tapping a button
+	// the component will refuse.
+	let reducedMotion = $state(false);
+	let motionPromptDismissed = $state(false);
+	let motionPromptBusy = $state(false);
+
+	const showMotionPrompt = $derived(motionControlAvailable && !reducedMotion && !motionPromptDismissed);
+
+	async function handleRequestDeviceMotion() {
+		if (!tinyVectorsRef || motionPromptBusy) return;
+		motionPromptBusy = true;
+		try {
+			await tinyVectorsRef.requestDeviceMotionPermission();
+		} finally {
+			motionPromptBusy = false;
+			// Hide after the first tap regardless of outcome (granted or
+			// denied). iOS only lets you ask once per session anyway, and
+			// leaving a dead control up is worse than a missed re-ask.
+			motionPromptDismissed = true;
+		}
+	}
+
 	onMount(() => {
 		// Hydrate the theme store from localStorage so the color-mode slider
 		// reflects the persisted choice on reload (the app.html FOUC script sets
@@ -32,6 +70,30 @@
 		// succeeded, so `use:reveal` will run and no forced un-hide is needed.
 		const w = window as unknown as { __gftbRevealFailsafe?: ReturnType<typeof setTimeout> };
 		if (w.__gftbRevealFailsafe) clearTimeout(w.__gftbRevealFailsafe);
+
+		// Never prompt on load: only reveal the control when (a) this browser
+		// actually gates device motion behind an explicit permission request
+		// (iOS Safari) and (b) the visitor hasn't asked for reduced motion, in
+		// which case device motion would be inert even if granted.
+		// requiresPermission/supported are both derived synchronously from
+		// capability detection, not from the component's own async device-motion
+		// init effect, so this is safe to read the instant the ref is bound
+		// (no race against TinyVectors' own mount-time DeviceMotion setup).
+		const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+		reducedMotion = reducedMotionQuery.matches;
+		const handleReducedMotionChange = () => {
+			reducedMotion = reducedMotionQuery.matches;
+		};
+		reducedMotionQuery.addEventListener('change', handleReducedMotionChange);
+
+		if (tinyVectorsRef) {
+			const status = tinyVectorsRef.getDeviceMotionStatus();
+			motionControlAvailable = status.requiresPermission && status.supported;
+		}
+
+		return () => {
+			reducedMotionQuery.removeEventListener('change', handleReducedMotionChange);
+		};
 	});
 
 	// Single source of truth for nav (see $lib/nav-items). Base-stripped
@@ -85,14 +147,27 @@
 			data-testid="brand-vectors-bg"
 		>
 			<TinyVectors
+				bind:this={tinyVectorsRef}
 				theme="custom"
 				colors={['#cb6738', '#d99d6a', '#a14a52', '#6b4f3a', '#3d6b8c']}
 				opacity={0.1}
 				blobCount={5}
 				enableScrollPhysics={true}
-				enableDeviceMotion={false}
+				enableDeviceMotion={true}
 			/>
 		</div>
+		{#if showMotionPrompt}
+			<button
+				type="button"
+				class="hover:bg-primary-600 bg-primary-500 fixed bottom-4 left-4 z-(--z-tooltip) inline-flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-full px-4 py-2 text-left text-sm font-semibold text-white shadow-lg transition-colors disabled:opacity-60"
+				onclick={handleRequestDeviceMotion}
+				disabled={motionPromptBusy}
+				aria-label="Let the blobs feel the phone move"
+			>
+				<Smartphone class="h-4 w-4" aria-hidden="true" />
+				<span>Let the blobs feel your phone move</span>
+			</button>
+		{/if}
 	{/if}
 	<a
 		href="#content"
