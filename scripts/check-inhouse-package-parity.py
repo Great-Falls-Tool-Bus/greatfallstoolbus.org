@@ -22,6 +22,15 @@ MODULE_BAZEL = ROOT / "MODULE.bazel"
 BUILD_BAZEL = ROOT / "BUILD.bazel"
 IN_HOUSE_SCOPES = ("@tummycrypt/", "@tinyland/")
 IN_HOUSE_MODULE_PREFIXES = ("tummycrypt_", "tinyland_")
+CONTAINER_IMAGE_GRAPH_INPUTS = frozenset(
+    {
+        ".bazelrc",
+        "BUILD.bazel",
+        "Justfile",
+        "MODULE.bazel",
+        "MODULE.bazel.lock",
+    }
+)
 
 
 def npm_to_bazel_module(package_name: str) -> str:
@@ -73,6 +82,89 @@ def load_graph_links() -> dict[str, str]:
     return links
 
 
+def load_container_image_context_srcs(build_text: str) -> tuple[set[str], bool]:
+    """Return direct source labels and whether house package outputs are inputs."""
+    target = re.search(
+        r'pkg_tar\(\s*name\s*=\s*"container_image_context"\s*,'
+        r'(?P<body>.*?)^\)',
+        build_text,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    if target is None:
+        return set(), False
+
+    srcs = re.search(
+        r"srcs\s*=\s*\[(?P<labels>.*?)\]\s*"
+        r"(?P<house>\+\s*TINYLAND_HOUSE_PACKAGES)?\s*,",
+        target.group("body"),
+        flags=re.DOTALL,
+    )
+    if srcs is None:
+        return set(), False
+
+    labels = set(re.findall(r'"([^"\n]+)"', srcs.group("labels")))
+    return labels, srcs.group("house") is not None
+
+
+def container_image_context_failures(build_text: str) -> list[str]:
+    """Require every first-party resolution/output edge in the image action key."""
+    labels, has_house_packages = load_container_image_context_srcs(build_text)
+    failures = [
+        f"container_image_context omits Bazel image input {label}"
+        for label in sorted(CONTAINER_IMAGE_GRAPH_INPUTS - labels)
+    ]
+    if not has_house_packages:
+        failures.append(
+            "container_image_context omits TINYLAND_HOUSE_PACKAGES; "
+            "first-party payload changes would not invalidate its action"
+        )
+    return failures
+
+
+def container_image_context_negative_controls(build_text: str) -> list[str]:
+    """Prove the contract gate discriminates a missing carrier and payload set."""
+    failures: list[str] = []
+    without_lock = build_text.replace('        "MODULE.bazel.lock",\n', "", 1)
+    if not any(
+        "MODULE.bazel.lock" in failure
+        for failure in container_image_context_failures(without_lock)
+    ):
+        failures.append(
+            "container image input self-test failed: removing MODULE.bazel.lock "
+            "did not trip the gate"
+        )
+
+    target = re.search(
+        r'pkg_tar\(\s*name\s*=\s*"container_image_context"\s*,'
+        r'(?P<body>.*?)^\)',
+        build_text,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    if target is None:
+        failures.append("container image input self-test cannot find its target")
+        return failures
+
+    target_without_packages = target.group(0).replace(
+        "] + TINYLAND_HOUSE_PACKAGES,",
+        "],",
+        1,
+    )
+    without_packages = (
+        build_text[: target.start()]
+        + target_without_packages
+        + build_text[target.end() :]
+    )
+    if not any(
+        "TINYLAND_HOUSE_PACKAGES" in failure
+        for failure in container_image_context_failures(without_packages)
+    ):
+        failures.append(
+            "container image input self-test failed: removing house payloads "
+            "did not trip the gate"
+        )
+    return failures
+
+
 def load_inhouse_bazel_deps() -> set[str]:
     text = MODULE_BAZEL.read_text(encoding="utf-8")
     deps = {
@@ -92,6 +184,7 @@ def load_inhouse_bazel_deps() -> set[str]:
 
 def main() -> int:
     failures: list[str] = []
+    build_text = BUILD_BAZEL.read_text(encoding="utf-8")
 
     for name, version in sorted(load_inhouse_npm_specifiers().items()):
         failures.append(
@@ -131,6 +224,9 @@ def main() -> int:
             "npm_link_package :pkg edge"
         )
 
+    failures.extend(container_image_context_failures(build_text))
+    failures.extend(container_image_context_negative_controls(build_text))
+
     if failures:
         print("Bazel-only ingestion check failed:", file=sys.stderr)
         for failure in failures:
@@ -139,7 +235,8 @@ def main() -> int:
 
     print(
         f"Bazel-only ingestion ok: {len(links)} first-party package(s), "
-        "0 package/lock sources, complete bazel_dep/:pkg links"
+        "0 package/lock sources, complete bazel_dep/:pkg links, "
+        "image context keyed by graph + payloads"
     )
     return 0
 

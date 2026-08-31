@@ -345,7 +345,15 @@ pkg_tar(
 pkg_tar(
     name = "container_image_context",
     srcs = [
+        # The image recipe imports the six Bzlmod package outputs after
+        # _house-hydrate. Keep the complete resolution carrier in this action
+        # key so a registry/module/link change cannot reuse an older context.
+        ".bazelrc",
+        "BUILD.bazel",
         "ContainerFile",
+        "Justfile",
+        "MODULE.bazel",
+        "MODULE.bazel.lock",
         "flake.lock",
         "flake.nix",
         "nix/oci-image.nix",
@@ -356,7 +364,7 @@ pkg_tar(
         # change to it must invalidate the container context (TIN-3815 S0).
         "scripts/platform-entrypoint.mjs",
         "svelte.config.js",
-    ],
+    ] + TINYLAND_HOUSE_PACKAGES,
     extension = "tar",
     tags = [
         "container-image-and-push",
