@@ -83,7 +83,7 @@ def load_graph_links() -> dict[str, str]:
 
 
 def load_container_image_context_srcs(build_text: str) -> tuple[set[str], bool]:
-    """Return direct source labels and whether house package outputs are inputs."""
+    """Return direct source labels and whether house directory outputs are inputs."""
     target = re.search(
         r'pkg_tar\(\s*name\s*=\s*"container_image_context"\s*,'
         r'(?P<body>.*?)^\)',
@@ -95,7 +95,7 @@ def load_container_image_context_srcs(build_text: str) -> tuple[set[str], bool]:
 
     srcs = re.search(
         r"srcs\s*=\s*\[(?P<labels>.*?)\]\s*"
-        r"(?P<house>\+\s*TINYLAND_HOUSE_PACKAGES)?\s*,",
+        r"(?P<house>\+\s*TINYLAND_HOUSE_PACKAGE_DIRS)?\s*,",
         target.group("body"),
         flags=re.DOTALL,
     )
@@ -108,14 +108,14 @@ def load_container_image_context_srcs(build_text: str) -> tuple[set[str], bool]:
 
 def container_image_context_failures(build_text: str) -> list[str]:
     """Require every first-party resolution/output edge in the image action key."""
-    labels, has_house_packages = load_container_image_context_srcs(build_text)
+    labels, has_house_package_dirs = load_container_image_context_srcs(build_text)
     failures = [
         f"container_image_context omits Bazel image input {label}"
         for label in sorted(CONTAINER_IMAGE_GRAPH_INPUTS - labels)
     ]
-    if not has_house_packages:
+    if not has_house_package_dirs:
         failures.append(
-            "container_image_context omits TINYLAND_HOUSE_PACKAGES; "
+            "container_image_context omits TINYLAND_HOUSE_PACKAGE_DIRS; "
             "first-party payload changes would not invalidate its action"
         )
     return failures
@@ -145,7 +145,7 @@ def container_image_context_negative_controls(build_text: str) -> list[str]:
         return failures
 
     target_without_packages = target.group(0).replace(
-        "] + TINYLAND_HOUSE_PACKAGES,",
+        "] + TINYLAND_HOUSE_PACKAGE_DIRS,",
         "],",
         1,
     )
@@ -155,7 +155,7 @@ def container_image_context_negative_controls(build_text: str) -> list[str]:
         + build_text[target.end() :]
     )
     if not any(
-        "TINYLAND_HOUSE_PACKAGES" in failure
+        "TINYLAND_HOUSE_PACKAGE_DIRS" in failure
         for failure in container_image_context_failures(without_packages)
     ):
         failures.append(

@@ -53,6 +53,18 @@ TINYLAND_HOUSE_PACKAGES = [
     ":node_modules/@tummycrypt/vite-plugin-skeleton-colors",
 ]
 
+# npm_link_package emits both a Node-consumer link and a directory-artifact
+# filegroup. JavaScript targets consume the link labels above; pkg_tar must use
+# only the directory artifacts so it never tries to archive the link itself.
+TINYLAND_HOUSE_PACKAGE_DIRS = [
+    ":node_modules/@tummycrypt/tinyland-auth/dir",
+    ":node_modules/@tummycrypt/tinyland-auth-pg/dir",
+    ":node_modules/@tummycrypt/tinyland-color-utils/dir",
+    ":node_modules/@tummycrypt/tinyvectors/dir",
+    ":node_modules/@tummycrypt/vite-plugin-a11y/dir",
+    ":node_modules/@tummycrypt/vite-plugin-skeleton-colors/dir",
+]
+
 filegroup(
     name = "app_srcs",
     srcs = glob(
@@ -364,7 +376,7 @@ pkg_tar(
         # change to it must invalidate the container context (TIN-3815 S0).
         "scripts/platform-entrypoint.mjs",
         "svelte.config.js",
-    ] + TINYLAND_HOUSE_PACKAGES,
+    ] + TINYLAND_HOUSE_PACKAGE_DIRS,
     extension = "tar",
     tags = [
         "container-image-and-push",
