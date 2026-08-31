@@ -30,8 +30,6 @@
 
 import type { ContributionAgreement } from '../db/schema';
 import {
-	CUSTOM_ANNUAL_CENTS,
-	CUSTOM_MONTHLY_CENTS,
 	MONTHLY_PRESETS_CENTS,
 	type ContributionChoice,
 } from './offer-contract';
