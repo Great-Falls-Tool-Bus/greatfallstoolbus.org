@@ -26,8 +26,8 @@ setup:
 # TIN-2881: materialize the six first-party Bzlmod :pkg targets into the
 # Node-compatible layout required by pnpm/Vite/check and image entrypoints.
 # package.json and pnpm-lock.yaml cannot supply these packages. The stamp binds
-# the complete checked-in resolution carrier: registry pin, module declaration,
-# module lock, and graph links. Existing or stale package paths are refused; this
+# the complete checked-in resolution carrier plus the exact bytes of all six
+# current Bazel outputs. Existing or stale package paths are refused; this
 # recipe never recursively deletes a package tree.
 _house-hydrate:
     #!/usr/bin/env bash
@@ -60,47 +60,136 @@ _house-hydrate:
         exit 1
       }
     done
-    graph_key="$(git hash-object "${graph_inputs[@]}" | tr '\n' ':')"
-    stamp="$package_root/.gftb-bazel-hydrated"
 
+    graph_key_now() {
+      git hash-object "${graph_inputs[@]}" | tr '\n' ':'
+    }
+
+    # Hash every dereferenced file by stable relative path and exact bytes. The
+    # Bazel :pkg outputs may themselves be symlink forests; _house-hydrate copies
+    # with -L, so source and target manifests deliberately compare dereferenced
+    # content rather than symlink metadata.
+    tree_manifest() {
+      local directory="$1"
+      (
+        cd "$directory"
+        find -L . -type f -print0 |
+          LC_ALL=C sort -z |
+          while IFS= read -r -d '' file; do
+            printf '%s\0' "${file#./}"
+            git -C "$physical_root" hash-object --no-filters "$directory/$file"
+          done
+      ) | git -C "$physical_root" hash-object --stdin
+    }
+
+    package_set_manifest() {
+      local base="$1"
+      local manifest_lines=""
+      local p package_path package_digest
+      for p in "${pkgs[@]}"; do
+        package_path="$base/$p"
+        if [[ ! -d "$package_path" ]] || [[ ! -f "$package_path/package.json" ]]; then
+          echo "[house-hydrate] package set is incomplete: $package_path" >&2
+          return 1
+        fi
+        package_digest="$(tree_manifest "$package_path")"
+        manifest_lines+="$p:$package_digest"$'\n'
+      done
+      printf '%s' "$manifest_lines" | git -C "$physical_root" hash-object --stdin
+    }
+
+    target_package_set_manifest() {
+      local p target
+      for p in "${pkgs[@]}"; do
+        target="$package_root/$p"
+        if [[ ! -d "$target" ]] || [[ -L "$target" ]] ||
+           [[ -n "$(find "$target" -type l -print -quit)" ]]; then
+          echo "[house-hydrate] target package is missing, symlinked, or contains a symlink: $target" >&2
+          return 1
+        fi
+      done
+      package_set_manifest "$package_root"
+    }
+
+    package_root_entries_exact() {
+      local entry entry_name
+      local entries
+      shopt -s nullglob dotglob
+      entries=("$package_root"/*)
+      shopt -u nullglob dotglob
+      for entry in "${entries[@]}"; do
+        entry_name="${entry##*/}"
+        case "$entry_name" in
+          .gftb-bazel-hydrated|tinyland-auth|tinyland-auth-pg|tinyland-color-utils|tinyvectors|vite-plugin-a11y|vite-plugin-skeleton-colors) ;;
+          *)
+            echo "[house-hydrate] refusing unexpected first-party path: $entry" >&2
+            return 1
+            ;;
+        esac
+      done
+    }
+
+    package_root_was_present=0
     if [[ -e "$package_root" || -L "$package_root" ]]; then
       if [[ ! -d "$package_root" ]] || [[ -L "$package_root" ]] ||
          [[ "$(cd "$package_root" && pwd -P)" != "$physical_root/node_modules/@tummycrypt" ]]; then
         echo "[house-hydrate] refusing an unmanaged or escaped package root: $package_root" >&2
         exit 1
       fi
-      have_all=1
-      for p in "${pkgs[@]}"; do
-        target="$package_root/$p"
-        if [[ ! -d "$target" ]] || [[ -L "$target" ]] || [[ ! -f "$target/package.json" ]]; then
-          have_all=0
-        fi
-      done
-      if [[ -z "${FORCE_HOUSE_HYDRATE:-}" ]] &&
-         [[ "$have_all" == "1" ]] &&
-         [[ -f "$stamp" ]] && [[ ! -L "$stamp" ]] &&
-         [[ "$(cat "$stamp")" == "$graph_key" ]]; then
-        echo "[house-hydrate] six Bazel-linked @tummycrypt/* packages match the complete graph carrier."
-        exit 0
-      fi
-      echo "[house-hydrate] refusing stale or unmanaged first-party paths; no recursive cleanup is permitted." >&2
-      echo "[house-hydrate] node_modules is disposable: run 'just clean-all', then 'just setup'." >&2
-      exit 1
+      package_root_was_present=1
     fi
 
+    graph_key_before="$(graph_key_now)"
     root_flag="--output_user_root=${BAZEL_OUTPUT_USER_ROOT:-${TMPDIR:-/tmp}/gftb-bazel-user-root}"
     targets=()
     for p in "${pkgs[@]}"; do targets+=("//:node_modules/@tummycrypt/$p"); done
     bazelisk "$root_flag" build "${targets[@]}"
 
-    # Re-establish custody after the potentially long Bazel build and before
-    # creating any package path. Every target directory is created by this
-    # invocation; a collision refuses instead of overwriting or deleting.
+    # A long Bazel build must not create a stale attestation: re-read all four
+    # graph inputs before trusting any output or publishing the stamp.
+    graph_key_after="$(graph_key_now)"
+    if [[ "$graph_key_after" != "$graph_key_before" ]]; then
+      echo "[house-hydrate] graph inputs changed during the Bazel build; refusing stale outputs." >&2
+      exit 1
+    fi
+
+    # Re-establish custody after the potentially long build and before reading or
+    # creating a package path.
     if [[ ! -d "$node_modules_root" ]] || [[ -L "$node_modules_root" ]] ||
        [[ "$(cd "$node_modules_root" && pwd -P)" != "$physical_root/node_modules" ]]; then
       echo "[house-hydrate] node_modules custody changed during the Bazel build." >&2
       exit 1
     fi
+
+    source_root="$PWD/bazel-bin/node_modules/@tummycrypt"
+    source_manifest_before="$(package_set_manifest "$source_root")"
+
+    if [[ "$package_root_was_present" == "1" ]]; then
+      if [[ ! -d "$package_root" ]] || [[ -L "$package_root" ]] ||
+         [[ "$(cd "$package_root" && pwd -P)" != "$physical_root/node_modules/@tummycrypt" ]]; then
+        echo "[house-hydrate] package-root custody changed during the Bazel build." >&2
+        exit 1
+      fi
+      package_root_entries_exact
+      target_manifest="$(target_package_set_manifest)"
+      source_manifest_after="$(package_set_manifest "$source_root")"
+      graph_key_final="$(graph_key_now)"
+      stamp="$package_root/.gftb-bazel-hydrated"
+      stamp_payload="$(printf 'version=2\ngraph=%s\npackages=%s' "$graph_key_final" "$source_manifest_after")"
+
+      if [[ "$graph_key_final" == "$graph_key_before" ]] &&
+         [[ "$source_manifest_before" == "$source_manifest_after" ]] &&
+         [[ "$target_manifest" == "$source_manifest_after" ]] &&
+         [[ -f "$stamp" ]] && [[ ! -L "$stamp" ]] &&
+         [[ "$(cat "$stamp")" == "$stamp_payload" ]]; then
+        echo "[house-hydrate] six Bazel-linked @tummycrypt/* packages match the graph and exact output bytes."
+        exit 0
+      fi
+      echo "[house-hydrate] refusing stale, modified, or unmanaged first-party paths; no recursive cleanup is permitted." >&2
+      echo "[house-hydrate] node_modules is disposable: run 'just clean-all', then 'just setup'." >&2
+      exit 1
+    fi
+
     if [[ -e "$package_root" || -L "$package_root" ]]; then
       echo "[house-hydrate] package root appeared during the Bazel build; refusing." >&2
       exit 1
@@ -120,7 +209,7 @@ _house-hydrate:
           exit 1
           ;;
       esac
-      source_path="$PWD/bazel-bin/node_modules/@tummycrypt/$p"
+      source_path="$source_root/$p"
       target="$package_root/$p"
       [[ -d "$source_path" ]] || {
         echo "[house-hydrate] Bazel package output missing: $source_path" >&2
@@ -144,10 +233,23 @@ _house-hydrate:
       }
     done
 
+    package_root_entries_exact
+    target_manifest="$(target_package_set_manifest)"
+    source_manifest_after="$(package_set_manifest "$source_root")"
+    graph_key_final="$(graph_key_now)"
+    if [[ "$graph_key_final" != "$graph_key_before" ]] ||
+       [[ "$source_manifest_before" != "$source_manifest_after" ]] ||
+       [[ "$target_manifest" != "$source_manifest_after" ]]; then
+      echo "[house-hydrate] graph or package bytes changed during materialization; refusing to publish a stamp." >&2
+      exit 1
+    fi
+
+    stamp="$package_root/.gftb-bazel-hydrated"
+    stamp_payload="$(printf 'version=2\ngraph=%s\npackages=%s' "$graph_key_final" "$source_manifest_after")"
     stamp_tmp="$(mktemp "$package_root/.gftb-bazel-hydrated.XXXXXXXX")"
-    printf '%s\n' "$graph_key" > "$stamp_tmp"
+    printf '%s\n' "$stamp_payload" > "$stamp_tmp"
     mv "$stamp_tmp" "$stamp"
-    echo "[house-hydrate] graph-linked ${#pkgs[@]} @tummycrypt/* packages into node_modules."
+    echo "[house-hydrate] graph-linked and byte-attested ${#pkgs[@]} @tummycrypt/* packages into node_modules."
 
 # Start the Vite dev server
 dev: _house-hydrate

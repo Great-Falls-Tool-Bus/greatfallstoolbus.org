@@ -271,20 +271,24 @@
               exit 1
             }
           done
+
+          # Keep the ESM proof module beside the exact package.json/node_modules
+          # pair copied into the image. Bare import() therefore selects each
+          # package's import-only export condition; createRequire/require.resolve
+          # would incorrectly select the unsupported CommonJS condition.
+          cat > "$out/app/.gftb-runtime-import-proof.mjs" <<'GFTB_IMPORT_PROOF'
+          await import("@tummycrypt/tinyland-auth");
+          await import("@tummycrypt/tinyland-auth-pg");
+          await import("drizzle-orm");
+          await import("pg");
+          GFTB_IMPORT_PROOF
         '';
 
         # A real startup/import proof over the same appRoot used by the image.
         # It imports the external auth/DB closure, starts the custom adapter-node
-        # server, and fetches localhost. It never assembles or pushes an image and
-        # is intentionally a Nix/Just proof, not an RBE-eligible Bazel action.
-        runtimeImportProof = pkgs.writeText "gftb-runtime-import-proof.mjs" ''
-          import { createRequire } from "node:module";
-          const require = createRequire("${appRoot}/app/package.json");
-          await import(require.resolve("@tummycrypt/tinyland-auth"));
-          await import(require.resolve("@tummycrypt/tinyland-auth-pg"));
-          await import(require.resolve("drizzle-orm"));
-          await import(require.resolve("pg"));
-        '';
+        # server, and requires a successful localhost response. It never assembles
+        # or pushes an image and is intentionally a Nix/Just proof, not an
+        # RBE-eligible Bazel action.
         runtimeClosureProof = pkgs.writeShellApplication {
           name = "gftb-runtime-closure-proof";
           runtimeInputs = [
@@ -293,7 +297,7 @@
           ];
           text = ''
             app_root="${appRoot}/app"
-            ${pkgs.nodejs_22}/bin/node ${runtimeImportProof}
+            ${pkgs.nodejs_22}/bin/node "$app_root/.gftb-runtime-import-proof.mjs"
 
             export HOST=127.0.0.1
             export PORT="$((20000 + ($$ % 20000)))"
@@ -310,15 +314,15 @@
             trap cleanup EXIT INT TERM
 
             ready=0
-            for attempt in $(seq 1 100); do
+            for (( attempt = 1; attempt <= 100; attempt++ )); do
               if ! kill -0 "$server_pid" 2>/dev/null; then
                 if wait "$server_pid"; then status=0; else status=$?; fi
                 if [[ "$status" == "0" ]]; then status=1; fi
                 echo "runtime closure proof: adapter-node server exited before readiness (status $status)." >&2
                 exit "$status"
               fi
-              if curl --connect-timeout 1 --max-time 2 --silent --output /dev/null \
-                "http://$HOST:$PORT/"; then
+              if curl --fail --show-error --connect-timeout 1 --max-time 2 \
+                --silent --output /dev/null "http://$HOST:$PORT/"; then
                 ready=1
                 break
               fi
