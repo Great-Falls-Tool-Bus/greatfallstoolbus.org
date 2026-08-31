@@ -1,7 +1,6 @@
 /**
- * Provisioning and activation — the A6 composition and M1
- * `assent_and_activate` (TIN-3440 slice S6; spec §4 membership state machine;
- * slices §2.2 rows 6 and 10).
+ * Provisioning and activation — the A6 composition and M1 activation
+ * (TIN-3440 slice S6; decision 0024; slices §2.2 rows 6 and 10).
  *
  * EVERY function takes the transaction handle `withTenant(tenantId, fn)`
  * produced, first, and none opens a transaction of its own — the
@@ -312,7 +311,7 @@ export interface ActivateInput {
 	token: string;
 	/** The password the member is setting. */
 	password: string;
-	/** The agreement version being assented to — MUST be the current one. */
+	/** The agreement version shown during activation — MUST be the current one. */
 	agreementVersionId: number;
 	expectedVersion?: number;
 	now?: Date;
@@ -335,11 +334,11 @@ export interface ActivationResult {
 }
 
 /**
- * M1 — `pending_assent → active` (slices §2.2 row 10), one atomic unit of
- * work: consume the activation token, verify the assent targets the CURRENT
- * agreement version, create the auth user with the password, record the
- * assent, move the membership, link `person.auth_user_id`, write the audit
- * row (agreement version required), and open the session. Any failure rolls
+ * M1 — legacy persisted `pending_assent → active` (pending activation to
+ * active), one atomic unit of work: consume the activation token, verify the
+ * version shown is CURRENT, create the auth user with the password, record the
+ * agreement receipt, move the membership, link `person.auth_user_id`, write
+ * the audit row (agreement version required), and open the session. Any failure rolls
  * the WHOLE act back — token consumption included, so a transient failure
  * does not burn the credential.
  *
@@ -384,13 +383,13 @@ export async function activateMembership(tx: DbTransaction, input: ActivateInput
 	const row = await lockMembership(tx, standing.id);
 	checkMembershipVersion(row, input.expectedVersion);
 	if (row.status !== 'pending_assent') {
-		throw new IllegalMembershipTransitionError(row.status, 'assent_and_activate');
+		throw new IllegalMembershipTransitionError(row.status, 'activate');
 	}
 
 	const member = await personById(tx, row.personId);
 	if (!member) throw new MembershipNotFoundError();
 
-	// Row 10 guard: assent is to the CURRENT agreement version.
+	// Row 10 guard: activation records the CURRENT agreement version.
 	const agreement = await requireCurrentAgreement(tx, input.agreementVersionId, now);
 
 	const address = (await currentEmail(tx, member.id))?.email ?? normalizeEmail(app.email);

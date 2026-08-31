@@ -49,12 +49,16 @@ import {
 } from './activate';
 import { enqueueOffboarding, revokeMemberAccess } from './offboard';
 
-/** The five ratified states (spec §4; CHECK-pinned in migration 0009). */
+/**
+ * The five persisted states. `pending_assent` is the migration-0009 legacy
+ * database label for pending activation; decision 0024 removed any separate
+ * assent gate. Renaming stored rows and the CHECK belongs to a schema migration.
+ */
 export const MEMBERSHIP_STATUSES = ['pending_assent', 'active', 'paused', 'left', 'removed'] as const;
 export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number];
 
 /** The five ratified events (slices §2.2 rows 10–14). */
-export const MEMBERSHIP_EVENTS = ['assent_and_activate', 'pause', 'resume', 'leave', 'remove'] as const;
+export const MEMBERSHIP_EVENTS = ['activate', 'pause', 'resume', 'leave', 'remove'] as const;
 export type MembershipEvent = (typeof MEMBERSHIP_EVENTS)[number];
 
 /**
@@ -65,7 +69,7 @@ export type MembershipEvent = (typeof MEMBERSHIP_EVENTS)[number];
 export const MEMBERSHIP_TRANSITIONS: Readonly<
 	Record<MembershipEvent, { readonly from: readonly MembershipStatus[]; readonly to: MembershipStatus }>
 > = {
-	assent_and_activate: { from: ['pending_assent'], to: 'active' },
+	activate: { from: ['pending_assent'], to: 'active' },
 	pause: { from: ['active'], to: 'paused' },
 	resume: { from: ['paused'], to: 'active' },
 	leave: { from: ['active', 'paused'], to: 'left' },
