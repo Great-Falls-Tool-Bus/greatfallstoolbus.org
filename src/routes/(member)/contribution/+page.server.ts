@@ -2,12 +2,13 @@
  * `/contribution` — the OPTIONAL contribution offer (TIN-3818 presentation
  * contract; spec §5:230–248; ADR 0014 §5; member-projection-flow.mmd).
  *
- * PLACEMENT: choices appear ONLY after approval (ADR 0014 §5:147; TIN-3818
- * required behavior row 1). Structurally a session cannot exist before
- * activation (M1 creates it), and this route ADDITIONALLY guards every load
- * and action on an ACTIVE membership — the projection diagram hangs the
- * offer off Active. Intake code cannot reach here and this route never
- * touches the application aggregate.
+ * DURABLE-CHOICE PLACEMENT: recording appears ONLY after approval and
+ * activation (TIN-3818; TIN-4227). `/apply` may show the same canonical
+ * shape as a read-only preview, but no preview value reaches this route.
+ * Structurally a session cannot exist before activation (M1 creates it), and
+ * this route ADDITIONALLY guards every load and action on an ACTIVE
+ * membership — the projection diagram hangs the mutation off Active. This
+ * route never touches the application aggregate.
  *
  * MEMBERSHIP IS NEVER WRITTEN HERE. The route reads membership state for the
  * guard and writes only the contribution aggregate — "Contribution amount,

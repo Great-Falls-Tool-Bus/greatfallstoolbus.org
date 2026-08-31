@@ -4,11 +4,10 @@
  *
  * A grep-shaped assertion: no module under `src/lib/server/membership/` may
  * import from `src/lib/server/contribution/` or `src/lib/server/stripe/`.
- * Membership does not exist yet (S4–S7 own it) — today the rows bind
- * VACUOUSLY ON PURPOSE, so the boundary is already law the day the first
- * membership module lands, rather than a retrofit. The converse direction is
- * NOT vacuous and is asserted for real: the payment packages never reach into
- * membership either.
+ * The membership rows now exist, so both directions bind live. The one
+ * pre-approval exception is presentation-only: `/apply` may import the pure
+ * `contributionOfferShape`, but never the parser, writer, Stripe gateway, or
+ * checkout path.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -36,6 +35,28 @@ function importsIn(file: string): string[] {
 	const source = readFileSync(file, 'utf8');
 	return [...source.matchAll(/(?:from\s+|import\s*\(\s*)['"]([^'"]+)['"]/g)].map((m) => m[1]);
 }
+
+describe('the pre-approval contribution preview is presentation-only', () => {
+	it('/apply imports only the canonical pure shape and no writer or payment rail', () => {
+		const applyServer = path.resolve(serverRoot, '../../routes/apply/+page.server.ts');
+		const source = readFileSync(applyServer, 'utf8');
+		const imports = importsIn(applyServer);
+
+		expect(imports.filter((specifier) => specifier.includes('/contribution/'))).toEqual([
+			'$lib/server/contribution/offer',
+		]);
+		expect(imports.filter((specifier) => specifier.includes('/stripe/'))).toEqual([]);
+		expect(source).toContain('contributionOfferShape()');
+		for (const forbidden of [
+			'parseOfferForm',
+			'chooseContribution',
+			'createStripeGateway',
+			'createContributionCheckout',
+		]) {
+			expect(source).not.toContain(forbidden);
+		}
+	});
+});
 
 describe('membership must never see contribution state', () => {
 	it('no membership module imports contribution or stripe code', () => {

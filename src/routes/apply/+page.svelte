@@ -12,6 +12,12 @@
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let submitting = $state(false);
+
+	const cardPresets = data.contributionPreview.presetsCents.filter((cents) => cents > 0);
+	let previewCents = $state(
+		cardPresets[Math.floor(cardPresets.length / 2)] ?? data.contributionPreview.customMonthlyCents.min,
+	);
+	const dollars = (cents: number) => (cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`);
 </script>
 
 <svelte:head>
@@ -41,8 +47,8 @@
 		<p>
 			<!-- TODO copy review: drafted, not ratified. -->
 			Tell us who you are and how to reach you. We will email you a receipt immediately; a keyholder replies within three
-			business days of your address being verified. Membership never depends on what you can contribute — that question only
-			comes after approval, and $0 is always an option.
+			business days of your address being verified. Membership never depends on what you can contribute. You can preview the
+			optional contribution choices below, including $0.
 		</p>
 
 		{#if form && 'code' in form}
@@ -56,6 +62,37 @@
 				{/if}
 			</p>
 		{/if}
+
+		<fieldset class="contribution-preview" aria-describedby="contribution-preview-note">
+			<legend>Optional contribution preview</legend>
+			<p id="contribution-preview-note">
+				This preview is not part of your application. Moving the slider records nothing and starts no payment. If your
+				membership becomes active, you can choose then or skip this step.
+			</p>
+
+			<label for="contribution-preview-slider">
+				Card amount preview: <output>{dollars(previewCents)} per month</output>
+			</label>
+			<input
+				id="contribution-preview-slider"
+				type="range"
+				min={data.contributionPreview.customMonthlyCents.min}
+				max={data.contributionPreview.customMonthlyCents.max}
+				step="100"
+				bind:value={previewCents}
+			/>
+
+			<ul class="contribution-choices" aria-label="Available contribution choices">
+				<li><strong>$0</strong> — no payment</li>
+				<li>
+					<strong>Card</strong> — monthly presets
+					{cardPresets.map(dollars).join(', ')}, or a custom amount
+				</li>
+				{#each data.contributionPreview.rails as rail (rail)}
+					<li><strong>{rail === 'cash' ? 'Cash' : 'Check'}</strong> — arranged after activation</li>
+				{/each}
+			</ul>
+		</fieldset>
 
 		<form
 			method="POST"
@@ -116,5 +153,18 @@
 	}
 	input[type='checkbox'] {
 		justify-self: start;
+	}
+	.contribution-preview {
+		display: grid;
+		gap: 0.75rem;
+		margin: 1.5rem 0;
+		padding: 1rem;
+	}
+	.contribution-preview input[type='range'] {
+		width: 100%;
+	}
+	.contribution-choices {
+		margin: 0;
+		padding-left: 1.25rem;
 	}
 </style>

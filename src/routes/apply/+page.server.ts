@@ -8,6 +8,12 @@
  * `strict: false` + a 404 fallback); the production ADAPTER=node origin
  * serves it live — the same split `/discuss` uses.
  *
+ * PRESENTATION IS NOT CAPTURE. The load serves the canonical optional
+ * contribution shape for a read-only application-page preview. The action
+ * projects only application fields; preview controls are outside the form and
+ * cannot create contribution state, a payment intent, Checkout, or a charge.
+ * Durable contribution choices remain behind the active-member route.
+ *
  * THE ACTION IS BUILT BY A FACTORY so the integration suite can drive the
  * real request path (429 shape, constant bodies) with injected seams while
  * production wires the defaults. Order of refusals, cheapest and least
@@ -28,7 +34,9 @@
 import { fail, type Actions, type RequestEvent, type ActionFailure } from '@sveltejs/kit';
 import { withTenant } from '$lib/server/db/tenant';
 import { AGE_ATTESTATION_TEXT, intakeOpen } from '$lib/server/application/attestation';
+import { contributionOfferShape } from '$lib/server/contribution/offer';
 import {
+	applicationSubmissionFromForm,
 	InvalidSubmissionError,
 	PUBLIC_RECEIPT,
 	submitApplication,
@@ -75,18 +83,12 @@ export function _createApplyAction(seams: ApplyActionSeams = {}) {
 		if (!tenantId || !env.DATABASE_URL?.trim()) return fail(503, UNAVAILABLE);
 
 		const form = await event.request.formData();
-		const raw: Record<string, unknown> = {
-			displayName: form.get('displayName') ?? '',
-			email: form.get('email') ?? '',
-			interestsHelpOffer: form.get('interestsHelpOffer') ?? '',
-			tourAvailability: form.get('tourAvailability') ?? '',
-			disclosures: form.get('disclosures') ?? '',
-			ageAttested: form.get('ageAttested') === 'on' || form.get('ageAttested') === 'true',
-		};
 		const headerKey = event.request.headers.get('idempotency-key')?.trim();
 		const formKey = form.get('idempotencyKey');
 		const idempotencyKey = headerKey || (typeof formKey === 'string' && formKey.trim()) || undefined;
-		if (idempotencyKey) raw.idempotencyKey = idempotencyKey;
+		// Closed projection: even a hostile client adding preview-shaped fields
+		// cannot put money data into the application validator or aggregate.
+		const raw = applicationSubmissionFromForm(form, idempotencyKey);
 
 		try {
 			const validated = validateSubmission(raw);
@@ -109,6 +111,9 @@ export const load: PageServerLoad = () => ({
 	// operator sets AGE_ATTESTATION_TEXT at launch. The page renders the
 	// checkbox only from this value, never from local copy.
 	attestationText: AGE_ATTESTATION_TEXT ?? null,
+	// Pure presentation data. No member lookup, contribution row, gateway, or
+	// processor call is reachable from this shape function.
+	contributionPreview: contributionOfferShape(),
 });
 
 export const actions: Actions = {

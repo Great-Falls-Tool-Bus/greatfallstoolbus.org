@@ -14,11 +14,14 @@
  * server-validated), cash, and check — cash and check first-class rails,
  * equal to card in every membership consequence (ADR 0016 §3.1).
  *
- * PLACEMENT RULE (ADR 0014 §5:147; TIN-3818 required behavior row 1): the
- * offer appears ONLY after approval — the consuming route guards on an
- * ACTIVE membership (member-projection-flow.mmd hangs the offer off Active)
- * and this module is never imported by intake code. Skipping the offer
- * entirely is valid; $0 is a real recorded choice, not an absence.
+ * PRESENTATION / RECORDING SPLIT (TIN-4227 ruling, replacing ADR 0014 §5's
+ * stale "offer appears only after approval" wording): the pure
+ * `contributionOfferShape()` may render before approval as a read-only
+ * preview. No preview value is submitted or retained. Parsing, recording a
+ * durable choice, and every payment rail remain behind the ACTIVE-membership
+ * route (member-projection-flow.mmd hangs that mutation off Active). Skipping
+ * the durable offer is valid; $0 is a real recorded choice once chosen there,
+ * not an absence.
  *
  * Copy rule (ADR 0014 §0.6 / ADR 0016 §2): "contribution", never "donation".
  *

@@ -12,8 +12,10 @@
  *   - Contribution. No contribution field exists in `SubmissionInput`, the
  *     validator REJECTS unknown fields (so a smuggled `contributionAmount`
  *     fails loudly rather than being dropped silently), and the table has no
- *     such column. "Applicants have no contribution state before approval"
- *     (TIN-3440; spec §12 P1 shape; contract A2 guard: "no contribution field
+ *     such column. The read-only contribution preview on `/apply` is
+ *     presentation-only: its controls never enter the application form or
+ *     this payload. "Applicants have no contribution state before approval"
+ *     remains true (TIN-3440; contract A2 guard: "no contribution field
  *     accepted, structurally").
  *   - Approval logic. Claim/decide are S5's (`application/{claim,decide}.ts`);
  *     nothing here reads or writes past `email_verified`.
@@ -98,6 +100,30 @@ export interface SubmissionInput {
 	ageAttested: boolean;
 	/** Client `Idempotency-Key`; generated server-side when absent. */
 	idempotencyKey?: string;
+}
+
+/**
+ * Project an HTTP form onto the exact application aggregate input.
+ *
+ * The contribution preview deliberately has no named controls and sits
+ * outside the form, but this closed projection is the second fence: hostile
+ * `pick`, `amount`, payment, or Stripe fields are never forwarded to the
+ * validator, database, reviewer projection, or outbox.
+ */
+export function applicationSubmissionFromForm(
+	form: FormData,
+	idempotencyKey?: string,
+): Record<string, unknown> {
+	const submission: Record<string, unknown> = {
+		displayName: form.get('displayName') ?? '',
+		email: form.get('email') ?? '',
+		interestsHelpOffer: form.get('interestsHelpOffer') ?? '',
+		tourAvailability: form.get('tourAvailability') ?? '',
+		disclosures: form.get('disclosures') ?? '',
+		ageAttested: form.get('ageAttested') === 'on' || form.get('ageAttested') === 'true',
+	};
+	if (idempotencyKey) submission.idempotencyKey = idempotencyKey;
+	return submission;
 }
 
 const REQUIRED_TEXT_FIELDS = ['displayName', 'email', 'interestsHelpOffer', 'tourAvailability', 'disclosures'] as const;

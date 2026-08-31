@@ -7,7 +7,13 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { InvalidSubmissionError, PUBLIC_RECEIPT, normalizeEmail, validateSubmission } from './intake';
+import {
+	InvalidSubmissionError,
+	PUBLIC_RECEIPT,
+	applicationSubmissionFromForm,
+	normalizeEmail,
+	validateSubmission,
+} from './intake';
 
 function input(overrides: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
@@ -30,6 +36,44 @@ function failedFields(raw: Record<string, unknown>): readonly string[] {
 	}
 	throw new Error('expected InvalidSubmissionError');
 }
+
+describe('applicationSubmissionFromForm — the read-only preview cannot enter A2', () => {
+	it('projects exactly the application fields and drops hostile money-shaped controls', () => {
+		const form = new FormData();
+		for (const [key, value] of Object.entries({
+			displayName: 'Alex Applicant',
+			email: 'Applicant@Example.org',
+			interestsHelpOffer: 'woodworking',
+			tourAvailability: 'weekday evenings',
+			disclosures: 'none',
+			ageAttested: 'on',
+			pick: 'preset:5000',
+			amount: '50',
+			helpRequested: 'true',
+			paymentIntent: 'pi_hostile',
+			stripeToken: 'tok_hostile',
+		})) {
+			form.set(key, value);
+		}
+
+		const projected = applicationSubmissionFromForm(form, 'application-key');
+		expect(Object.keys(projected).sort()).toEqual([
+			'ageAttested',
+			'disclosures',
+			'displayName',
+			'email',
+			'idempotencyKey',
+			'interestsHelpOffer',
+			'tourAvailability',
+		]);
+		expect(projected).not.toHaveProperty('pick');
+		expect(projected).not.toHaveProperty('amount');
+		expect(projected).not.toHaveProperty('helpRequested');
+		expect(projected).not.toHaveProperty('paymentIntent');
+		expect(projected).not.toHaveProperty('stripeToken');
+		expect(validateSubmission(projected).idempotencyKey).toBe('application-key');
+	});
+});
 
 describe('validateSubmission — the A2 guard set (spec §4; TIN-3440 intake list)', () => {
 	it('accepts the exact TIN-3440 field list and normalizes it', () => {
@@ -58,7 +102,15 @@ describe('validateSubmission — the A2 guard set (spec §4; TIN-3440 intake lis
 	});
 
 	it('rejects unknown fields — the structural no-contribution-capture line (A2)', () => {
-		for (const smuggled of ['contributionAmount', 'paymentIntent', 'stripeToken', 'amountCents']) {
+		for (const smuggled of [
+			'contributionAmount',
+			'paymentIntent',
+			'stripeToken',
+			'amountCents',
+			'pick',
+			'amount',
+			'helpRequested',
+		]) {
 			expect(failedFields(input({ [smuggled]: '20' }))).toContain(`unknown_field:${smuggled}`);
 		}
 	});
