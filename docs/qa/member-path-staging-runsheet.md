@@ -309,9 +309,10 @@ Receipt:
 - Open the private /assent?token=... activation link.
 - Confirm GET displays the ratified agreement and carries its current version
   in the rendered form.
-- Check assent explicitly, set the synthetic password, and submit.
+- Set the synthetic password and submit. There is no assent checkbox: decision
+  0024 §2 makes completing activation the agreement event itself.
 - Confirm activation, a live session, active membership, and /home displaying
-  the exact assented agreement version.
+  the exact agreement version recorded at activation.
 - Never copy token, password, or cookie into evidence.
 
 Receipt:

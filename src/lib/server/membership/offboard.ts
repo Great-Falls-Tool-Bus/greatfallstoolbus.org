@@ -24,8 +24,12 @@
  *   2. replay converges on the standing jobs, no second external effect;
  *   3. unresolved obligations stay VISIBLE on the person's record
  *      (`personRecord`) and preserve NO login or list access;
- *   4. Member v0 DELETES NOTHING on offboarding (spec §14 item 4 — retention
- *      is the sitting #3 named gate): finance and audit records persist.
+ *   4. Member v0 DELETES NOTHING on offboarding: finance and audit records
+ *      persist. Decision 0024 (2026-08-31) §3 has since ratified the periods
+ *      (30-day intact recovery after exit or removal, purge at 90 days), but
+ *      its required carrier 3 keeps the delete prohibition standing until the
+ *      restore/purge ladder is built and separately authorized. Nothing in
+ *      this module schedules or performs a purge.
  */
 
 import { and, desc, eq, inArray } from 'drizzle-orm';
