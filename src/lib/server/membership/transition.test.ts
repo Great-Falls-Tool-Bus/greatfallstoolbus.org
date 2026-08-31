@@ -16,7 +16,7 @@ import {
 
 describe('the ratified membership FSM (spec §4; member-lifecycle.mmd)', () => {
 	it('pins every event source-state set — an accidental new edge fails a test, not a review', () => {
-		expect(MEMBERSHIP_TRANSITIONS.assent_and_activate).toEqual({ from: ['pending_assent'], to: 'active' });
+		expect(MEMBERSHIP_TRANSITIONS.activate).toEqual({ from: ['pending_assent'], to: 'active' });
 		expect(MEMBERSHIP_TRANSITIONS.pause).toEqual({ from: ['active'], to: 'paused' });
 		expect(MEMBERSHIP_TRANSITIONS.resume).toEqual({ from: ['paused'], to: 'active' });
 		expect(MEMBERSHIP_TRANSITIONS.leave).toEqual({ from: ['active', 'paused'], to: 'left' });
@@ -34,7 +34,7 @@ describe('the ratified membership FSM (spec §4; member-lifecycle.mmd)', () => {
 	});
 
 	it('pause never auto-expires: no event maps paused anywhere except resume/leave/remove', () => {
-		expect(classifyTransition('paused', 'assent_and_activate')).toBe('forbidden');
+		expect(classifyTransition('paused', 'activate')).toBe('forbidden');
 		expect(classifyTransition('paused', 'pause')).toBe('forbidden');
 		expect(classifyTransition('paused', 'resume')).toBe('active');
 		expect(classifyTransition('paused', 'leave')).toBe('left');
@@ -62,7 +62,7 @@ describe('the ratified membership FSM (spec §4; member-lifecycle.mmd)', () => {
 				['paused:leave', 'left'],
 				['paused:remove', 'removed'],
 				['paused:resume', 'active'],
-				['pending_assent:assent_and_activate', 'active'],
+				['pending_assent:activate', 'active'],
 			].sort(),
 		);
 	});

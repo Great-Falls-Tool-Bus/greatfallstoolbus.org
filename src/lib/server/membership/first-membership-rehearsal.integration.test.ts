@@ -324,8 +324,9 @@ describe('first membership launch rehearsal', () => {
 			).toBe(false);
 			receipt('S13 agreement publish — authorized synthetic version');
 
-			// M1: mint the activation token directly (no mail), assent to the
-			// published agreement, and validate the issued session.
+			// M1: mint the activation token directly (no mail), activate against
+			// the published agreement, and validate the issued session. Activation
+			// itself records the version; no separate checkbox is submitted.
 			const activation = await withTenant(tenantId, (tx) => mintActivationToken(tx, applicationId));
 			const memberPassphrase = `rehearsal-member-${randomUUID()}`;
 			const activationJar = cookieJar();
@@ -337,7 +338,6 @@ describe('first membership launch rehearsal', () => {
 						[PASSWORD_FIELD]: memberPassphrase,
 						[CONFIRM_PASSWORD_FIELD]: memberPassphrase,
 						agreementVersionId: String(expectedAgreementVersion),
-						assent: 'true',
 					},
 					{ cookies: activationJar.cookies },
 				) as never,
@@ -365,7 +365,7 @@ describe('first membership launch rehearsal', () => {
 				activatedMembership?.agreement_version_id,
 				'[M1 activation] membership must bind the published agreement version',
 			).toBe(expectedAgreementVersion);
-			receipt('M1 activation — assent + active membership + valid session');
+			receipt('M1 activation — agreement receipt + active membership + valid session');
 
 			// S12: merged login only, in-process. Both the redirect and the fresh
 			// independently validated session are required evidence.
