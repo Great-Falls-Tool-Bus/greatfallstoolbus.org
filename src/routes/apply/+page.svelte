@@ -75,11 +75,11 @@
 			</p>
 
 			<label id="contribution-preview-slider-label" for="contribution-preview-slider">
-				<span>Card amount preview</span>
-				<output id="contribution-preview-value" for="contribution-preview-slider" aria-live="polite">
-					{dollars(previewDollars)} per month
-				</output>
+				Card amount preview, dollars per month
 			</label>
+			<output id="contribution-preview-value" for="contribution-preview-slider" aria-live="polite">
+				{dollars(previewDollars)} per month
+			</output>
 			<input
 				id="contribution-preview-slider"
 				type="range"
@@ -87,9 +87,7 @@
 				max={previewMaximumDollars}
 				step="1"
 				bind:value={previewDollars}
-				aria-labelledby="contribution-preview-slider-label contribution-preview-value"
 				aria-describedby="contribution-preview-note contribution-preview-no-script"
-				aria-valuetext={`${dollars(previewDollars)} per month`}
 			/>
 			<p id="contribution-preview-no-script">
 				Without scripting, moving the native slider does not update the amount shown. It still submits and records

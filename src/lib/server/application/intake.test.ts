@@ -56,6 +56,13 @@ describe('applicationSubmissionFromForm — the read-only preview cannot enter A
 		expect(source.indexOf(preview)).toBeLessThan(source.indexOf(applicationForm));
 		expect(preview).toContain('type="range"');
 		expect(preview).not.toMatch(/\bname\s*=/);
+		expect(preview).not.toContain('aria-valuetext');
+		expect(preview).not.toContain('aria-labelledby');
+		expect(preview).toMatch(
+			/<label[^>]*for="contribution-preview-slider"[^>]*>\s*Card amount preview, dollars per month\s*<\/label>/,
+		);
+		expect(preview).toContain('Without scripting, moving the native slider does not update the amount shown.');
+		expect(preview).toContain('It still submits and records');
 		expect(applicationForm).toContain('method="POST"');
 
 		const successfulControlNames = [
