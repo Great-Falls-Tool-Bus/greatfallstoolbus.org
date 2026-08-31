@@ -18,9 +18,7 @@
 		.map((cents) => cents / 100);
 	const previewMinimumDollars = data.contributionPreview.customMonthlyCents.min / 100;
 	const previewMaximumDollars = data.contributionPreview.customMonthlyCents.max / 100;
-	let previewDollars = $state(
-		cardPresetDollars[Math.floor(cardPresetDollars.length / 2)] ?? previewMinimumDollars,
-	);
+	let previewDollars = $state(cardPresetDollars[Math.floor(cardPresetDollars.length / 2)] ?? previewMinimumDollars);
 	const dollars = (amount: number) => (Number.isInteger(amount) ? `$${amount}` : `$${amount.toFixed(2)}`);
 </script>
 
@@ -50,9 +48,9 @@
 	{:else}
 		<p>
 			<!-- TODO copy review: drafted, not ratified. -->
-			Tell us who you are and how to reach you. We will email you a receipt immediately; a keyholder replies within
-			three business days of your address being verified. Membership never depends on what you can contribute. You can
-			preview the optional contribution choices below, including $0.
+			Tell us who you are and how to reach you. We will email you a receipt immediately; a keyholder replies within three
+			business days of your address being verified. Membership never depends on what you can contribute. You can preview the
+			optional contribution choices below, including $0.
 		</p>
 
 		{#if form && 'code' in form}
