@@ -38,7 +38,7 @@ common --enable_bzlmod
 # convention are specified in that registry's own docs, not here (this link
 # tracks the registry's default branch and does not need re-pinning):
 #   https://github.com/tinyland-inc/bazel-registry/blob/main/docs/bazel-adoption-v0.md
-common --registry=https://raw.githubusercontent.com/tinyland-inc/bazel-registry/f23d69758dd20633b2ceb7767545d8925a317825
+common --registry=https://raw.githubusercontent.com/tinyland-inc/bazel-registry/ef734c4a26045a7b396913e6cf410e50fbe16635
 # bcr stays as a secondary registry; the Tinyland registry stays first so
 # in-house Bazel modules resolve before falling through to bcr.bazel.build.
 common --registry=https://bcr.bazel.build
