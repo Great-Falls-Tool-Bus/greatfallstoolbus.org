@@ -1,6 +1,6 @@
 ---
 name: tinyland-scaffold-doctor
-description: Audit a Tinyland repo for drift against the greatfallstoolbus.org house-style contract. Reports a structured scorecard covering Justfile recipes, flake.nix toolchain, .gitleaks.toml rules, AGENTS.md / CLAUDE.md presence, tinyland.repo.json validity, .agents/skills/* presence and naming, .bazelrc / .bazelrc.flywheel shape (endpoint-free), Skeleton/Tailwind pins, snapshot ingestion recipes, lanes.json schema validity, and CI workflow inheritance from ci-templates. Use when onboarding to an unfamiliar sister site, debugging "why does CI fail here but not in scaffold", validating a spawn worked, or pre-merge before raising a PR that bumps the scaffold tag.
+description: Audit a Tinyland repo for drift against the greatfallstoolbus.org house-style contract. Reports a structured scorecard covering Justfile recipes, flake.nix toolchain, gitleaks, agent guidance, manifest validity, skill publication, the schema-v2 consumer-owned ActionPlan, immutable ci-templates v4 adoption, and the absence of provider placement or fallback execution in consumer source. Use when onboarding a sister site, diagnosing CI drift, validating a spawn, or preparing a scaffold-tag bump.
 when_to_use: |
   Use when the user asks "is this site healthy", "does this match scaffold", "what's
   drifted", "audit conformance", or after running /tinyland-spawn-sister-site to
@@ -69,12 +69,11 @@ gh repo clone tinyland-inc/site.scaffold scaffold-"$SCAFFOLD_TAG"
 cd scaffold-"$SCAFFOLD_TAG" && git checkout "$SCAFFOLD_TAG"
 
 # 3. Diff load-bearing files. Surface (not auto-fix) drift.
-for f in Justfile flake.nix .bazelrc .bazelrc.flywheel \
-         .gitleaks.toml docs/CI-SCHEMA.md \
+for f in Justfile flake.nix .bazelrc .gitleaks.toml AGENTS.md \
+         .github/lanes.json .github/workflows/ci.yml docs/CI-SCHEMA.md \
          docs/schemas/lanes.schema.json \
          docs/schemas/tinyland-repo-manifest.schema.json \
-         scripts/check-conformance.sh \
-         scripts/gloriousflywheel-bazel.sh; do
+         scripts/check-conformance.sh; do
   diff -u "/tmp/scaffold-doctor/scaffold-$SCAFFOLD_TAG/$f" "$f" || true
 done
 ```
@@ -87,7 +86,18 @@ fork vs unintended drift), and whether to fold the scaffold's version back in.
 These are the rules that should NEVER drift in a spoke:
 
 - `tinyland.repo.json` `boundaries.owns_*` flags match the role.
-- `.bazelrc.flywheel` has NO `remote_cache=` or `remote_executor=` lines.
+- `.github/lanes.json` is a schema-v2 ActionPlan containing only finite Bazel
+  commands, exact workspace targets, and abstract REAPI capabilities. It owns
+  no tenant, repository, runner, endpoint, credential, publication, or apply
+  instance.
+- The application workflow invokes the immutable
+  `tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@v4.0.0` and only
+  selects a checked-in action name. It has no v3, cache-only, local,
+  hosted-runner, direct-endpoint, port-forward, or profile fallback.
+- Consumer enrollment instances live in the organization's own `-infra`
+  repository as signed `OwnerInstallation/v1` and `TenantOverlay/v1` values.
+  GF core owns their types and verifier, never those consumer instances, and
+  the application repo never names provider placement.
 - Root `.bazelversion` equals the estate-wide Bazel version the repo
   recorded next to its exact-SHA `bazel-registry` pin, as a
   `# estate-bazelversion: <x.y.z>` line in `.bazelrc` (TIN-3857 Step A).
@@ -123,7 +133,7 @@ Produce a scorecard, one row per check, in this shape:
 PASS | check-name                      | (one-line evidence)
 PASS | ...
 WARN | flake.nix: missing git-cliff   | scaffold@v0.4.0 adds git-cliff to devShell
-FAIL | .bazelrc.flywheel:23           | hard-codes remote_cache= (forbidden)
+FAIL | .github/workflows/ci.yml:18    | invokes v3/cache-only execution instead of ci-templates v4
 P0   | tofu/backend.tf:7              | hard-codes a provider state endpoint (forbidden — env authority)
 ```
 

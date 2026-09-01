@@ -11,6 +11,7 @@ load("@npm//:eslint/package_json.bzl", eslint_bin = "bin")
 load("@npm//:prettier/package_json.bzl", prettier_bin = "bin")
 load("@npm//:vitest/package_json.bzl", vitest = "bin")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//:gitleaks_test.bzl", "gitleaks_test")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -54,7 +55,77 @@ filegroup(
 
 filegroup(
     name = "e2e_srcs",
-    srcs = glob(["e2e/**"], allow_empty = True),
+    srcs = glob(
+        ["e2e/**"],
+        allow_empty = True,
+    ),
+)
+
+# The v4 validation action carries its own exact source capsule. Secret
+# scanning is therefore a hermetic Bazel test inside the same REAPI action,
+# not a second runner job or a local/hosted fallback.
+filegroup(
+    name = "current_source_secret_scan_srcs",
+    srcs = [
+        ".bazelrc",
+        ".bazelversion",
+        ".envrc",
+        ".gitignore",
+        ".gitleaks.toml",
+        ".npmrc",
+        ".nvmrc",
+        ".prettierignore",
+        ".prettierrc",
+        "AGENTS.md",
+        "BUILD.bazel",
+        "CLAUDE.md",
+        "ContainerFile",
+        "Justfile",
+        "LICENSE",
+        "MODULE.bazel",
+        "MODULE.bazel.lock",
+        "README.md",
+        "drizzle.config.ts",
+        "eslint.config.ts",
+        "flake.lock",
+        "flake.nix",
+        "gitleaks_test.bzl",
+        "multitool.lock.json",
+        "package.json",
+        "playwright.config.ts",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "svelte.config.js",
+        "tinyland.repo.json",
+        "tsconfig.json",
+        "vite.config.ts",
+        "vitest.config.ts",
+        "vitest.integration.config.ts",
+    ] + glob(
+        [
+            ".agents/**",
+            ".github/**",
+            "docs/**",
+            "drizzle/**",
+            "e2e/**",
+            "nix/**",
+            "scripts/**",
+            "src/**",
+            "static/**",
+        ],
+        allow_empty = True,
+        exclude = [
+            "**/.DS_Store",
+            "**/__pycache__/**",
+        ],
+    ),
+)
+
+gitleaks_test(
+    name = "current_source_secret_scan_test",
+    timeout = "short",
+    srcs = [":current_source_secret_scan_srcs"],
+    config = ".gitleaks.toml",
 )
 
 js_binary(
@@ -67,7 +138,6 @@ js_run_binary(
     name = "sveltekit_types",
     srcs = [":app_srcs"],
     out_dirs = [".svelte-kit"],
-    tags = ["flywheel-eligible"],
     tool = ":sveltekit_sync_bin",
 )
 
@@ -79,49 +149,42 @@ js_binary(
 
 js_test(
     name = "svelte_check_test",
+    timeout = "long",
     data = [
         ":app_srcs",
         ":node_modules",
         ":sveltekit_types",
     ],
     entry_point = "scripts/bazel/run-svelte-check.mjs",
-    tags = ["flywheel-eligible"],
-    timeout = "long",
 )
 
-# Remote-eligible lint as a cache-first Bazel TEST target (TIN-2226). Runs the
-# same `eslint .` the `lint` recipe runs, but as a CAS-cacheable action so the
-# GloriousFlywheel shared cache can serve a green result. READ-ONLY: no writes.
+# Exact, read-only lint target selected by the v4 ActionPlan.
 eslint_bin.eslint_test(
     name = "eslint_test",
+    timeout = "moderate",
     args = ["."],
     data = [
+        "eslint.config.ts",
         ":app_srcs",
         ":node_modules",
         ":sveltekit_types",
-        "eslint.config.ts",
     ],
-    tags = ["flywheel-eligible"],
-    timeout = "moderate",
 )
 
-# Remote-eligible format check as a cache-first Bazel TEST target (TIN-2226).
-# Mirrors `prettier --check .` (the `format-check` recipe) as a CAS-cacheable,
-# READ-ONLY action — it never rewrites files.
+# Exact, read-only format target selected by the v4 ActionPlan.
 prettier_bin.prettier_test(
     name = "prettier_check_test",
+    timeout = "short",
     args = [
         "--check",
         ".",
     ],
     data = [
-        ":app_srcs",
-        ":node_modules",
         ".prettierignore",
         ".prettierrc",
+        ":app_srcs",
+        ":node_modules",
     ],
-    tags = ["flywheel-eligible"],
-    timeout = "short",
 )
 
 js_binary(
@@ -138,29 +201,25 @@ js_run_binary(
     ],
     out_dirs = ["build"],
     patch_node_fs = False,
-    tags = ["flywheel-eligible"],
     tool = ":vite_build_bin",
     visibility = ["//visibility:public"],
 )
 
 vitest.vitest_test(
     name = "unit_tests",
-    data = [
-        ":app_srcs",
-        ":node_modules",
-        ":node_modules/vitest",
-        "vitest.config.ts",
-    ],
     args = [
         "run",
         "--reporter=verbose",
         "--config",
         "$(rootpath vitest.config.ts)",
     ],
-    tags = [
-        "flywheel-eligible",
-        "vitest",
+    data = [
+        "vitest.config.ts",
+        ":app_srcs",
+        ":node_modules",
+        ":node_modules/vitest",
     ],
+    tags = ["vitest"],
     visibility = ["//visibility:public"],
 )
 
@@ -170,13 +229,7 @@ vitest.vitest_test(
 # operator host, and `no-cache` makes every successful invocation fresh proof.
 vitest.vitest_test(
     name = "first_membership_rehearsal_test",
-    data = [
-        ":app_srcs",
-        ":node_modules",
-        ":node_modules/vitest",
-        "src/lib/server/membership/first-membership-rehearsal.integration.test.ts",
-        "vitest.integration.config.ts",
-    ],
+    timeout = "long",
     args = [
         "run",
         "$(rootpath src/lib/server/membership/first-membership-rehearsal.integration.test.ts)",
@@ -184,97 +237,65 @@ vitest.vitest_test(
         "--config",
         "$(rootpath vitest.integration.config.ts)",
     ],
+    data = [
+        "src/lib/server/membership/first-membership-rehearsal.integration.test.ts",
+        "vitest.integration.config.ts",
+        ":app_srcs",
+        ":node_modules",
+        ":node_modules/vitest",
+    ],
     tags = [
         "integration",
         "local",
         "manual",
         "no-cache",
     ],
-    timeout = "long",
     visibility = ["//visibility:public"],
 )
 
 js_test(
     name = "playwright_static_smoke",
+    timeout = "moderate",
     data = [
+        "scripts/bazel/run-playwright-static-smoke.mjs",
         ":build",
         ":e2e_srcs",
         ":node_modules",
-        "scripts/bazel/run-playwright-static-smoke.mjs",
     ],
     entry_point = "scripts/bazel/run-playwright-static-smoke.mjs",
     tags = [
-        "gloriousflywheel-rbe-candidate",
+        "manual",
         "playwright",
-        "web-playwright-chromium-static-smoke",
     ],
-    timeout = "moderate",
     visibility = ["//visibility:public"],
-)
-
-# Pure, finite custody/preservation negative controls. Keep tracked scripts
-# non-executable and invoke them explicitly through Bash. Native sh_test
-# requires one executable src, so a finite launcher is generated for Bazel.
-# The generated runtime line is single-quoted: genrule's build shell must emit,
-# not expand, TEST_SRCDIR/TEST_WORKSPACE for the eventual test process.
-genrule(
-    name = "preview_tailnet_state_contract_test_runner",
-    outs = ["preview-tailnet-state-contract-test-runner.sh"],
-    cmd = "printf '%s\\n' '#!/usr/bin/env bash' 'exec bash \"$${TEST_SRCDIR}/$${TEST_WORKSPACE}/scripts/preview-tailnet-state.test.sh\" \"$${TEST_SRCDIR}/$${TEST_WORKSPACE}/scripts/preview-tailnet-state.sh\" \"$${TEST_SRCDIR}/$${TEST_WORKSPACE}/Justfile\"' > \"$@\" && chmod 0555 \"$@\"",
-    executable = True,
-)
-
-sh_test(
-    name = "preview_tailnet_state_contract_test",
-    srcs = [":preview_tailnet_state_contract_test_runner"],
-    data = [
-        "Justfile",
-        "scripts/preview-tailnet-state.sh",
-        "scripts/preview-tailnet-state.test.sh",
-    ],
-    tags = [
-        "gloriousflywheel-cache-only",
-        "no-remote-exec",
-        "security-contract",
-    ],
 )
 
 test_suite(
     name = "ci_validation_suite",
     tests = [
-        ":preview_tailnet_state_contract_test",
+        ":current_source_secret_scan_test",
+        ":eslint_test",
+        ":prettier_check_test",
         ":svelte_check_test",
         ":unit_tests",
     ],
 )
 
-# Proved static-spoke class: deployment-bundle-packaging (TIN-2543). Packages the
-# adapter-static production build (//:build) into a deterministic deployment
-# tarball. This is a hermetic rules_pkg action, so it is BOTH cache-eligible and
-# executor-eligible (it is a proved static-spoke class) — tagged flywheel-eligible.
+# Historical adapter-static deployment bundle. The v4 application canary does
+# not select it because GFTB production is adapter-node; it remains a manual
+# local packaging target until an exact production artifact graph replaces it.
 pkg_tar(
     name = "deployment_bundle",
     srcs = [":build"],
     extension = "tar.gz",
-    tags = [
-        "deployment-bundle-packaging",
-        "flywheel-eligible",
-    ],
+    tags = ["manual"],
     visibility = ["//visibility:public"],
 )
 
-# Container / OCI build target (TIN-2543): the deterministic input set the
-# daemonless nix2container image build (flake `.#image` + `just
-# container-image-publish`) consumes. flake.nix + flake.lock pin the PRIMARY
-# nix2container path; nix/oci-image.nix is the retained nixpkgs-only fallback.
-# It is CACHE-eligible (the shared GloriousFlywheel cache serves a green result
-# for an unchanged recipe) but explicitly NOT executor-eligible: per skill rule 8
-# + docs/CI-SCHEMA.md §5, `container-image-and-push` is blocked at the
-# GloriousFlywheel manifest layer, so image assembly/push never runs on a remote
-# executor. The tag is deliberately NOT "flywheel-eligible", so the
-# `--{build,test}_tag_filters=flywheel-eligible` executor filter excludes it
-# while cache-first mode (config=flywheel) still caches it. The SvelteKit build
-# INPUTS remain cache-accelerated via //:build and //:sveltekit_types.
+# Container / OCI recipe inventory. Publication is not a v4 Bazel action, and
+# the checked-in v4 plan selects neither this target nor the obsolete
+# adapter-static deployment bundle. This target grants no publication or
+# fallback authority.
 pkg_tar(
     name = "container_image_context",
     srcs = [
@@ -293,8 +314,7 @@ pkg_tar(
     extension = "tar",
     tags = [
         "container-image-and-push",
-        "gloriousflywheel-cache-only",
-        "no-remote-exec",
+        "manual",
     ],
     visibility = ["//visibility:public"],
 )

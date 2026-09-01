@@ -32,6 +32,7 @@ bazel_dep(name = "bazel_skylib", version = "1.8.2")
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "aspect_bazel_lib", version = "2.22.5")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
+bazel_dep(name = "rules_multitool", version = "1.11.1")
 
 # JS/TS toolchain (Aspect)
 bazel_dep(name = "rules_nodejs", version = "6.7.3")
@@ -73,14 +74,21 @@ use_repo(pnpm, "pnpm")
 npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
 npm.npm_translate_lock(
     name = "npm",
-    npmrc = "//:.npmrc",
-    pnpm_lock = "//:pnpm-lock.yaml",
     data = [
         "//:package.json",
         "//:pnpm-workspace.yaml",
     ],
+    npmrc = "//:.npmrc",
+    pnpm_lock = "//:pnpm-lock.yaml",
 )
 use_repo(npm, "npm")
+
+# Hermetic current-source secret scan used by the v4 validate ActionPlan.
+multitool = use_extension("@rules_multitool//multitool:extension.bzl", "multitool")
+multitool.hub(lockfile = "//:multitool.lock.json")
+use_repo(multitool, "multitool")
+
+register_toolchains("@multitool//toolchains:all")
 
 # TypeScript 6.0.3 — must match package.json exactly (rules_ts cannot parse
 # caret ranges, and house-stack-contract.test.ts fails on any drift between
@@ -88,8 +96,8 @@ use_repo(npm, "npm")
 # the npm dist integrity is pinned explicitly.
 rules_ts_ext = use_extension("@aspect_rules_ts//ts:extensions.bzl", "ext")
 rules_ts_ext.deps(
-    ts_version = "6.0.3",
     ts_integrity = "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==",
+    ts_version = "6.0.3",
 )
 use_repo(rules_ts_ext, "npm_typescript")
 

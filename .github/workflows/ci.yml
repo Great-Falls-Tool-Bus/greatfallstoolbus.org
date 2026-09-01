@@ -1,65 +1,32 @@
-name: CI
+name: GFTB V4 Action Fabric
+
+# ACTIVATION HOLD (TIN-4251): v4.0.0 publishes the immutable workflow source,
+# but this consumer is not live until its organization-owned -infra overlay
+# publishes signed OwnerInstallation/v1 and TenantOverlay/v1 instances, the
+# controller resolves their exact ActionPlan/source tuple, and the dispatcher
+# image contains gf-action-client. Missing authority fails closed. There is no
+# v3, cache-only, local, hosted-runner, direct-endpoint, or profile fallback.
 
 on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
-  pull_request:
-    branches: [main, 'feat/tin-3815-s0-platform-role']
-  workflow_dispatch:
 
 permissions:
   contents: read
-  statuses: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-# Thin wrapper over tinyland-inc/ci-templates' spoke-ci.yml. See
-# docs/CI-SCHEMA.md §5 + §6 for the runner-class matrix and required
-# status checks. Bump the @v... pin deliberately after reviewing the
-# ci-templates CHANGELOG.
+  group: gftb-v4-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  ci:
-    # Naming note: the template's `flywheel-test` matrix job runs the pure-pnpm
-    # `just check` lane (no Bazel involved). The name is owned by ci-templates'
-    # matrix — do not rename it here. Real Bazel cache attach happens in the
-    # `flywheel-build` / `bazel-graph` jobs.
-    uses: tinyland-inc/ci-templates/.github/workflows/spoke-ci.yml@v3.1.0
+  validate:
+    name: validate through REAPI
+    permissions:
+      contents: read
+      id-token: write
+    uses: tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@v4.0.0
     with:
-      node_version: '22'
-      pnpm_version: '10.13.1'
-      # Cache-first shared-cache enrollment (TIN-2119). flywheel_config must be
-      # `flywheel` (not local) so flywheel-bazel forwards --remote_cache; the
-      # cache_backed lane switches setup to nix-setup@v2 (exports
-      # BAZEL_REMOTE_CACHE), asserts attachment via the vendored
-      # scripts/cache-attachment-contract.sh --strict, and runs the
-      # flywheel-eligible CAS targets through the shared Bazel cache.
-      flywheel_config: flywheel
-      allowed_repo_roles: static-spoke,static-spoke-scaffold,app-stateful-spoke
-      cache_backed: true
-      playwright_enabled: true
-      lanes_path: .github/lanes.json
-      default_runner_class: tinyland-nix
-      # GFTB org pool (TIN-2299 sense-3 overlay) serves ONLY the tinyland-nix
-      # capability label - no -heavy/-kvm classes exist here (ci-templates#68).
-      heavy_runner_class: tinyland-nix
-      kvm_runner_class: tinyland-nix
-    secrets: inherit
-
-  preview-tailnet-state-contract:
-    name: preview-tailnet state / exact Bazel label
-    runs-on: tinyland-nix
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: tinyland-inc/ci-templates/.github/actions/nix-setup@d8d178c022a0f84853d53a2c8fe0fc90115f0949
-      - name: Run cache-only, no-remote-exec custody proof
-        env:
-          GF_FLYWHEEL_PROFILE_STATE: shared-cache-backed
-          GF_BAZEL_SUBSTRATE_MODE: shared-cache-backed
-          GF_BAZEL_REMOTE_UPLOAD: 'false'
-          BAZEL_REMOTE_EXECUTOR: ''
-          GF_BAZEL_RUNNER_LABELS: ${{ join(runner.labels, ',') }}
-        run: nix develop --command just preview-tailnet-state-contract-bazel
+      action_name: validate

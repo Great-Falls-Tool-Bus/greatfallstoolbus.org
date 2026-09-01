@@ -17,11 +17,11 @@
 - [CI schema](https://github.com/tinyland-inc/site.scaffold/blob/main/docs/CI-SCHEMA.md)
 - [Repo taxonomy and GitOps convergence](https://github.com/tinyland-inc/site.scaffold/blob/main/docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md)
 - [Justfile](https://github.com/tinyland-inc/site.scaffold/blob/main/Justfile)
-- [Bazel wrapper](https://github.com/tinyland-inc/site.scaffold/blob/main/scripts/gloriousflywheel-bazel.sh)
+- [V4 ActionPlan](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.github/lanes.json)
 
 ## Skills
 
-- [tinyland-flywheel-bazel](https://github.com/tinyland-inc/site.scaffold/blob/main/.agents/skills/tinyland-flywheel-bazel/SKILL.md): cache-first Bazel and GloriousFlywheel RBE wiring.
+- [tinyland-flywheel-enroll](https://github.com/tinyland-inc/GloriousFlywheel/blob/main/.agents/skills/tinyland-flywheel-enroll/SKILL.md): consumer-owned v4 ActionPlan and overlay adoption with no fallback path.
 - [tinyland-static-spoke](https://github.com/tinyland-inc/site.scaffold/blob/main/.agents/skills/tinyland-static-spoke/SKILL.md): static spoke site customization and projection rules.
 - [tinyland-repo-contract](https://github.com/tinyland-inc/site.scaffold/blob/main/.agents/skills/tinyland-repo-contract/SKILL.md): Just, Nix, gitleaks, validation, and no-ad-hoc-file contract.
 

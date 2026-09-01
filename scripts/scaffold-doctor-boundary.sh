@@ -2,7 +2,7 @@
 # Authority-boundary audit for a Tinyland static spoke (or scaffold).
 #
 # Surfaces violations of the rules that should NEVER drift in a spoke:
-#  - .bazelrc.flywheel has no remote_cache= or remote_executor= lines.
+#  - v4 source carries no direct cache/executor endpoint authority.
 #  - root .bazelversion matches the estate value recorded in .bazelrc
 #    next to the exact-SHA bazel-registry pin (TIN-3857 Step A SSOT).
 #  - flake.nix has no hard-coded secrets or token paths.
@@ -42,17 +42,6 @@ check_pass() {
 check_skip() {
   echo "SKIP | $1"
 }
-
-# .bazelrc.flywheel must be endpoint-free
-if [ -f .bazelrc.flywheel ]; then
-  if grep -E '^[^#]*--remote_cache=' .bazelrc.flywheel >/dev/null 2>&1; then
-    check_fail ".bazelrc.flywheel hard-codes remote_cache (must come from env)"
-  elif grep -E '^[^#]*--remote_executor=' .bazelrc.flywheel >/dev/null 2>&1; then
-    check_fail ".bazelrc.flywheel hard-codes remote_executor (must come from env)"
-  else
-    check_pass ".bazelrc.flywheel is endpoint-free"
-  fi
-fi
 
 # .bazelversion SSOT (TIN-3857 Step A): if this repo pins tinyland-inc/bazel-registry
 # in .bazelrc, the root .bazelversion must equal the estate-wide value recorded

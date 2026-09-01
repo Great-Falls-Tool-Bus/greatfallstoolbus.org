@@ -17,12 +17,6 @@
 		"spawned_repo_role": "app-stateful-spoke",
 		"layers": ["org-wide-repo-contract", "bazel-package-cache-rbe", "app-stateful-spoke"]
 	},
-	"enrollment": {
-		"forgeScope": "Great-Falls-Tool-Bus",
-		"operatorOverlay": "great-falls-tool-bus-infra",
-		"executionPool": "tinyland-nix",
-		"substrateMode": "shared-cache-backed"
-	},
 	"contracts": {
 		"agent_contract": "AGENTS.md",
 		"just": "Justfile",
@@ -46,8 +40,6 @@
 		"content_authority": "tinyland.dev",
 		"gitops_receiver": "tinyland-inc/blahaj",
 		"ci_templates": "tinyland-inc/ci-templates",
-		"cache_rbe_authority": "tinyland-inc/GloriousFlywheel",
-		"tofu_module_authority": "tinyland-inc/GloriousFlywheel",
 		"package_registry": "tinyland-inc/bazel-registry"
 	},
 	"supply_chain": {

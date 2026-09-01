@@ -19,7 +19,7 @@ If plugin install is unavailable, read these files directly from the scaffold:
 - `.agents/skills/tinyland-whoami/SKILL.md`
 - `.agents/skills/tinyland-repo-contract/SKILL.md`
 - `.agents/skills/tinyland-static-spoke/SKILL.md`
-- `.agents/skills/tinyland-flywheel-bazel/SKILL.md`
+- `tinyland-inc/GloriousFlywheel/.agents/skills/tinyland-flywheel-enroll/SKILL.md`
 - `.agents/skills/tinyland-scaffold-doctor/SKILL.md`
 
 ## First Pass
@@ -52,7 +52,7 @@ Use these layers to characterize the repo and decide what applies:
 | Validation | `just check`, tests, schema validators | Named checks, no ad hoc untracked scripts. |
 | Secrets | `.gitleaks.toml`, `just secrets-scan-dir`, `just secrets-scan` | Gitleaks default rules plus narrow Tinyland additions. |
 | Bazel graph | `MODULE.bazel`, `MODULE.bazel.lock`, `BUILD.bazel` | Bzlmod graph proof and exact in-house package parity. |
-| Flywheel | `.bazelrc.flywheel`, `scripts/gloriousflywheel-bazel.sh`, `just flywheel-*` | Endpoint-free config; cache/executor endpoints come from environment. |
+| Flywheel v4 | `.github/lanes.json`, immutable `spoke-ci-v4.yml`, consumer-owned `-infra` overlay | Finite Bazel actions; no provider, endpoint, runner, cache-only, local, or hosted fallback. |
 | GitOps lanes | `.github/lanes.json`, CI workflows, dispatch schemas | Blahaj owns PR lanes, reaps, public previews, and final statuses. |
 | Static projection | snapshot recipes, projection docs | Static spokes consume checked-in public snapshots only. |
 | Agent ingestion | `.agents/skills/*`, `.claude/skills/*`, `static/llms.txt`, `static/agent-map.md`, `/agent` | Agent-readable surfaces link back to durable repo truth. |
@@ -72,10 +72,12 @@ Flag these before patching:
 - No `flake.nix`, or the flake omits tools used by documented recipes.
 - Validation lives only in one-off files outside `scripts/`, tests, Bazel
   targets, schemas, or Just recipes.
-- `.bazelrc.flywheel` hard-codes `--remote_cache`, `--remote_executor`, upload
-  authority, credentials, or cluster-local endpoints.
-- Flywheel work bypasses `scripts/gloriousflywheel-bazel.sh` or `just
-  flywheel-*`.
+- The ActionPlan contains a runner, pool, endpoint, tenant, repository,
+  lifecycle, publication, or provider-placement field.
+- A v4 caller bypasses `spoke-ci-v4.yml@v4.0.0` or the image-custodied
+  `gf-action-client`.
+- A repo preserves a v3 profile, cache-only path, local execution branch, or
+  hosted runner as a v4 fallback.
 - Pull requests can upload to the remote cache without a trusted lane.
 - OpenTofu, dev-server, or image-push targets are marked RBE eligible.
 - Static spokes fetch `tinyland.dev` at browser or edge runtime.
@@ -95,7 +97,8 @@ Flag these before patching:
 2. Normalize commands behind `Justfile` recipes.
 3. Ensure `flake.nix` includes every tool those recipes call.
 4. Add secrets scans and schema validators.
-5. Wire Bazel graph checks and Flywheel wrappers without endpoint literals.
+5. Wire finite Bazel actions and the immutable v4 caller; put signed demand in
+   the consumer-owned `-infra` overlay.
 6. Link Blahaj/GitOps contracts through CI templates instead of per-repo
    workflow duplication.
 7. Publish agent ingestion surfaces only after the durable contract files are

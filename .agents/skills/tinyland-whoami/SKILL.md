@@ -69,9 +69,11 @@ For each role, the canonical skill chain is:
 - **hub (`tinyland.dev`)**: `tinyland-repo-contract` always; mothership-specific
   rules live in `tinyland.dev/AGENTS.md`. Don't import static-spoke rules. Owns
   AP delivery, auth, payments, scheduling, media lifecycle.
-- **static-spoke**: `tinyland-repo-contract` + `tinyland-static-spoke` +
-  `tinyland-flywheel-bazel` (for cache-first Bazel only). Federates from
-  `tinyland.dev` via signed `PublicPulseSnapshot` JSON. Read-only consumer.
+- **static-spoke**: `tinyland-repo-contract` + `tinyland-static-spoke` + the
+  upstream `tinyland-flywheel-enroll` skill for v4 ActionPlan adoption.
+  Federates from `tinyland.dev` via signed `PublicPulseSnapshot` JSON.
+  Read-only consumer. The spoke owns action intent; its organization-owned
+  `-infra` overlay owns enrollment instances. GF core owns neither.
 - **dynamic-spoke** (e.g. `software.tinyland.dev-booking`): repo-contract + the
   dynamic-spoke skill (not yet authored — flag to the user). Owns its own data,
   consumes hub auth.

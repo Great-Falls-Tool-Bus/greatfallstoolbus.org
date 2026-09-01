@@ -43,7 +43,7 @@ Applies to repos that consume or produce Tinyland packages.
 - npm package references for in-house packages are compatibility edges until a
   repo is fully Bazel-native; they must be exact and parity-checked.
 - OpenTofu, developer servers, and image push are not RBE target classes.
-- Cache hits are not RBE proof. RBE proof requires executor-backed evidence for
+- Cache hits are not RBE proof. RBE proof requires an attributed remote Execute for
   an allowed target class.
 
 ### 3. Static Spoke Contract

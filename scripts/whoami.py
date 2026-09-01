@@ -20,12 +20,12 @@ ROLE_SKILLS: dict[str, list[str]] = {
     "static-spoke": [
         "tinyland-repo-contract",
         "tinyland-static-spoke",
-        "tinyland-flywheel-bazel",
+        "tinyland-flywheel-enroll",
     ],
     "static-spoke-scaffold": [
         "tinyland-repo-contract",
         "tinyland-static-spoke",
-        "tinyland-flywheel-bazel",
+        "tinyland-flywheel-enroll",
         "tinyland-spawn-sister-site",
         "tinyland-scaffold-doctor",
     ],
@@ -38,15 +38,15 @@ ROLE_SKILLS: dict[str, list[str]] = {
     # advice ("keep it static") is wrong for this role.
     "app-stateful-spoke": [
         "tinyland-repo-contract",
-        "tinyland-flywheel-bazel",
+        "tinyland-flywheel-enroll",
         "tinyland-scaffold-doctor",
     ],
     "dynamic-spoke": [
         "tinyland-repo-contract",
-        "tinyland-flywheel-bazel",
+        "tinyland-flywheel-enroll",
         "tinyland-scaffold-doctor",
     ],
-    "package-producer": ["tinyland-repo-contract", "tinyland-flywheel-bazel"],
+    "package-producer": ["tinyland-repo-contract", "tinyland-flywheel-enroll"],
     "package-authority": ["tinyland-repo-contract"],
     "infra": ["tinyland-repo-contract"],
     "tooling": ["tinyland-repo-contract"],
