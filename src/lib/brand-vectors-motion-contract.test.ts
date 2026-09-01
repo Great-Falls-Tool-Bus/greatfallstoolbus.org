@@ -41,7 +41,7 @@ function parsePinnedTinyvectorsVersion(): { spec: string; version: number[] } {
 describe('tinyvectors default-motion contract', () => {
 	it('pins @tummycrypt/tinyvectors at or above 0.3.7 (idle drift cruise is the default)', () => {
 		const { version } = parsePinnedTinyvectorsVersion();
-		const floor = IDLE_DRIFT_FLOOR.reduce((s, n) => s * 1000 + n, 0);
+		const floor = IDLE_DRIFT_FLOOR.reduce<number>((s, n) => s * 1000 + n, 0);
 		const pinned = version.reduce((s, n) => s * 1000 + n, 0);
 		expect(pinned).toBeGreaterThanOrEqual(floor);
 	});
