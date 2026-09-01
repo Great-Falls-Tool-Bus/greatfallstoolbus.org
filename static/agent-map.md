@@ -6,11 +6,9 @@
 2. `CLAUDE.md` when running under Claude
 3. `tinyland.repo.json` for machine-readable repo shape
 4. `docs/agent-adoption.md` when adopting this contract in another repo
-5. `docs/CI-SCHEMA.md` before CI, lane, Blahaj, Tofu, or Flywheel changes
-6. `docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md`
-   before applying static-spoke rules to app repos or `tinyland.dev`
-7. The relevant `.agents/skills/*/SKILL.md`
-8. `Justfile`
+5. `docs/CI-SCHEMA.md` before v4 action or owner-transaction changes
+6. The relevant `.agents/skills/*/SKILL.md`
+7. `Justfile`
 
 ## Skills
 
@@ -43,7 +41,7 @@ preserve dirty work, patch minimal conformance gaps, and validate through Just.
 ## Flywheel v4
 
 - `.github/lanes.json` is the complete application-side ActionPlan.
-- `spoke-ci-v4.yml@v4.0.0` invokes only the image-custodied `gf-action-client`.
+- `spoke-ci-v4.yml@37da689ef5836576502fa72711cb022d04375f24` invokes only the image-custodied `gf-action-client`.
 - `great-falls-tool-bus-infra` owns signed installation and demand instances.
 - Missing App, overlay, binding, OIDC, client, or REAPI authority fails closed;
   there is no local, cache-only, hosted, profile, or endpoint fallback.
@@ -54,10 +52,8 @@ preserve dirty work, patch minimal conformance gaps, and validate through Just.
   behavior.
 - `tinyland.dev` is the mothership/content authority and is not governed by
   static-spoke conformance.
-- MassageIthaca-shaped app repos may own runtime behavior but should consume
-  generic lane, reaper, public-preview, and Flywheel contracts.
-- Blahaj should be the generic GitOps receiver for lane envs, TTL reaps, public
-  previews, runtime smoke, and final lane statuses.
+- Application repos own product behavior and finite Bazel actions; their
+  consumer overlays own signed demand and non-action owner transactions.
 
 ## Prohibited
 

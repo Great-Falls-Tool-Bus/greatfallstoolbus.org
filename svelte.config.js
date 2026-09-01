@@ -65,8 +65,7 @@ const config = {
 	kit: {
 		adapter,
 		paths: {
-			// GitHub Pages project-path hosting needs base="/<repo>" (set BASE_PATH in CI);
-			// a custom domain / Cloudflare uses base="" (see docs/deploy/cloudflare-pages.md).
+			// Project-path hosting needs base="/<repo>"; a custom domain uses base="".
 			base: process.env.BASE_PATH ?? '',
 		},
 		prerender: {

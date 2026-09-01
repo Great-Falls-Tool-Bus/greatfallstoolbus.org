@@ -159,6 +159,5 @@ it (the Blahaj receiver was evicted) — and shipped `enable_tailnet_qa:
 false`. Nothing else in this repo referenced the file (confirmed by grep
 across `.github/`, `docs/`, and `.github/lanes.json` before deletion); the
 generic "lane-env" mentions remaining in `docs/CI-SCHEMA.md` and
-`docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md` describe
-the shared scaffold-contract mechanism other spokes still use, not this
-file.
+the local historical taxonomy spec describe retired scaffold-contract
+mechanisms and are not present-tense execution authority for any spoke.

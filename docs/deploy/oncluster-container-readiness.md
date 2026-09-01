@@ -78,8 +78,7 @@ the standby window early:
   ClusterIP web Service fronting the adapter-node Deployment. Rollback is an
   overlay image-pin revert (re-pin a previous known-good digest and re-dispatch
   the infra `web-stack.yml` workflow, ADR 0008 §5 / 0010 §5 / Amendment 2), not
-  the Cloudflare Pages / GitHub Pages model `docs/runbooks/cf-pages-rollback.md`
-  describes (that runbook is now historical — see its own status banner).
+  a second application-owned publisher or fallback.
 - Cloudflare Pages is **not** kept warm as a second origin. The
   site-level-outage tradeoff (the cluster is one physical location) is the
   accepted posture, same as MassageIthaca already runs in production; there is

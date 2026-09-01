@@ -31,22 +31,20 @@ man() {
 echo "Conformance check (see docs/CI-SCHEMA.md)"
 echo
 
-# 0. repo manifest exists and validates against the repo taxonomy schema
-# matching its schema_version (1 -> v1 schema, 2 -> v2 schema).
+# 0. repo manifest exists and validates against the sole v4 schema. Version 1
+# is retired; an absent, mistyped, or non-2 value fails closed.
 if [[ -f tinyland.repo.json ]]; then
-  manifest_schema=docs/schemas/tinyland-repo-manifest.schema.json
-  if [[ "$(jq -r '.schema_version // 1' tinyland.repo.json)" == "2" ]]; then
-    manifest_schema=docs/schemas/tinyland-repo-manifest.v2.schema.json
-  fi
   set +e
-  python3 scripts/validate-lanes.py \
-    --schema "$manifest_schema" \
-    --instance tinyland.repo.json >/dev/null 2>&1
+  manifest_out=$(python3 scripts/validate_repo_manifest.py \
+    --manifest tinyland.repo.json 2>&1)
   rc=$?
   set -e
+  manifest_line="${manifest_out##*$'\n'}"
+  manifest_line="${manifest_line#error: }"
   case $rc in
-    0) ok "tinyland.repo.json validates against ${manifest_schema##*/}" ;;
+    0) ok "$manifest_line" ;;
     2) man "tinyland.repo.json validator unavailable (jsonschema missing — run inside nix develop)" ;;
+    3|4) no "$manifest_line" ;;
     *) no "tinyland.repo.json fails schema validation (run just repo-manifest-validate for details)" ;;
   esac
 
@@ -77,10 +75,10 @@ fi
 
 # 2. ci.yml pins the immutable v4 contract.
 if [[ -f .github/workflows/ci.yml ]]; then
-  if grep -q 'tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@v4.0.0' .github/workflows/ci.yml; then
-    ok ".github/workflows/ci.yml pins ci-templates v4.0.0"
+  if grep -q 'tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@37da689ef5836576502fa72711cb022d04375f24' .github/workflows/ci.yml; then
+    ok ".github/workflows/ci.yml pins the reviewed ci-templates v4 commit"
   elif grep -qE 'tinyland-inc/ci-templates' .github/workflows/ci.yml; then
-    no ".github/workflows/ci.yml does not pin the released v4.0.0 action contract"
+    no ".github/workflows/ci.yml does not pin the reviewed v4 action contract"
   else
     man "ci.yml does not reference ci-templates yet (pre-cutover OK)"
   fi
@@ -145,6 +143,15 @@ else
   ok "No hard-coded Flywheel endpoint or cache-upload authority in source surfaces"
 fi
 
+# Preserve the application-specific public-source check formerly routed
+# through the second conformance engine.
+if [[ -x scripts/scan-internal-endpoints.sh ]] \
+  && bash scripts/scan-internal-endpoints.sh >/dev/null 2>&1; then
+  ok "No internal cluster endpoint or hostname in public source"
+else
+  no "Internal cluster endpoint or hostname found (run just scan-endpoints)"
+fi
+
 # 8. No provider-specific state endpoint in spoke wiring. Descriptive prose is
 # fine; flag only actual backend wiring such as provider URLs/backend blocks or
 # endpoint literals in Tofu/workflows/Justfile.
@@ -154,15 +161,6 @@ if grep -rqEi '(rustfs://|minio://|garage://|backend\s+"(rustfs|minio|garage)"|e
   no "provider-specific state-backend wiring found in repo (state provider is operator/env authority)"
 else
   ok "No provider-specific state-backend wiring in repo"
-fi
-
-# 8b. Storage substrate is RustFS only — never Garage/MinIO (both hallucinations).
-# Flag garage/minio in actual Tofu HCL wiring (endpoint/host literals); strip `#` comments first so
-# the descriptive "never Garage/MinIO" guidance in backend.tf is not itself a false positive.
-if find ./tofu -name '*.tf' -not -path '*/.git/*' -exec sed 's/#.*//' {} + 2>/dev/null | grep -qiE '\b(garage|minio)\b'; then
-  no "Garage/MinIO referenced in tofu/*.tf wiring — the state substrate is RustFS only (Garage/MinIO are hallucinations)"
-else
-  ok "No Garage/MinIO in tofu/*.tf wiring (RustFS-only state substrate)"
 fi
 
 # 12. AGENTS.md cites scaffold tag

@@ -42,7 +42,7 @@ tenant, or provider field.
 ## GitHub edge
 
 `.github/workflows/ci.yml` calls
-`tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@v4.0.0` once per
+`tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@37da689ef5836576502fa72711cb022d04375f24` once per
 selected action name. ARC admits the GitHub job and runs the image-custodied
 `/usr/local/bin/gf-action-client`; ARC is not the compute scheduler. The client
 binds the exact plan bytes, action, and source SHA to the controller-resolved

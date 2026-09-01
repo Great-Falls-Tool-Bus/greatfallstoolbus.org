@@ -1,12 +1,16 @@
 {
-	"$schema": "./docs/schemas/tinyland-repo-manifest.schema.json",
-	"schema_version": 1,
-	"scaffold_tag": "8659dcd7702524697220c5c2e79d6096921f4b84",
+	"$schema": "./docs/schemas/tinyland-repo-manifest.v2.schema.json",
+	"schema_version": 2,
+	"scaffold_origin": {
+		"repository": "tinyland-inc/site.scaffold",
+		"commit_sha": "8659dcd7702524697220c5c2e79d6096921f4b84"
+	},
 	"repo": {
 		"name": "greatfallstoolbus.org",
 		"github": "Great-Falls-Tool-Bus/greatfallstoolbus.org",
 		"domain": "greatfallstoolbus.org",
 		"description": "Great Falls Tool Bus - a shared tool library on wheels for Lewiston-Auburn, Maine. This is a bus; the shop comes later :)",
+		"defaultBranch": "main",
 		"linear": {
 			"initiative": "TIN-1437",
 			"issue": "TIN-2360"
@@ -14,8 +18,16 @@
 	},
 	"taxonomy": {
 		"primary_role": "app-stateful-spoke",
-		"spawned_repo_role": "app-stateful-spoke",
 		"layers": ["org-wide-repo-contract", "bazel-package-cache-rbe", "app-stateful-spoke"]
+	},
+	"enrollment": {
+		"forgeScope": "Great-Falls-Tool-Bus",
+		"organizationOverlay": "Great-Falls-Tool-Bus/great-falls-tool-bus-infra",
+		"organizationOverlayRole": "organization-execution-overlay",
+		"organizationOverlayComposition": "distinct"
+	},
+	"runtime_network": {
+		"declarations": []
 	},
 	"contracts": {
 		"agent_contract": "AGENTS.md",
@@ -34,11 +46,19 @@
 		"owns_static_projection_ingest": true,
 		"owns_gitops_apply": false,
 		"owns_cloudflare_mutation": false,
-		"owns_bazel_module_authority": false
+		"owns_bazel_module_authority": false,
+		"owns_application_pins": false,
+		"owns_application_state": false,
+		"owns_secret_declarations": false,
+		"owns_application_workloads": false,
+		"owns_application_zone_dns": false,
+		"owns_application_mail_policy": false,
+		"owns_application_database": false,
+		"owns_forge_app_installations": false,
+		"owns_org_grants": false
 	},
 	"authorities": {
 		"content_authority": "tinyland.dev",
-		"gitops_receiver": "tinyland-inc/blahaj",
 		"ci_templates": "tinyland-inc/ci-templates",
 		"package_registry": "tinyland-inc/bazel-registry"
 	},

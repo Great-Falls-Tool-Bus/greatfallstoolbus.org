@@ -84,9 +84,9 @@ Ephemeral Envs" and "Public Client Previews").
 
 - The spoke **requests**; Blahaj **owns** Cloudflare DNS, Access, Tunnel ingress,
   the traffic cut-over, and cleanup. Spokes never hold long-lived CF creds.
-- Blue/green is orchestrated through the existing Blahaj dispatch contract
-  (`docs/schemas/blahaj-dispatch.schema.json` / the lane-env workflow), not a new
-  bespoke controller.
+- The former Blahaj dispatch contract is retired and absent. Any future
+  blue/green transaction must use the consumer overlay and controller result;
+  this historical ADR is not execution authority.
 - State backend, secrets, and any DB a dynamic spoke owns are out of the
   blue/green artifact swap — they are operator/runtime authority and must survive
   a color flip (no schema migration is implied by a route cut-over).

@@ -1,6 +1,6 @@
 name: GFTB V4 Action Fabric
 
-# ACTIVATION HOLD (TIN-4251): v4.0.0 publishes the immutable workflow source,
+# ACTIVATION HOLD (TIN-4251): the pinned v4 commit publishes the immutable workflow source,
 # but this consumer is not live until its organization-owned -infra overlay
 # publishes signed OwnerInstallation/v1 and TenantOverlay/v1 instances, the
 # controller resolves their exact ActionPlan/source tuple, and the dispatcher
@@ -27,6 +27,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@v4.0.0
+    uses: tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@37da689ef5836576502fa72711cb022d04375f24
     with:
       action_name: validate

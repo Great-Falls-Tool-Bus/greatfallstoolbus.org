@@ -1210,21 +1210,20 @@ pulse-ingest source target spoke="" actor="" require_signature="":
       pnpm exec tsx "${args[@]}"
 
 # ─────────────────────────────────────────────
-# Lanes (PR-env multi-trunk; see docs/CI-SCHEMA.md)
+# v4 Bazel action plan (see docs/CI-SCHEMA.md)
 # ─────────────────────────────────────────────
 
-# Print resolved lanes as a table
-lanes-list:
-    @cd {{ root }} && jq -r '"NAME\tTRIGGER\tRUNNER\tE2E\tTHEME"' .github/lanes.json
-    @cd {{ root }} && jq -r '.lanes[] | [.name, (.trigger // "pull_request"), (.runner_class // "(default)"), (.e2e // false | tostring), .theme] | @tsv' .github/lanes.json | column -t -s $'\t'
+# Print every action exactly as the v4 workflow executes it.
+lanes-list: lanes-validate
+    @cd {{ root }} && jq -r '"NAME\tCOMMAND\tTARGETS", (.actions | to_entries[] | [.key, .value.command, (.value.targets | join(" "))] | @tsv)' .github/lanes.json | column -t -s $'\t'
 
 # Validate .github/lanes.json against docs/schemas/lanes.schema.json
 lanes-validate:
     cd {{ root }} && python3 scripts/validate-lanes.py
 
-# Validate tinyland.repo.json against docs/schemas/tinyland-repo-manifest.schema.json
+# Validate the v4-only repository manifest against schema version 2.
 repo-manifest-validate:
-    cd {{ root }} && python3 scripts/validate-lanes.py --schema docs/schemas/tinyland-repo-manifest.schema.json --instance tinyland.repo.json
+    cd {{ root }} && python3 scripts/validate_repo_manifest.py --manifest tinyland.repo.json
 
 # ─────────────────────────────────────────────
 # Agent skills (cold-landing orientation; see plugins/scaffold-core/)
@@ -1282,18 +1281,9 @@ scaffold-doctor:
       echo "" && echo "=== Conformance (run last; see AGENTS.md if red) ===" && \
       just conformance
 
-# Run the spoke conformance checklist (docs/CI-SCHEMA.md §11), then the
-# GFTB-local addendum (scripts/check-conformance-local.sh) that restores the
-# two local-only items the wholesale scaffold re-ingest doesn't carry.
-# Both run even if the first fails, so a red ingested check never suppresses
-# the local addendum's own report; the recipe fails if either script does.
+# Run the application conformance checklist (docs/CI-SCHEMA.md).
 conformance:
-    #!/usr/bin/env bash
-    set -uo pipefail
-    cd {{ root }}
-    rc1=0; bash scripts/check-conformance.sh || rc1=$?
-    rc2=0; bash scripts/check-conformance-local.sh || rc2=$?
-    [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ]
+    cd {{ root }} && bash scripts/check-conformance.sh
 
 # Verify @tummycrypt/@tinyland npm package versions match MODULE.bazel.
 inhouse-package-parity:
@@ -1303,37 +1293,6 @@ inhouse-package-parity:
 # against .github/lanes.json. Missing overlay/catalog/client authority is a
 # refusal; this repo deliberately exposes no v3 profile, cache-only, endpoint,
 # local-execution, or hosted-runner fallback recipe.
-
-# ─────────────────────────────────────────────
-# Tofu (spoke infrastructure; see tofu/README.md and docs/CI-SCHEMA.md §8)
-# ─────────────────────────────────────────────
-
-# Initialize the OpenTofu backend + download modules. Backend creds via AWS_* env.
-tofu-init:
-    cd {{ root }}/tofu && tofu init -upgrade
-
-# Generate a plan
-tofu-plan:
-    cd {{ root }}/tofu && tofu plan -out=tfplan
-
-# Apply the previously-generated plan
-tofu-apply:
-    cd {{ root }}/tofu && tofu apply tfplan
-
-# Format-check (read-only)
-tofu-fmt-check:
-    cd {{ root }}/tofu && tofu fmt -check -diff
-
-# Validate without contacting the backend. If an upstream module tag is
-# unavailable or private to the current environment, keep fmt-check as
-# the local gate and let cluster CI prove full module resolution.
-tofu-validate:
-    @cd {{ root }}/tofu && tofu fmt -check -diff && \
-      if tofu init -backend=false -input=false >/dev/null 2>&1; then \
-        tofu validate; \
-      else \
-        echo "[tofu-validate] module fetch failed; fmt-check passed"; \
-      fi
 
 # ─────────────────────────────────────────────
 # Utilities

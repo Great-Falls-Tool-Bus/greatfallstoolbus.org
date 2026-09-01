@@ -164,21 +164,6 @@ if command -v jq >/dev/null 2>&1 && [[ -f .github/lanes.json ]]; then
     && mv .github/lanes.json.tmp .github/lanes.json
 fi
 
-# tofu/spoke.auto.tfvars — rewrite spoke_slug + brand_domain (sed; preserves comments)
-if [[ -f tofu/spoke.auto.tfvars ]]; then
-  sed -i.bak \
-    -e "s|^spoke_slug[[:space:]]*=.*|spoke_slug              = \"${SLUG}\"|" \
-    -e "s|^brand_domain[[:space:]]*=.*|brand_domain            = \"${DOMAIN}\"|" \
-    tofu/spoke.auto.tfvars
-  rm -f tofu/spoke.auto.tfvars.bak
-fi
-
-# tofu/backend.tf — rewrite spoke-namespaced state key
-if [[ -f tofu/backend.tf ]]; then
-  sed -i.bak "s|spokes/site-scaffold/|spokes/${SLUG}/|g" tofu/backend.tf
-  rm -f tofu/backend.tf.bak
-fi
-
 # tinyland.repo.json — stamp the scaffold release tag this spoke was spawned from.
 # tinyland-scaffold-doctor Layer 2 reads .scaffold_tag for the version-drift diff; without it the
 # doctor silently falls back to "latest release". Override the detected tag with SCAFFOLD_TAG=.
@@ -200,7 +185,6 @@ echo "  underscored: ${UNDERSCORED}"
 echo "  bazel cache: bazel-${SLUG}"
 echo "  lanes.json spoke: ${SLUG} / ${DOMAIN}"
 echo "  adapter:     ${ADAPTER}"
-[[ -f tofu/backend.tf ]] && echo "  tofu state key:  spokes/${SLUG}/terraform.tfstate" || true
 [[ -f tinyland.repo.json ]] && echo "  scaffold_tag:    ${SCAFFOLD_TAG}" || true
 echo
 echo "next:"

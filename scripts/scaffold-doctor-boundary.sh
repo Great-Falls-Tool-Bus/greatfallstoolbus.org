@@ -8,7 +8,6 @@
 #  - flake.nix has no hard-coded secrets or token paths.
 #  - .github/workflows/*.yml do not invoke Cloudflare API mutations directly.
 #  - package.json does not range-pin in-house @tummycrypt/* or @tinyland/*.
-#  - tofu/backend.tf uses S3-compatible state (no rustfs).
 #  - No browser/edge runtime fetch of tinyland.dev from src/.
 #
 # Exit 0 if clean, 1 if any P0/FAIL surfaced. WARNs do not fail the run.
@@ -132,15 +131,6 @@ PY
     done <<<"$bad"
   else
     check_pass "package.json in-house deps are exact-pinned"
-  fi
-fi
-
-# tofu state backend must not be rustfs
-if [ -f tofu/backend.tf ]; then
-  if grep -Eiv '^\s*#' tofu/backend.tf | grep -Ei '(rustfs://|backend\s+"rustfs"|endpoint\s*=\s*"[^"]*rustfs)' >/dev/null 2>&1; then
-    check_fail "tofu/backend.tf uses rustfs — forbidden until TIN-1147 proves repair"
-  else
-    check_pass "tofu/backend.tf does not use rustfs"
   fi
 fi
 

@@ -208,7 +208,7 @@ def main() -> int:
     )
     print(
         "\n[whoami] tinyland.repo.json is absent. Consider authoring one — "
-        "see docs/schemas/tinyland-repo-manifest.schema.json.",
+        "see docs/schemas/tinyland-repo-manifest.v2.schema.json.",
         file=sys.stderr,
     )
     return 1 if role != "unknown" else 2

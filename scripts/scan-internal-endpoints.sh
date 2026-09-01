@@ -58,16 +58,6 @@ if (( ${#files[@]} > 0 )); then
   done
 fi
 
-# Slug-correctness: tofu/spoke.auto.tfvars spoke_slug must equal this spoke's slug.
-if [[ -f tofu/spoke.auto.tfvars ]]; then
-  slug=$(grep -E '^[[:space:]]*spoke_slug[[:space:]]*=' tofu/spoke.auto.tfvars 2>/dev/null \
-    | head -1 | sed -E 's/.*=[[:space:]]*"?([^"]*)"?.*/\1/' | tr -d '[:space:]')
-  if [[ "$slug" != "greatfallstoolbus" ]]; then
-    printf '  SLUG mismatch: tofu/spoke.auto.tfvars spoke_slug=%q (expected greatfallstoolbus)\n' "$slug"
-    hits=$(( hits + 1 ))
-  fi
-fi
-
 if (( hits > 0 )); then
   echo "internal-endpoint scan: ${hits} issue(s) — FAIL"
   exit 1
