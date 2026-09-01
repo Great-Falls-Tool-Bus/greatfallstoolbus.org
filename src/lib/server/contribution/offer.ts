@@ -29,10 +29,7 @@
  */
 
 import type { ContributionAgreement } from '../db/schema';
-import {
-	MONTHLY_PRESETS_CENTS,
-	type ContributionChoice,
-} from './offer-contract';
+import { MONTHLY_PRESETS_CENTS, type ContributionChoice } from './offer-contract';
 import { ContributionChoiceError, validateChoice } from './agreement';
 
 export { contributionOfferShape, type ContributionOfferShape } from './offer-contract';
