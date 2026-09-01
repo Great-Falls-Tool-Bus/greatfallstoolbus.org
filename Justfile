@@ -721,13 +721,12 @@ preview-tailnet:
     # credential-shaped string to the terminal/scrollback.
     runtime_dsn_display="postgresql://gftb_app@127.0.0.1:${pg_port}/${db_name}"
 
-    # 8. No committed seed path exists yet (grepped scripts/ and
-    #    src/lib/server/**: nothing but the integration suite's in-process
-    #    seedTenant/seedOutboxJob fixtures). Print the minimal tenant +
-    #    keyholder grant an operator can paste, rather than invent a new
-    #    committed seed mechanism this lane was not asked to own.
-    seed_tenant_id="$(node -e 'console.log(crypto.randomUUID())')"
-    seed_person_id="$(node -e 'console.log(crypto.randomUUID())')"
+    # 8. Seeding is a committed recipe now: `just preview-seed` (below)
+    #    creates-or-finds the minimal tenant + keyholder grant against this
+    #    cluster's runtime role and prints the GFTB_TENANT_ID export line.
+    #    Referenced in the up-report below rather than run inline here: only
+    #    the operator's shell can export GFTB_TENANT_ID for the worker, so
+    #    the export-and-re-run step cannot be folded into this recipe.
 
     # 9. Build (adapter-node) and launch web + worker as separate long-lived
     #    background processes. Mirrors the ADAPTER=node guard
@@ -801,18 +800,100 @@ preview-tailnet:
     echo "  Logs:     ${state_dir}/{web,worker,postgres}.log"
     echo "  Down:     just preview-tailnet-down"
     echo ""
-    echo "  No tenant is seeded yet. To exercise the member-v0 routes as a keyholder,"
-    echo "  seed a minimal tenant + keyholder grant against this preview's runtime DSN"
-    echo "  and export GFTB_TENANT_ID before re-running (skip this if you already did"
-    echo "  it on an earlier run — the same Postgres cluster persists across re-runs)."
-    echo "  This connects password-less on purpose: trust auth on this loopback-only"
-    echo "  cluster never checks it (step 4 above), so nothing credential-shaped is"
-    echo "  printed here."
+    echo "  If the worker is not running, no tenant is seeded (or GFTB_TENANT_ID is"
+    echo "  not exported). To exercise the member-v0 routes as a keyholder, run the"
+    echo "  committed idempotent seed — safe to re-run; it reuses a tenant seeded on"
+    echo "  an earlier run, because the same Postgres cluster persists across runs:"
     echo ""
-    echo "    ${pg_bindir}/psql \"${runtime_dsn_display}\" -c \"select set_config('app.tenant_id', '${seed_tenant_id}', false)\" -c \"insert into tenant (tenant_id, slug, display_name) values ('${seed_tenant_id}', 'preview-tailnet', 'Preview Tailnet Tenant')\" -c \"insert into member_role_grant (tenant_id, person_id, role, granted_by) values ('${seed_tenant_id}', '${seed_person_id}', 'keyholder', '${seed_person_id}')\""
+    echo "    just preview-seed"
     echo ""
-    echo "    export GFTB_TENANT_ID=${seed_tenant_id}"
-    echo "    just preview-tailnet   # re-run; the worker will now dispatch for this tenant"
+    echo "  then export GFTB_TENANT_ID exactly as the seed prints and re-run"
+    echo "  'just preview-tailnet' — the worker will then dispatch for that tenant."
+    echo ""
+
+# Committed, idempotent seed for the tailnet preview lane — the recipe that
+# replaced the manual psql paste `preview-tailnet`'s first-run report used to
+# print (see docs/preview-tailnet.md). Creates the minimal tenant (slug
+# 'preview-tailnet') plus one live keyholder grant if absent, reuses them if
+# present, and prints the GFTB_TENANT_ID export line the worker needs.
+# Safe to run twice:
+#   tenant — resolved by slug first (as postgres: FORCE RLS hides a
+#            previously seeded tenant from gftb_app until app.tenant_id
+#            already equals the answer, so the runtime role cannot do this
+#            lookup), then inserted `on conflict do nothing` under the
+#            resolved-or-minted id.
+#   grant  — inserted only `where not exists` a live keyholder for the
+#            tenant, so a re-run (or a cluster seeded by the old manual
+#            paste) adds nothing and never mints a second keyholder.
+# Writes go through the SAME runtime role the manual paste used (gftb_app,
+# with app.tenant_id set), so seeding keeps proving the RLS WITH CHECK path
+# rather than bypassing it; only the read-only slug lookup runs as postgres.
+# Both DSNs are password-less on purpose: trust auth on this loopback-only
+# cluster never checks one (see `preview-tailnet` step 4), so nothing
+# credential-shaped is printed or stored.
+#
+# Idempotently seed the preview's minimal tenant + keyholder grant; prints the GFTB_TENANT_ID export line.
+preview-seed:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ root }}
+
+    pg_port=55446
+    db_name=gftb_preview
+    seed_slug="preview-tailnet"
+    seed_display_name="Preview Tailnet Tenant"
+
+    # Same postgresql_16 resolution as `preview-tailnet` — see its step 2
+    # comment for the `tail -n 1` / stderr-capture rationale.
+    pg_bindir="$(nix-shell -p postgresql_16 --run 'dirname "$(command -v pg_ctl)"' 2>&1 | tail -n 1)" || true
+    if [ ! -x "${pg_bindir}/psql" ]; then
+        echo "preview-seed: could not resolve postgresql_16 via 'nix-shell -p postgresql_16'." >&2
+        echo "  nix-shell said: ${pg_bindir}" >&2
+        exit 1
+    fi
+
+    db_superuser_dsn="postgresql://postgres@127.0.0.1:${pg_port}/${db_name}"
+    runtime_dsn="postgresql://gftb_app@127.0.0.1:${pg_port}/${db_name}"
+
+    if ! "${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$db_superuser_dsn" -tAc 'select 1' >/dev/null 2>&1; then
+        echo "preview-seed: cannot reach the preview cluster at 127.0.0.1:${pg_port}/${db_name}." >&2
+        echo "  Run 'just preview-tailnet' first — it initializes, migrates, and starts it." >&2
+        exit 1
+    fi
+
+    # Resolve-or-mint the tenant id (superuser read; see header comment).
+    tenant_id="$("${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$db_superuser_dsn" -tAc \
+        "select tenant_id from tenant where slug = '${seed_slug}'")"
+    if [ -n "$tenant_id" ]; then
+        echo "preview-seed: tenant '${seed_slug}' already exists (${tenant_id}) — reusing it"
+    else
+        tenant_id="$(node -e 'console.log(crypto.randomUUID())')"
+        echo "preview-seed: creating tenant '${seed_slug}' (${tenant_id})"
+    fi
+    person_id="$(node -e 'console.log(crypto.randomUUID())')"
+
+    # All writes as gftb_app in ONE psql session: set_config(..., false) is
+    # session-scoped, so it covers both inserts' RLS USING/WITH CHECK.
+    "${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$runtime_dsn" \
+        -c "select set_config('app.tenant_id', '${tenant_id}', false)" \
+        -c "insert into tenant (tenant_id, slug, display_name) values ('${tenant_id}', '${seed_slug}', '${seed_display_name}') on conflict do nothing" \
+        -c "insert into member_role_grant (tenant_id, person_id, role, granted_by) select '${tenant_id}', '${person_id}', 'keyholder', '${person_id}' where not exists (select 1 from member_role_grant where tenant_id = '${tenant_id}' and role = 'keyholder' and revoked_at is null)" \
+        >/dev/null
+
+    # Report the live keyholder actually in place (a pre-existing grant wins
+    # over the person_id minted above). Read as gftb_app too — this one IS
+    # visible to the runtime role once app.tenant_id is set.
+    keyholder="$("${pg_bindir}/psql" -X -q -v ON_ERROR_STOP=1 "$runtime_dsn" -tA \
+        -c "select set_config('app.tenant_id', '${tenant_id}', false)" \
+        -c "select person_id from member_role_grant where tenant_id = '${tenant_id}' and role = 'keyholder' and revoked_at is null limit 1" \
+        | tail -n 1)"
+
+    echo ""
+    echo "preview-seed: done — tenant '${seed_slug}' has a live keyholder grant (person ${keyholder})."
+    echo "  Export the tenant id, then (re-)run the preview so the worker dispatches for it:"
+    echo ""
+    echo "    export GFTB_TENANT_ID=${tenant_id}"
+    echo "    just preview-tailnet"
     echo ""
 
 # Attempt to stop web/worker by whole process group (validated + pgrep-backstopped —

@@ -14,19 +14,29 @@ member-v0 routes (application intake, keyholder review, assent/activation,
 contribution offer) have something runnable against real Postgres + RLS in
 the meantime — it is not meant to outlive that sitting.
 
-## Up / down
+## Up / seed / down
 
 ```bash
 just preview-tailnet        # one command: PG + migrations + web + worker + tailscale serve
+just preview-seed           # idempotent: minimal tenant + keyholder grant; prints the export line
 just preview-tailnet-down   # stop the preview; retain private state
 ```
 
-The first run prints instructions (and a ready-to-paste `psql` command) for
-seeding a minimal tenant + keyholder grant — there is no committed seed
-script in this repo yet, so the recipe does not invent one silently. Export
-`GFTB_TENANT_ID` after seeding and re-run; the worker only dispatches once a
-real tenant exists (it self-probes on startup and exits rather than idling
-against a nonexistent tenant).
+On a fresh cluster the worker exits on startup (it self-probes and refuses
+to idle against a nonexistent tenant). Run `just preview-seed` — the
+committed, idempotent seed that replaced the first run's manual
+ready-to-paste `psql` snippet. It creates the minimal tenant (slug
+`preview-tailnet`) and one live keyholder grant if absent and reuses them if
+present (`on conflict do nothing` for the tenant; a live-keyholder
+`where not exists` guard for the grant — so it never mints a second
+keyholder, including on a cluster seeded by the old manual paste), then
+prints the `export GFTB_TENANT_ID=...` line. Export it and re-run
+`just preview-tailnet`; the worker only dispatches once a real tenant
+exists. The seed writes as the same `gftb_app` runtime role the manual
+snippet used, so RLS `WITH CHECK` still binds the seeding path; only the
+read-only tenant-by-slug lookup runs as `postgres`, because FORCE RLS hides
+a previously seeded tenant from the runtime role until `app.tenant_id`
+already equals its id.
 
 `just preview-tailnet` is re-runnable: it kills its own stale web/worker
 processes and restarts, but keeps the same on-disk Postgres cluster between
@@ -70,9 +80,9 @@ can connect to `127.0.0.1:55446` as `postgres` and bypass RLS entirely).
 That is an acceptable trade because Postgres itself never leaves loopback —
 the role split's real, correctly-scoped job is only to make the `web` and
 `worker` processes themselves run as `gftb_app`, so the RLS policies the
-migrations ship actually bind them. The printed seed command connects with
-no password in it, for the same reason: trust auth doesn't check one, so
-nothing credential-shaped needs to appear in your terminal scrollback.
+migrations ship actually bind them. `just preview-seed`'s DSNs carry no
+password, for the same reason: trust auth doesn't check one, so nothing
+credential-shaped needs to appear in your terminal scrollback.
 
 Both recipes kill web/worker by whole **process group**, not by trusting a
 bare pidfile pid: `pnpm exec tsx <file>` is several processes deep, and an
