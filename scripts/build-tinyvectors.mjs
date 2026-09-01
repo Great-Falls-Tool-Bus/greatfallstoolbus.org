@@ -59,6 +59,8 @@ const PINNED_INTEGRITY = {
 		'sha256-hkpn28wmUctB85UqLRgpkVyYg5EwwYh74wrsrJnbwb0=',
 	'https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.6.tar.gz':
 		'sha256-IbKMSlUQR3g3Elf4ks2ViCEdCxtwlBrdBx8wegiX8zg=',
+	'https://github.com/tinyland-inc/tinyvectors/archive/refs/tags/v0.3.7.tar.gz':
+		'sha256-U74vP8IB7fIcyK0JUSLrMDWTxRfhtIdWw7C9FDZYw28=',
 };
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
