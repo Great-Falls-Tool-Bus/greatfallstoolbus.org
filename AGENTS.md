@@ -376,9 +376,9 @@ first. These are reusable directives; the example targets/scenarios are
 illustrative, not scaffold content.
 
 - **Remote-first.** Browserful Playwright e2e (and any server-bundle build) are
-  remote-first. Locally use `just check` / `just ci-quick`; do **not** run
-  browserful e2e locally unless explicitly gated (`LOCAL=1`). CI is the source of
-  truth for browser regressions.
+  remote-first — and since the 2026-09-01 operator ruling, remote-ONLY: `just
+  check` and every other heavy recipe refuse locally (see "Remote-only
+  execution" below). CI is the source of truth for browser regressions.
 - **Browser-RBE smoke SUITE pattern.** Prefer one aggregate `test_suite`
   (`playwright_browser_rbe_smoke_suite`) wrapping **thin per-scenario `js_test`
   wrappers** that each set a `*_RBE_SMOKE_SCENARIO` env var and `await import()` a
@@ -417,7 +417,32 @@ illustrative, not scaffold content.
   `js_library` in the root package. Forgetting this silently drops the test from
   the slice.
 
-## Build target (adapter-static fallback default; adapter-node chosen explicitly)
+## Remote-only execution (operator ruling 2026-09-01)
+
+Heavy toolchain execution (tests, checks, lints, builds, dev/preview servers,
+Bazel, Playwright, Vitest) is **remote-only** on this estate. Every heavy
+Justfile recipe refuses locally, fail-closed, via `scripts/remote-only-guard.sh`
+(`<recipe>: REFUSE — …` to stderr, exit 3) — never warn-and-continue. The guard
+passes only under the GitHub Actions runner agent's own markers
+(`GITHUB_ACTIONS=true` with `RUNNER_ENVIRONMENT != github-hosted`; ARC pods
+report `self-hosted`), so hosted CI on `tinyland-nix` is unaffected. There is no
+override env var. Rationale: GF v4 is fail-closed with no local-execution
+fallback; the REAPI action, not the runner, is the unit of compute (R243).
+
+- **The route is remote:** push the branch and read CI — `gh pr checks`,
+  `gh run view`, `gh run watch`.
+- **Ratified attended-local exceptions** (unguarded on purpose):
+  `preview-tailnet` / `preview-seed` / `preview-tailnet-down`
+  (docs/preview-tailnet.md) and the `db-migrate` runbook lane. The lane exports
+  `TINYLAND_RATIFIED_LOCAL_LANE=preview-tailnet`; a guarded callee is unlocked
+  only by a baked `(lane, recipe)` pair inside the guard script (none needed on
+  the current tip — the lane's hydrate step is inline since PR #225).
+- **Removed outright** (heavy, zero CI/contract callers): `rebuild`, `preview`,
+  `preview-only`, `playwright-install`, `test`, `ci`, `ci-quick`, `analyze`,
+  `bazel-query`, `container-image-build`, `sync`. `dev`/`dev-open` are
+  refuse-stubs pointing at `just preview-tailnet`.
+- **Known local degradation:** `just scaffold-doctor` now refuses at its
+  `bazel-graph` step when run locally — by design, not a CI surface. (adapter-static fallback default; adapter-node chosen explicitly)
 
 The scaffold default is **adapter-static** (cheap, DB-less, no edge auth) and that
 is the house baseline for content/brand spokes. **adapter-node** is a
@@ -431,7 +456,7 @@ static file server), keep both documented; never silently switch the default.
 
 **Here, adapter-node is the served artifact but NOT the no-`ADAPTER` default
 (TIN-3815 S0).** The platform is served by adapter-node, and every image recipe
-sets `ADAPTER=node` explicitly (`ContainerFile`, `just container-image-build`,
+sets `ADAPTER=node` explicitly (`ContainerFile`,
 `just container-image-publish`). `svelte.config.js` keeps its adapter-static
 default on purpose: ADR 0010 Amendment 1 item 2 retains adapter-static as "a
 local/CI fallback build (`just build` with no `ADAPTER` set stays green against

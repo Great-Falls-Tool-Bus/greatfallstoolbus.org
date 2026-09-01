@@ -18,18 +18,12 @@
 		"prepare": "node scripts/build-tinyvectors.mjs",
 		"dev": "vite dev",
 		"build": "vite build",
-		"preview": "vite preview",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
-		"test": "vitest",
 		"test:unit": "vitest run",
-		"test:coverage": "vitest run --coverage",
-		"test:e2e": "playwright test",
-		"optimize:images": "node scripts/optimize-images.js",
-		"analyze": "ANALYZE=1 vite build"
+		"test:e2e": "playwright test"
 	},
 	"dependencies": {
 		"@fontsource-variable/fira-code": "^5.3.0",

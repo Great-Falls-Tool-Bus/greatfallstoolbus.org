@@ -141,8 +141,9 @@ killed, not just matched by `pgrep -f`.
   `http://127.0.0.1:8443` request.
 - **Building the preview poisons `just check`.** Like `just build`, an
   `ADAPTER=node` build populates `.svelte-kit/` in a way `just check`'s
-  gitleaks pass then flags. Run `just check` before `just preview-tailnet`,
-  not after, in the same working tree.
+  gitleaks pass then flags. `just check` is remote-only since the 2026-09-01
+  operator ruling (it refuses locally; CI runs it) — the caveat now matters
+  only on hosts where the check gate is sanctioned to run.
 - **Not the CI-driven per-PR tailnet lanes.** `docs/CI-SCHEMA.md` describes a
   separate mechanism — Blahaj-provisioned, per-PR, cluster-side environments
   joined to the tailnet by CI (`lane-env.yml` → Blahaj → `tailnet-qa`). This

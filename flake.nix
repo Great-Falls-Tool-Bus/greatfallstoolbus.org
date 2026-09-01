@@ -141,7 +141,7 @@
         appBuildEnv = builtins.getEnv "APP_BUILD";
         appBuild =
           if appBuildEnv == "" then
-            throw "flake .#image requires APP_BUILD=$PWD/build (the ADAPTER=node output); build it via `just container-image-publish` / `just container-image-build`, which run `nix run --impure`."
+            throw "flake .#image requires APP_BUILD=$PWD/build (the ADAPTER=node output); build it via `just container-image-publish`, which runs `nix run --impure`."
           else
             builtins.path {
               name = "gftb-adapter-node-build";

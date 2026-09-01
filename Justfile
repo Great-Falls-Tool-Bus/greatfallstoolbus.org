@@ -1,8 +1,11 @@
 # greatfallstoolbus.org — SvelteKit static site task runner
 # Prerequisites: just, direnv (loads Nix devShell), Nix with flakes
-# Quick Start: direnv allow && just setup && just dev
 #
-# See AGENTS.md.
+# Heavy execution is REMOTE-ONLY (operator ruling 2026-09-01): heavy recipes
+# refuse locally via scripts/remote-only-guard.sh (exit 3). Push the branch and
+# read CI: gh pr checks / gh run view / gh run watch. Ratified attended lanes:
+# preview-tailnet / preview-seed / preview-tailnet-down / db-migrate.
+# See AGENTS.md § "Remote-only execution".
 
 set dotenv-load := true
 set shell := ["bash", "-euo", "pipefail", "-c"]
@@ -19,16 +22,21 @@ _default:
 
 # Install dependencies (frozen lockfile)
 setup:
+    @bash scripts/remote-only-guard.sh setup
     cd {{ root }} && pnpm install --frozen-lockfile
-    @echo "Setup complete. Run 'just dev' to start."
+    @echo "Setup complete."
 
-# Start the Vite dev server
+# Refuse-stub (operator ruling 2026-09-01): local dev servers are remote-only-forbidden.
 dev:
-    cd {{ root }} && pnpm run dev
+    @echo "dev: local Vite dev servers are forbidden on this machine (remote-only ruling 2026-09-01)."
+    @echo "  The ratified attended lane is 'just preview-tailnet' (docs/preview-tailnet.md)."
+    @bash scripts/remote-only-guard.sh dev
 
-# Start the dev server and open browser
+# Refuse-stub (operator ruling 2026-09-01): local dev servers are remote-only-forbidden.
 dev-open:
-    cd {{ root }} && pnpm run dev -- --open
+    @echo "dev-open: local Vite dev servers are forbidden on this machine (remote-only ruling 2026-09-01)."
+    @echo "  The ratified attended lane is 'just preview-tailnet' (docs/preview-tailnet.md)."
+    @bash scripts/remote-only-guard.sh dev-open
 
 # ─────────────────────────────────────────────
 # Build
@@ -38,27 +46,18 @@ dev-open:
 # pipeline first when static/photos has assets; otherwise the committed
 # static/image-manifest.json fallback carries the build.
 build: _optimize-images-if-photos
+    @bash scripts/remote-only-guard.sh build
     cd {{ root }} && pnpm run build
 
 # Chain optimize-images into the build path only when there is something to
 # process. No-op safe with zero photos so fresh spokes build clean.
 _optimize-images-if-photos:
+    @bash scripts/remote-only-guard.sh _optimize-images-if-photos
     cd {{ root }} && if [ -d static/photos ] && [ -n "$(ls -A static/photos 2>/dev/null)" ]; then \
         node scripts/optimize-images.js; \
     else \
         echo "No static/photos assets; keeping committed image-manifest fallback."; \
     fi
-
-# Clean then build
-rebuild: clean build
-
-# Preview the built site
-preview: build
-    cd {{ root }} && pnpm run preview
-
-# Preview without rebuilding
-preview-only:
-    cd {{ root }} && pnpm run preview
 
 # Remove build artifacts
 clean:
@@ -98,6 +97,7 @@ container-image-publish: platform-entrypoints-check
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{ root }}
+    bash scripts/remote-only-guard.sh container-image-publish
     : "${GHCR_USER:?GHCR_USER is required (ambient github.actor in CI)}"
     : "${GHCR_TOKEN:?GHCR_TOKEN is required (ambient GITHUB_TOKEN in CI)}"
     # GHCR requires a lowercase image ref; the org owner is Great-Falls-Tool-Bus.
@@ -161,46 +161,6 @@ container-image-publish: platform-entrypoints-check
     nix run --impure .#image.copyToRegistry -- --dest-creds "${GHCR_USER}:${GHCR_TOKEN}" "${digestfile_args[@]}"
     echo "pushed ${IMAGE_REF}:${tag}"
 
-# Local daemonless image build (no push): writes a docker-archive tarball you
-# can load with `skopeo copy docker-archive:greatfallstoolbus-oci.tar docker-daemon:...`
-# (or `docker load < greatfallstoolbus-oci.tar`). macOS builds a host-arch image
-# only; the Linux OCI is validated on the tinyland-nix runner.
-container-image-build: platform-entrypoints-check
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cd {{ root }}
-    export IMAGE_REF="$(printf '%s' "${IMAGE_REF:-ghcr.io/great-falls-tool-bus/greatfallstoolbus.org}" | tr '[:upper:]' '[:lower:]')"
-    export BUILD_COMMIT_SHA="${BUILD_COMMIT_SHA:-$(git rev-parse HEAD)}"
-    export BUILD_COMMIT_REF="${BUILD_COMMIT_REF:-$(git rev-parse --abbrev-ref HEAD)}"
-    export BUILD_DATE="${BUILD_DATE:-1970-01-01T00:00:00Z}"
-    # BUG (TIN-2224 fallout): this recipe calls `pnpm run build` directly,
-    # bypassing the default `build` recipe's dependency on
-    # _optimize-images-if-photos. static/optimized/ is gitignored and only
-    # ever populated by scripts/optimize-images.js, so this local tarball
-    # (and the prod on-cluster image it mirrors) shipped with zero optimized
-    # AVIF/WebP variants — 404ing the homepage hero
-    # (great-falls-lewiston-1930s-xlarge.avif) and every other photo's
-    # responsive renditions once adapter-node became the production server.
-    # Mirror _optimize-images-if-photos's own guard here so container images
-    # carry the same renditions the static build gets for free.
-    if [ -d static/photos ] && [ -n "$(ls -A static/photos 2>/dev/null)" ]; then \
-        node scripts/optimize-images.js; \
-    else \
-        echo "No static/photos assets; keeping committed image-manifest fallback."; \
-    fi
-    # PUBLIC_ARCHIVE_LIVE=true so the local tarball matches the prod on-cluster
-    # image (see container-image-publish); PUBLIC_* is build-time-inlined by Vite.
-    # PUBLIC_BUILD_SHA bakes the build commit for the footer "built from <sha>"
-    # provenance link (src/lib/build-info.ts).
-    ADAPTER=node PUBLIC_ARCHIVE_LIVE=true PUBLIC_BUILD_SHA="${BUILD_COMMIT_SHA}" pnpm run build
-    # The /bin/migrator (TIN-3817 S1) and /bin/worker (TIN-3817 S3) payloads;
-    # see container-image-publish.
-    just db-migrator-bundle
-    just worker-bundle
-    export APP_BUILD="$PWD/build"
-    nix run --impure .#image.copyTo -- docker-archive:greatfallstoolbus-oci.tar
-    echo "wrote greatfallstoolbus-oci.tar"
-
 # Per-entrypoint proof (TIN-3815 S0). Runs the EXACT derivations the OCI image
 # installs at /bin/web, /bin/worker, and /bin/migrator, so the three stable
 # process names are proved to answer without a Docker/podman daemon, a cluster,
@@ -211,6 +171,7 @@ platform-entrypoints-check:
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{ root }}
+    bash scripts/remote-only-guard.sh platform-entrypoints-check
     for role in web worker migrator; do
         echo "── nix run .#${role} -- --help"
         nix run ".#${role}" -- --help
@@ -242,6 +203,7 @@ container-image-smoke:
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{ root }}
+    bash scripts/remote-only-guard.sh container-image-smoke
 
     runtime=""
     for candidate in docker podman; do
@@ -344,6 +306,7 @@ container-image-smoke:
 
 # Regenerate the checked-in migration SQL and its source-level hash manifest.
 db-generate:
+    @bash scripts/remote-only-guard.sh db-generate
     cd {{ root }} && pnpm exec drizzle-kit generate
     cd {{ root }} && pnpm exec tsx src/lib/server/db/ledger-manifest.ts write drizzle
 
@@ -352,6 +315,7 @@ db-check: db-generate
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{ root }}
+    bash scripts/remote-only-guard.sh db-check
 
     # 1. The generated SQL is IN THE CHANGE UNDER REVIEW. If regenerating
     #    modified a tracked file or produced an untracked one, the schema and the
@@ -400,6 +364,7 @@ db-migrate *args:
 # inlined the same way. The createRequire banner is required: pg is CommonJS and
 # reaches node builtins through require(), which bare ESM output cannot do.
 db-migrator-bundle:
+    @bash scripts/remote-only-guard.sh db-migrator-bundle
     cd {{ root }} && pnpm exec esbuild src/lib/server/db/migrate.ts \
         --bundle --platform=node --format=esm --target=node22 \
         --outfile=build/migrator.mjs \
@@ -412,6 +377,7 @@ db-migrator-bundle:
 # node_modules — same contract as db-migrator-bundle, same createRequire banner
 # (pg is CommonJS), with drizzle-orm inlined alongside it.
 worker-bundle:
+    @bash scripts/remote-only-guard.sh worker-bundle
     cd {{ root }} && pnpm exec esbuild src/lib/server/worker.ts \
         --bundle --platform=node --format=esm --target=node22 \
         --outfile=build/worker.mjs \
@@ -424,6 +390,7 @@ worker-bundle:
 # Compile the standalone payloads that the default Svelte/Vite build and
 # current Bazel targets do not traverse.
 platform-bundles-check: db-migrator-bundle worker-bundle
+    @bash scripts/remote-only-guard.sh platform-bundles-check
     @echo "platform bundles OK: migrator, worker"
 
 # PostgreSQL suite: RLS, FORCE, advisory lock, ledger drift, runtime-role grants.
@@ -444,6 +411,7 @@ test-integration *args:
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{ root }}
+    bash scripts/remote-only-guard.sh test-integration
 
     if [ -n "${GFTB_TEST_PG_SUPERUSER_DSN:-}" ]; then
         echo "test-integration: using the server named by GFTB_TEST_PG_SUPERUSER_DSN"
@@ -478,6 +446,7 @@ rehearsal-first-membership:
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{ root }}
+    bash scripts/remote-only-guard.sh rehearsal-first-membership
     if [ -z "${GFTB_TEST_PG_SUPERUSER_DSN:-}" ]; then
         runtime=""
         for candidate in docker podman; do
@@ -541,6 +510,13 @@ rehearsal-first-membership:
 preview-tailnet:
     #!/usr/bin/env bash
     set -euo pipefail
+    # Operator-ratified attended lane (remote-only ruling 2026-09-01): this
+    # export marks the lane for scripts/remote-only-guard.sh's ratified
+    # (lane, recipe) allowlist. The lane's only recipe callee today is the
+    # unguarded db-migrate operator lane, so the allowlist is empty; a future
+    # guarded callee is unlocked by adding its pair to the guard, never by
+    # exporting CI markers.
+    export TINYLAND_RATIFIED_LOCAL_LANE=preview-tailnet
     set -m
     cd {{ root }}
     root_dir="$PWD"
@@ -730,7 +706,7 @@ preview-tailnet:
 
     # 9. Build (adapter-node) and launch web + worker as separate long-lived
     #    background processes. Mirrors the ADAPTER=node guard
-    #    container-image-build/-publish already run before their build.
+    #    container-image-publish already runs before its build.
     if [ -d static/photos ] && [ -n "$(ls -A static/photos 2>/dev/null)" ]; then
         node scripts/optimize-images.js
     fi
@@ -1004,10 +980,12 @@ preview-tailnet-down:
 
 # svelte-check + tsc (delegates to package.json `check`)
 typecheck:
+    @bash scripts/remote-only-guard.sh typecheck
     cd {{ root }} && pnpm run check
 
 # ESLint flat config across the repo
 lint:
+    @bash scripts/remote-only-guard.sh lint
     cd {{ root }} && pnpm run lint
 
 # Prettier write
@@ -1020,6 +998,7 @@ format-check:
 
 # Gitleaks scan of working tree files
 secrets-scan-dir:
+    @bash scripts/remote-only-guard.sh secrets-scan-dir
     cd {{ root }} && gitleaks dir --config .gitleaks.toml --redact --verbose .
 
 # Gitleaks scan of git history
@@ -1053,6 +1032,7 @@ leak-scan build_dir="build":
 # Build first, then scan the FRESH artefact — never trust a stale build/ left
 # on disk from an earlier run. This is the recipe `just check` calls.
 leak-scan-build: build
+    @bash scripts/remote-only-guard.sh leak-scan-build
     cd {{ root }} && just leak-scan build
 
 # Same rules, scoped to this repo's published-PROSE surface (docs/, static/,
@@ -1077,6 +1057,7 @@ leak-scan-src:
 
 # Run Vitest unit tests
 test-unit:
+    @bash scripts/remote-only-guard.sh test-unit
     cd {{ root }} && pnpm run test:unit
 
 # [OPERATOR, local-only] Regenerate src/lib/naming-consent.hashes.json from
@@ -1094,6 +1075,7 @@ naming-consent-hashes:
 # (exit 0) when either operator-local file is absent — e.g. in CI, where
 # this is expected and not a failure. Wired into `just check`.
 naming-consent-hashes-verify:
+    @bash scripts/remote-only-guard.sh naming-consent-hashes-verify
     cd {{ root }} && pnpm exec tsx scripts/verify-naming-consent-hashes.mjs
 
 # Stage one already-redacted keyholders@ export as a published:false
@@ -1113,10 +1095,12 @@ discuss-to-svx *args:
 # Every other check in this recipe always runs and always enforces. Wired
 # into `just check`.
 discuss-drafts-validate:
+    @bash scripts/remote-only-guard.sh discuss-drafts-validate
     cd {{ root }} && pnpm exec tsx scripts/validate-discuss-drafts.mts
 
 # Ensure local Playwright browser cache exists; CI uses Nix Chromium instead
 playwright-ensure:
+    @bash scripts/remote-only-guard.sh playwright-ensure
     cd {{ root }} && if [ "${CI:-}" = "true" ] && command -v nix >/dev/null 2>&1; then \
       echo "Using Nix chromium from the Playwright dev shell"; \
     else \
@@ -1125,18 +1109,12 @@ playwright-ensure:
 
 # Run Playwright E2E tests
 test-e2e: playwright-ensure
+    @bash scripts/remote-only-guard.sh test-e2e
     cd {{ root }} && if [ "${CI:-}" = "true" ] && command -v nix >/dev/null 2>&1; then \
       nix develop .#playwright --command pnpm run test:e2e; \
     else \
       pnpm run test:e2e; \
     fi
-
-# Install Playwright browser binaries
-playwright-install browser="chromium":
-    cd {{ root }} && pnpm exec playwright install {{ browser }}
-
-# Run all tests (unit + e2e)
-test: test-unit test-e2e
 
 # Generate local SBOM artifacts under ignored build/sbom/
 sbom out_dir="build/sbom":
@@ -1159,10 +1137,12 @@ sbom out_dir="build/sbom":
 # `just build`, ~4 minutes — the only step this gate added that was not
 # already part of `check`'s cost) so a cheaper failure surfaces first.
 check: preview-tailnet-state-contract-check flywheel-enrollment-contract-check production-health-contract-check secrets-scan-dir scan-endpoints leak-scan-tree leak-scan-src lint typecheck discuss-drafts-validate naming-consent-hashes-verify skills-validate skills-check source-map-check db-check platform-bundles-check test-unit leak-scan-build
+    @bash scripts/remote-only-guard.sh check
     @echo "All checks passed."
 
 # Fail-closed state-path and non-destructive preservation contract for the operator-only tailnet preview.
 preview-tailnet-state-contract-check:
+    @bash scripts/remote-only-guard.sh preview-tailnet-state-contract-check
     cd {{ root }} && bash scripts/preview-tailnet-state.test.sh
 
 # CI-only exact Bazel-label proof. RUNNER_TEMP is preferred, but only when its
@@ -1175,6 +1155,7 @@ preview-tailnet-state-contract-bazel:
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{ root }}
+    bash scripts/remote-only-guard.sh preview-tailnet-state-contract-bazel
     canonical_dir() {
         local input="$1"
         [[ -n "$input" && "$input" == /* && -d "$input" ]]
@@ -1239,19 +1220,13 @@ preview-tailnet-state-contract-bazel:
 
 # Probe the declared production hostnames at the public Cloudflare Access edge.
 production-health-probe:
+    @bash scripts/remote-only-guard.sh production-health-probe
     cd {{ root }} && bash scripts/production-health-probe.sh
 
 # Deterministic parser and failure-diagnostic coverage for the scheduled probe.
 production-health-contract-check:
+    @bash scripts/remote-only-guard.sh production-health-contract-check
     cd {{ root }} && bash scripts/production-health-probe.test.sh
-
-# Run full CI pipeline locally
-ci: check build test-e2e
-    @echo "Full CI suite passed."
-
-# Quick CI (skip e2e + build)
-ci-quick: check
-    @echo "Quick CI suite passed."
 
 # ─────────────────────────────────────────────
 # Static projections
@@ -1320,19 +1295,23 @@ skills-validate:
 
 # Derive the mail lace-up skills + llms.txt mail section from src/lib/data/mail-clients.ts.
 skills-build:
+    @bash scripts/remote-only-guard.sh skills-build
     cd {{ root }} && pnpm exec tsx scripts/build-agent-skills.mjs
 
 # Drift guard: regenerate derived skills, then fail if the tree changed.
 skills-check: skills-build
+    @bash scripts/remote-only-guard.sh skills-check
     cd {{ root }} && git diff --exit-code -- .agents/skills .claude/skills static/llms.txt
 
 # Derive the page source map (route id -> repo-relative +page.svelte) that
 # SourceLink.svelte reads to render the "View source" / "Edit this page" affordance.
 source-map-build:
+    @bash scripts/remote-only-guard.sh source-map-build
     cd {{ root }} && pnpm exec tsx scripts/build-source-map.mjs
 
 # Drift guard: regenerate the source map, then fail if the generated file changed.
 source-map-check: source-map-build
+    @bash scripts/remote-only-guard.sh source-map-check
     cd {{ root }} && git diff --exit-code -- src/lib/generated/source-map.json
 
 # House-style drift audit: layer 1 (existing checks) + layer 3 (boundary audit). Layer 2 (tag diff) is manual; see the skill body.
@@ -1396,6 +1375,7 @@ flywheel-verify:
 
 # Prove the advertised enroll/doctor/verify contract stays wired.
 flywheel-enrollment-contract-check:
+    @bash scripts/remote-only-guard.sh flywheel-enrollment-contract-check
     cd {{ root }} && bash scripts/flywheel-enrollment-contract-test.sh
 
 # Self-verify shared-cache enrollment (TIN-2119): assert this repo is genuinely
@@ -1411,26 +1391,32 @@ cache-contract-strict:
 
 # Validate cache attachment and print Bazel info through the wrapper
 flywheel-info:
+    @bash scripts/remote-only-guard.sh flywheel-info
     cd {{ root }} && bash scripts/gloriousflywheel-bazel.sh info
 
 # Bazel build via flywheel (defaults to static SvelteKit build target)
 flywheel-build target="//:build":
+    @bash scripts/remote-only-guard.sh flywheel-build
     cd {{ root }} && bash scripts/gloriousflywheel-bazel.sh build {{ target }}
 
 # Bazel test via flywheel
 flywheel-test target="//:ci_validation_suite":
+    @bash scripts/remote-only-guard.sh flywheel-test
     cd {{ root }} && bash scripts/gloriousflywheel-bazel.sh test {{ target }}
 
 # Bazel run via flywheel
 flywheel-run target:
+    @bash scripts/remote-only-guard.sh flywheel-run
     cd {{ root }} && bash scripts/gloriousflywheel-bazel.sh run {{ target }}
 
 # Bazel coverage via flywheel
 flywheel-coverage target="//:unit_tests":
+    @bash scripts/remote-only-guard.sh flywheel-coverage
     cd {{ root }} && bash scripts/gloriousflywheel-bazel.sh coverage {{ target }}
 
 # Populate external repositories through the same cache/input-authority contract
 flywheel-fetch target="//...":
+    @bash scripts/remote-only-guard.sh flywheel-fetch
     cd {{ root }} && bash scripts/gloriousflywheel-bazel.sh fetch {{ target }}
 
 # Remote lint + typecheck + format as CACHE-FIRST, READ-ONLY Bazel tests
@@ -1444,6 +1430,7 @@ flywheel-fetch target="//...":
 #
 # Cache-first read-only remote lint + typecheck + format (eslint/prettier/svelte-check).
 flywheel-check *targets="//:eslint_test //:prettier_check_test //:svelte_check_test":
+    @bash scripts/remote-only-guard.sh flywheel-check
     cd {{ root }} && \
       GF_BAZEL_SUBSTRATE_MODE=shared-cache-backed \
       GF_BAZEL_REMOTE_UPLOAD=false \
@@ -1614,28 +1601,18 @@ tofu-validate:
 # Utilities
 # ─────────────────────────────────────────────
 
-# Sync SvelteKit types
-sync:
-    cd {{ root }} && pnpm exec svelte-kit sync
-
-# Build with bundle analyzer (emits .bundle-stats/stats.html treemap)
-analyze:
-    cd {{ root }} && ANALYZE=1 pnpm run build
-
 # Optimize static images: sharp -> webp/avif responsive widths, svgo -> SVG,
 # plus a manifest at static/image-manifest.json with intrinsic width/height
 # per entry (CLS sizing for Picture.svelte). Renditions land in
 # static/optimized/ (gitignored). See scripts/optimize-images.js (TIN-2224).
 optimize-images:
+    @bash scripts/remote-only-guard.sh optimize-images
     cd {{ root }} && node scripts/optimize-images.js
 
 # Bazel mod graph smoke (registry-resolution proof)
 bazel-graph:
+    @bash scripts/remote-only-guard.sh bazel-graph
     cd {{ root }} && bazelisk --output_user_root="${BAZEL_OUTPUT_USER_ROOT:-${TMPDIR:-/tmp}/site-scaffold-bazel-user-root}" mod graph
-
-# Bazel query smoke (BUILD target shape proof; not cache/RBE validation)
-bazel-query target="//:ci_validation_suite":
-    cd {{ root }} && bazelisk --output_user_root="${BAZEL_OUTPUT_USER_ROOT:-${TMPDIR:-/tmp}/site-scaffold-bazel-user-root}" query "{{ target }}"
 
 # Generate changelog (git-cliff)
 changelog:
