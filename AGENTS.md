@@ -442,7 +442,9 @@ fallback; the REAPI action, not the runner, is the unit of compute (R243).
   `bazel-query`, `container-image-build`, `sync`. `dev`/`dev-open` are
   refuse-stubs pointing at `just preview-tailnet`.
 - **Known local degradation:** `just scaffold-doctor` now refuses at its
-  `bazel-graph` step when run locally — by design, not a CI surface. (adapter-static fallback default; adapter-node chosen explicitly)
+  `bazel-graph` step when run locally — by design, not a CI surface.
+
+## Build target (adapter-static fallback default; adapter-node chosen explicitly)
 
 The scaffold default is **adapter-static** (cheap, DB-less, no edge auth) and that
 is the house baseline for content/brand spokes. **adapter-node** is a
