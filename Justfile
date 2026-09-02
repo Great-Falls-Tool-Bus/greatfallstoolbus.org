@@ -1,4 +1,4 @@
-# greatfallstoolbus.org — SvelteKit static site task runner
+# greatfallstoolbus.org — app-stateful SvelteKit product task runner
 # Prerequisites: just, direnv (loads Nix devShell), Nix with flakes
 # Quick Start: direnv allow && just setup && just dev
 #
@@ -34,9 +34,8 @@ dev-open:
 # Build
 # ─────────────────────────────────────────────
 
-# Production static build (adapter-static -> build/). Runs the image
-# pipeline first when static/photos has assets; otherwise the committed
-# static/image-manifest.json fallback carries the build.
+# Production adapter-node build (build/index.js). This is the same product
+# shape Bazel submits through v4 and the OCI publisher embeds.
 build: _optimize-images-if-photos
     cd {{ root }} && pnpm run build
 
@@ -76,11 +75,10 @@ clean-all: clean
 # adapter-node OCI image is built DAEMONLESS via nix2container (nlewo/nix2container,
 # GloriousFlywheel core's own image mechanism; primary path is flake `.#image`,
 # see flake.nix) and pushed through the n2c-patched skopeo. No Docker daemon, no
-# buildx. nix/oci-image.nix stays as the nixpkgs-only fallback. The GF shared
+# buildx. The GF shared
 # cache accelerates the SvelteKit build inputs; the image PUSH is never
 # remote-execution eligible (`container-image-and-push` is blocked at the GF
-# manifest layer — skill rule 8, docs/CI-SCHEMA.md §4). The default adapter-static
-# build is untouched; only ADAPTER=node here selects adapter-node.
+# manifest layer — skill rule 8, docs/CI-SCHEMA.md §4).
 #
 # IMAGE CONTRACT (TIN-3815 S0): the image carries ONE dispatcher
 # (scripts/platform-entrypoint.mjs) installed under three stable process names —
@@ -108,21 +106,10 @@ container-image-publish: platform-entrypoints-check
     export BUILD_COMMIT_REF="${BUILD_COMMIT_REF:-unknown}"
     export BUILD_DATE="${BUILD_DATE:-1970-01-01T00:00:00Z}"
     tag="sha-${BUILD_COMMIT_SHA}"
-    # 1. adapter-node bundle (ADAPTER=node -> @sveltejs/adapter-node). The
-    #    default adapter-static build path is never touched. build/ stays the
-    #    GloriousFlywheel cache-accelerated input, imported into the image via
-    #    APP_BUILD under `--impure`.
+    # 1. Production adapter-node bundle. build/ is the same product-shaped
+    #    output as //:build and is imported into the image via APP_BUILD.
     #
-    #    Build-time PUBLIC_* env: PUBLIC_ARCHIVE_LIVE=true bakes the /discuss
-    #    archive go-live switch into THIS prod on-cluster image (TIN-2528 verified
-    #    live). PUBLIC_* vars are inlined by Vite at build time
-    #    (import.meta.env.PUBLIC_ARCHIVE_LIVE, src/lib/flags.ts), so the flag must
-    #    be set on the build invocation — it cannot be flipped at container
-    #    runtime. The deprecated CF Pages lane sets it in deploy-pages.yml; ADR
-    #    0010 makes on-cluster the production host, so this image must carry it too
-    #    to surface /discuss. Default `just build` (adapter-static) is left WITHOUT
-    #    it on purpose.
-    ADAPTER=node pnpm install --frozen-lockfile
+    pnpm install --frozen-lockfile
     # BUG (TIN-2224 fallout): this recipe calls `pnpm run build` directly,
     # bypassing the default `build` recipe's dependency on
     # _optimize-images-if-photos. static/optimized/ is gitignored and only
@@ -131,7 +118,7 @@ container-image-publish: platform-entrypoints-check
     # homepage hero (great-falls-lewiston-1930s-xlarge.avif) and every other
     # photo's responsive renditions once adapter-node became the production
     # server. Mirror _optimize-images-if-photos's own guard here so container
-    # images carry the same renditions the static build gets for free.
+    # images carry the same renditions the registered product build prepares.
     if [ -d static/photos ] && [ -n "$(ls -A static/photos 2>/dev/null)" ]; then \
         node scripts/optimize-images.js; \
     else \
@@ -140,9 +127,9 @@ container-image-publish: platform-entrypoints-check
     # PUBLIC_BUILD_SHA carries the build commit into the client bundle (Vite
     # inlines it via import.meta.env, src/lib/build-info.ts) so the footer renders
     # a "built from <sha>" provenance link to this exact commit. Only the container
-    # recipes set it — local / adapter-static builds leave it unset and the line
-    # degrades to nothing.
-    ADAPTER=node PUBLIC_ARCHIVE_LIVE=true PUBLIC_BUILD_SHA="${BUILD_COMMIT_SHA}" pnpm run build
+    # publisher sets it; developer builds leave it unset and the line degrades
+    # to nothing.
+    PUBLIC_BUILD_SHA="${BUILD_COMMIT_SHA}" pnpm run build
     # 1b. The /bin/migrator payload (TIN-3817 S1) and the /bin/worker payload
     #     (TIN-3817 S3). Both land INSIDE build/ so they ride the same APP_BUILD
     #     import as the web server; the flake refuses to assemble an image
@@ -182,17 +169,15 @@ container-image-build: platform-entrypoints-check
     # (great-falls-lewiston-1930s-xlarge.avif) and every other photo's
     # responsive renditions once adapter-node became the production server.
     # Mirror _optimize-images-if-photos's own guard here so container images
-    # carry the same renditions the static build gets for free.
+    # carry the same renditions the registered product build prepares.
     if [ -d static/photos ] && [ -n "$(ls -A static/photos 2>/dev/null)" ]; then \
         node scripts/optimize-images.js; \
     else \
         echo "No static/photos assets; keeping committed image-manifest fallback."; \
     fi
-    # PUBLIC_ARCHIVE_LIVE=true so the local tarball matches the prod on-cluster
-    # image (see container-image-publish); PUBLIC_* is build-time-inlined by Vite.
     # PUBLIC_BUILD_SHA bakes the build commit for the footer "built from <sha>"
     # provenance link (src/lib/build-info.ts).
-    ADAPTER=node PUBLIC_ARCHIVE_LIVE=true PUBLIC_BUILD_SHA="${BUILD_COMMIT_SHA}" pnpm run build
+    PUBLIC_BUILD_SHA="${BUILD_COMMIT_SHA}" pnpm run build
     # The /bin/migrator (TIN-3817 S1) and /bin/worker (TIN-3817 S3) payloads;
     # see container-image-publish.
     just db-migrator-bundle
@@ -223,21 +208,17 @@ platform-entrypoints-check:
 # proves the image CONFIG; only this recipe proves the ASSEMBLED, RUNNING image,
 # so it needs a live container runtime.
 #
-# SKIPS LOUDLY, exit 0, when no runtime DAEMON answers. The guard probes
+# FAILS CLOSED when no runtime daemon answers. The guard probes
 # `<runtime> info`, not `command -v`: the docker CLI is present on the operator's
 # macOS host while the daemon is not running, so a PATH-only guard reports a
 # false positive and then fails deep inside the build. It FAILS HARD when a
 # runtime does answer and an assertion does not hold, so these rows self-execute
 # the moment a daemon exists — no further code change.
 #
-# WHICH IMAGE. By default this builds ContainerFile, the local docker/podman
-# mirror of the image contract: it is the artifact a container runtime can
-# actually execute here, and `docker build` needs no Nix remote builder. CI
-# ships the nix2container artifact instead, which on a macOS host would contain
-# Mach-O binaries the Linux runtime cannot exec — so to smoke the REAL published
-# artifact, pass its ref:
+# WHICH IMAGE. The smoke accepts only the immutable published artifact; it does
+# not build a second local image implementation.
 #   GFTB_SMOKE_IMAGE=ghcr.io/great-falls-tool-bus/<repo>@sha256:… just container-image-smoke
-# Prove the ASSEMBLED image: per-role --entrypoint --help, and id -u == 1001 (skips without a running daemon)
+# Prove the ASSEMBLED image: per-role --entrypoint --help, and id -u == 1001.
 container-image-smoke:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -250,20 +231,15 @@ container-image-smoke:
         fi
     done
     if [ -z "$runtime" ]; then
-        echo "container-image-smoke: SKIP — no responding docker or podman daemon."
-        echo "  S0's executed in-container rows (per-role --entrypoint --help, id -u == 1001)"
-        echo "  stay CI-pending. The per-entrypoint CONTRACT is still proved daemonlessly by"
-        echo "  'just platform-entrypoints-check', and the image CONFIG (User, Cmd) by"
-        echo "  'nix build .#image'. Re-run on a host with a running container runtime."
-        exit 0
+        echo "container-image-smoke: FAIL — no responding docker or podman daemon." >&2
+        exit 1
     fi
     echo "container-image-smoke: using ${runtime}"
 
-    ref="${GFTB_SMOKE_IMAGE:-}"
-    if [ -z "$ref" ]; then
-        ref="greatfallstoolbus.org:smoke"
-        echo "container-image-smoke: building ${ref} from ContainerFile"
-        "$runtime" build -f ContainerFile -t "$ref" .
+    ref="${GFTB_SMOKE_IMAGE:?GFTB_SMOKE_IMAGE must name an immutable published image}"
+    if [[ ! "$ref" =~ @sha256:[0-9a-f]{64}$ ]]; then
+        echo "container-image-smoke: FAIL — GFTB_SMOKE_IMAGE must be an immutable @sha256 reference." >&2
+        exit 1
     fi
     echo "container-image-smoke: image ${ref}"
 
@@ -312,8 +288,8 @@ container-image-smoke:
         failed=1
     fi
 
-    # ADR 0008 §3: the image runs non-root as uid/gid 1001. `id` comes from
-    # busybox (ContainerFile image) or coreutils (nix images).
+    # ADR 0008 §3: the nix2container image runs non-root as uid/gid 1001;
+    # coreutils supplies `id` in the sole published implementation.
     uid="$("$runtime" run --rm --entrypoint id "$ref" -u | tr -d '\r\n')"
     gid="$("$runtime" run --rm --entrypoint id "$ref" -g | tr -d '\r\n')"
     if [ "$uid" = "1001" ] && [ "$gid" = "1001" ]; then
@@ -436,8 +412,7 @@ platform-bundles-check: db-migrator-bundle worker-bundle
 # container-only suite would never execute anywhere. It proves the SQL, the
 # policies, and the lock; it does NOT prove the 16.15 pin.
 #
-# SKIPS LOUDLY, exit 0, when neither is available — the same guard shape as
-# container-image-smoke, and for the same reason. The daemon probe is
+# FAILS CLOSED when neither is available. The daemon probe is
 # `<runtime> info` rather than `command -v`, because the docker CLI is present
 # on the operator's macOS host while the daemon is not running.
 test-integration *args:
@@ -458,14 +433,8 @@ test-integration *args:
         fi
     done
     if [ -z "$runtime" ]; then
-        echo "test-integration: SKIP — no responding docker or podman daemon, and"
-        echo "  GFTB_TEST_PG_SUPERUSER_DSN is unset."
-        echo "  The RLS, advisory-lock, FORCE, and ledger-drift rows stay CI-PENDING."
-        echo "  The tree-shaped half of those rows IS proved by 'just check'"
-        echo "  (src/lib/server/db/{ledger,migrations,tenant}.test.ts)."
-        echo "  Re-run with a container runtime, or point GFTB_TEST_PG_SUPERUSER_DSN"
-        echo "  at a PostgreSQL 16 superuser connection."
-        exit 0
+        echo "test-integration: FAIL — no responding docker or podman daemon and GFTB_TEST_PG_SUPERUSER_DSN is unset." >&2
+        exit 1
     fi
     echo "test-integration: using ${runtime} + postgres:16.15"
     pnpm exec vitest run --config vitest.integration.config.ts {{ args }}
@@ -728,14 +697,13 @@ preview-tailnet:
     #    the operator's shell can export GFTB_TENANT_ID for the worker, so
     #    the export-and-re-run step cannot be folded into this recipe.
 
-    # 9. Build (adapter-node) and launch web + worker as separate long-lived
-    #    background processes. Mirrors the ADAPTER=node guard
-    #    container-image-build/-publish already run before their build.
+    # 9. Build and launch web + worker as separate long-lived background
+    #    processes using the same adapter-node product shape as production.
     if [ -d static/photos ] && [ -n "$(ls -A static/photos 2>/dev/null)" ]; then
         node scripts/optimize-images.js
     fi
-    ADAPTER=node pnpm install --frozen-lockfile
-    ADAPTER=node pnpm run build
+    pnpm install --frozen-lockfile
+    pnpm run build
 
     tailnet_dns="$(tailscale status --json | jq -r '.Self.DNSName | rtrimstr(".")')"
     if [ -z "$tailnet_dns" ] || [ "$tailnet_dns" = "null" ]; then

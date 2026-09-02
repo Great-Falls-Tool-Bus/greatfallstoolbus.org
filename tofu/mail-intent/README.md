@@ -34,7 +34,7 @@ That sentence is the whole contract. Expanded:
 | Surface | Intent |
 | --- | --- |
 | `latoolb.us` | Mail domain + DNS redirect/alias to the site (row a) |
-| `greatfallstoolbus.org` | Web domain for this repo's static site |
+| `greatfallstoolbus.org` | Web domain for this repo's adapter-node application |
 | `keyholders@latoolb.us` | First production `MailAccount` application (`mail.tinyland.dev/v1alpha1`; CR applied from the infra overlay, reconciled by the house mail substrate) |
 | `keyholders` list | Mailman 3 + Postorius + HyperKitty, pinned trio 3.3.10 / 1.3.13 / 1.3.12, private/members-only archive or archive off (row e corrected 2026-07-04) |
 | `discuss` list | Public/open discussion list with public archive; source/transport reconciled, smoke proof tracked on TIN-2498 |

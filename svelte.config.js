@@ -1,4 +1,4 @@
-import adapterStatic from '@sveltejs/adapter-static';
+import adapterNode from '@sveltejs/adapter-node';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { mdsvex } from 'mdsvex';
 
@@ -15,45 +15,12 @@ const modernMdsvexPreprocess = {
 	},
 };
 
-// On-cluster readiness (TIN-2541). The build default is unchanged: adapter-static
-// -> Cloudflare Pages, DB-less, no edge auth. Setting ADAPTER=node selects
-// @sveltejs/adapter-node so the same source can be served in-cluster as
-// `node build/index.js` (see ContainerFile). adapter-node is the decided
-// production serving mode (ADR 0010, Accepted 2026-07-05; Amendment 1,
-// 2026-07-06): Cloudflare Pages, including this build default, is the
-// deprecated interim lane, spinning down per ADR 0010 §3. adapter-static stays
-// the default `just build` output only for that interim lane and as a
-// local/CI fallback.
-//
-// adapter-node is now a committed devDependency (TIN-2543, MassageIthaca parity
-// @sveltejs/adapter-node ^5.5.7): package.json and pnpm-lock.yaml carry it, and
-// the Bazel npm graph resolves it from the lock via npm_translate_lock. It is
-// still imported lazily and only under ADAPTER=node, so the frozen-lockfile
-// static build (the default) never loads it and every default gate stays green;
-// see docs/deploy/oncluster-container-readiness.md.
-const useNodeAdapter = process.env.ADAPTER === 'node';
-
-let adapter;
-if (useNodeAdapter) {
-	const { default: adapterNode } = await import('@sveltejs/adapter-node');
-	adapter = adapterNode({
-		// Explicit for parity with the adapter-static branch below and as a
-		// defensive pin: @sveltejs/adapter-node@5.5.7 already defaults
-		// `precompress: true` (gzip + brotli, built at compile time, over both
-		// `build/client` and `build/prerendered`), so this is a no-op today —
-		// but writing it out keeps the origin's compression posture from
-		// silently drifting if that upstream default ever changes.
-		precompress: true,
-	});
-} else {
-	adapter = adapterStatic({
-		pages: 'build',
-		assets: 'build',
-		fallback: '404.html',
-		precompress: true,
-		strict: false,
-	});
-}
+// GFTB is an app-stateful product whose sole served artifact is the
+// adapter-node server image. The previous environment-selected adapter-static
+// branch let local/CI builds validate bytes that could never be promoted to
+// production. One source build now has one product shape everywhere, including
+// the Bazel action submitted through the v4 REAPI fabric.
+const adapter = adapterNode({ precompress: true });
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -64,10 +31,6 @@ const config = {
 	},
 	kit: {
 		adapter,
-		paths: {
-			// Project-path hosting needs base="/<repo>"; a custom domain uses base="".
-			base: process.env.BASE_PATH ?? '',
-		},
 		prerender: {
 			handleHttpError: 'warn',
 			handleMissingId: 'warn',
@@ -87,10 +50,9 @@ const config = {
 			// build-breaking default for every other unseen prerenderable route,
 			// so a genuinely orphaned/unlinked page still fails the gate here.
 			//
-			// Nothing is lost when the list is unreachable: the static build is a
-			// local/CI gate only (ADR 0010 — Cloudflare Pages is the spinning-down
-			// interim lane), and the production ADAPTER=node image turns prerender
-			// off for this route entirely and reads it per request.
+			// The adapter-node server reads this route per request. A build with no
+			// archive access therefore emits no static thread pages and still keeps
+			// every other unseen prerenderable route fail-closed.
 			handleUnseenRoutes: ({ routes, message }) => {
 				const unexpected = routes.filter((id) => id !== '/discuss/[thread]');
 				if (unexpected.length > 0) {

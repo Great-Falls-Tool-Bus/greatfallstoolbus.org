@@ -1,6 +1,11 @@
 {
 	"schema_version": 2,
 	"actions": {
+		"build": {
+			"command": "build",
+			"targets": ["//:build"],
+			"capability": "rbe-linux-x86_64"
+		},
 		"validate": {
 			"command": "test",
 			"targets": [

@@ -229,17 +229,20 @@ on-cluster GFTB web) turns out to be the shipped shape after all, once the
 operator ruled out any CF-Pages-served lane, interim or long-term, entirely —
 not narrowed to a case-by-case "genuine server need" test.
 
-adapter-static is retained only as:
-
-1. the build target for the deprecated, spinning-down interim Cloudflare Pages
-   lane (`deploy-pages.yml`, §3/§5), until that project is deleted; and
-2. a local/CI fallback build (`just build` with no `ADAPTER` set stays green
-   against the frozen lockfile, so the default gates never regress).
+**Amendment 3 — one product build (2026-09-01).** The operator superseded the
+remaining adapter-static local/CI fallback during the GF v4 hard cut. The Pages
+project and deploy lane are already gone; retaining a second build shape now
+only lets CI validate bytes that cannot be promoted. `svelte.config.js`,
+`just build`, Bazel `//:build`, and the OCI publisher therefore all emit the
+adapter-node server. The `ADAPTER` selector and adapter-static dependency are
+removed. Git history carries the old static implementation; it is not a live
+fallback. The unused `PUBLIC_ARCHIVE_LIVE` build flag is removed with that
+second path: no current source consumer or `/discuss` route remains.
 
 Every build-active artifact since this ADR's Accepted date confirms adapter-node
 as the shipped shape, not a reserved future path:
 
-- The GHCR image is built `ADAPTER=node` via `nix2container`
+- The GHCR image is built from the same adapter-node output via `nix2container`
   (`.github/workflows/container-ghcr.yml`;
   `docs/deploy/oncluster-container-readiness.md`).
 - The infra web Deployment runs that image today
@@ -269,10 +272,10 @@ apply. This amendment flags it; it does not change the schema file.
 
 **§7 replacement:** the boundary reasoning tied to "the primary path is
 adapter-static (not adapter-node)" no longer holds — the primary path *is*
-adapter-node. §7's other posture claims (zero secrets/endpoints in the public
-tree; DNS, Access, Tunnel ingress, and manifests staying in
-`great-falls-tool-bus-infra` / blahaj) are unaffected by the adapter-mode
-correction and still stand as written.
+adapter-node. §7's surviving posture is the ownership boundary: zero
+secrets/endpoints in the public application tree, with release/apply authority
+in the consumer-owned `great-falls-tool-bus-infra` overlay and provider
+supply/placement opaque to this repository.
 
 **What this amendment does not change:** §1 (on-prem is the host of record),
 §3 (Cloudflare Pages spins down, warm only for the cutover window), §4 (previews

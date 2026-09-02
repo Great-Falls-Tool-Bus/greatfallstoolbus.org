@@ -3,8 +3,8 @@
  * spec §5 "Only the finance role can read amount, rail, processor/customer
  * identifiers, cash notes, or failure detail").
  *
- * NOT PRERENDERED, the S4/S5/S7 split: request-time state, served live by the
- * ADAPTER=node origin, absent from the default adapter-static build.
+ * NOT PRERENDERED, the S4/S5/S7 split: request-time state served live by the
+ * adapter-node origin.
  *
  * WHO SEES IT: a live session holding a live `finance` grant. The GRANT check
  * runs inside the same `withTenant` unit of work as the query it authorizes

@@ -1,8 +1,8 @@
 """
 Root BUILD.bazel for greatfallstoolbus.org.
 
-The SvelteKit static site still has ergonomic pnpm-backed Justfile recipes, but
-Bazel owns finite graphable targets for Flywheel cache/RBE proof surfaces.
+The SvelteKit adapter-node product has ergonomic pnpm-backed Justfile recipes,
+while Bazel owns the finite graphable actions submitted through Flywheel.
 """
 
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_run_binary", "js_test")
@@ -79,7 +79,6 @@ filegroup(
         "AGENTS.md",
         "BUILD.bazel",
         "CLAUDE.md",
-        "ContainerFile",
         "Justfile",
         "LICENSE",
         "MODULE.bazel",
@@ -253,23 +252,6 @@ vitest.vitest_test(
     visibility = ["//visibility:public"],
 )
 
-js_test(
-    name = "playwright_static_smoke",
-    timeout = "moderate",
-    data = [
-        "scripts/bazel/run-playwright-static-smoke.mjs",
-        ":build",
-        ":e2e_srcs",
-        ":node_modules",
-    ],
-    entry_point = "scripts/bazel/run-playwright-static-smoke.mjs",
-    tags = [
-        "manual",
-        "playwright",
-    ],
-    visibility = ["//visibility:public"],
-)
-
 test_suite(
     name = "ci_validation_suite",
     tests = [
@@ -281,41 +263,12 @@ test_suite(
     ],
 )
 
-# Historical adapter-static deployment bundle. The v4 application canary does
-# not select it because GFTB production is adapter-node; it remains a manual
-# local packaging target until an exact production artifact graph replaces it.
+# Product server bundle. Publication remains a separate owner transaction.
 pkg_tar(
     name = "deployment_bundle",
     srcs = [":build"],
     extension = "tar.gz",
     tags = ["manual"],
-    visibility = ["//visibility:public"],
-)
-
-# Container / OCI recipe inventory. Publication is not a v4 Bazel action, and
-# the checked-in v4 plan selects neither this target nor the obsolete
-# adapter-static deployment bundle. This target grants no publication or
-# fallback authority.
-pkg_tar(
-    name = "container_image_context",
-    srcs = [
-        "ContainerFile",
-        "flake.lock",
-        "flake.nix",
-        "nix/oci-image.nix",
-        "package.json",
-        "pnpm-lock.yaml",
-        # The three stable process names (web/worker/migrator) are part of the
-        # image contract, so the dispatcher is part of the image input set: a
-        # change to it must invalidate the container context (TIN-3815 S0).
-        "scripts/platform-entrypoint.mjs",
-        "svelte.config.js",
-    ],
-    extension = "tar",
-    tags = [
-        "container-image-and-push",
-        "manual",
-    ],
     visibility = ["//visibility:public"],
 )
 
@@ -326,7 +279,6 @@ exports_files(
         "playwright.config.ts",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml",
-        "scripts/bazel/run-playwright-static-smoke.mjs",
         "scripts/bazel/run-svelte-check.mjs",
         "scripts/bazel/run-sveltekit-sync.mjs",
         "scripts/bazel/run-vite-build.mjs",

@@ -4,8 +4,8 @@
 // image recipes (Justfile `container-image-publish` / `container-image-build`)
 // from `BUILD_COMMIT_SHA`, which CI wires to `github.sha` (the merged main
 // commit). So the footer "built from" provenance surfaces for a real published
-// image and degrades to nothing for local / adapter-static builds, which never
-// set it. Fail-quiet: absence renders no line, never a broken link.
+// image and degrades to nothing for developer builds, which never set it.
+// Fail-quiet: absence renders no line, never a broken link.
 
 /**
  * Normalize a raw build-sha env value to a trustworthy commit hash, or '' when

@@ -88,14 +88,9 @@ if (analyzeRequested) {
 // but it is not the default and is not a dependency of this scaffold.
 export default defineConfig({
 	// Expose `PUBLIC_`-prefixed env vars to client source via `import.meta.env`
-	// (alongside Vite's built-in `VITE_`). This is what makes the operator-owned
-	// build flags real: PUBLIC_ARCHIVE_LIVE (TIN-2528, the discuss@ archive public
-	// go-live gate) and PUBLIC_ARCHIVE_PREVIEW (the gated preview gate, safe inside
-	// the Access-gated deploy) are both default false / fail-closed, and the
-	// pre-existing PUBLIC_GFTB_FORM_ENDPOINT
-	// are read via `import.meta.env.PUBLIC_*`, and Vite only inlines a prefix it
-	// is told about. `PUBLIC_` matches SvelteKit's own public-env convention, so
-	// nothing secret is widened by this — only already-public toggles.
+	// (alongside Vite's built-in `VITE_`). The published image supplies only
+	// public build provenance through this seam; no runtime authority or secret
+	// is widened by the prefix.
 	envPrefix: ['VITE_', 'PUBLIC_'],
 
 	// `@tummycrypt/tinyland-auth@0.3.3` does `import * as bcrypt from 'bcryptjs'`,

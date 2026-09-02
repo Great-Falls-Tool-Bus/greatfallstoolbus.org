@@ -7,8 +7,7 @@
 
     # Daemonless OCI image builder (nlewo/nix2container). This is GloriousFlywheel
     # core's own image mechanism and the ecosystem-SOTA path that replaces the
-    # bespoke dockerTools.streamLayeredImage + shell-skopeo build (see
-    # packages.image below and nix/oci-image.nix, now the nixpkgs-only fallback).
+    # earlier dockerTools.streamLayeredImage + shell-skopeo implementation.
     # It follows this flake's nixos-unstable nixpkgs (recent Go), so the n2c Go
     # binary and its patched skopeo share our pin rather than duplicating a tree.
     nix2container.url = "github:nlewo/nix2container";
@@ -116,22 +115,17 @@
         # On-cluster container image (nix2container, TIN-2543)
         # ─────────────────────────────────────────────
         # PRIMARY daemonless OCI image path, mirroring GloriousFlywheel core's own
-        # nix2container mechanism. Replaces the bespoke
-        # dockerTools.streamLayeredImage build (now the nixpkgs-only fallback in
-        # nix/oci-image.nix). Built + pushed via `just container-image-publish`
+        # nix2container mechanism. It is the sole image implementation and is
+        # built + pushed via `just container-image-publish`
         # -> `nix run --impure .#image.copyToRegistry`.
         #
-        # ADAPTER SELECTION (TIN-3815 S0, ADR 0010 Amendment 1 item 2): the
-        # no-`ADAPTER` repository build stays adapter-static so the default gates
-        # never regress against the frozen lockfile. adapter-node is selected
-        # EXPLICITLY by the image recipes (`ADAPTER=node` in the
-        # `container-image-*` recipes and in ContainerFile) — `svelte.config.js`
-        # keeps its static default. Publishing an image never deploys it and
-        # never flips a live route; the infra apply plane owns promotion.
+        # `just build`, Bazel //:build, and the image recipes all consume the
+        # same adapter-node product output. Publishing never deploys it or
+        # flips a live route; the infra apply plane owns promotion.
         n2c = nix2container.packages.${system}.nix2container;
 
-        # The adapter-node build/ output is produced IMPERATIVELY by
-        # `ADAPTER=node pnpm run build` (kept as the GloriousFlywheel
+        # The adapter-node build/ output is produced by `pnpm run build` (kept
+        # as the GloriousFlywheel
         # cache-accelerated input, NOT a hermetic Nix build) and imported via the
         # APP_BUILD env under `--impure`. build/ is gitignored, so it cannot ride
         # the flake source tree; getEnv is the deliberate escape hatch. The commit
@@ -141,7 +135,7 @@
         appBuildEnv = builtins.getEnv "APP_BUILD";
         appBuild =
           if appBuildEnv == "" then
-            throw "flake .#image requires APP_BUILD=$PWD/build (the ADAPTER=node output); build it via `just container-image-publish` / `just container-image-build`, which run `nix run --impure`."
+            throw "flake .#image requires APP_BUILD=$PWD/build; build it via `just container-image-publish` / `just container-image-build`, which run `nix run --impure`."
           else
             builtins.path {
               name = "gftb-adapter-node-build";
@@ -167,14 +161,9 @@
         # scripts/platform-entrypoint.mjs; S1 (migrator) and S3 (worker) fill in
         # the placeholders WITHOUT changing this image contract.
         #
-        # WRAPPER FORM — deliberate, and NOT the same code path as ContainerFile.
-        # These wrappers pass the role POSITIONALLY. ContainerFile instead
-        # symlinks /usr/local/bin/<role> at the dispatcher, which exercises the
-        # linked-name branch (Node keeps argv[1] as the link path). The
-        # dispatcher supports both and the unit test pins linked-name-wins
-        # precedence, but be honest about which ships where: CI publishes THIS
-        # (nix2container) artifact, so the POSITIONAL branch is what production
-        # runs; the linked-name branch is the local ContainerFile mirror's.
+        # WRAPPER FORM: each executable passes its role positionally to the one
+        # dispatcher. CI and local image builds both publish this nix2container
+        # artifact, so one implementation reaches production.
         #
         # The positional form is used here on purpose rather than reproducing the
         # symlink: a store symlink would re-enter the dispatcher through its

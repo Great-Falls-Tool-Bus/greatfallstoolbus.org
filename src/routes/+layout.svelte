@@ -289,7 +289,7 @@
 				<p class="text-surface-500 mt-2 text-xs italic">Infrastructure built &amp; hosted in Lewiston, ME.</p>
 				<!-- Build provenance: shown only for a real published container image, where
 				     PUBLIC_BUILD_SHA is baked in (Justfile container recipes -> build-info.ts).
-				     Degrades to nothing on local / adapter-static builds. The short sha links to
+				     Degrades to nothing on developer builds. The short sha links to
 				     the exact source commit, whose GitHub "Verified" badge substantiates the note:
 				     main is merged through GitHub, so its commits are signed by GitHub's web-flow
 				     key (committer = GitHub), not the author's own key. -->

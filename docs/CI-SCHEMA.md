@@ -25,9 +25,20 @@ the only application-side execution declaration:
 {
   "schema_version": 2,
   "actions": {
+    "build": {
+      "command": "build",
+      "targets": ["//:build"],
+      "capability": "rbe-linux-x86_64"
+    },
     "validate": {
       "command": "test",
-      "targets": ["//:unit_tests"],
+      "targets": [
+        "//:current_source_secret_scan_test",
+        "//:eslint_test",
+        "//:prettier_check_test",
+        "//:svelte_check_test",
+        "//:unit_tests"
+      ],
       "capability": "rbe-linux-x86_64"
     }
   }
@@ -42,8 +53,9 @@ tenant, or provider field.
 ## GitHub edge
 
 `.github/workflows/ci.yml` calls
-`tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@37da689ef5836576502fa72711cb022d04375f24` once per
-selected action name. ARC admits the GitHub job and runs the image-custodied
+`tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@37da689ef5836576502fa72711cb022d04375f24` once for
+the production-shaped build and once for validation. ARC admits each thin
+GitHub job and runs the image-custodied
 `/usr/local/bin/gf-action-client`; ARC is not the compute scheduler. The client
 binds the exact plan bytes, action, and source SHA to the controller-resolved
 catalog and submits the Bazel action to REAPI.

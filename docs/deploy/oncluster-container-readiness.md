@@ -7,9 +7,8 @@
 > framing: on-cluster (`adapter-node` -> OCI image -> K8s -> `cloudflared`) is
 > the **live, sole** production host, and Cloudflare Pages is not a warm
 > standby — the `greatfallstoolbus-org` Pages project was **deleted**
-> 2026-07-06 (TIN-2560). The image-build mechanics described below (the
-> `ContainerFile`, `container-ghcr.yml`, the adapter-static/adapter-node table)
-> are still accurate as a description of how the artifact is built; the
+> 2026-07-06 (TIN-2560). The image-build mechanics described below
+> (`container-ghcr.yml` plus the sole nix2container image) remain accurate; the
 > "not yet done" / "warm standby" framing around them is not — see
 > `AGENTS.md` "Deploy lane" for the current, live posture.
 
@@ -32,21 +31,18 @@ publishes its Node-server image, run as `server.js` (TIN-3959: a thin wrapper
 around adapter-node's generated `build/handler.js` that fixes the
 Cache-Control/ETag headers the stock `node build/index.js` never sets for
 prerendered HTML — see `server.js`'s own header comment); on a green push to
-`main`, the workflow may signal the separate infra apply plane to deploy the
-exact digest. A manual workflow dispatch publishes an image but never sends
-that production signal.
+`main`, the workflow publishes the exact digest and stops. It does not signal
+or execute the consumer overlay's release/apply transaction. A manual workflow
+dispatch has the same publication-only authority.
 
-| Surface | Default build | Live on-cluster serve path |
+| Surface | Product build | Authority |
 | --- | --- | --- |
-| `svelte.config.js` | adapter-static | adapter-node **iff** `ADAPTER=node` |
-| `ContainerFile` | not used | multi-stage `ADAPTER=node` build -> `node server.js` (wraps `build/handler.js`) on `:3000`, non-root |
-| `.github/workflows/container-ghcr.yml` | manual dispatch builds + pushes only | a green `main` push builds + pushes, then may signal the infra apply plane |
+| `svelte.config.js` / Bazel `//:build` | adapter-node `build/index.js` | application source |
+| `.github/workflows/container-ghcr.yml` | packages that same server through nix2container | image publication only |
 
-The default static build (`just build`) still emits adapter-static and never
-imports adapter-node or touches the ContainerFile, so all default gates (`just
-format lint typecheck test-unit skills-check source-map-check build`) stay green
-with the frozen lockfile. The container workflow holds no apply credentials;
-production mutation remains in the separate infra repository.
+There is no adapter-static or local container-build fallback. The container
+workflow holds no apply credentials; production mutation remains in the
+separate infra repository.
 
 ## Accepted direction, cutover EXECUTED (was: "not yet done")
 
@@ -88,21 +84,18 @@ the standby window early:
 
 - Zero secrets, endpoints, or ciphertext. The workflow uses only the ambient
   `GITHUB_TOKEN` (`packages: write`); no new secret is introduced.
-- DNS, Cloudflare Access, Tunnel ingress, and any actual deploy are owned by
-  `great-falls-tool-bus-infra` / blahaj. Route intent lives there
-  (blahaj `tofu/intent/<workload>/public-edge-routes.json`), never here.
+- DNS, access, ingress, and any actual deploy are owned by the consumer overlay
+  `Great-Falls-Tool-Bus/great-falls-tool-bus-infra`. Provider supply and
+  placement are opaque to this application repository.
 - Image name (names-only contract):
   `ghcr.io/great-falls-tool-bus/greatfallstoolbus.org:sha-<commit>`.
 
-## adapter-node is a committed devDependency
+## adapter-node is the sole committed adapter
 
-`@sveltejs/adapter-node` is now committed to `devDependencies` (pinned `^5.5.7`)
+`@sveltejs/adapter-node` is now committed to `dependencies` (pinned `^5.5.7`)
 and resolves through the frozen `pnpm-lock.yaml`; the earlier "deliberately
-deferred" posture has landed. It is imported lazily in `svelte.config.js` and
-only selected when `ADAPTER=node`, so the default static build never loads it and
-the frozen-lockfile gates stay green. The container image build consumes it at
-build time through the Nix image recipe (`nix/oci-image.nix`); the `ContainerFile`
-is the portable equivalent.
+deferred" posture has landed. `svelte.config.js` selects it unconditionally.
+The sole image implementation is the nix2container package in `flake.nix`.
 
 Because the dependency is committed rather than installed only at image-build
 time, keep the Bazel side (`MODULE.bazel.lock` / `npm_translate_lock`) and

@@ -3,12 +3,9 @@ import type { AuthSession } from '$lib/server/auth';
 
 // Cache-control defaults for the adapter-node production origin (TIN-2543
 // on-cluster readiness; ADR 0008/0010). This `handle` hook is a SvelteKit
-// server-request seam: it only ever executes at request time under
-// `ADAPTER=node` (a real Node process running `node build/index.js`). Under
-// the default adapter-static build it still runs once per route during
-// prerendering, but the response it produces is written to a static HTML/JSON
-// file — headers set here are discarded, not served — so the default `just
-// build` stays green and unaffected either way.
+// server-request seam in the sole adapter-node product build. It also runs for
+// prerendered routes during compilation; headers produced there are written to
+// the server bundle rather than served by this hook.
 //
 // SCOPE, READ CAREFULLY: adapter-node's own generated server
 // (`@sveltejs/adapter-node/files/handler.js`) chains, in order: (1) a `sirv`
@@ -19,7 +16,7 @@ import type { AuthSession } from '$lib/server/auth';
 // `_app/immutable/assets/**` by Vite, so they already inherit rule (a) below
 // for free); then (2) a second sirv layer serving PRERENDERED pages (which is
 // nearly the whole site — the root `+layout.ts` sets `prerender = true` and
-// only `/apply` (and its `/apply/verify` sibling) opt out under `ADAPTER=node`
+// only `/apply` (and its `/apply/verify` sibling) opt out
 // — the legacy `/discuss` route that used to share this split is deleted, L72
 // Q3-A, 2026-08-21); only THEN (3) does a request reach this `handle` hook.
 //
@@ -35,8 +32,8 @@ import type { AuthSession } from '$lib/server/auth';
 // Last-Modified once the build zeroes mtimes for reproducibility) are fixed
 // separately, in `server.js` (TIN-3959) — the "custom server" wrapper this
 // comment used to flag as out of scope. That file replaces `build/index.js`
-// as the production entrypoint (`GFTB_WEB_ENTRYPOINT`, ContainerFile/Nix
-// images) and sets `Cache-Control: no-cache` plus a real content-hash `ETag`
+// as the production entrypoint (`GFTB_WEB_ENTRYPOINT`, Nix image) and sets
+// `Cache-Control: no-cache` plus a real content-hash `ETag`
 // on every un-hashed response the sirv layers serve, without touching the
 // already-correct `_app/immutable/**` rule. This hook's own
 // `public, max-age=0, must-revalidate` for `/discuss` stays as-is — it never
@@ -46,9 +43,7 @@ import type { AuthSession } from '$lib/server/auth';
 // Cloudflare Pages convention that adapter-node never reads — so on the
 // on-cluster production origin the old public URLs 404'd (cross-model audit
 // catch, 2026-07-06). Unmatched paths fall through both sirv layers to this
-// hook, so redirecting here works under adapter-node; under the default
-// adapter-static build these paths have no route and the (now-vestigial)
-// _redirects file documents the same mapping.
+// hook, so redirecting here works under adapter-node.
 //
 // Single-product history (L72 Q3-A, 2026-08-21): /contact itself is deleted
 // (public information-surface duty moves to gftb-site, ADR 0014 §1), so both
@@ -66,22 +61,20 @@ const LEGACY_REDIRECTS: ReadonlyArray<readonly [RegExp, string]> = [
 // "no session for anyone" in production while tests pass.
 //
 // THREE GUARDS BEFORE ANY DATABASE WORK, because this hook also runs during
-// prerendering under the default adapter-static build (where headers are
-// discarded and no database exists) and on the adapter-node origin before
-// infra has supplied the runtime references:
+// prerendering and before infra has supplied the runtime references:
 //   1. `GFTB_TENANT_ID` set — the one configured tenant's id, a runtime NAME
 //      supplied by great-falls-tool-bus-infra (TIN-3817: "one configured GFTB
 //      tenant; there is no tenant UI").
 //   2. `DATABASE_URL` set — same contract as src/lib/server/db/client.ts.
 //   3. A session cookie present — anonymous requests never open a connection
 //      (the pool in db/client.ts is lazy; importing it opens nothing).
-// Guards 1–2 keep the default `just build` and every unconfigured process
+// Guards 1–2 keep `just build` and every unconfigured process
 // free of auth work entirely — absence of infra config means "auth disabled",
 // not a crash — and guard 3 keeps anonymous traffic off the database.
 //
 // The imports are dynamic and inside the guarded branch for the same reason:
-// the default static build should not pay for (or risk) loading pg + bcrypt
-// on every prerendered page when no session can exist.
+// a prerendered build should not pay for (or risk) loading pg + bcrypt when no
+// session can exist.
 //
 // FAIL-CLOSED, ANONYMOUSLY: a lookup error yields `authSession: null` (and a
 // server-side log line), never a thrown 500 on public pages — an attacker who

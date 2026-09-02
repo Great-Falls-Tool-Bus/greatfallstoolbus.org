@@ -15,11 +15,11 @@
 #     INFRA_CD_DISPATCH_TOKEN is consumed.
 #   * The production host is the on-cluster service behind Cloudflare Access
 #     (ADR 0010). Cloudflare Pages is retired.
-#   * The default `just build` / static pipeline still emits adapter-static.
-#     Only ADAPTER=node (set by the image recipe) selects adapter-node.
-#   * The image is consumed by great-falls-tool-bus-infra (blahaj), which owns
-#     DNS, Access, Tunnel, and any actual deploy/cutover. This repo never holds
-#     edge/apply creds and never flips the live host.
+#   * `just build`, Bazel `//:build`, and this publisher all emit adapter-node.
+#   * The image is consumed by the consumer-owned
+#     Great-Falls-Tool-Bus/great-falls-tool-bus-infra overlay, which owns the
+#     release/apply transaction. Provider supply and placement remain opaque to
+#     this repo; it never holds edge/apply credentials or flips the live host.
 #
 # RUNNER CLASS (TIN-2543 fix): GFTB's ARC pool advertises only the shared
 # `tinyland-nix` GloriousFlywheel runner — there is NO `tinyland-dind`/buildx
@@ -28,7 +28,7 @@
 # great-falls-tool-bus-infra *-crs.yml pattern EXACTLY: it runs on `tinyland-nix`
 # through ./GloriousFlywheel/.github/actions/nix-job and builds the OCI image
 # DAEMONLESS via nix2container (flake `.#image` -> the n2c-patched skopeo
-# copyToRegistry; nix/oci-image.nix stays the nixpkgs-only fallback). No Docker
+# copyToRegistry). No Docker
 # daemon, no buildx. The GloriousFlywheel shared cache
 # accelerates the SvelteKit build inputs; the image push itself is NOT
 # remote-execution eligible (`container-image-and-push` is blocked at the GF

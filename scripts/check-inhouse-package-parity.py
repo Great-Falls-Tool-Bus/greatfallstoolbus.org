@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Check Bzlmod/npm version parity for Tinyland-owned packages.
 
-The scaffold still uses pnpm/Vite for its canonical static build, so some
-in-house packages must remain in package.json. The Bazel-first contract is that
+The application still uses pnpm/Vite for its canonical adapter-node build, so
+some in-house packages must remain in package.json. The Bazel-first contract is that
 those package versions match the corresponding bazel_dep entry exactly.
 
 npm-retirement extension (TIN-3165): the npm channel for in-house @tummycrypt

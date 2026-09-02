@@ -56,15 +56,10 @@ dig NS greatfallstoolbus.org +short @1.1.1.1
 dig NS latoolb.us +short @1.1.1.1
 ```
 
-## 2. Web: apex + www for greatfallstoolbus.org -> Pages
+## 2. Web: apex + www for greatfallstoolbus.org
 
-Repo-side precondition (scaffold contract, see `AGENTS.md` "Deploy lane"):
-add `static/CNAME` containing `greatfallstoolbus.org` and build with
-`BASE_PATH=""` before pointing DNS, otherwise the Pages build serves broken
-project-path URLs.
-
-In the Cloudflare zone for `greatfallstoolbus.org` (GitHub Pages lane, the
-shipped default in `.github/workflows/deploy-pages.yml`):
+The adapter-node application is the sole origin. This application repo neither
+declares provider records nor publishes a Pages fallback.
 
 Do not copy provider records from this runbook. The exact public declaration is
 [`tofu/dns-intent/intent.yaml`](../../tofu/dns-intent/intent.yaml); the

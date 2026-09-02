@@ -71,9 +71,9 @@ Non-negotiables beyond the scaffold contract: this repo holds
 **zero secrets and zero cluster endpoints, ever** (public repo; sops+age
 material lives in the org apply-plane overlay `great-falls-tool-bus-infra`
 under its `secrets/` lane); IaC here is declare-only intent, apply authority
-is `great-falls-tool-bus-infra` (mail/list/Anubis/DNS apply + runners,
-TIN-2299; packet 0001 Amendment 1 / memo 0002, blahaj is replaceable
-substrate consumed by reference); never scaffold a runner or
+is `great-falls-tool-bus-infra` (mail/list/Anubis/DNS apply + execution demand,
+TIN-2299; packet 0001 Amendment 1 / memo 0002; provider supply and placement are
+opaque here); never scaffold a runner or
 bake a cache/executor endpoint; the five sewing-cell ASINs stay opaque until
 operator-mediated resolution (never invent product names); all money-donation
 copy stays recipient-neutral with no tax-deductibility claims until decision
@@ -134,15 +134,15 @@ repository as private or renamed** in code, comments, docs, or image refs.
   `bazelisk` directly outside the Justfile unless adding a new recipe.
 - **Shell**: `nix develop` (auto-loaded by `direnv`), never assume host
   toolchain. CI runs `nix develop --command just <recipe>`.
-- **Build**: `just build` with no `ADAPTER` set produces a static `build/`
-  (adapter-static). That default is the local/CI fallback ADR 0010 Amendment 1
-  item 2 requires; the image recipes select adapter-node explicitly.
+- **Build**: `just build` and Bazel `//:build` produce the adapter-node server
+  under `build/`. Production and validation no longer compile different app
+  shapes behind an `ADAPTER` switch.
 - **Image entrypoints**: `just platform-entrypoints-check` runs the exact
   derivations the image installs at `/bin/web`, `/bin/worker`, and
   `/bin/migrator`. It needs no container daemon, so it is the per-entrypoint
   proof to run locally. `just container-image-smoke` proves the *assembled*
-  image instead (per-role `--entrypoint … --help`, in-container `id -u` = 1001);
-  it skips with a message when no container daemon answers.
+  image instead (per-role `--entrypoint … --help`, in-container `id -u` = 1001)
+  and fails closed when no container daemon answers.
 - **Database (Member v0, TIN-3817 S1)**: `just db-generate` regenerates the
   checked-in migration SQL and its hash manifest; `just db-check` refuses a
   drifted tree, an edited committed migration, or a recipe that reaches for
@@ -154,10 +154,9 @@ repository as private or renamed** in code, comments, docs, or image refs.
   reapplying.
 - **Integration tests**: `just test-integration` runs the testcontainers-backed
   PostgreSQL 16.15 suite (RLS, `FORCE`, advisory lock, ledger drift, runtime
-  role grants). It **skips loudly, exit 0, when no container daemon answers** —
-  this org's ARC pool advertises only `tinyland-nix` and has no dind runner, so
-  those rows are CI-pending, not merely flaky. The tree-shaped half of the same
-  properties is proved by `just check`.
+  role grants). It fails closed when neither a container daemon nor the
+  operator-supplied `GFTB_TEST_PG_SUPERUSER_DSN` is available; unavailable
+  integration infrastructure is not a green result.
 - **Check**: `just check` runs sync + svelte-check.
 - **SBOM**: `just sbom` generates local CycloneDX JSON and SPDX JSON artifacts
   under ignored `build/sbom/`.
@@ -308,28 +307,12 @@ After `gh repo create --template tinyland-inc/site.scaffold`:
 - Source presence is not activation. Keep a v4 adoption Draft until the exact
   consumer-owned overlay, resolved catalog, protected client image, and
   measurement attribution exist.
-## Build target (adapter-static fallback default; adapter-node chosen explicitly)
+## Build target (one adapter-node product shape)
 
-The scaffold default is **adapter-static** (cheap, DB-less, no edge auth) and that
-is the house baseline for content/brand spokes. **adapter-node** is a
-*sanctioned opt-in*, adopt it only when a spoke genuinely needs a server: a
-secret-holding proxy, upstream normalization (e.g. ad-header stripping / bbox
-rewriting), or thin API routes the browser can't do safely. The
-`darkmap.phasi.space` spoke is the adapter-node reference (it proxies + normalizes
-an upstream GeoServer). A spoke that switches must also flip its deploy lane
-(container build → server) and its smoke serve path (`node build/index.js` vs a
-static file server), keep both documented; never silently switch the default.
-
-**Here, adapter-node is the served artifact but NOT the no-`ADAPTER` default
-(TIN-3815 S0).** The platform is served by adapter-node, and every image recipe
-sets `ADAPTER=node` explicitly (`ContainerFile`, `just container-image-build`,
-`just container-image-publish`). `svelte.config.js` keeps its adapter-static
-default on purpose: ADR 0010 Amendment 1 item 2 retains adapter-static as "a
-local/CI fallback build (`just build` with no `ADAPTER` set stays green against
-the frozen lockfile, so the default gates never regress)". Flipping that default
-would amend a standing ADR as a side effect. If the operator later wants it
-flipped, that is a one-paragraph erratum against Amendment 1 item 2, raised on
-its own.
+GFTB is an `app-stateful-spoke`, not a static scaffold instance. `just build`,
+Bazel `//:build`, and the OCI publisher all compile the same adapter-node server
+shape. The retired adapter-static branch and `ADAPTER` selector are absent: a
+green local/static build cannot stand in for the artifact promoted on main.
 
 **Application role.** This repository is an `app-stateful-spoke`, not a live
 scaffold conversion. Schema v2 forbids `taxonomy.spawned_repo_role` on this

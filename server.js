@@ -70,7 +70,7 @@
 // support (node_modules/@sveltejs/adapter-node/files/index.js) — none of
 // those env vars are referenced anywhere else in this repo or its infra
 // intent docs. HOST/PORT and a plain graceful `server.close()` on
-// SIGTERM/SIGINT are preserved, matching the ContainerFile/Nix image Env
+// SIGTERM/SIGINT are preserved, matching the nix2container image environment
 // and the `/` HEALTHCHECK.
 
 import crypto from 'node:crypto';

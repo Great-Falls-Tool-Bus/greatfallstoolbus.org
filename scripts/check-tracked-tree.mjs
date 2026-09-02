@@ -9,7 +9,7 @@
  * that repo is pure static content, so "what gets built" and "what gets
  * published to the public GitHub repo" are close enough to the same thing).
  * This repo is different: it is an `app-stateful-spoke` (AGENTS.md), most of
- * `src/**` never reaches a client bundle or the static build output (the
+ * `src/**` never reaches a client bundle or the adapter-node server output (the
  * SvelteKit `$lib/server` boundary), yet every tracked file is still visible
  * on the public GitHub repo regardless of whether it is ever built or
  * rendered.

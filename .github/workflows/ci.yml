@@ -22,6 +22,15 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  build:
+    name: production build through REAPI
+    permissions:
+      contents: read
+      id-token: write
+    uses: tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@37da689ef5836576502fa72711cb022d04375f24
+    with:
+      action_name: build
+
   validate:
     name: validate through REAPI
     permissions:

@@ -140,7 +140,7 @@ killed, not just matched by `pgrep -f`.
   will in production; it would not work over a direct, unproxied
   `http://127.0.0.1:8443` request.
 - **Building the preview poisons `just check`.** Like `just build`, an
-  `ADAPTER=node` build populates `.svelte-kit/` in a way `just check`'s
+  adapter-node build populates `.svelte-kit/` in a way `just check`'s
   gitleaks pass then flags. Run `just check` before `just preview-tailnet`,
   not after, in the same working tree.
 - **Not the CI-driven per-PR tailnet lanes.** `docs/CI-SCHEMA.md` describes a
