@@ -86,12 +86,13 @@ fork vs unintended drift), and whether to fold the scaffold's version back in.
 These are the rules that should NEVER drift in a spoke:
 
 - `tinyland.repo.json` `boundaries.owns_*` flags match the role.
-- `.github/lanes.json` is a schema-v2 ActionPlan containing only finite Bazel
-  commands, exact workspace targets, and abstract REAPI capabilities. It owns
-  no tenant, repository, runner, endpoint, credential, publication, or apply
-  instance.
+- `.github/lanes.json` is an ActionPlan/v4 schema-3 declaration containing
+  only finite Bazel commands, exact workspace targets, abstract REAPI
+  capabilities, and closed result dispositions. It owns no tenant,
+  repository, runner, endpoint, credential, publication, or apply instance.
 - The application workflow invokes the immutable
-  `tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@v4.0.0` and only
+  `tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@0067a1f0e16012ea91d0602b7d185e534774cadb`
+  (`v5.0.0`, carrying ActionPlan/v4 schema 3) and only
   selects a checked-in action name. It has no v3, cache-only, local,
   hosted-runner, direct-endpoint, port-forward, or profile fallback.
 - Consumer enrollment instances live in the organization's own `-infra`

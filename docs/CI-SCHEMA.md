@@ -23,12 +23,16 @@ the only application-side execution declaration:
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "actions": {
     "build": {
       "command": "build",
-      "targets": ["//:build"],
-      "capability": "rbe-linux-x86_64"
+      "targets": ["//:deployment_bundle"],
+      "capability": "rbe-linux-x86_64",
+      "result": {
+        "mode": "export-regular-files",
+        "output_groups": ["default"]
+      }
     },
     "validate": {
       "command": "test",
@@ -39,22 +43,31 @@ the only application-side execution declaration:
         "//:svelte_check_test",
         "//:unit_tests"
       ],
-      "capability": "rbe-linux-x86_64"
+      "capability": "rbe-linux-x86_64",
+      "result": {"mode": "status-only"}
     }
   }
 }
 ```
 
 It contains only named `build` or `test` commands, finite workspace-local Bazel
-labels, and the one currently executable abstract capability. It carries no
-runner, endpoint, target-class, lifecycle, artifact, publication, repository,
-tenant, or provider field.
+labels, one provider-blind abstract capability, and one closed result
+disposition. `status-only` exposes no output claim and forbids output groups.
+`export-regular-files` requires exact non-pattern targets and a non-empty list
+of output groups; the compiled client emits one bounded `ActionOutputSet/v1`
+only after the complete Bazel event graph and selected blobs are verified
+against the resolved tenant CAS. There is no omitted/default disposition.
+The schema admits Linux and Darwin demand without claiming either has live
+provider supply; unavailable supply fails during resolution. The plan carries
+no runner, endpoint, target-class, lifecycle, free-form artifact description,
+publication, repository, tenant, or provider field.
 
 ## GitHub edge
 
 `.github/workflows/ci.yml` calls
-`tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@37da689ef5836576502fa72711cb022d04375f24` once for
-the production-shaped build and once for validation. ARC admits each thin
+`tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@0067a1f0e16012ea91d0602b7d185e534774cadb`
+(`v5.0.0`, carrying ActionPlan/v4 schema 3) once for the exact deployment
+bundle and once for validation. ARC admits each thin
 GitHub job and runs the image-custodied
 `/usr/local/bin/gf-action-client`; ARC is not the compute scheduler. The client
 binds the exact plan bytes, action, and source SHA to the controller-resolved

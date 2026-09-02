@@ -41,7 +41,9 @@ preserve dirty work, patch minimal conformance gaps, and validate through Just.
 ## Flywheel v4
 
 - `.github/lanes.json` is the complete application-side ActionPlan.
-- `spoke-ci-v4.yml@37da689ef5836576502fa72711cb022d04375f24` invokes only the image-custodied `gf-action-client`.
+- `spoke-ci-v4.yml@0067a1f0e16012ea91d0602b7d185e534774cadb`
+  (`v5.0.0`, carrying ActionPlan/v4 schema 3) invokes only the image-custodied
+  `gf-action-client`.
 - `great-falls-tool-bus-infra` owns signed installation and demand instances.
 - Missing App, overlay, binding, OIDC, client, or REAPI authority fails closed;
   there is no local, cache-only, hosted, profile, or endpoint fallback.

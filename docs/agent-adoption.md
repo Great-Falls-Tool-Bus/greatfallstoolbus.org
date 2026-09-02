@@ -74,7 +74,7 @@ Flag these before patching:
   targets, schemas, or Just recipes.
 - The ActionPlan contains a runner, pool, endpoint, tenant, repository,
   lifecycle, publication, or provider-placement field.
-- A v4 caller bypasses `spoke-ci-v4.yml@37da689ef5836576502fa72711cb022d04375f24` or the image-custodied
+- A v4 caller bypasses `spoke-ci-v4.yml@0067a1f0e16012ea91d0602b7d185e534774cadb` or the image-custodied
   `gf-action-client`.
 - A repo preserves a v3 profile, cache-only path, local execution branch, or
   hosted runner as a v4 fallback.

@@ -203,11 +203,13 @@ repository as private or renamed** in code, comments, docs, or image refs.
 
 ## GloriousFlywheel v4 Action Fabric
 
-- This application owns finite Bazel targets and the schema-v2 ActionPlan in
+- This application owns finite Bazel targets and the ActionPlan/v4 schema-3
+  result dispositions in
   `.github/lanes.json`. It does not own a runner, pool, endpoint, platform,
   cache profile, token exchange, or provider placement.
 - `.github/workflows/ci.yml` invokes only the immutable
-  `tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@37da689ef5836576502fa72711cb022d04375f24` and
+  `tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@0067a1f0e16012ea91d0602b7d185e534774cadb`
+  (`v5.0.0`, carrying ActionPlan/v4 schema 3) and
   selects one checked-in action name. The image-custodied compiled
   `gf-action-client` is the sole execution entrypoint.
 - The Great-Falls-Tool-Bus organization installs the GF GitHub App. Its sibling
@@ -296,6 +298,11 @@ After `gh repo create --template tinyland-inc/site.scaffold`:
 - `.github/lanes.json` contains only named `build` or `test` actions, finite
   workspace-local Bazel targets, and the abstract `rbe-linux-x86_64`
   capability. It contains no tenant or provider data.
+- Every action declares one closed result disposition. Validation is
+  `status-only`. The product build selects exact target
+  `//:deployment_bundle` with `export-regular-files` and output group
+  `default`; only its verified `ActionOutputSet/v1` may cross into a separate
+  owner publication transaction.
 - One immutable ci-templates invocation selects one member. Plan membership is
   admission, not a request to execute every member in one ARC job.
 - ARC is only the thin GitHub admission edge. Bazel actions, REAPI scheduling,
@@ -336,7 +343,7 @@ fallbacks.
   `scripts/validate_repo_manifest.py`. Version 1 is retired and fails closed.
 - `tinyland.repo.json` records the exact scaffold origin commit and the
   consumer-owned organization overlay. It never records provider placement.
-- `just lanes-validate` and `just lanes-list` read the schema-v2
+- `just lanes-validate` and `just lanes-list` read the ActionPlan/v4 schema-3
   `.github/lanes.json` ActionPlan's `.actions` map.
 - MANUAL rows (org ruleset and required status checks) require operator
   verification outside this repository.

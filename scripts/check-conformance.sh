@@ -75,8 +75,8 @@ fi
 
 # 2. ci.yml pins the immutable v4 contract.
 if [[ -f .github/workflows/ci.yml ]]; then
-  if grep -q 'tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@37da689ef5836576502fa72711cb022d04375f24' .github/workflows/ci.yml; then
-    ok ".github/workflows/ci.yml pins the reviewed ci-templates v4 commit"
+  if grep -q 'tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@0067a1f0e16012ea91d0602b7d185e534774cadb' .github/workflows/ci.yml; then
+    ok ".github/workflows/ci.yml pins the reviewed ci-templates v5.0.0 schema-3 commit"
   elif grep -qE 'tinyland-inc/ci-templates' .github/workflows/ci.yml; then
     no ".github/workflows/ci.yml does not pin the reviewed v4 action contract"
   else

@@ -1,10 +1,14 @@
 {
-	"schema_version": 2,
+	"schema_version": 3,
 	"actions": {
 		"build": {
 			"command": "build",
-			"targets": ["//:build"],
-			"capability": "rbe-linux-x86_64"
+			"targets": ["//:deployment_bundle"],
+			"capability": "rbe-linux-x86_64",
+			"result": {
+				"mode": "export-regular-files",
+				"output_groups": ["default"]
+			}
 		},
 		"validate": {
 			"command": "test",
@@ -15,7 +19,8 @@
 				"//:svelte_check_test",
 				"//:unit_tests"
 			],
-			"capability": "rbe-linux-x86_64"
+			"capability": "rbe-linux-x86_64",
+			"result": { "mode": "status-only" }
 		}
 	}
 }
