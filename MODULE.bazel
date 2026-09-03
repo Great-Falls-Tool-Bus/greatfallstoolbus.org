@@ -79,6 +79,14 @@ npm.npm_translate_lock(
         "//:package.json",
         "//:pnpm-workspace.yaml",
     ],
+    # Browser packages must never fetch browser binaries at npm lifecycle time
+    # (GloriousFlywheel browser-rbe-candidate-guide, lifecycle download
+    # policy): //:browser_smoke_test and //:playwright_static_smoke launch the
+    # pre-provisioned worker Chromium named by GF_RBE_CHROMIUM_EXECUTABLE
+    # instead.
+    lifecycle_hooks_envs = {
+        "playwright": {"PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1"},
+    },
 )
 use_repo(npm, "npm")
 

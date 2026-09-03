@@ -212,6 +212,50 @@ js_test(
     visibility = ["//visibility:public"],
 )
 
+# Chromium loopback smoke over the declared //:build output, per
+# GloriousFlywheel's browser-RBE candidate template (examples/web-rbe/*) and
+# public-docs/browser-rbe-candidate-guide.md: build through declared Bazel
+# inputs, serve that output from inside the test action on 127.0.0.1, launch
+# the pre-provisioned worker Chromium named by GF_RBE_CHROMIUM_EXECUTABLE via
+# playwright's explicit executablePath, with writable HOME/XDG dirs under test
+# scratch and no action-time browser download (MODULE.bazel pins
+# PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD at npm lifecycle time). Sibling of
+# //:playwright_static_smoke (the proved web-playwright-chromium-static-smoke
+# class); this is the v4-fabric-shaped successor target, not a replacement.
+#
+# INERT today (TIN-4251 v4 prep): `manual` keeps every suite, wildcard, and
+# current CI lane from selecting it — gf-action-client is not in the runner
+# image (G1) and the org tenant overlay is not admitted (G2). Promotion path:
+# a third lanes.json action `e2e` selecting this target once the tenant
+# binding lands.
+#
+# GF_BROWSER_SMOKE_REQUIRE_PROVENANCE=0 is deliberate, not an oversight: the
+# footer build-sha line renders only when PUBLIC_BUILD_SHA is baked in, and
+# that channel belongs exclusively to the container image recipes
+# (src/lib/build-info.ts) — //:build is unstamped adapter-static output, so
+# the provenance element is legitimately absent here and the smoke asserts
+# title + zero console errors only.
+js_test(
+    name = "browser_smoke_test",
+    data = [
+        ":build",
+        ":e2e_srcs",
+        ":node_modules",
+    ],
+    entry_point = "e2e/bazel/run-browser-smoke.mjs",
+    env = {
+        "GF_BROWSER_SMOKE_BUILD_DIR": "$(rootpath :build)",
+        "GF_BROWSER_SMOKE_PATH": "/",
+        "GF_BROWSER_SMOKE_TITLE": "Great Falls Tool Bus",
+        "GF_BROWSER_SMOKE_REQUIRE_PROVENANCE": "0",
+    },
+    tags = [
+        "browser-smoke",
+        "manual",
+    ],
+    timeout = "moderate",
+)
+
 # Pure, finite custody/preservation negative controls. Keep tracked scripts
 # non-executable and invoke them explicitly through Bash. Native sh_test
 # requires one executable src, so a finite launcher is generated for Bazel.
