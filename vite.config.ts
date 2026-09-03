@@ -88,7 +88,7 @@ export default defineConfig({
 	// it bundles only devDependencies — cjs-module-lexer extracts no named
 	// exports from it, `bcrypt.hash` is undefined, and every hashPassword/
 	// verifyPassword call throws at runtime (TIN-3817 S2; probed and confirmed
-	// on node 22). Bundling the package through Vite applies real CJS interop
+	// on node 24). Bundling the package through Vite applies real CJS interop
 	// and makes the named import work. vitest.integration.config.ts carries the
 	// same setting for the test lane, and the integration suite's password rows
 	// would catch a regression here.
