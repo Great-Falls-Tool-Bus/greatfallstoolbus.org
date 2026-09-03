@@ -5,6 +5,24 @@ path for the pipeline: how a keyholders@ post becomes a staged discuss@
 draft, and where the on-cluster HyperKitty read lives. It does not implement
 mail sending — see **Hard rules** below.
 
+> **Corrections log**
+>
+> - **2026-09-03:** the ancestry rebuild to `chore/docs-to-private-meta`
+>   (commit `23d9513`) deleted `$lib/server/discuss-archive.ts` (the TIN-2528
+>   live discuss@ reader, incl. `publicThreadUrl()`) and `$lib/data/cells.ts`
+>   from `main`. This runbook's citations of both are corrected inline below,
+>   each marked with a dated correction note — except step 7's, whose stale
+>   citation was superseded wholesale by the reconciliation tool's rewrite of
+>   that step (PR #245), so its correction lives there. A modernized revival
+>   of the discuss@ reader is in flight as PR #244
+>   (branch `feat/discuss-reader-revival-20260903`). The
+>   pipeline mechanism itself — generator, validator, naming-consent hash
+>   gate, CI scope rule, gitleaks backstops, and the `discuss-to-svx` /
+>   `discuss-drafts-validate` / `naming-consent-hashes*` Just recipes wired
+>   into `just check` — was re-verified present on `main` (`5dc726d`) and is
+>   unchanged. The four staged drafts referenced below were also re-verified:
+>   all four remain under `src/content/discuss-drafts/`, all `published: false`.
+
 ## What this pipeline is (and is not)
 
 - **Is:** a way to turn a note the operator already sent to the private
@@ -17,9 +35,14 @@ mail sending — see **Hard rules** below.
   from the operator's own already-redacted proposal packet, not from a fresh
   HyperKitty pull.
 - **Does not render on the site.** `src/content/discuss-drafts/**` is not
-  wired into any route or glob import — compare `$lib/data/cells.ts`, which
-  globs `content/tools/**` only. A draft file here has zero effect on the
-  deployed build.
+  wired into any route or glob import. A draft file here has zero effect on
+  the deployed build. *(Correction 2026-09-03: this bullet used to say
+  "compare `$lib/data/cells.ts`, which globs `content/tools/**` only" — that
+  module and `content/tools/**` were removed from `main` in the ancestry
+  rebuild (`23d9513`). The invariant is now stronger, not weaker: no route,
+  glob import, or content loader in this repo reads `src/content/**` at all —
+  `src/content/discuss-drafts/` is the only content directory left, and
+  `import.meta.glob` has zero call sites under `src/`.)*
 
 ## The flow, end to end
 
@@ -299,22 +322,26 @@ live read was performed for this PR**, and this pipeline has no code that
 performs one.
 
 - **Namespace:** `latoolb-us-production`.
-- **Surface:** the same in-cluster `mailman-web` Service the live discuss@
-  archive already reads (`$lib/server/discuss-archive.ts`,
-  `DEFAULT_INCLUSTER_ORIGIN`), a plain ClusterIP Service DNS name resolvable
-  only inside the cluster. HyperKitty exposes a read-only REST API under
-  `/hyperkitty/api/list/<list-address>/...` (`threads/`, `thread/<id>/`,
-  `thread/<id>/emails/`, `email/<hash>/`) — see that module for the exact
-  request shapes and the `ALLOWED_HOSTS` / Host-header quirk it already
-  works around.
+- **Surface:** the in-cluster `mailman-web` Service — a plain ClusterIP
+  Service DNS name resolvable only inside the cluster. HyperKitty exposes a
+  read-only REST API under `/hyperkitty/api/list/<list-address>/...`
+  (`threads/`, `thread/<id>/`, `thread/<id>/emails/`, `email/<hash>/`).
+  *(Correction 2026-09-03: this bullet used to say the live discuss@ archive
+  "already reads" this Service via `$lib/server/discuss-archive.ts`
+  (`DEFAULT_INCLUSTER_ORIGIN`) — that TIN-2528 reader was deleted from
+  `main` in the ancestry rebuild (`23d9513`), so no in-repo code performs
+  this read today. A modernized revival is in flight as PR #244 (branch
+  `feat/discuss-reader-revival-20260903`); once it lands, that module is
+  again the reference for exact request shapes and the `ALLOWED_HOSTS` /
+  Host-header quirk it works around.)*
 - **Scope for a keyholders@ export:** the same REST surface, scoped to
   `keyholders@latoolb.us` instead of `discuss@latoolb.us`. Because that list
   is **private**, any such read must run from an operator-authorized,
   in-cluster context (a job or pod with netpol access to the private
   archive) — never from this public repo's CI, never from an agent sandbox
-  without cluster access, and never against `discuss-archive.ts`'s existing
-  discuss@-only code path, which is deliberately scoped to the public list
-  and must stay that way.
+  without cluster access, and never through the discuss@-only reader
+  (`discuss-archive.ts` as revived in PR #244), which is deliberately scoped
+  to the public list and must stay that way.
 - **Read-only.** `SELECT`-shaped reads only, matching the operator's own
   packet-preparation note (`mailmanweb` database via the HyperKitty web
   tier, read-only). No list mutation, no credential printing or persistence.
