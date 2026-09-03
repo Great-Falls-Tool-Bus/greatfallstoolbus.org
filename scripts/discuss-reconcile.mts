@@ -251,7 +251,7 @@ async function main(): Promise<void> {
 }
 
 // Only run as a CLI when invoked directly (not when imported by a test).
-if (process.argv[1]?.endsWith('discuss-reconcile.mts')) {
+if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('discuss-reconcile.mts')) {
 	main().catch((error) => {
 		console.error(`discuss-reconcile: ${error instanceof Error ? error.message : String(error)}`);
 		process.exit(1);

@@ -2,16 +2,16 @@
 // src/content/discuss-drafts/**. Shared by the generator
 // (scripts/discuss-to-svx.mjs) and its standalone validator
 // (scripts/validate-discuss-drafts.mts) so the schema can never drift
-// between the two — the same pattern src/lib/data/tool-schema.ts uses for
-// src/content/tools/**.
+// between the two.
 //
 // WHAT THIS TREE IS: a git-tracked staging ground for the "keyholders@ ->
 // discuss@" repost pipeline (Lane B). Every file here is `published: false`
 // until an OPERATOR has manually sent the body to discuss@latoolb.us from
 // their own mail client and the post has landed in the public HyperKitty
 // archive. Nothing under this directory is read by any route, glob import,
-// or build-time content loader — see $lib/data/cells.ts for the one glob
-// this repo actually wires to a live page (scoped to content/tools/**only).
+// or build-time content loader — no glob import of src/content/** exists
+// anywhere under src/ (the old $lib/data/cells.ts + content/tools/** wiring
+// was deleted in the ancestry rebuild).
 // A draft file existing here has NO effect on the deployed site.
 //
 // RECONCILIATION (scripts/discuss-reconcile.mts, `just discuss-reconcile`):
