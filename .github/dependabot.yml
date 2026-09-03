@@ -33,11 +33,14 @@ updates:
         update-types:
           - 'version-update:semver-minor'
           - 'version-update:semver-major'
-      # AGENTS.md "Theme & Skeleton" pins Skeleton 4.15.2 deliberately ("Don't
-      # unpin Skeleton ... without coordination"). Measured, not theoretical:
-      # #202 (skeleton-svelte 4.15.2->5.0.1) broke flywheel-build AND
-      # flywheel-test; #203 (skeleton 4.15.2->5.0.1) broke flywheel-test.
-      # Majors-only filter: minor/patch bumps within 4.x still flow through.
+      # @skeletonlabs/skeleton + @skeletonlabs/skeleton-svelte are a
+      # version-locked PAIR (skeleton-common component CSS @applies brand
+      # presets only core defines): a solo bump of either package always
+      # breaks — that is exactly what failed in #202/#203, resolved by the
+      # paired 5.0.1 bump. Dependabot bumps one package at a time, so major
+      # bumps stay ignored and land as hand-rolled paired PRs; minor/patch
+      # bumps within 5.x still flow through (grouped, so the pair travels
+      # together).
       - dependency-name: '@skeletonlabs/skeleton'
         update-types:
           - 'version-update:semver-major'

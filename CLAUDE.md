@@ -28,7 +28,10 @@ delete them:
   Code's discovery path. Removing either breaks the `skills-check` CI gate.
 - `CLAUDE.md` — this file. `scaffold-doctor` audits `AGENTS.md`/`CLAUDE.md`
   presence; keep it a thin pointer rather than deleting it.
-- `.claude-plugin/marketplace.json` + `plugins/scaffold-core/*` — the
-  git-subdir-installable `scaffold-core` plugin, documented in `AGENTS.md` and
-  linked from the public `/agent` route. Whether a spoke re-ships it is an
-  operator decision, not a mechanical cleanup.
+- `plugins/scaffold-core/*` — the `scaffold-core` plugin surface documented in
+  `AGENTS.md`: `plugin.json` plus six skill symlinks resolving to the canonical
+  `.agents/skills/*`, installable from site.scaffold's marketplace
+  (`/plugin marketplace add github:tinyland-inc/site.scaffold`). (Corrected
+  2026-09-03: this repo ships no `.claude-plugin/marketplace.json` and no live
+  `/agent` route.) Whether a spoke re-ships the plugin is an operator decision,
+  not a mechanical cleanup.

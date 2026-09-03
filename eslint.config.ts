@@ -64,7 +64,7 @@ export default ts.config(
 			// (Identifier callee named `$derived` with a direct arrow argument)
 			// leaves it untouched.
 			'no-restricted-syntax': ['error', derivedThunkRestriction],
-			// Svelte 5 / Skeleton 4 adjustments
+			// Svelte 5 / Skeleton 5 adjustments
 			'svelte/no-at-html-tags': 'warn',
 			'svelte/no-dom-manipulating': 'off',
 			'svelte/require-each-key': 'error',
