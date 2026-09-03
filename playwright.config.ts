@@ -41,9 +41,15 @@ export default defineConfig({
 			: []),
 	],
 	webServer: {
-		command: 'pnpm run build && pnpm exec serve build -l ' + port,
+		// adapter-node emits a Node server bundle in build/ — run it with node,
+		// not a static file server. The server reads PORT/ORIGIN from the env.
+		command: 'pnpm run build && node build',
 		port,
 		timeout: 180_000,
 		reuseExistingServer: !process.env.CI,
+		env: {
+			PORT: String(port),
+			ORIGIN: baseURL,
+		},
 	},
 });

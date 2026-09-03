@@ -98,6 +98,7 @@ eslint_bin.eslint_test(
     data = [
         ":app_srcs",
         ":node_modules",
+        ":node_modules/@eslint/js",
         ":sveltekit_types",
         "eslint.config.ts",
     ],
