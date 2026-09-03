@@ -228,7 +228,7 @@ export function safeDisplayName(raw: string | null | undefined): string {
 /**
  * Turn an email body into a plain-text excerpt: drop HTML tags, quoted reply
  * lines, the signature block (everything after a `-- ` delimiter) and bracketed
- * URLs; neutralize inline addresses (`foo@bar.com` → `foo@…`, exactly as the
+ * URLs; neutralize inline addresses (`foo@example.com` → `foo@…`, exactly as the
  * thread-body path does, so a neighbor mentioning an address degrades to the
  * neutralized form instead of hard-failing the whole index); collapse
  * whitespace; cap at 280 chars on a word boundary with an ellipsis.
@@ -274,7 +274,7 @@ const INLINE_OBFUSCATED_ADDRESS = /([A-Za-z0-9._%+-]+)\s\((?:a|at)\)\s[A-Za-z0-9
 
 /**
  * Neutralize any address that appears inline in a message body: reduce
- * `foo@bar.com` (and the obfuscated `foo (a) bar.com`) to `foo@…` so it is no
+ * `foo@example.com` (and the obfuscated `foo (a) example.com`) to `foo@…` so it is no
  * longer a contactable address, while leaving the surrounding prose intact. The
  * one exception is the public list address discuss@latoolb.us, which is allowed
  * to pass through verbatim (it is already public and readers may need it).

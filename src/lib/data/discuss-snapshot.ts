@@ -71,7 +71,7 @@ export interface DiscussMessageBlock {
 	 *  renders depth via indentation + muted ink — never a side-stripe border. */
 	quoteLevel: number;
 	/** Sanitized plain-text paragraph: HTML/signature stripped, inline addresses
-	 *  neutralized (`foo@bar.com` → `foo@…`), the public list address exempt. */
+	 *  neutralized (`foo@example.com` → `foo@…`), the public list address exempt. */
 	text: string;
 }
 

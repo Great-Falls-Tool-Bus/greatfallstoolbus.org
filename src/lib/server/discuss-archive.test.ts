@@ -75,7 +75,7 @@ describe('stripSubjectPrefix', () => {
 
 describe('looksLikeEmail / safeDisplayName', () => {
 	it('detects raw and HyperKitty-obfuscated addresses', () => {
-		expect(looksLikeEmail('a@b.com')).toBe(true);
+		expect(looksLikeEmail('a@example.com')).toBe(true);
 		expect(looksLikeEmail('jess (a) sulliwood.org')).toBe(true);
 		expect(looksLikeEmail('bob (at) example.net')).toBe(true);
 		expect(looksLikeEmail('Jess Sullivan')).toBe(false);
@@ -92,7 +92,7 @@ describe('looksLikeEmail / safeDisplayName', () => {
 		expect(safeDisplayName(null)).toBe('Anonymous');
 	});
 	it('never emits an @ or obfuscation marker', () => {
-		for (const raw of ['a@b.com', 'x (a) y.org', '@leading', 'weird (at) host.co.uk']) {
+		for (const raw of ['a@example.com', 'x (a) y.org', '@leading', 'weird (at) host.co.uk']) {
 			const out = safeDisplayName(raw);
 			expect(out).not.toMatch(/@/);
 			expect(out).not.toMatch(/\((?:a|at)\)/);
@@ -237,7 +237,7 @@ describe('assertSnapshotIsPublicSafe (privacy gate; spec: discuss-only, no addre
 	});
 	it('hard-fails on a raw email address in any field', () => {
 		expect(() =>
-			assertSnapshotIsPublicSafe({ ...safe, threads: [thread({ excerpt: 'mail me at bob@evil.com' })] }),
+			assertSnapshotIsPublicSafe({ ...safe, threads: [thread({ excerpt: 'mail me at bob@example.com' })] }),
 		).toThrow(DiscussArchiveError);
 	});
 	it('allows the neutralized @… sentinel, mirroring the thread gate', () => {
@@ -538,7 +538,7 @@ describe('sanitizeBody', () => {
 		]);
 	});
 	it('neutralizes an inline address inside the body', () => {
-		expect(sanitizeBody('ping bob@evil.com please')).toEqual([{ quoteLevel: 0, text: 'ping bob@… please' }]);
+		expect(sanitizeBody('ping bob@example.com please')).toEqual([{ quoteLevel: 0, text: 'ping bob@… please' }]);
 	});
 	it('returns an empty array for empty input', () => {
 		expect(sanitizeBody('')).toEqual([]);
@@ -657,7 +657,7 @@ describe('assertThreadDetailIsPublicSafe (privacy gate)', () => {
 					id: 'H1',
 					senderName: 'Jess',
 					sentAt: '2026-07-04T17:45:00.000Z',
-					body: [{ quoteLevel: 0, text: 'mail bob@evil.com' }],
+					body: [{ quoteLevel: 0, text: 'mail bob@example.com' }],
 				},
 			],
 		});
@@ -699,7 +699,7 @@ describe('fetchDiscussThread', () => {
 		message_id_hash: 'H1',
 		sender_name: 'Jess Sullivan',
 		date: '2026-07-05T23:10:30Z',
-		content: 'Reply.\n\n> quoted from bob@evil.com\nThanks!',
+		content: 'Reply.\n\n> quoted from bob@example.com\nThanks!',
 	};
 	const email2 = {
 		message_id_hash: 'H2',
@@ -733,7 +733,7 @@ describe('fetchDiscussThread', () => {
 		expect(detail.startedAt).toBe('2026-07-04T17:45:00.000Z');
 		const quoted = detail.messages[1].body.find((b) => b.quoteLevel === 1);
 		expect(quoted?.text).toContain('@…');
-		expect(JSON.stringify(detail)).not.toMatch(/evil\.com/);
+		expect(JSON.stringify(detail)).not.toMatch(/example\.com/);
 		expect(JSON.stringify(detail)).not.toMatch(/\(a\)/);
 		expect(calls.length).toBeGreaterThan(0);
 		for (const call of calls) {
