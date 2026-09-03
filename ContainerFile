@@ -30,9 +30,9 @@
 #   podman run --rm -p 3000:3000 greatfallstoolbus.org:local
 #
 # Override the base image to dodge Docker Hub rate limits / use a mirror:
-#   podman build --build-arg NODE_IMAGE=registry.example.com/node:22-alpine ...
+#   podman build --build-arg NODE_IMAGE=registry.example.com/node:24-alpine ...
 
-ARG NODE_IMAGE=docker.io/node:22-alpine
+ARG NODE_IMAGE=docker.io/node:24-alpine
 ARG PNPM_VERSION=10.13.1
 
 # --- pnpm base -------------------------------------------------------------
@@ -87,7 +87,7 @@ RUN pnpm run build
 # node_modules. The createRequire banner is required — pg is CommonJS and
 # reaches node builtins through require(), which bare ESM output cannot do.
 RUN pnpm exec esbuild src/lib/server/db/migrate.ts \
-      --bundle --platform=node --format=esm --target=node22 \
+      --bundle --platform=node --format=esm --target=node24 \
       --outfile=build/migrator.mjs \
       --external:pg-native --external:cloudflare:sockets \
       --tsconfig-raw='{}' \
@@ -97,7 +97,7 @@ RUN pnpm exec esbuild src/lib/server/db/migrate.ts \
 # contract and the same createRequire banner, with drizzle-orm inlined
 # alongside pg.
 RUN pnpm exec esbuild src/lib/server/worker.ts \
-      --bundle --platform=node --format=esm --target=node22 \
+      --bundle --platform=node --format=esm --target=node24 \
       --outfile=build/worker.mjs \
       --external:pg-native --external:cloudflare:sockets \
       '--alias:$lib=./src/lib' \

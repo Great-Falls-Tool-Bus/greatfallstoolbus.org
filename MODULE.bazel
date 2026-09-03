@@ -55,9 +55,10 @@ bazel_dep(name = "tummycrypt_tinyvectors", version = "0.3.7")
 bazel_dep(name = "tummycrypt_tinyland_auth", version = "0.3.3")
 bazel_dep(name = "tummycrypt_tinyland_auth_pg", version = "0.2.4")
 
-# Node 22.13.1
+# Node 24.13.0 — newest 24.x in rules_nodejs 6.7.3's built-in version map
+# (nodejs/private/node_versions.bzl), so no explicit integrity pin is needed.
 node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")
-node.toolchain(node_version = "22.13.1")
+node.toolchain(node_version = "24.13.0")
 
 # pnpm 10.13.1
 pnpm = use_extension("@aspect_rules_js//npm:extensions.bzl", "pnpm")

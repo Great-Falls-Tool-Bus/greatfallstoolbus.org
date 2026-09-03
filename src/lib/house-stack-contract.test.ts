@@ -69,8 +69,8 @@ describe('house frontend-stack exact-pin contract', () => {
 		expect(directZag).toEqual([]);
 	});
 
-	it('keeps the Node 22 engines window', () => {
-		expect(packageJson.engines?.node).toBe('>=22 <25');
+	it('keeps the Node 24 engines window', () => {
+		expect(packageJson.engines?.node).toBe('>=24 <25');
 	});
 
 	it('keeps MODULE.bazel ts_version identical to the package.json typescript pin (TIN-2355)', () => {
