@@ -84,8 +84,14 @@ npm.npm_translate_lock(
     # policy): //:browser_smoke_test and //:playwright_static_smoke launch the
     # pre-provisioned worker Chromium named by GF_RBE_CHROMIUM_EXECUTABLE
     # instead.
+    #
+    # Attribute shape (rules_js 2.9.1, npm/private/npm_translate_lock.bzl:
+    # attr.string_list_dict): package name -> LIST of "KEY=value" strings.
+    # npm_import.bzl hard-fails on any entry without the "=" separator, so a
+    # nested dict here would silently drop the value today and break every
+    # @npm fetch the day playwright's lifecycle hooks are enabled.
     lifecycle_hooks_envs = {
-        "playwright": {"PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1"},
+        "playwright": ["PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1"],
     },
 )
 use_repo(npm, "npm")

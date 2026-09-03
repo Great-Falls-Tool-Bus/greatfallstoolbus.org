@@ -14,8 +14,15 @@
 // Smoke assertions: the document title carries the site name, the page loads
 // with zero console errors / page errors, and — when
 // GF_BROWSER_SMOKE_REQUIRE_PROVENANCE=1 — the footer build-sha provenance
-// element exists (a stamped-build precondition; see the BUILD.bazel target
-// comment).
+// element exists. That element is +layout.svelte's `{#if buildShaShort}`
+// "built from <sha>" paragraph inside `footer.site-footer`; it carries no
+// dedicated class, so the default selector targets its one distinctive hook:
+// the commit anchor (`${REPO_URL}/commit/${buildSha}`). It renders ONLY when
+// PUBLIC_BUILD_SHA was baked into the vite build (src/lib/build-info.ts) —
+// today that channel belongs exclusively to the Justfile container-image
+// recipes, and //:build is unstamped adapter-static output, so
+// REQUIRE_PROVENANCE=1 additionally presumes a build invocation that exports
+// PUBLIC_BUILD_SHA into the vite env (see the BUILD.bazel target comment).
 //
 // `chromium` is imported from @playwright/test (the repo's declared Playwright
 // dependency, which re-exports playwright-core's browser types); the guide's
@@ -31,7 +38,12 @@ const buildDir = resolve(process.env.GF_BROWSER_SMOKE_BUILD_DIR || 'build');
 const smokePath = process.env.GF_BROWSER_SMOKE_PATH || '/';
 const expectedTitle = process.env.GF_BROWSER_SMOKE_TITLE || 'Great Falls Tool Bus';
 const requireProvenance = process.env.GF_BROWSER_SMOKE_REQUIRE_PROVENANCE === '1';
-const provenanceSelector = process.env.GF_BROWSER_SMOKE_PROVENANCE_SELECTOR || '.site-footer__provenance';
+// Default matches this repo's real markup (src/routes/+layout.svelte): the
+// conditional "built from <sha>" paragraph has no dedicated class, so the
+// stable hook is the GitHub commit link it wraps. `.site-footer__provenance`
+// is gftb-site's class and matches nothing here — do not reintroduce it.
+const provenanceSelector =
+	process.env.GF_BROWSER_SMOKE_PROVENANCE_SELECTOR || 'footer.site-footer a[href*="/commit/"]';
 
 // Writable browser scratch under the Bazel test scratch area (TEST_TMPDIR)
 // rather than the worker's ambient (possibly read-only) HOME.
@@ -103,9 +115,11 @@ try {
 		const provenanceCount = await page.locator(provenanceSelector).count();
 		if (provenanceCount === 0) {
 			throw new Error(
-				`footer build-sha provenance element (${provenanceSelector}) is absent — the //:build stamp carried no ` +
-					'commit identity (BUILD_COMMIT_SHA / GITHUB_SHA). Fabric and CI invocations stamp a real sha; for an ' +
-					'identity-less local run relax with --test_env=GF_BROWSER_SMOKE_REQUIRE_PROVENANCE=0.',
+				`footer build-sha provenance element (${provenanceSelector}) is absent — the build carried no ` +
+					'PUBLIC_BUILD_SHA, the only channel that renders the footer "built from <sha>" line ' +
+					'(src/lib/build-info.ts; today only the Justfile container-image recipes set it, and //:build is ' +
+					'unstamped). Require provenance only for a build invocation that exports PUBLIC_BUILD_SHA; ' +
+					'otherwise relax with --test_env=GF_BROWSER_SMOKE_REQUIRE_PROVENANCE=0.',
 			);
 		}
 	}
