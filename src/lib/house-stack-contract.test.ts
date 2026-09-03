@@ -13,12 +13,11 @@ import { describe, expect, it } from 'vitest';
 // the scaffold-side twin so the two repos cannot re-diverge silently.
 //
 // The invariants, per `context/house-frontend-stack.md`:
-// - Skeleton + skeleton-svelte are EXACT `4.15.2`. Skeleton v5 GA now exists
-//   (5.0.0/5.0.1 are GA and the apex ships 5.0.0 — corrected 2026-09-03; this
-//   comment previously claimed only `5.0.0-next.*` existed). This repo stays
-//   on 4.15.2 pending the paired-bump migration: both @skeletonlabs packages
-//   must move together (see closed PRs #202/#203). A "bump to v5" PR must
-//   still fail here first, before anything visual.
+// - Skeleton + skeleton-svelte are EXACT `5.0.1` and move as a version-locked
+//   PAIR in one commit (skeleton-common@5 component CSS @applies brand presets
+//   only core@5 defines — the solo bumps in #202/#203 broke CI for exactly this
+//   reason); any solo or drifted bump must fail here first, before anything
+//   visual.
 // - `typescript` is EXACT-pinned on the 6.0.x line (the one real manifest
 //   major); it must never float behind a caret/tilde.
 // - pnpm is `10.13.1` EXACT via corepack — never pnpm 9.
@@ -47,9 +46,9 @@ const allDeclaredDeps: Record<string, string> = {
 };
 
 describe('house frontend-stack exact-pin contract', () => {
-	it('keeps Skeleton + skeleton-svelte EXACT at 4.15.2 (no phantom v5)', () => {
-		expect(packageJson.devDependencies?.['@skeletonlabs/skeleton']).toBe('4.15.2');
-		expect(packageJson.devDependencies?.['@skeletonlabs/skeleton-svelte']).toBe('4.15.2');
+	it('keeps Skeleton + skeleton-svelte EXACT at 5.0.1 (version-locked pair, bumped together)', () => {
+		expect(packageJson.devDependencies?.['@skeletonlabs/skeleton']).toBe('5.0.1');
+		expect(packageJson.devDependencies?.['@skeletonlabs/skeleton-svelte']).toBe('5.0.1');
 	});
 
 	it('keeps typescript EXACT-pinned on the 6.0.x line (no caret/tilde float)', () => {

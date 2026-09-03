@@ -167,10 +167,10 @@ fi
 # Skeleton pin check
 if [ -f package.json ]; then
   sk="$(python3 -c "import json; pkg=json.load(open('package.json')); print((pkg.get('dependencies') or {}).get('@skeletonlabs/skeleton',''))")"
-  if [ -n "$sk" ] && [ "$sk" != "4.15.2" ]; then
-    check_warn "@skeletonlabs/skeleton=$sk (scaffold canonical: 4.15.2)"
+  if [ -n "$sk" ] && [ "$sk" != "5.0.1" ]; then
+    check_warn "@skeletonlabs/skeleton=$sk (scaffold canonical: 5.0.1)"
   elif [ -n "$sk" ]; then
-    check_pass "@skeletonlabs/skeleton pinned at 4.15.2"
+    check_pass "@skeletonlabs/skeleton pinned at 5.0.1"
   fi
 fi
 

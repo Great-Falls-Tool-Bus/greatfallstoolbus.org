@@ -248,9 +248,16 @@ repository as private or renamed** in code, comments, docs, or image refs.
 
 ## Theme & Skeleton
 
-- **Skeleton 4.15.2** (pinned). Do not upgrade casually.
-- Tailwind v4 + the `skeletonTailwindV4Compat()` shim plugin in `vite.config.ts`
-  rewrites `@variant` / `@apply variant-` to stable equivalents. Do not remove.
+- **Skeleton 5.0.1** (pinned, PAIRED). `@skeletonlabs/skeleton` and
+  `@skeletonlabs/skeleton-svelte` are a version-locked pair (skeleton-common
+  component CSS @applies brand presets only core defines) — always bump both
+  to the identical version in ONE commit; the solo bumps in #202/#203 broke CI.
+- Tailwind v4, shim-free: the old `skeletonTailwindV4Compat()` plugin was
+  removed with the v5 bump. Skeleton 5 ships stable `@variant` syntax and its
+  base/globals.css requires `@variant dark` retained (this app uses
+  `[data-mode]`, never `.dark`). Do not reintroduce the shim.
+  `skeletonColorUtilities()` in `vite.config.ts` is separate and stays — it
+  supplies paired utilities (e.g. `text-surface-900-50`) Skeleton never ships.
 - Theme cascade lives in `src/app.css`. Per-site brand themes go under
   `src/lib/styles/themes/`.
 
@@ -310,7 +317,8 @@ After `gh repo create --template tinyland-inc/site.scaffold`:
 - Don't add in-house npm package ranges or allow `package.json` to drift from
   `MODULE.bazel`; use `just inhouse-package-parity` or `just conformance`.
 - Don't bypass `Justfile` in CI or local, DX/AX must stay homogenous.
-- Don't unpin Skeleton or Tailwind v4-compat shim without coordination.
+- Don't unpin Skeleton or split the skeleton/skeleton-svelte paired pin
+  without coordination.
 
 ## Multi-Lane Posture
 

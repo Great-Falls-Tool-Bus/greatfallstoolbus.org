@@ -6,30 +6,14 @@ import { execSync } from 'node:child_process';
 import { defineConfig, type Plugin, type PluginOption } from 'vite';
 import pkg from './package.json';
 
-// Skeleton-Tailwind v4 compatibility shim. Skeleton 4.15.2 still ships
-// CSS using `@variant` and `@apply variant-*` syntax that pre-dates
-// Tailwind v4 stable. This plugin rewrites those to stable equivalents
-// during transform. Lifted verbatim from
-// jesssullivan.github.io-vite8/vite.config.ts.
-function skeletonTailwindV4Compat(): Plugin {
-	return {
-		name: 'skeleton-tailwind-v4-compat',
-		enforce: 'pre',
-		transform(code, id) {
-			if (id.includes('@skeletonlabs/skeleton') && id.endsWith('.css')) {
-				code = code
-					.replace(/@variant\s+sm\s*{/g, '@media (min-width: 640px) {')
-					.replace(/@variant\s+md\s*{/g, '@media (min-width: 768px) {')
-					.replace(/@variant\s+lg\s*{/g, '@media (min-width: 1024px) {')
-					.replace(/@variant\s+xl\s*{/g, '@media (min-width: 1280px) {')
-					.replace(/@variant\s+2xl\s*{/g, '@media (min-width: 1536px) {')
-					.replace(/@variant\s+dark\s*{/g, '.dark & {')
-					.replace(/@apply\s+variant-/g, '@apply ');
-				return { code, map: null };
-			}
-		},
-	};
-}
+// NOTE: the old skeletonTailwindV4Compat() shim (needed for Skeleton 4.15.2's
+// pre-stable `@variant` / `@apply variant-*` syntax) is deliberately GONE.
+// Skeleton 5 ships stable Tailwind v4 syntax and its base/globals.css requires
+// the `@variant dark` blocks to be RETAINED — the shim's `@variant dark` →
+// `.dark &` rewrite would break them (this app switches dark mode via
+// [data-mode], never a `.dark` class). skeletonColorUtilities() below is NOT
+// part of that shim and stays: it supplies paired utilities like
+// `text-surface-900-50` that Skeleton itself never ships.
 
 // Build-info constants (mirrors MassageIthaca's build-info `define`). Resolved
 // once at config load. Env wins (CI), then a local git checkout, else unknown.
@@ -113,7 +97,6 @@ export default defineConfig({
 	},
 
 	plugins: [
-		skeletonTailwindV4Compat(),
 		skeletonColorUtilities(),
 		tailwindcss(),
 		accessibilityPlugin({
