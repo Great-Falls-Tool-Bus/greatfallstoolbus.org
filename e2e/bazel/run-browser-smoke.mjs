@@ -42,8 +42,7 @@ const requireProvenance = process.env.GF_BROWSER_SMOKE_REQUIRE_PROVENANCE === '1
 // conditional "built from <sha>" paragraph has no dedicated class, so the
 // stable hook is the GitHub commit link it wraps. `.site-footer__provenance`
 // is gftb-site's class and matches nothing here — do not reintroduce it.
-const provenanceSelector =
-	process.env.GF_BROWSER_SMOKE_PROVENANCE_SELECTOR || 'footer.site-footer a[href*="/commit/"]';
+const provenanceSelector = process.env.GF_BROWSER_SMOKE_PROVENANCE_SELECTOR || 'footer.site-footer a[href*="/commit/"]';
 
 // Writable browser scratch under the Bazel test scratch area (TEST_TMPDIR)
 // rather than the worker's ambient (possibly read-only) HOME.
