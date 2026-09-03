@@ -3,7 +3,7 @@
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",
-	"description": "Tinyland house scaffold for static SvelteKit brand sites (Skeleton 4 + Bazel + Nix + Just)",
+	"description": "Tinyland house scaffold for static SvelteKit brand sites (Skeleton 5 + Bazel + Nix + Just)",
 	"homepage": "https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org",
 	"repository": {
 		"type": "git",
@@ -50,8 +50,8 @@
 	"devDependencies": {
 		"@eslint/js": "^9.39.4",
 		"@playwright/test": "^1.62.1",
-		"@skeletonlabs/skeleton": "4.15.2",
-		"@skeletonlabs/skeleton-svelte": "4.15.2",
+		"@skeletonlabs/skeleton": "5.0.1",
+		"@skeletonlabs/skeleton-svelte": "5.0.1",
 		"@sveltejs/adapter-static": "^3.0.10",
 		"@sveltejs/kit": "^2.70.3",
 		"@sveltejs/vite-plugin-svelte": "^7.3.0",

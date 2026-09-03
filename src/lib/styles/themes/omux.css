@@ -27,10 +27,8 @@
 
 	/* Typography: Heading */
 	--typo-heading--font-family: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
-	--typo-heading--font-size: inherit;
 	--typo-heading--color-light: var(--color-surface-950);
 	--typo-heading--color-dark: var(--color-surface-50);
-	--typo-heading--line-height: 1.2;
 	--typo-heading--font-weight: 700;
 	--typo-heading--font-style: normal;
 	--typo-heading--letter-spacing: -0.02em;
@@ -62,24 +60,18 @@
 	--typo-anchor--text-decoration-thickness: auto;
 	--typo-anchor--text-underline-offset: auto;
 	--typo-anchor--text-underline-position: auto;
-	--typo-anchor--hover--color-light: var(--color-primary-600);
-	--typo-anchor--hover--color-dark: var(--color-primary-300);
 	--typo-anchor--hover--text-decoration-line: underline;
 	--typo-anchor--hover--text-decoration-color: currentColor;
 	--typo-anchor--hover--text-decoration-style: solid;
 	--typo-anchor--hover--text-decoration-thickness: auto;
 	--typo-anchor--hover--text-underline-offset: auto;
 	--typo-anchor--hover--text-underline-position: auto;
-	--typo-anchor--active--color-light: var(--color-primary-700);
-	--typo-anchor--active--color-dark: var(--color-primary-200);
 	--typo-anchor--active--text-decoration-line: underline;
 	--typo-anchor--active--text-decoration-color: currentColor;
 	--typo-anchor--active--text-decoration-style: solid;
 	--typo-anchor--active--text-decoration-thickness: auto;
 	--typo-anchor--active--text-underline-offset: auto;
 	--typo-anchor--active--text-underline-position: auto;
-	--typo-anchor--focus--color-light: var(--color-primary-600);
-	--typo-anchor--focus--color-dark: var(--color-primary-300);
 	--typo-anchor--focus--text-decoration-line: underline;
 	--typo-anchor--focus--text-decoration-color: currentColor;
 	--typo-anchor--focus--text-decoration-style: solid;
@@ -87,9 +79,9 @@
 	--typo-anchor--focus--text-underline-offset: auto;
 	--typo-anchor--focus--text-underline-position: auto;
 
-	/* Body backgrounds */
-	--body-background-color: var(--color-surface-50);
-	--body-background-color-dark: var(--color-surface-950);
+	/* Body backgrounds (Skeleton v5 root-bg keys) */
+	--color-root-bg-light: var(--color-surface-50);
+	--color-root-bg-dark: var(--color-surface-950);
 
 	/* Brand */
 	--color-brand-light: var(--color-primary-500);
