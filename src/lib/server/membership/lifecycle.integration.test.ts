@@ -51,7 +51,7 @@ import {
 } from './activate';
 import { publishAgreementVersion } from './agreement';
 import { OFFBOARD_JOB_KINDS, personRecord } from './offboard';
-import { PROVISION_JOB_KINDS } from './provision';
+import { PROVISION_JOB_KINDS, REKEY_EMAIL_JOB_KIND } from './provision';
 import { InvalidAuditEventError } from '../audit/write';
 import { _createLeaveAction, _createPauseAction } from '../../../routes/(member)/membership/+page.server';
 import { _createRemoveAction } from '../../../routes/(keyholder)/remove/+page.server';
@@ -451,7 +451,12 @@ describe('offboarding replay (S7 acceptance rows 2-3; §2.3 invariants)', () => 
 		const real = createHandlerRegistry({
 			'offboard.cancel_billing': cancelBillingHandler,
 		});
-		const deferredKinds = [...PROVISION_JOB_KINDS, 'offboard.remove_lists', 'offboard.disable_mailbox'];
+		const deferredKinds = [
+			...PROVISION_JOB_KINDS,
+			REKEY_EMAIL_JOB_KIND,
+			'offboard.remove_lists',
+			'offboard.disable_mailbox',
+		];
 		const summary = await dispatchOnce({ tenantId, worker: 'test-worker', registry: real, deferredKinds, db });
 		expect(summary).toMatchObject({ claimed: 1, done: 1, retried: 0, dead: 0 });
 

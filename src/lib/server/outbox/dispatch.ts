@@ -411,7 +411,16 @@ export interface DispatchSummary {
  * only the handler's own throw can consume an attempt (review MEDIUM-1).
  */
 export async function dispatchOnce(options: DispatchOptions): Promise<DispatchSummary> {
-	const { tenantId, worker, registry, db, batchSize, leaseSeconds, deferredKinds, signal } = options;
+	const {
+		tenantId,
+		worker,
+		registry,
+		db,
+		batchSize,
+		leaseSeconds,
+		deferredKinds,
+		signal,
+	} = options;
 	const backoff = options.backoffMs ?? fullJitterBackoffMs;
 
 	const claimed = await withTenant(

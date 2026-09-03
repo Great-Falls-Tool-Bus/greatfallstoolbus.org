@@ -12,12 +12,7 @@ import type { DbTransaction } from '../db/client';
 import { describeFailure, fullJitterBackoffMs, redactSecrets, runWorkerLoop } from './dispatch';
 import { enqueue } from './enqueue';
 import { EMPTY_REGISTRY, UnknownJobKindError, createHandlerRegistry } from './handlers';
-import {
-	DEFAULT_BACKOFF_BASE_MS,
-	DEFAULT_BACKOFF_CAP_MS,
-	MAX_LAST_ERROR_LENGTH,
-	type ClaimedJob,
-} from './schema';
+import { DEFAULT_BACKOFF_BASE_MS, DEFAULT_BACKOFF_CAP_MS, MAX_LAST_ERROR_LENGTH, type ClaimedJob } from './schema';
 import { WORKER_EXIT, runWorker } from '../worker';
 
 function capture() {
@@ -253,15 +248,14 @@ describe('the worker process boundary', () => {
 		expect(seen[0].leaseSeconds).toBe(15);
 		expect(seen[0].worker).toBe('unit-worker');
 		expect(seen[0].deferredKinds).toEqual([
-			'provision.ensure_identity',
-			'provision.enable_mailbox',
 			'provision.add_lists',
-			'provision.ensure_archive',
+			'provision.enable_mailbox',
+			'projection.rekey_email',
 			'offboard.remove_lists',
 			'offboard.disable_mailbox',
 		]);
 		expect(reconciled).toEqual([env.GFTB_TENANT_ID.toLowerCase()]);
-		expect(stdout.text()).toContain('reconciled provisioning intent for 2 active/paused memberships');
+		expect(stdout.text()).toContain('reconciled provisioning intent for 2 active memberships');
 		expect(stdout.text()).toContain('claimed=2 done=1 retried=1 dead=0 lost=0');
 	});
 
@@ -357,9 +351,10 @@ describe('the worker process boundary', () => {
 			'kinds: stripe.project, offboard.cancel_billing, application.receipt_email, application.decision_email, application.withdrawn_ack',
 		);
 		expect(stdout.text()).toContain(
-			'deferred: provision.ensure_identity, provision.enable_mailbox, provision.add_lists, provision.ensure_archive, offboard.remove_lists, offboard.disable_mailbox',
+			'deferred: provision.add_lists, provision.enable_mailbox, projection.rekey_email, offboard.remove_lists, offboard.disable_mailbox',
 		);
 		expect(closed[0].deferredKinds).toContain('provision.add_lists');
+		expect(closed[0].deferredKinds).toContain('projection.rekey_email');
 	});
 
 	it('still announces "none registered" for a caller-supplied EMPTY_REGISTRY (e.g. an operator forcing fail-closed)', async () => {

@@ -67,7 +67,7 @@ import { createReceiptEmailHandler, RECEIPT_EMAIL_JOB_KIND } from './outbox/hand
 import { createWithdrawnAckHandler, WITHDRAWN_ACK_JOB_KIND } from './outbox/handlers/application-withdrawn-ack';
 import { readMailConfig } from './mail/config';
 import { activationHazardWarning } from './mail/activation';
-import { PROVISION_JOB_KINDS, reconcileActiveProvisioning } from './membership/provision';
+import { PROVISION_JOB_KINDS, REKEY_EMAIL_JOB_KIND, reconcileActiveProvisioning } from './membership/provision';
 
 /**
  * The production runtime: S7's delivery-capable offboarding projections,
@@ -124,6 +124,7 @@ function defaultRuntime(env: NodeJS.ProcessEnv): DefaultRuntime {
 		registry: createHandlerRegistry(handlers),
 		deferredKinds: [
 			...PROVISION_JOB_KINDS,
+			REKEY_EMAIL_JOB_KIND,
 			'offboard.remove_lists',
 			'offboard.disable_mailbox',
 		],
@@ -159,7 +160,7 @@ three offboarding kinds ("offboard.cancel_billing", "offboard.remove_lists",
 job kind still dead-letters visibly rather than being absorbed by a
 placeholder. The mail kinds resolve to a disabled, no-network-I/O journal
 outcome unless GFTB_MAIL_DELIVERY=enabled, a transport DSN, and an
-operator-approved template all agree. Identity, mailbox, list, archive, and
+operator-approved template all agree. Mailbox, list, email-rekey, and
 offboarding projection jobs remain pending with attempts=0 until their
 protected restricted interfaces land; this application never accepts a broad
 Mailman or cluster credential.
@@ -220,7 +221,7 @@ export interface WorkerOptions {
 	registry?: HandlerRegistry;
 	/** Delivery-gated kinds to leave pending. Used with a caller-supplied registry. */
 	deferredKinds?: readonly string[];
-	/** Test seam for the default runtime's Active/paused provisioning reconciliation. */
+	/** Test seam for the default runtime's Active-member provisioning reconciliation. */
 	reconcileProvisioningFn?: (tenantId: string) => Promise<number>;
 	/** Cooperative shutdown for the loop; main() wires SIGTERM/SIGINT to it. */
 	signal?: AbortSignal;
@@ -460,7 +461,7 @@ export async function runWorker(options: WorkerOptions = {}): Promise<number> {
 				((id: string) => withTenant(id, (tx) => reconcileActiveProvisioning(tx)));
 			const membershipCount = await reconcile(tenantId);
 			if (membershipCount > 0) {
-				io.stdout.write(`worker: reconciled provisioning intent for ${membershipCount} active/paused memberships\n`);
+				io.stdout.write(`worker: reconciled provisioning intent for ${membershipCount} active memberships\n`);
 			}
 		}
 
