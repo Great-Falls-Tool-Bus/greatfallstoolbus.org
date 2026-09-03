@@ -30,10 +30,10 @@ record, the landed record wins.
 | Read the discuss archive | Anyone, anonymously | Public `archive_policy` on `discuss@latoolb.us`; HyperKitty recomputes authorization per request | ADR 0019 §2.2: "the private-board read grant is a **derived** property — a pure function of (archive account exists) × (address is subscribed)… **Do not build a `grant_board_read` projection.**" Public archive requires nothing — anonymous read is the design. |
 | Read the keyholders archive | Subscribed keyholders with an archive account | Private `archive_policy`; anonymous requests are refused (verified 403, see the probe log below) | ADR 0019 §1 (the gap statement): "A list subscription alone does not deliver the private archive. Reading a private board requires a second object — an archive account…" §2.2 derives the consequence: the read grant is recomputed from (archive account) × (subscription) per request. |
 | Hold an archive identity | Every Active member | The archive accepts the same controlled OIDC subject that maps to immutable `person_id`; there is no second signup or archive-provisioning job | Unified Member v0 identity carrier, Meta `main` `26bc8c696c4170ffb944d0890b40e34751ef5208` §§0.1–0.3. The subject-binding schema/wiring is a separate carrier from this P1/P4 outbox slice; mutable email is never an identity key. |
-| Write to (post on) discuss | Subscribed members | Subscription-gated posting; non-member posts are held (`default_nonmember_action=hold`) | Operator ruling above; ADR 0024 §1.3: "Every Active member is subscribed to `discuss@` by default." |
-| Become subscribed to discuss | Members, via activation only | Membership activation emits the list projection; no other add path is sanctioned | ADR 0024 §1.5: "Activation emits idempotent mailbox and discussion-list projection intent. The mail-automation readiness gate controls when the external effects may run, not whether the member is entitled to them… opening it must reconcile every Active member." ADR 0024 §2: "Activation is the assent." |
+| Write to (post on) discuss | Subscribed members | Subscription-gated posting; non-member posts are held (`default_nonmember_action=hold`) | Operator ruling above; ADR 0024 §3: "Every Active member is subscribed to `discuss@` by default." |
+| Become subscribed to discuss | Members, via activation only | Membership activation emits the list projection; no other add path is sanctioned | ADR 0024 §3: "Activation emits idempotent mailbox and discussion-list projection intent. The mail-automation readiness gate controls when the external effects may run, not whether the member is entitled to them… opening it must reconcile every Active member." The same section establishes that activation is the assent. |
 | Keyholders on discuss | Every keyholder, automatically | Add-only infra reconciler (`mailman-listsync` CronJob) | ADR 0017: "Every address with `role=member` on `keyholders@latoolb.us` is also a member of `discuss@latoolb.us`… enforced going forward by an automated reconciler." "The reconciler only adds `keyholders@` members to `discuss@`; it has no removal path." Disclosure rides the admission notice — "keyholders are also subscribed to `discuss@`, whose archive is public" — landing before the auto-add fires. |
-| Offboarding | Departing members | `offboard.remove_lists` projection; 30-day intact recovery, 90-day purge including any orphaned archive account | ADR 0024 §3 + Amendment 1 (RA-5). |
+| Offboarding | Departing members | `offboard.remove_lists` projection; 30-day intact recovery and separately authorized day-90 purge | ADR 0024 §4. |
 
 ## Provisioning flow: shipped vs planned
 
@@ -111,7 +111,7 @@ Status per the 2026-09-01 recon of this repository and the infra overlay:
   prerequisite (TIN-4216).
 - The mail-automation readiness gate proof (TIN-3813, due 2026-09-10): prove
   automated mailbox/list provisioning end to end or keep member mail
-  disabled. Carrier values from ADR 0024 Amendment 1: account ceiling 64,
+  disabled. Carrier values from ADR 0024 §4: account ceiling 64,
   alert at 48.
 - Member-facing "where the boards are" disclosure page (ADR 0019 §2.3
   consequence).
@@ -165,7 +165,7 @@ not this repo — recorded here because this spec owns the gating condition):
 
 - **No self-serve list signup outside membership.** Membership account
   creation is the only sanctioned path onto `discuss@latoolb.us` (operator
-  ruling; ADR 0024 §1.3/§1.5). The platform builds no public subscribe form
+  ruling; ADR 0024 §3). The platform builds no public subscribe form
   and links to none.
 - **No agent-sent mail.** No handler, job, or agent surface in this repo
   sends mail to the lists on a member's behalf; posting is a human act from

@@ -433,7 +433,7 @@ describe('hostile: pause preserves LOGIN, not merely the standing session (TIN-3
 		expect(canBorrow({ status: row.status as 'paused' })).toBe(false);
 		// Pause enqueues NOTHING — no offboarding, no NEW list/mailbox traffic.
 		// The four standing rows are ACTIVATION's generation-1 projections
-		// (ADR 0024 §1.5), enqueued before the pause; pause itself
+		// (ADR 0024 §3), enqueued before the pause; pause itself
 		// added no row of any kind (pause preserves discussion access, so no
 		// re-subscribe is ever needed on resume).
 		expect(

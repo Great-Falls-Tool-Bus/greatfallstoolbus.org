@@ -33,7 +33,7 @@
  * anyway; the S8 static fence (no `membership/** → contribution/**` import)
  * makes it compile-visible.
  *
- * `outbox_job` USED to be on that list; ADR 0024 §1.5 (2026-08-30) supersedes
+ * `outbox_job` USED to be on that list; ADR 0024 §3 (2026-08-30) supersedes
  * that half of the invariant: "Activation emits idempotent mailbox and
  * discussion-list projection intent." Fresh activation therefore enqueues
  * the exact two P1 provisioning intents through `./provision.ts` in the SAME
@@ -463,7 +463,7 @@ export async function activateMembership(tx: DbTransaction, input: ActivateInput
 		now,
 	});
 
-	// ADR 0024 §1.5 + Meta #58 P1: fresh activation emits exactly the mailbox
+	// ADR 0024 §3 + Meta P1: fresh activation emits exactly the mailbox
 	// and discussion-list projection intents in the SAME transaction as the
 	// membership commit — the outbox contract's enqueue rule, and the reason
 	// the converge-replay path above never reaches this line (the original

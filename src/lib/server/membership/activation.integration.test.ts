@@ -13,7 +13,7 @@
  *     `person_email` history;
  *   - activation succeeds with the contribution tables unreachable
  *     (contribution/mail are not activation PREDICATES — row 10; the outbox
- *     half of the old invariant is superseded by ADR 0024 §1.5: fresh
+ *     half of the old invariant is superseded by ADR 0024 §3: fresh
  *     activation now enqueues exactly two provisioning rows in the
  *     same transaction, and a converged replay adds none);
  *   - every transition this lane ships writes its audit row with actor,
@@ -443,8 +443,8 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 		});
 	});
 
-	it('succeeds with the contribution tables unreachable — contribution is not an activation predicate (S6 acceptance row 4, narrowed by ADR 0024 §1.5)', async () => {
-		// `outbox_job` WAS on this revoke list until ADR 0024 §1.5 superseded
+	it('succeeds with the contribution tables unreachable — contribution is not an activation predicate (S6 acceptance row 4, narrowed by ADR 0024 §3)', async () => {
+		// `outbox_job` WAS on this revoke list until ADR 0024 §3 superseded
 		// that half of the row-10 invariant: fresh activation now enqueues
 		// both P1 provisioning intents in its own transaction, so an outbox-write
 		// failure correctly rolls back activation (exactly as it already does
@@ -483,7 +483,7 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 		}
 	});
 
-	it('fresh activation enqueues exactly the two pending P1 projections; replay adds none (ADR 0024 §1.5)', async () => {
+	it('fresh activation enqueues exactly the two pending P1 projections; replay adds none (ADR 0024 §3)', async () => {
 		const tenantId = await newTenant();
 		const keyholder = await newKeyholder(tenantId);
 		const agreement = await withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'V1.' }), db);
