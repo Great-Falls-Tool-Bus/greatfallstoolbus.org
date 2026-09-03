@@ -95,7 +95,7 @@ let
     pkgs.writeShellApplication {
       name = role;
       text = ''
-        exec ${pkgs.nodejs_22}/bin/node ${../scripts/platform-entrypoint.mjs} ${role} "$@"
+        exec ${pkgs.nodejs_24}/bin/node ${../scripts/platform-entrypoint.mjs} ${role} "$@"
       '';
     };
   platformEntrypoints = pkgs.buildEnv {
@@ -120,7 +120,7 @@ in
     tag = "sha-${commitSha}";
     inherit created;
     contents = [
-      pkgs.nodejs_22
+      pkgs.nodejs_24
       pkgs.dumb-init
       pkgs.cacert
       # coreutils supplies `id`, which S0's acceptance row runs INSIDE the image

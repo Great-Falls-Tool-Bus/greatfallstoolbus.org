@@ -401,7 +401,7 @@ db-migrate *args:
 # reaches node builtins through require(), which bare ESM output cannot do.
 db-migrator-bundle:
     cd {{ root }} && pnpm exec esbuild src/lib/server/db/migrate.ts \
-        --bundle --platform=node --format=esm --target=node22 \
+        --bundle --platform=node --format=esm --target=node24 \
         --outfile=build/migrator.mjs \
         --external:pg-native --external:cloudflare:sockets \
         --tsconfig-raw='{}' \
@@ -413,7 +413,7 @@ db-migrator-bundle:
 # (pg is CommonJS), with drizzle-orm inlined alongside it.
 worker-bundle:
     cd {{ root }} && pnpm exec esbuild src/lib/server/worker.ts \
-        --bundle --platform=node --format=esm --target=node22 \
+        --bundle --platform=node --format=esm --target=node24 \
         --outfile=build/worker.mjs \
         --external:pg-native --external:cloudflare:sockets \
         '--alias:$lib=./src/lib' \
