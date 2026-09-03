@@ -27,11 +27,12 @@
  * discussion access by ratified design — see `./transition.ts`).
  */
 
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { DbTransaction } from '../db/client';
 import type { Membership, OutboxJob } from '../db/schema';
 import { membership as membershipTable, personEmail } from '../db/schema';
 import { enqueue } from '../outbox/enqueue';
+import type { ClaimedJob } from '../outbox/schema';
 
 /** The ratified activation projections (ADR 0024 §1.5), in fan-out order. */
 export const PROVISION_JOB_KINDS = [
@@ -79,6 +80,41 @@ export async function enqueueProvisioning(tx: DbTransaction, row: Membership): P
 		jobs.push(result.job);
 	}
 	return jobs;
+}
+
+/**
+ * A verified-email change is a fresh request to converge the SAME list
+ * entitlement, not a new entitlement generation. The inserted person_email
+ * row id makes each address revision independently durable while the payload
+ * remains ids-only and the activation generation-1 keys remain unchanged.
+ */
+export function emailListReconciliationIdempotencyKey(
+	tenantId: string,
+	membershipId: string,
+	personEmailId: string,
+): string {
+	return `${tenantId}:membership:${membershipId}:add_lists:email:${personEmailId}`;
+}
+
+export async function enqueueEmailListReconciliation(
+	tx: DbTransaction,
+	row: Membership,
+	personEmailId: string,
+): Promise<OutboxJob> {
+	const result = await enqueue(tx, {
+		kind: 'provision.add_lists',
+		aggregateType: 'membership',
+		aggregateId: row.id,
+		payload: {
+			schemaVersion: 1,
+			tenantId: row.tenantId,
+			membershipId: row.id,
+			personId: row.personId,
+			generation: PROVISION_GENERATION,
+		},
+		idempotencyKey: emailListReconciliationIdempotencyKey(row.tenantId, row.id, personEmailId),
+	});
+	return result.job;
 }
 
 /**
@@ -175,7 +211,16 @@ export function parseProvisionJobPayload(
  * address (the S3 doctrine applies to `last_error` the same way).
  */
 export function parseListJobPayload(payload: unknown, jobId: string): ListJobPayload {
-	const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+	const record = payload && typeof payload === 'object' && !Array.isArray(payload)
+		? (payload as Record<string, unknown>)
+		: {};
+	const expectedKeys = ['membershipId', 'personId'];
+	const keys = Object.keys(record).sort();
+	if (keys.length !== expectedKeys.length || keys.some((key, index) => key !== expectedKeys[index])) {
+		throw new ListJobPayloadError(
+			`list-projection job ${jobId} carries a malformed payload: fields must be exactly membershipId, personId`,
+		);
+	}
 	const membershipId = record.membershipId;
 	const personId = record.personId;
 	if (typeof membershipId !== 'string' || !UUID_RE.test(membershipId)) {
@@ -190,55 +235,78 @@ export function parseListJobPayload(payload: unknown, jobId: string): ListJobPay
 }
 
 /**
+ * Parse either standing list-job carrier, then bind its ids to the outbox
+ * aggregate before any database read. The relational membership→person bind
+ * is completed by listProjectionState below.
+ */
+export function parseListProjectionJob(job: ClaimedJob): ListJobPayload {
+	let payload: ListJobPayload;
+	if (job.kind === 'provision.add_lists') {
+		payload = parseProvisionJobPayload(job.payload, job.id, job.tenantId);
+	} else if (job.kind === 'offboard.remove_lists') {
+		payload = parseListJobPayload(job.payload, job.id);
+	} else {
+		throw new ListJobPayloadError(`list-projection job ${job.id} has an unsupported kind`);
+	}
+	if (job.aggregateType !== 'membership' || job.aggregateId !== payload.membershipId) {
+		throw new ListJobPayloadError(
+			`list-projection job ${job.id} is not bound to its membership aggregate`,
+		);
+	}
+	return { membershipId: payload.membershipId, personId: payload.personId };
+}
+
+/**
  * The current state a list-projection handler re-reads inside its own unit
  * of work (§5 staleness guard): the membership's CURRENT status and the
  * person's CURRENT (unsuperseded) address. Payloads are ids-only, so this
  * read — not the payload — is the truth the external effect acts on.
  */
 export interface ListProjectionState {
-	/** `null`: no such membership visible to this tenant transaction. */
+	/** `null`: the carrier membership is not bound to the payload person. */
 	membershipStatus: string | null;
+	/** Changes on every membership transition or address-history revision. */
+	revision: string;
 	/** `null`: the person has no current address row. */
-	address: string | null;
+	currentAddress: string | null;
+	/** Every address ever projected for this person, deduplicated oldest first. */
+	addresses: string[];
 }
 
 export async function listProjectionState(tx: DbTransaction, payload: ListJobPayload): Promise<ListProjectionState> {
-	const rows = await tx
-		.select({ status: membershipTable.status })
+	const carrierRows = await tx
+		.select({ id: membershipTable.id })
 		.from(membershipTable)
-		.where(eq(membershipTable.id, payload.membershipId))
+		.where(and(eq(membershipTable.id, payload.membershipId), eq(membershipTable.personId, payload.personId)))
 		.limit(1);
+	if (!carrierRows[0]) {
+		return { membershipStatus: null, revision: 'missing', currentAddress: null, addresses: [] };
+	}
+
+	// Desired list state belongs to the PERSON, not permanently to the carrier
+	// membership. A late removal job from an old terminal membership must not
+	// unsubscribe someone after a valid restoration/new membership. The unique
+	// live-membership constraint permits at most one Active/paused row.
+	const memberships = await tx
+		.select({ id: membershipTable.id, status: membershipTable.status, version: membershipTable.version })
+		.from(membershipTable)
+		.where(eq(membershipTable.personId, payload.personId))
+		.orderBy(membershipTable.createdAt, membershipTable.id);
+	const entitled = memberships.find((row) => row.status === 'active' || row.status === 'paused');
+	const carrier = memberships.find((row) => row.id === payload.membershipId);
 	// The person's current (unsuperseded) address row — `currentEmail` in
 	// ./activate.ts, inlined here rather than imported so provision.ts and
 	// activate.ts never form an import cycle (activate.ts imports the fan-out).
 	const emails = await tx
-		.select({ email: personEmail.email })
+		.select({ id: personEmail.id, email: personEmail.email, supersededAt: personEmail.supersededAt })
 		.from(personEmail)
-		.where(and(eq(personEmail.personId, payload.personId), isNull(personEmail.supersededAt)))
-		.limit(1);
-	return {
-		membershipStatus: rows[0]?.status ?? null,
-		address: emails[0]?.email ?? null,
-	};
-}
-
-/**
- * EVERY address in the person's history — superseded rows included — deduped,
- * oldest first. This is the set the `offboard.remove_lists` delivery must
- * unsubscribe: `changeEmail` (./activate.ts) supersedes the current row and
- * emits NO list projection, so the address Mailman still holds after an email
- * change is a HISTORICAL one, and unsubscribing only the current address
- * would 404 (idempotent "success") while the old address stayed a discuss
- * writer forever (PR #239 adversarial verify, MAJOR 1). Each unsubscribe is
- * 404-tolerant, so removing the whole history stays idempotent with no
- * receipt table. Inlined query (same no-import-cycle reason as above; the
- * `emailHistory` twin in ./activate.ts is record-keeping, this is state).
- */
-export async function personAddressHistory(tx: DbTransaction, personId: string): Promise<string[]> {
-	const rows = await tx
-		.select({ email: personEmail.email })
-		.from(personEmail)
-		.where(eq(personEmail.personId, personId))
+		.where(eq(personEmail.personId, payload.personId))
 		.orderBy(personEmail.effectiveFrom, personEmail.id);
-	return [...new Set(rows.map((row) => row.email))];
+	const current = emails.find((row) => row.supersededAt === null);
+	return {
+		membershipStatus: entitled?.status ?? carrier?.status ?? null,
+		revision: `${memberships.map((row) => `${row.id}:${row.status}:${row.version}`).join(',')}:${current?.id ?? 'none'}:${emails.map((row) => row.id).join(',')}`,
+		currentAddress: current?.email ?? null,
+		addresses: [...new Set(emails.map((row) => row.email))],
+	};
 }

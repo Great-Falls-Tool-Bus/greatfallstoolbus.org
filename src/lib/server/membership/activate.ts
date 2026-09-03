@@ -45,7 +45,7 @@
  * contribution tables accordingly.
  */
 
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { DbTransaction } from '../db/client';
 import {
 	application,
@@ -77,7 +77,7 @@ import {
 	type MintedToken,
 } from '../application/tokens';
 import { requireCurrentAgreement } from './agreement';
-import { enqueueProvisioning } from './provision';
+import { enqueueEmailListReconciliation, enqueueProvisioning } from './provision';
 import { writeAudit } from '../audit/write';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -527,7 +527,11 @@ export interface ChangeEmailInput {
  * acceptance row 3: `person_id` survives the change and the prior address
  * remains in `person_email`). Supersede the current row (one-way, DB-trigger
  * enforced) and append the new one; `person_id` is untouched by construction
- * — there is nothing on the person row to update.
+ * — there is nothing on the person row to update. When the person has an
+ * Active or paused membership, the same transaction also emits an ids-only
+ * list-reconciliation trigger keyed by the new person_email row id. The
+ * worker then removes historical addresses and ensures only the current one
+ * is subscribed; email mutation never calls Mailman directly.
  *
  * NOTE the auth handle is NOT rewritten here: the auth user's handle/email
  * follow through the S2 adapter on the member's next credentialed flow, and
@@ -555,7 +559,16 @@ export async function changeEmail(tx: DbTransaction, input: ChangeEmailInput): P
 			effectiveFrom: now,
 		})
 		.returning();
-	return rows[0];
+	const changed = rows[0];
+	const liveMemberships = await tx
+		.select()
+		.from(membership)
+		.where(and(eq(membership.personId, member.id), inArray(membership.status, ['active', 'paused'])))
+		.limit(1);
+	if (liveMemberships[0]) {
+		await enqueueEmailListReconciliation(tx, liveMemberships[0], changed.id);
+	}
+	return changed;
 }
 
 /** Full address history for a person, oldest first — the record, not state. */

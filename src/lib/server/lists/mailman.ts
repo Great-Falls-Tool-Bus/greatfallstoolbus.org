@@ -14,7 +14,7 @@
  *   unsubscribe DELETE {base}/3.1/lists/{list_id}/member/{address}.
  *               HTTP 404 (absent member) = idempotent success — the
  *               "unsubscribe of an absent member is a no-op" contract
- *               `../outbox/handlers/remove-lists.ts` already promises.
+ *               the desired-state list reconciler depends on.
  *
  * Auth is HTTP Basic with the Mailman REST credential embedded in the
  * GFTB_MAILMAN_API_URL DSN (`./config.ts`; the credential is the one
@@ -33,12 +33,7 @@
  * pending with attempts=0 and no network I/O.
  */
 
-import type { Db } from '../db/client';
-import { withTenant } from '../db/tenant';
-import { parseListJobPayload, personAddressHistory } from '../membership/provision';
-import type { ClaimedJob } from '../outbox/schema';
-import type { ListRemovalDelivery } from '../outbox/handlers/remove-lists';
-import type { ListSubscribeDelivery } from '../outbox/handlers/add-lists';
+import type { ListSubscribeDelivery, ListUnsubscribeDelivery } from '../outbox/handlers/add-lists';
 import { readListAutomationConfig } from './config';
 
 /** The discuss list's Mailman list id (list_id form, dots not @). */
@@ -170,22 +165,13 @@ export function createMailmanClient(apiUrl: string, deps: MailmanClientDeps = {}
 
 /** The two gate-resolved deliveries the worker wires into the list handlers. */
 export interface DiscussListDeliveries {
-	/** For `provision.add_lists` — subscribe an address to discuss. */
+	/** Idempotently ensure one address is subscribed to discuss. */
 	subscribe: ListSubscribeDelivery;
-	/** For `offboard.remove_lists` — resolve the member's whole address history and unsubscribe every address. */
-	remove: ListRemovalDelivery;
+	/** Idempotently ensure one address is absent from discuss. */
+	unsubscribe: ListUnsubscribeDelivery;
 }
 
-export interface ResolveDeps extends MailmanClientDeps {
-	/** Test seam: the db `withTenant` opens the removal delivery's read on. Production omits it. */
-	db?: Db;
-	/**
-	 * Test seam: replaces the whole withTenant address-history read (the
-	 * `add-lists.ts` `readState` idiom), so the every-address removal is
-	 * unit-testable without a fixture database. Production omits it.
-	 */
-	readRemovalAddresses?: (job: ClaimedJob) => Promise<string[]>;
-}
+export type ResolveDeps = MailmanClientDeps;
 
 /**
  * The one door from "built" to "reachable": returns `undefined` whenever
@@ -194,16 +180,11 @@ export interface ResolveDeps extends MailmanClientDeps {
  * `ListConfigError` on a half-configured environment (the worker's BLOCK-1
  * startup posture maps that to exit 78).
  *
- * The removal delivery re-reads the person's WHOLE address history inside its
- * own `withTenant` transaction (payloads are ids-only by the S3 doctrine) and
- * unsubscribes EVERY address, superseded rows included: `changeEmail`
- * supersedes addresses with no list projection, so after an email change the
- * subscribed address is a historical one — unsubscribing only the current
- * address would 404 into idempotent "success" and leave the old address a
- * discuss writer forever (PR #239 adversarial verify, MAJOR 1). Each DELETE
- * is 404-tolerant, so the sweep stays idempotent with no receipt table. A
- * person with NO address rows at all throws — ids only — so it retries into
- * dead-letter VISIBLY rather than completing a removal that never happened.
+ * This resolver exposes single-address idempotent operations only. The
+ * application-owned handler resolves membership and complete address history,
+ * applies desired state, and re-reads for concurrent offboard/email changes;
+ * keeping state reads out of this transport module leaves one convergence
+ * algorithm for both activation and removal jobs.
  */
 export function resolveDiscussListDeliveries(
 	env: NodeJS.ProcessEnv = process.env,
@@ -214,21 +195,6 @@ export function resolveDiscussListDeliveries(
 	const client = createMailmanClient(config.apiUrl, deps);
 	return {
 		subscribe: (address) => client.subscribe(DISCUSS_LIST_ID, address),
-		remove: async (job) => {
-			const payload = parseListJobPayload(job.payload, job.id);
-			const readAddresses =
-				deps.readRemovalAddresses ??
-				((j: ClaimedJob) => withTenant(j.tenantId, (tx) => personAddressHistory(tx, payload.personId), deps.db));
-			const addresses = await readAddresses(job);
-			if (addresses.length === 0) {
-				throw new Error(
-					`offboard.remove_lists: person ${payload.personId} has no address rows — ` +
-						`cannot resolve the subscribers to remove (job ${job.id})`,
-				);
-			}
-			for (const address of addresses) {
-				await client.unsubscribe(DISCUSS_LIST_ID, address);
-			}
-		},
+		unsubscribe: (address) => client.unsubscribe(DISCUSS_LIST_ID, address),
 	};
 }

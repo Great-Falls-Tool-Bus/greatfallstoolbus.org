@@ -44,7 +44,8 @@ import { submitApplication, validateSubmission, verifyEmail } from '../applicati
 import { TokenRejectedError, mintToken } from '../application/tokens';
 import { activateMembership, changeEmail, emailHistory, mintActivationToken, provisionOnApproval } from './activate';
 import { NoAgreementVersionError, SupersededAgreementError, publishAgreementVersion } from './agreement';
-import { PROVISION_JOB_KINDS, reconcileActiveProvisioning } from './provision';
+import { PROVISION_JOB_KINDS, listProjectionState, reconcileActiveProvisioning } from './provision';
+import { pauseMembership } from './transition';
 
 let fixture: PgFixture;
 let pool: pg.Pool;
@@ -483,6 +484,30 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 		expect(await provisionRows()).toHaveLength(3);
 		expect(await withTenant(tenantId, (tx) => reconcileActiveProvisioning(tx), db)).toBe(1);
 		expect(await provisionRows()).toHaveLength(4);
+
+		// Paused members retain the same identity/mail/list/archive entitlement.
+		// A pre-carrier paused row is therefore repaired too, and a second startup
+		// pass converges on the four standing idempotency receipts.
+		await withTenant(
+			tenantId,
+			(tx) =>
+				pauseMembership(tx, {
+					membershipId: prov.membership.id,
+					actor: { personId: prov.person.id, via: 'member' },
+					expectedVersion: first.membership.version,
+				}),
+			db,
+		);
+		await asTenant(fixture.runtimeDsn, tenantId, (client) =>
+			client.query("delete from outbox_job where aggregate_id = $1 and kind = 'provision.add_lists'", [
+				prov.membership.id,
+			]),
+		);
+		expect(await provisionRows()).toHaveLength(3);
+		expect(await withTenant(tenantId, (tx) => reconcileActiveProvisioning(tx), db)).toBe(1);
+		expect(await provisionRows()).toHaveLength(4);
+		expect(await withTenant(tenantId, (tx) => reconcileActiveProvisioning(tx), db)).toBe(1);
+		expect(await provisionRows()).toHaveLength(4);
 	});
 
 	it('replay with the consumed token converges ONLY with the right password (spec §6 duplicate → original result)', async () => {
@@ -556,6 +581,72 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 });
 
 describe('identity invariants (spec §4; S6 acceptance row 3)', () => {
+	it('list projection state rejects a same-tenant membership/person mismatch', async () => {
+		const tenantId = await newTenant();
+		const keyholder = await newKeyholder(tenantId);
+		const first = await provisioned(tenantId, keyholder);
+		const second = await provisioned(tenantId, keyholder);
+		const state = await withTenant(
+			tenantId,
+			(tx) =>
+				listProjectionState(tx, {
+					membershipId: first.membership.id,
+					personId: second.person.id,
+				}),
+			db,
+		);
+		expect(state).toEqual({
+			membershipStatus: null,
+			revision: 'missing',
+			currentAddress: null,
+			addresses: [],
+		});
+	});
+
+	it('an Active member email change atomically owes a fresh ids-only list reconciliation', async () => {
+		const tenantId = await newTenant();
+		const keyholder = await newKeyholder(tenantId);
+		const agreement = await withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'V1.' }), db);
+		const prov = await provisioned(tenantId, keyholder);
+		const token = await activationToken(tenantId, prov.application.id);
+		await withTenant(
+			tenantId,
+			(tx) =>
+				activateMembership(tx, {
+					token,
+					password: 'a-long-fixture-password',
+					agreementVersionId: agreement.id,
+					hashOptions: FAST_HASH,
+				}),
+			db,
+		);
+
+		const changed = await withTenant(
+			tenantId,
+			(tx) => changeEmail(tx, { personId: prov.person.id, newEmail: `new-${randomUUID().slice(0, 8)}@example.org` }),
+			db,
+		);
+		const rows = await asTenant(fixture.runtimeDsn, tenantId, async (client) => {
+			const result = await client.query(
+				`select aggregate_id, payload, idempotency_key from outbox_job
+				 where kind = 'provision.add_lists' and idempotency_key like '%:email:%'`,
+			);
+			return result.rows;
+		});
+		expect(rows).toHaveLength(1);
+		expect(rows[0].aggregate_id).toBe(prov.membership.id);
+		expect(rows[0].idempotency_key).toBe(
+			`${tenantId}:membership:${prov.membership.id}:add_lists:email:${changed.id}`,
+		);
+		expect(rows[0].payload).toEqual({
+			schemaVersion: 1,
+			tenantId,
+			membershipId: prov.membership.id,
+			personId: prov.person.id,
+			generation: 1,
+		});
+	});
+
 	it('person_id survives an email change and the prior address remains in history', async () => {
 		const tenantId = await newTenant();
 		const keyholder = await newKeyholder(tenantId);

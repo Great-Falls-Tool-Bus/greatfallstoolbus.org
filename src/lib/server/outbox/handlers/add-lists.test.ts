@@ -1,33 +1,37 @@
 /**
- * `provision.add_lists` handler (TIN-3964) — unit lane: the payload guard,
- * the tenant-bound payload and §5 staleness guards, all provable
- * without a database via the handler's seams (the `stripe-project.test.ts`
- * idiom; state re-reads ride the injectable `readState` seam).
+ * Discuss-list desired-state reconciler (TIN-3964): ids-only carrier and
+ * aggregate binding, Active/paused projection, terminal removal, and the
+ * external-effect races that one preflight state read cannot close.
  */
 
 import { describe, expect, it } from 'vitest';
-import { ProvisionJobPayloadError } from '../../membership/provision';
+import { ListJobPayloadError, ProvisionJobPayloadError, type ListProjectionState } from '../../membership/provision';
 import type { ClaimedJob } from '../schema';
-import { ADD_LISTS_JOB_KIND, createAddListsHandler } from './add-lists';
+import {
+	ADD_LISTS_JOB_KIND,
+	createListReconciliationHandler,
+	REMOVE_LISTS_JOB_KIND,
+} from './add-lists';
 
+const TENANT_ID = '11111111-2222-4333-8444-555555555555';
 const MEMBERSHIP_ID = '22222222-3333-4444-8555-666666666666';
 const PERSON_ID = '33333333-4444-4555-8666-777777777777';
 
 function job(overrides: Partial<ClaimedJob> = {}): ClaimedJob {
 	return {
 		id: 'job-1',
-		tenantId: '11111111-2222-4333-8444-555555555555',
+		tenantId: TENANT_ID,
 		kind: ADD_LISTS_JOB_KIND,
 		aggregateType: 'membership',
 		aggregateId: MEMBERSHIP_ID,
 		payload: {
 			schemaVersion: 1,
-			tenantId: '11111111-2222-4333-8444-555555555555',
+			tenantId: TENANT_ID,
 			membershipId: MEMBERSHIP_ID,
 			personId: PERSON_ID,
 			generation: 1,
 		},
-		idempotencyKey: `tenant:membership:${MEMBERSHIP_ID}:add_lists:g1`,
+		idempotencyKey: `${TENANT_ID}:membership:${MEMBERSHIP_ID}:add_lists:g1`,
 		status: 'leased',
 		attempts: 0,
 		maxAttempts: 8,
@@ -42,110 +46,196 @@ function job(overrides: Partial<ClaimedJob> = {}): ClaimedJob {
 	};
 }
 
-describe('createAddListsHandler — the malformed-payload guard', () => {
+function removalJob(overrides: Partial<ClaimedJob> = {}): ClaimedJob {
+	return job({
+		kind: REMOVE_LISTS_JOB_KIND,
+		payload: { membershipId: MEMBERSHIP_ID, personId: PERSON_ID },
+		idempotencyKey: `${TENANT_ID}:membership:${MEMBERSHIP_ID}:remove_lists`,
+		...overrides,
+	});
+}
+
+function state(
+	membershipStatus: string | null,
+	revision: string,
+	currentAddress: string | null,
+	addresses: string[],
+): ListProjectionState {
+	return { membershipStatus, revision, currentAddress, addresses };
+}
+
+function stateReader(states: ListProjectionState[]): () => Promise<ListProjectionState> {
+	let index = 0;
+	return async () => states[Math.min(index++, states.length - 1)];
+}
+
+function memoryDeliveries(initial: string[] = []) {
+	const subscribed = new Set(initial);
+	const calls: string[] = [];
+	return {
+		subscribed,
+		calls,
+		subscribe: async (address: string) => {
+			calls.push(`add:${address}`);
+			subscribed.add(address);
+		},
+		unsubscribe: async (address: string) => {
+			calls.push(`remove:${address}`);
+			subscribed.delete(address);
+		},
+	};
+}
+
+describe('list projection carrier binding', () => {
 	it.each([
 		[undefined, 'undefined payload'],
 		[null, 'null payload'],
 		[{}, 'empty payload'],
 		[{ membershipId: MEMBERSHIP_ID }, 'legacy unversioned carrier'],
-		[{
-			schemaVersion: 1,
-			tenantId: '11111111-2222-4333-8444-555555555555',
-			membershipId: 'not-a-uuid',
-			personId: PERSON_ID,
-			generation: 1,
-		}, 'non-UUID membershipId'],
-	] as const)('rejects a poisoned job (%s) before database or delivery work', async (payload) => {
-		const handler = createAddListsHandler({ delivery: async () => undefined });
+		[
+			{
+				schemaVersion: 1,
+				tenantId: TENANT_ID,
+				membershipId: 'not-a-uuid',
+				personId: PERSON_ID,
+				generation: 1,
+			},
+			'non-UUID membershipId',
+		],
+	] as const)('rejects a poisoned activation job (%s) before state or delivery work', async (payload) => {
+		const deliveries = memoryDeliveries();
+		let reads = 0;
+		const handler = createListReconciliationHandler({
+			...deliveries,
+			readState: async () => {
+				reads += 1;
+				return state('active', 'v1', 'member@example.org', ['member@example.org']);
+			},
+		});
 		await expect(handler(job({ payload }))).rejects.toThrow(ProvisionJobPayloadError);
+		expect(reads).toBe(0);
+		expect(deliveries.calls).toEqual([]);
 	});
 
-	it('the payload error names ids only — never an address', async () => {
-		const handler = createAddListsHandler({ delivery: async () => undefined });
-		let message = '';
-		try {
-			await handler(job({ id: 'job-poisoned-1', payload: { membershipId: 42 } }));
-		} catch (error) {
-			message = (error as Error).message;
-		}
-		expect(message).toContain('job-poisoned-1');
-		expect(message).not.toContain('@');
+	it('rejects a mismatched aggregate id before state or delivery work', async () => {
+		const deliveries = memoryDeliveries();
+		let reads = 0;
+		const handler = createListReconciliationHandler({
+			...deliveries,
+			readState: async () => {
+				reads += 1;
+				return state('active', 'v1', 'member@example.org', ['member@example.org']);
+			},
+		});
+		await expect(
+			handler(job({ aggregateId: '44444444-5555-4666-8777-888888888888' })),
+		).rejects.toThrow(ListJobPayloadError);
+		expect(reads).toBe(0);
+		expect(deliveries.calls).toEqual([]);
+	});
+
+	it('a same-tenant cross-person carrier fails visibly with zero network calls', async () => {
+		const deliveries = memoryDeliveries();
+		const handler = createListReconciliationHandler({
+			...deliveries,
+			readState: async () => state(null, 'missing', null, []),
+		});
+		await expect(handler(job())).rejects.toThrow(/not bound/u);
+		expect(deliveries.calls).toEqual([]);
 	});
 });
 
-describe('createAddListsHandler — the §5 staleness guard (delivery wired)', () => {
-	it('subscribes the CURRENT address for an active membership', async () => {
-		const delivered: string[] = [];
-		const handler = createAddListsHandler({
-			delivery: async (address) => void delivered.push(address),
+describe('list projection desired-state convergence', () => {
+	it.each(['active', 'paused'])('ensures only the current address for an entitled %s membership', async (status) => {
+		const deliveries = memoryDeliveries(['old@example.org']);
+		const current = state(status, 'v2', 'new@example.org', ['old@example.org', 'new@example.org']);
+		const handler = createListReconciliationHandler({ ...deliveries, readState: stateReader([current, current]) });
+		await handler(job());
+		expect(deliveries.calls).toEqual(['remove:old@example.org', 'add:new@example.org']);
+		expect([...deliveries.subscribed]).toEqual(['new@example.org']);
+	});
+
+	it.each(['left', 'removed'])('ensures every historical address is absent for a terminal %s membership', async (status) => {
+		const deliveries = memoryDeliveries(['old@example.org', 'new@example.org']);
+		const terminal = state(status, 'v3', null, ['old@example.org', 'new@example.org']);
+		const handler = createListReconciliationHandler({ ...deliveries, readState: stateReader([terminal, terminal]) });
+		await handler(removalJob());
+		expect(deliveries.calls).toEqual(['remove:old@example.org', 'remove:new@example.org']);
+		expect([...deliveries.subscribed]).toEqual([]);
+	});
+
+	it('an old removal job preserves the current address after a later valid membership', async () => {
+		const deliveries = memoryDeliveries(['new@example.org']);
+		const restored = state('active', 'old-removed:new-active', 'new@example.org', [
+			'old@example.org',
+			'new@example.org',
+		]);
+		const handler = createListReconciliationHandler({
+			...deliveries,
+			readState: stateReader([restored, restored]),
+		});
+		await handler(removalJob());
+		expect(deliveries.calls).toEqual(['remove:old@example.org', 'add:new@example.org']);
+		expect([...deliveries.subscribed]).toEqual(['new@example.org']);
+	});
+
+	it('closes the late-add/offboard interleaving with final state absent', async () => {
+		const deliveries = memoryDeliveries();
+		const active = state('active', 'v1', 'member@example.org', ['member@example.org']);
+		const left = state('left', 'v2', null, ['member@example.org']);
+		const handler = createListReconciliationHandler({
+			...deliveries,
+			readState: stateReader([active, left, left, left]),
 			log: () => undefined,
-			readState: async () => ({ membershipStatus: 'active', address: 'member@example.org' }),
 		});
 		await handler(job());
-		expect(delivered).toEqual(['member@example.org']);
+		expect(deliveries.calls).toEqual(['add:member@example.org', 'remove:member@example.org']);
+		expect([...deliveries.subscribed]).toEqual([]);
 	});
 
-	it('subscribes a PAUSED membership too — pause preserves discussion access by ratified design', async () => {
-		const delivered: string[] = [];
-		const handler = createAddListsHandler({
-			delivery: async (address) => void delivered.push(address),
+	it('converges an email change after completed activation, and replay is idempotent', async () => {
+		const deliveries = memoryDeliveries(['old@example.org']);
+		const old = state('active', 'v1:old', 'old@example.org', ['old@example.org']);
+		const changed = state('active', 'v1:new', 'new@example.org', ['old@example.org', 'new@example.org']);
+		const handler = createListReconciliationHandler({
+			...deliveries,
+			readState: stateReader([old, changed, changed, changed, changed, changed]),
 			log: () => undefined,
-			readState: async () => ({ membershipStatus: 'paused', address: 'member@example.org' }),
 		});
 		await handler(job());
-		expect(delivered).toEqual(['member@example.org']);
+		expect([...deliveries.subscribed]).toEqual(['new@example.org']);
+		await handler(job({ id: 'job-replay' }));
+		expect([...deliveries.subscribed]).toEqual(['new@example.org']);
+		expect(deliveries.calls).toEqual([
+			'add:old@example.org',
+			'remove:old@example.org',
+			'add:new@example.org',
+			'remove:old@example.org',
+			'add:new@example.org',
+		]);
 	});
 
-	it.each(['left', 'removed'] as const)(
-		'completes as a recorded no-op when offboarding raced ahead (%s) — offboard.remove_lists owns the list state',
-		async (status) => {
-			const delivered: string[] = [];
-			const lines: string[] = [];
-			const handler = createAddListsHandler({
-				delivery: async (address) => void delivered.push(address),
-				log: (line) => lines.push(line),
-				readState: async () => ({ membershipStatus: status, address: 'member@example.org' }),
-			});
-			await expect(handler(job())).resolves.toBeUndefined();
-			expect(delivered).toEqual([]);
-			expect(lines.join('\n')).toContain(status);
-			expect(lines.join('\n')).not.toContain('@');
-		},
-	);
-
-	it('throws when the membership does not exist — retries into dead-letter visibly', async () => {
-		const handler = createAddListsHandler({
-			delivery: async () => undefined,
+	it('throws on persistent state churn so the dispatcher retries visibly', async () => {
+		const deliveries = memoryDeliveries();
+		let revision = 0;
+		const handler = createListReconciliationHandler({
+			...deliveries,
+			maxPasses: 2,
+			readState: async () => state('active', `v${revision++}`, 'member@example.org', ['member@example.org']),
 			log: () => undefined,
-			readState: async () => ({ membershipStatus: null, address: null }),
 		});
-		await expect(handler(job())).rejects.toThrow(/not found/);
+		await expect(handler(job())).rejects.toThrow(/every reconciliation pass/u);
 	});
 
-	it('throws when the person has no current address — ids only in the message', async () => {
-		const handler = createAddListsHandler({
-			delivery: async () => undefined,
-			log: () => undefined,
-			readState: async () => ({ membershipStatus: 'active', address: null }),
-		});
-		let message = '';
-		try {
-			await handler(job());
-		} catch (error) {
-			message = (error as Error).message;
-		}
-		expect(message).toContain(PERSON_ID);
-		expect(message).not.toContain('@example');
-	});
-
-	it('a configured-but-failing delivery propagates — the dispatcher owns retry/dead-letter', async () => {
-		const handler = createAddListsHandler({
-			delivery: async () => {
+	it('propagates a configured delivery failure to retry/dead-letter', async () => {
+		const current = state('active', 'v1', 'member@example.org', ['member@example.org']);
+		const handler = createListReconciliationHandler({
+			subscribe: async () => {
 				throw new Error('mailman subscribe for discuss.latoolb.us returned HTTP 500');
 			},
-			log: () => undefined,
-			readState: async () => ({ membershipStatus: 'active', address: 'member@example.org' }),
+			unsubscribe: async () => undefined,
+			readState: stateReader([current]),
 		});
-		await expect(handler(job())).rejects.toThrow(/HTTP 500/);
+		await expect(handler(job())).rejects.toThrow(/HTTP 500/u);
 	});
 });

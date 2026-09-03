@@ -11,6 +11,7 @@ import {
 	ListJobPayloadError,
 	PROVISION_JOB_KINDS,
 	ProvisionJobPayloadError,
+	emailListReconciliationIdempotencyKey,
 	parseListJobPayload,
 	parseProvisionJobPayload,
 	provisionIdempotencyKey,
@@ -34,6 +35,13 @@ describe('provisionIdempotencyKey — the §2.3 identity-key shape, mirrored', (
 			'provision.add_lists',
 			'provision.ensure_archive',
 		]);
+	});
+
+	it('keys each verified-email reconciliation by the inserted address-row id', () => {
+		const emailId = '44444444-5555-4666-8777-888888888888';
+		expect(emailListReconciliationIdempotencyKey(TENANT_ID, MEMBERSHIP_ID, emailId)).toBe(
+			`${TENANT_ID}:membership:${MEMBERSHIP_ID}:add_lists:email:${emailId}`,
+		);
 	});
 });
 
@@ -89,6 +97,7 @@ describe('parseListJobPayload — the ids-only payload guard', () => {
 		[{ personId: PERSON_ID }],
 		[{ membershipId: 'not-a-uuid', personId: PERSON_ID }],
 		[{ membershipId: MEMBERSHIP_ID, personId: 42 }],
+		[{ membershipId: MEMBERSHIP_ID, personId: PERSON_ID, address: 'must-not-enter@example.org' }],
 	])('rejects a malformed payload (%j) deterministically', (payload) => {
 		expect(() => parseListJobPayload(payload, 'job-1')).toThrow(ListJobPayloadError);
 	});

@@ -59,9 +59,12 @@ import { tenant } from './db/schema';
 import { assertTenantId, withTenant } from './db/tenant';
 import { dispatchOnce, runWorkerLoop, type DispatchSummary, type WorkerLoopOptions } from './outbox/dispatch';
 import { createHandlerRegistry } from './outbox/handlers';
-import { ADD_LISTS_JOB_KIND, createAddListsHandler } from './outbox/handlers/add-lists';
+import {
+	ADD_LISTS_JOB_KIND,
+	createListReconciliationHandler,
+	REMOVE_LISTS_JOB_KIND,
+} from './outbox/handlers/add-lists';
 import { cancelBillingHandler } from './outbox/handlers/cancel-billing';
-import { createRemoveListsHandler } from './outbox/handlers/remove-lists';
 import { createProductionStripeProjectHandler, STRIPE_PROJECT_JOB_KIND } from './outbox/handlers/stripe-project';
 import {
 	DEFAULT_BATCH_SIZE,
@@ -142,14 +145,15 @@ function defaultRuntime(env: NodeJS.ProcessEnv): DefaultRuntime {
 	];
 
 	if (listDeliveries) {
-		handlers['offboard.remove_lists'] = createRemoveListsHandler({ delivery: listDeliveries.remove });
-		handlers[ADD_LISTS_JOB_KIND] = createAddListsHandler({ delivery: listDeliveries.subscribe });
+		const listHandler = createListReconciliationHandler(listDeliveries);
+		handlers[REMOVE_LISTS_JOB_KIND] = listHandler;
+		handlers[ADD_LISTS_JOB_KIND] = listHandler;
 	}
 
 	return {
 		registry: createHandlerRegistry(handlers),
 		deferredKinds: listDeliveries
-			? deferredKinds.filter((kind) => kind !== ADD_LISTS_JOB_KIND && kind !== 'offboard.remove_lists')
+			? deferredKinds.filter((kind) => kind !== ADD_LISTS_JOB_KIND && kind !== REMOVE_LISTS_JOB_KIND)
 			: deferredKinds,
 		reconcileProvisioning: true,
 	};

@@ -72,15 +72,20 @@ Status per the 2026-09-01 recon of this repository and the infra overlay:
   generation-bound keys `<tenant>:membership:<id>:<effect>:g1` and an exact
   v1 payload containing only tenant, membership, person, and generation ids.
   Worker startup reconciles the same fan-out across every Active/paused row.
-  The list handler
-  (`src/lib/server/outbox/handlers/add-lists.ts`) and the standing
-  `offboard.remove_lists` handler share one delivery gate:
+  The single desired-state list handler
+  (`src/lib/server/outbox/handlers/add-lists.ts`) serves both the activation /
+  verified-email trigger and the standing `offboard.remove_lists` job behind
+  one delivery gate:
   `GFTB_LIST_AUTOMATION=enabled` + `GFTB_MAILMAN_API_URL` (Mailman 3 core
   REST DSN, names only in this repo — `src/lib/server/lists/`) wire real
   subscribe/unsubscribe on `discuss@latoolb.us` (409/404 tolerated as
-  idempotent success). When the gate is closed, both kinds remain `pending`
-  with `attempts=0`; opening the gate makes those standing rows claimable.
-  No delivery-disabled branch may mark an external effect done.
+  idempotent success). It binds membership to person, removes historical
+  addresses, ensures the current address only while the person has an
+  Active/paused membership, and re-reads state after delivery to close
+  offboard/email-change races. A verified-email change owes a fresh ids-only
+  trigger in the same transaction. When the gate is closed, both kinds remain
+  `pending` with `attempts=0`; opening the gate makes those standing rows
+  claimable. No delivery-disabled branch may mark an external effect done.
 
 **Planned (not yet built)**
 
