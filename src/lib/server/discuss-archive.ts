@@ -641,9 +641,11 @@ function emptySnapshot(generatedAt: string): DiscussSnapshot {
  * plumbing (never one via $env and the other via raw process.env); the
  * process.env read below is only the fallback for direct callers.
  */
-export function originFromEnv(
-	env: { DISCUSS_ARCHIVE_ORIGIN?: string; DISCUSS_ARCHIVE_NAMESPACE?: string } | undefined,
-): string | undefined {
+// The parameter is a plain env-record rather than a two-key shape: SvelteKit's
+// generated `$env/dynamic/private` type declares every baked env var as a named
+// property, so an all-optional two-key parameter trips TypeScript's weak-type
+// check ("no properties in common") at the route call sites.
+export function originFromEnv(env: Record<string, string | undefined> | undefined): string | undefined {
 	const explicit = env?.DISCUSS_ARCHIVE_ORIGIN?.trim();
 	if (explicit) return explicit;
 	const ns = env?.DISCUSS_ARCHIVE_NAMESPACE?.trim();
