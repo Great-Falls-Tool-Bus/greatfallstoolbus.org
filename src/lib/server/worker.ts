@@ -59,6 +59,7 @@ import { tenant } from './db/schema';
 import { assertTenantId, withTenant } from './db/tenant';
 import { dispatchOnce, runWorkerLoop, type DispatchSummary, type WorkerLoopOptions } from './outbox/dispatch';
 import { createHandlerRegistry } from './outbox/handlers';
+import { ADD_LISTS_JOB_KIND, createAddListsHandler } from './outbox/handlers/add-lists';
 import { cancelBillingHandler } from './outbox/handlers/cancel-billing';
 import { createDisableMailboxHandler } from './outbox/handlers/disable-mailbox';
 import { createRemoveListsHandler } from './outbox/handlers/remove-lists';
@@ -69,15 +70,18 @@ import { createReceiptEmailHandler, RECEIPT_EMAIL_JOB_KIND } from './outbox/hand
 import { createWithdrawnAckHandler, WITHDRAWN_ACK_JOB_KIND } from './outbox/handlers/application-withdrawn-ack';
 import { readMailConfig } from './mail/config';
 import { activationHazardWarning } from './mail/activation';
+import { resolveDiscussListDeliveries } from './lists/mailman';
 
 /**
  * The production handler set: S7's three §2.3 offboarding projections
  * (`offboard.cancel_billing`, `offboard.remove_lists`,
  * `offboard.disable_mailbox`), S9's `stripe.project`
- * (`./outbox/handlers/stripe-project.ts`), and — as of TIN-4062 — the three
+ * (`./outbox/handlers/stripe-project.ts`), the three TIN-4062
  * application-mail kinds (`application.receipt_email`,
  * `application.decision_email`, `application.withdrawn_ack`,
- * `./outbox/handlers/application-*.ts`). Every kind that has landed, and
+ * `./outbox/handlers/application-*.ts`), and — as of TIN-3964 — the
+ * activation projection `provision.add_lists`
+ * (`./outbox/handlers/add-lists.ts`). Every kind that has landed, and
  * NOTHING else; any other kind still dead-letters visibly through
  * `UnknownJobKindError` (the fail-closed posture, kept).
  *
@@ -107,11 +111,21 @@ function defaultRegistry(env: NodeJS.ProcessEnv): HandlerRegistry {
 	// before any job ever claims a mail kind. See the docstring above.
 	readMailConfig(env);
 
+	// Same BLOCK-1 posture for list automation (TIN-3964): a half-configured
+	// GFTB_LIST_AUTOMATION=enabled with no GFTB_MAILMAN_API_URL throws here
+	// and maps to exit 78 below. When the gate is closed (the default), this
+	// resolves to `undefined` and BOTH list handlers — provision.add_lists
+	// (subscribe on activation) and offboard.remove_lists (unsubscribe on
+	// offboarding) — complete as gate-disabled recorded no-ops with zero
+	// network I/O. One switch governs both directions.
+	const listDeliveries = resolveDiscussListDeliveries(env);
+
 	return createHandlerRegistry({
 		[STRIPE_PROJECT_JOB_KIND]: createProductionStripeProjectHandler(env),
 		'offboard.cancel_billing': cancelBillingHandler,
-		'offboard.remove_lists': createRemoveListsHandler(),
+		'offboard.remove_lists': createRemoveListsHandler({ delivery: listDeliveries?.remove }),
 		'offboard.disable_mailbox': createDisableMailboxHandler(),
+		[ADD_LISTS_JOB_KIND]: createAddListsHandler({ delivery: listDeliveries?.subscribe }),
 		[RECEIPT_EMAIL_JOB_KIND]: createReceiptEmailHandler({ env }),
 		[DECISION_EMAIL_JOB_KIND]: createDecisionEmailHandler({ env }),
 		[WITHDRAWN_ACK_JOB_KIND]: createWithdrawnAckHandler({ env }),
@@ -140,13 +154,16 @@ job's kind, retries failures with exponential full-jitter backoff, and
 dead-letters a job once its bounded attempt count is spent. At-least-once by
 contract; consumers are idempotent by contract. S9's "stripe.project", S7's
 three offboarding kinds ("offboard.cancel_billing", "offboard.remove_lists",
-"offboard.disable_mailbox"), and TIN-4062's three application-mail kinds
+"offboard.disable_mailbox"), TIN-4062's three application-mail kinds
 ("application.receipt_email", "application.decision_email",
-"application.withdrawn_ack") are registered by default; any other job kind
-still dead-letters visibly rather than being absorbed by a placeholder. The
-mail kinds resolve to a disabled, no-network-I/O journal outcome unless
-GFTB_MAIL_DELIVERY=enabled, a transport DSN, and an operator-approved
-template all agree — see Environment below.
+"application.withdrawn_ack"), and TIN-3964's "provision.add_lists" are
+registered by default; any other job kind still dead-letters visibly rather
+than being absorbed by a placeholder. The mail kinds resolve to a disabled,
+no-network-I/O journal outcome unless GFTB_MAIL_DELIVERY=enabled, a transport
+DSN, and an operator-approved template all agree; the two discuss-list kinds
+("provision.add_lists" subscribe, "offboard.remove_lists" unsubscribe)
+resolve to gate-disabled recorded no-ops unless GFTB_LIST_AUTOMATION=enabled
+and a Mailman REST DSN agree — see Environment below.
 
 Options:
   --help               Print this and exit 0. Never touches the database.
@@ -182,6 +199,19 @@ Environment:
                    send, loudly, per spec's fail-closed doctrine — never
                    silently). Startup prints a WARNING (not a failure) when
                    it detects this shape; see mail/activation.ts.
+  GFTB_LIST_AUTOMATION, GFTB_MAILMAN_API_URL
+                   Discuss-list automation (provision.add_lists subscribe,
+                   offboard.remove_lists unsubscribe) is DISABLED by default
+                   regardless of these. GFTB_LIST_AUTOMATION must be exactly
+                   "enabled" AND GFTB_MAILMAN_API_URL must carry the Mailman 3
+                   core REST DSN (https://user:pass@host/ shape, the
+                   gftb-mailman-admin-password credential embedded —
+                   apply-plane-side value, a name only here) to reach the
+                   engine; see src/lib/server/lists/config.ts. Half-configured
+                   (enabled without the DSN) fails closed at startup, exit 78.
+                   Gate-disabled jobs complete as recorded no-ops; opening the
+                   gate must reconcile every Active member (ADR 0024 §1.5's
+                   runbook step, operator-run).
   GFTB_PUBLIC_ORIGIN
                    Optional override for the origin rendered links use.
                    Defaults to the production public origin.
