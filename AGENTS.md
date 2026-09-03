@@ -53,8 +53,19 @@ that lead works; rule 1 still governs WHO may merge:
   double-green where a known flake lives; zero signing bypasses; zero
   consent-gate bypasses; a durable board receipt within 15 min of every
   landing.
+- **Surfacing rule** (operator-derived 2026-09-03; SSD rulings addendum (e)):
+  ratifications, agendas, todos, and review items reach the operator in
+  exactly one of two forms — decisions via the interview feature
+  (AskUserQuestion decision briefs); read/LOOK items opened in the operator's
+  Chrome as tabs. Never prose status lists with shell-command fallbacks;
+  never GUI `open` (fleet guard). Printing via printstack remains the
+  annotation route. The claude-in-chrome prohibition is scoped to agent
+  browsing/QA (gstack supersedes there); operator-attended LOOK tab-opening
+  is the sanctioned exception.
 - SSOT for the full doctrine: `prompts-enqueue` —
-  `context/house-active-dialog-cadence.md` (this cadence),
+  `context/house-active-dialog-cadence.md` (this cadence plus the surfacing
+  rule; created by Jesssullivan/prompts-enqueue#205 — the pointer was dangling
+  before that PR landed),
   `context/house-agent-conventions.md` (the org-wide AX/DX contract), and
   `patterns/multi-agent-orchestration.md` (orchestrator/spawn/verification
   method). Model-tiering authority is `Jesssullivan/prompt-toon`
