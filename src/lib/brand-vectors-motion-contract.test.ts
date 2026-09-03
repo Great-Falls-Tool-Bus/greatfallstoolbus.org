@@ -17,25 +17,24 @@ import { describe, expect, it } from 'vitest';
 //
 // This test pins the two seams that deliver that default so a refactor
 // cannot silently regress to the jiggle era:
-// - the dependency pin must stay at or above 0.3.7 (the first release with
-//   the idle drift cruise);
+// - the Bzlmod dependency pin must stay at or above 0.3.7 (the first release
+//   with the idle drift cruise) and its public :pkg must stay graph-linked;
 // - the layout call site must not opt out of the animated default or the
 //   reduced-motion default.
-// scripts/check-inhouse-package-parity.py separately enforces that the
-// package.json tag and MODULE.bazel agree, so one floor here covers both.
+// scripts/check-inhouse-package-parity.mjs separately enforces that no npm
+// shadow source exists and that the link participates in every product action.
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const IDLE_DRIFT_FLOOR = [0, 3, 7] as const;
 
-function parsePinnedTinyvectorsVersion(): { spec: string; version: number[] } {
-	const packageJson = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8')) as {
-		dependencies?: Record<string, string>;
-	};
-	const spec = packageJson.dependencies?.['@tummycrypt/tinyvectors'] ?? '';
-	const match = spec.match(/\/tags\/v(\d+)\.(\d+)\.(\d+)\.tar\.gz$/);
-	expect(match, `pinned tag tarball spec, got: ${spec}`).not.toBeNull();
-	return { spec, version: match!.slice(1).map(Number) };
+function parsePinnedTinyvectorsVersion(): { pin: string; version: number[] } {
+	const moduleBazel = readFileSync(path.join(repoRoot, 'MODULE.bazel'), 'utf8');
+	const match = moduleBazel.match(
+		/bazel_dep\(name = "tummycrypt_tinyvectors", version = "(\d+)\.(\d+)\.(\d+)"\)/,
+	);
+	expect(match, 'a tummycrypt_tinyvectors Bzlmod pin').not.toBeNull();
+	return { pin: match![0], version: match!.slice(1).map(Number) };
 }
 
 describe('tinyvectors default-motion contract', () => {
@@ -46,10 +45,13 @@ describe('tinyvectors default-motion contract', () => {
 		expect(pinned).toBeGreaterThanOrEqual(floor);
 	});
 
-	it('keeps the pinned tag verifiable by the prepare hook (PINNED_INTEGRITY entry exists)', () => {
-		const { spec } = parsePinnedTinyvectorsVersion();
-		const buildScript = readFileSync(path.join(repoRoot, 'scripts', 'build-tinyvectors.mjs'), 'utf8');
-		expect(buildScript).toContain(`'${spec}':`);
+	it('keeps the pinned module integrity-locked and linked through its public :pkg target', () => {
+		const { version } = parsePinnedTinyvectorsVersion();
+		const versionText = version.join('.');
+		const moduleLock = readFileSync(path.join(repoRoot, 'MODULE.bazel.lock'), 'utf8');
+		const build = readFileSync(path.join(repoRoot, 'BUILD.bazel'), 'utf8');
+		expect(moduleLock).toContain(`/tummycrypt_tinyvectors/${versionText}/source.json`);
+		expect(build).toContain('src = "@tummycrypt_tinyvectors//:pkg"');
 	});
 
 	it('layout call site keeps the animated + reduced-motion defaults and the devicemotion enhancement', () => {

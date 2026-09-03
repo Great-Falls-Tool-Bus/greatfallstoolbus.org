@@ -1,10 +1,13 @@
 """
 greatfallstoolbus.org - Bazel Module Configuration
 
-Static-first SvelteKit consumer of the @tummycrypt/* npm packages
-produced by tinyland-inc/bazel-registry. The canonical site build is
-`pnpm run build`; Bazel exists for module-graph integrity proofs and
-is exercised via `bazel mod graph` smoke in CI.
+App-stateful SvelteKit consumer of six @tummycrypt/* packages produced by
+tinyland-inc/bazel-registry. TIN-2881 makes this Bzlmod graph their sole source:
+BUILD.bazel graph-links each public :pkg target with npm_link_package, while
+package.json and pnpm-lock.yaml carry no first-party source specifier. Just
+entrypoints hydrate those graph outputs only when a Node-compatible layout is
+required; Flywheel build/test paths remain the canonical endpoint-free Bazel
+proof surfaces.
 
 Stock module picks (replace per-site as needed):
 
@@ -40,19 +43,18 @@ bazel_dep(name = "aspect_rules_js", version = "2.9.1")
 bazel_dep(name = "aspect_rules_ts", version = "3.8.4")
 bazel_dep(name = "aspect_rules_swc", version = "2.6.1")
 
-# Tinyland building-block deps via tinyland-inc/bazel-registry
-# (versions must match package.json + the registry; verify with `just inhouse-package-parity`).
+# First-party package authority: exact modules from tinyland-inc/bazel-registry.
+# package.json MUST NOT name them; `just inhouse-package-parity` proves each
+# bazel_dep has a matching BUILD.bazel npm_link_package :pkg edge.
 bazel_dep(name = "tummycrypt_tinyland_color_utils", version = "0.2.3")
 bazel_dep(name = "tummycrypt_vite_plugin_a11y", version = "0.2.2")
 bazel_dep(name = "tummycrypt_vite_plugin_skeleton_colors", version = "0.2.2")
 bazel_dep(name = "tummycrypt_tinyvectors", version = "0.3.7")
 
-# Member v0 auth spine (TIN-3817 S2). Bzlmod/npm parity is a conformance gate
-# (scripts/check-inhouse-package-parity.py): these two versions must equal the
-# package.json pins EXACTLY. The pins themselves are load-bearing — the PG
-# adapter's peer range accepts nothing newer than auth 0.3.x, and no adapter
-# exists for auth >= 0.4.0 (executable-slices spec §0.7). Do not bump one
-# without the other.
+# Member v0 auth spine (TIN-3817 S2). These Bzlmod pins are load-bearing:
+# the PG adapter's peer range accepts nothing newer than auth 0.3.x, and no
+# adapter exists for auth >= 0.4.0 (executable-slices spec §0.7). Keep the pair
+# in lockstep and graph-link both public :pkg targets; there is no npm fallback.
 bazel_dep(name = "tummycrypt_tinyland_auth", version = "0.3.3")
 bazel_dep(name = "tummycrypt_tinyland_auth_pg", version = "0.2.4")
 
@@ -69,9 +71,9 @@ pnpm.pnpm(
 )
 use_repo(pnpm, "pnpm")
 
-# npm via pnpm-lock.yaml. Repo name "npm" matches the elders / Aspect
-# convention. Per the audit, no @npm collision risk against the
-# selected modules — they all use per-module <module>_npm naming.
+# Third-party npm graph via pnpm-lock.yaml. Repo name "npm" matches the Aspect
+# convention. First-party @tummycrypt/@tinyland packages are deliberately
+# absent: their sole source is the Bzlmod deps above and BUILD.bazel :pkg links.
 npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
 npm.npm_translate_lock(
     name = "npm",

@@ -236,8 +236,9 @@ repository as private or renamed** in code, comments, docs, or image refs.
   producer-held consumer registry.
 - Local `just` recipes remain developer tools; their output is never v4
   evidence and never substitutes for a refused remote action.
-- In-house npm/Bzlmod parity remains a source contract until those compatibility
-  edges are deliberately retired.
+- In-house packages enter only through the pinned Bzlmod/BCR graph. Node-facing
+  developer recipes may hydrate those graph outputs, but package.json,
+  pnpm-lock.yaml, and v4 actions have no npm-shadow or fallback source.
 ## Theme & Skeleton
 
 - **Skeleton 5.0.1** (pinned, PAIRED). `@skeletonlabs/skeleton` and
@@ -306,8 +307,8 @@ After `gh repo create --template tinyland-inc/site.scaffold`:
   edge credentials, or secret values.
 - Don't fork tinyland-color-utils / tinyvectors / vite plugins per-site.
   Pin via the BCR.
-- Don't add in-house npm package ranges or allow `package.json` to drift from
-  `MODULE.bazel`; use `just inhouse-package-parity` or `just conformance`.
+- Don't add an in-house npm source edge. Keep each BCR module linked through its
+  public `:pkg` target; use `just inhouse-package-parity` or `just conformance`.
 - Don't bypass `Justfile` in CI or local, DX/AX must stay homogenous.
 - Don't unpin Skeleton or split the skeleton/skeleton-svelte paired pin
   without coordination.

@@ -171,10 +171,19 @@ describe('exactly one drizzle-orm, at exactly the version the adapter forces (sp
 		expect([...versions]).toEqual(['0.39.3']);
 	});
 
-	it('package.json pins the pair exactly, no ranges', () => {
+	it('package.json has no first-party source edge and pins drizzle exactly', () => {
 		const pkg = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
-		expect(pkg.dependencies['@tummycrypt/tinyland-auth']).toBe('0.3.3');
-		expect(pkg.dependencies['@tummycrypt/tinyland-auth-pg']).toBe('0.2.4');
+		const allDependencies = {
+			...(pkg.dependencies ?? {}),
+			...(pkg.devDependencies ?? {}),
+			...(pkg.peerDependencies ?? {}),
+			...(pkg.optionalDependencies ?? {}),
+		};
+		expect(
+			Object.keys(allDependencies).filter(
+				(name) => name.startsWith('@tummycrypt/') || name.startsWith('@tinyland/'),
+			),
+		).toEqual([]);
 		expect(pkg.dependencies['drizzle-orm']).toBe('0.39.3');
 	});
 });

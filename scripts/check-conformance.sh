@@ -175,7 +175,7 @@ fi
 #     package.json AND each org package present as bazel_dep + npm_link_package.
 if [[ -f package.json && -f MODULE.bazel ]]; then
   set +e
-  python3 scripts/check-inhouse-package-parity.py >/dev/null 2>&1
+  node scripts/check-inhouse-package-parity.mjs >/dev/null 2>&1
   rc=$?
   set -e
   if [[ "$rc" -eq 0 ]]; then

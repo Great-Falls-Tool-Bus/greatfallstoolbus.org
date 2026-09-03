@@ -15,6 +15,7 @@
 			"targets": [
 				"//:current_source_secret_scan_test",
 				"//:eslint_test",
+				"//:inhouse_package_parity_test",
 				"//:prettier_check_test",
 				"//:svelte_check_test",
 				"//:unit_tests"

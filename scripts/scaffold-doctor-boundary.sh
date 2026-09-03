@@ -7,7 +7,7 @@
 #    next to the exact-SHA bazel-registry pin (TIN-3857 Step A SSOT).
 #  - flake.nix has no hard-coded secrets or token paths.
 #  - .github/workflows/*.yml do not invoke Cloudflare API mutations directly.
-#  - package.json does not range-pin in-house @tummycrypt/* or @tinyland/*.
+#  - package.json contains no in-house @tummycrypt/* or @tinyland/* source edge.
 #  - No browser/edge runtime fetch of tinyland.dev from src/.
 #
 # Exit 0 if clean, 1 if any P0/FAIL surfaced. WARNs do not fail the run.
@@ -107,7 +107,7 @@ if [ "${#workflow_files[@]}" -gt 0 ]; then
   fi
 fi
 
-# package.json: in-house deps must be exact-pinned (no ^ or ~)
+# package.json: in-house deps are forbidden; BCR/Bzlmod is the sole source.
 if [ -f package.json ]; then
   bad="$(python3 - <<'PY'
 import json, sys
@@ -116,21 +116,20 @@ try:
 except Exception:
     sys.exit(0)
 bad = []
-for section in ("dependencies", "devDependencies", "peerDependencies"):
+for section in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
     for name, ver in (pkg.get(section) or {}).items():
         if name.startswith("@tummycrypt/") or name.startswith("@tinyland/"):
-            if isinstance(ver, str) and (ver.startswith("^") or ver.startswith("~")):
-                bad.append(f"{name}={ver}")
+            bad.append(f"{name}={ver}")
 for b in bad:
     print(b)
 PY
 )"
   if [ -n "$bad" ]; then
     while IFS= read -r dep; do
-      check_fail "package.json range-pins in-house dep: $dep (must be exact)"
+      check_fail "package.json sources in-house dep: $dep (must use BCR/Bzlmod only)"
     done <<<"$bad"
   else
-    check_pass "package.json in-house deps are exact-pinned"
+    check_pass "package.json has no in-house source edge"
   fi
 fi
 

@@ -6,6 +6,7 @@ while Bazel owns the finite graphable actions submitted through Flywheel.
 """
 
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_run_binary", "js_test")
+load("@aspect_rules_js//npm:defs.bzl", "npm_link_package")
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@npm//:eslint/package_json.bzl", eslint_bin = "bin")
 load("@npm//:prettier/package_json.bzl", prettier_bin = "bin")
@@ -14,6 +15,48 @@ load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("//:gitleaks_test.bzl", "gitleaks_test")
 
 npm_link_all_packages(name = "node_modules")
+
+# First-party packages are sourced only from the tinyland-inc/bazel-registry
+# Bzlmod graph. package.json and pnpm-lock.yaml deliberately carry no
+# @tummycrypt/@tinyland source edge.
+npm_link_package(
+    name = "node_modules/@tummycrypt/tinyland-auth",
+    src = "@tummycrypt_tinyland_auth//:pkg",
+)
+
+npm_link_package(
+    name = "node_modules/@tummycrypt/tinyland-auth-pg",
+    src = "@tummycrypt_tinyland_auth_pg//:pkg",
+)
+
+npm_link_package(
+    name = "node_modules/@tummycrypt/tinyland-color-utils",
+    src = "@tummycrypt_tinyland_color_utils//:pkg",
+)
+
+npm_link_package(
+    name = "node_modules/@tummycrypt/tinyvectors",
+    src = "@tummycrypt_tinyvectors//:pkg",
+)
+
+npm_link_package(
+    name = "node_modules/@tummycrypt/vite-plugin-a11y",
+    src = "@tummycrypt_vite_plugin_a11y//:pkg",
+)
+
+npm_link_package(
+    name = "node_modules/@tummycrypt/vite-plugin-skeleton-colors",
+    src = "@tummycrypt_vite_plugin_skeleton_colors//:pkg",
+)
+
+TINYLAND_HOUSE_PACKAGES = [
+    ":node_modules/@tummycrypt/tinyland-auth",
+    ":node_modules/@tummycrypt/tinyland-auth-pg",
+    ":node_modules/@tummycrypt/tinyland-color-utils",
+    ":node_modules/@tummycrypt/tinyvectors",
+    ":node_modules/@tummycrypt/vite-plugin-a11y",
+    ":node_modules/@tummycrypt/vite-plugin-skeleton-colors",
+]
 
 filegroup(
     name = "app_srcs",
@@ -133,7 +176,7 @@ gitleaks_test(
 
 js_binary(
     name = "sveltekit_sync_bin",
-    data = [":node_modules"],
+    data = [":node_modules"] + TINYLAND_HOUSE_PACKAGES,
     entry_point = "scripts/bazel/run-sveltekit-sync.mjs",
 )
 
@@ -146,7 +189,7 @@ js_run_binary(
 
 js_binary(
     name = "svelte_check_bin",
-    data = [":node_modules"],
+    data = [":node_modules"] + TINYLAND_HOUSE_PACKAGES,
     entry_point = "scripts/bazel/run-svelte-check.mjs",
 )
 
@@ -157,7 +200,7 @@ js_test(
         ":app_srcs",
         ":node_modules",
         ":sveltekit_types",
-    ],
+    ] + TINYLAND_HOUSE_PACKAGES,
     entry_point = "scripts/bazel/run-svelte-check.mjs",
 )
 
@@ -172,7 +215,7 @@ eslint_bin.eslint_test(
         ":node_modules",
         ":node_modules/@eslint/js",
         ":sveltekit_types",
-    ],
+    ] + TINYLAND_HOUSE_PACKAGES,
 )
 
 # Exact, read-only format target selected by the v4 ActionPlan.
@@ -188,12 +231,12 @@ prettier_bin.prettier_test(
         ".prettierrc",
         ":app_srcs",
         ":node_modules",
-    ],
+    ] + TINYLAND_HOUSE_PACKAGES,
 )
 
 js_binary(
     name = "vite_build_bin",
-    data = [":node_modules"],
+    data = [":node_modules"] + TINYLAND_HOUSE_PACKAGES,
     entry_point = "scripts/bazel/run-vite-build.mjs",
 )
 
@@ -218,11 +261,14 @@ vitest.vitest_test(
         "$(rootpath vitest.config.ts)",
     ],
     data = [
+        "BUILD.bazel",
+        "MODULE.bazel",
+        "MODULE.bazel.lock",
         "vitest.config.ts",
         ":app_srcs",
         ":node_modules",
         ":node_modules/vitest",
-    ],
+    ] + TINYLAND_HOUSE_PACKAGES,
     tags = ["vitest"],
     visibility = ["//visibility:public"],
 )
@@ -247,7 +293,7 @@ vitest.vitest_test(
         ":app_srcs",
         ":node_modules",
         ":node_modules/vitest",
-    ],
+    ] + TINYLAND_HOUSE_PACKAGES,
     tags = [
         "integration",
         "local",
@@ -257,11 +303,28 @@ vitest.vitest_test(
     visibility = ["//visibility:public"],
 )
 
+# Finite, hermetic Node enrollment for the fail-closed first-party package
+# authority gate. Its inputs are explicit and it runs inside the same v4
+# validation action as the product tests; there is no host-Python dependency.
+js_test(
+    name = "inhouse_package_parity_test",
+    data = [
+        ":node_modules",
+        "BUILD.bazel",
+        "MODULE.bazel",
+        "package.json",
+        "pnpm-lock.yaml",
+    ] + TINYLAND_HOUSE_PACKAGES,
+    entry_point = "scripts/check-inhouse-package-parity.mjs",
+    tags = ["supply-chain-contract"],
+)
+
 test_suite(
     name = "ci_validation_suite",
     tests = [
         ":current_source_secret_scan_test",
         ":eslint_test",
+        ":inhouse_package_parity_test",
         ":prettier_check_test",
         ":svelte_check_test",
         ":unit_tests",

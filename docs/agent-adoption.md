@@ -86,8 +86,8 @@ Flag these before patching:
 - A provider-specific S3 endpoint appears in spoke `tofu/`, workflow YAML, or
   Just recipes instead of coming from operator environment.
 - RustFS appears as RBE CAS/action-cache/publication authority.
-- In-house `@tummycrypt/*` or `@tinyland/*` package versions are ranges or drift
-  from `MODULE.bazel`.
+- An in-house `@tummycrypt/*` or `@tinyland/*` source appears in package.json or
+  pnpm-lock.yaml, or a BCR module lacks its public `:pkg` graph link.
 - Agent-facing files disagree with each other, or requirements live only in a
   prompt.
 
