@@ -41,6 +41,10 @@ filegroup(
         # enrolled by explicit label or //:unit_tests silently loses
         # scripts/platform-entrypoint.test.mts's subject.
         "scripts/platform-entrypoint.mjs",
+        # Same story: scripts/discuss-reconcile.mts and its test import
+        # PENDING_COMMENT from this .mjs generator, which the scripts/ glob
+        # above does not reach.
+        "scripts/discuss-to-svx.mjs",
         "package.json",
         "playwright.config.ts",
         "pnpm-lock.yaml",
