@@ -41,13 +41,14 @@ export default defineConfig({
 			: []),
 	],
 	webServer: {
-		// adapter-node emits a Node server bundle in build/, but booting it needs
-		// the full runtime env (DATABASE_URL etc.) that the CI playwright job does
-		// not have — CI run 33715124706 proved `node build` cannot start there.
-		// The static server below serves only the prerendered subset of build/,
-		// which is exactly the surface the current e2e specs exercise. Dynamic
-		// (server-rendered) routes are NOT covered by this suite; full-server e2e
-		// belongs to the integration/preview-tailnet lane.
+		// The default build is adapter-static: svelte.config.js only selects
+		// adapter-node when ADAPTER=node is set, so a plain `pnpm run build`
+		// emits no Node entry (no build/index.js). That is why CI run
+		// 33715124706's `node build` died with MODULE_NOT_FOUND — the bundle it
+		// tried to boot was never built. The static server below serves the
+		// prerendered surface of build/, which is exactly what the current e2e
+		// specs exercise. Full-server e2e (ADAPTER=node build plus the runtime
+		// env that server needs) belongs to the integration/preview-tailnet lane.
 		command: 'pnpm run build && pnpm exec serve build -l ' + port,
 		port,
 		timeout: 180_000,
