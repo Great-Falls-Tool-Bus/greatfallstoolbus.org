@@ -1326,8 +1326,10 @@ skills-build:
 skills-check: skills-build
     cd {{ root }} && git diff --exit-code -- .agents/skills .claude/skills static/llms.txt
 
-# Derive the page source map (route id -> repo-relative +page.svelte) that
-# SourceLink.svelte reads to render the "View source" / "Edit this page" affordance.
+# Derive the page source map (route id -> repo-relative +page.svelte).
+# NOTE (2026-09-03): the consumer, SourceLink.svelte, was removed in 23d9513 and
+# no page reads this map today; the generator and source-map-check gate keep
+# running while a restore-or-retire decision (D-06) is pending.
 source-map-build:
     cd {{ root }} && pnpm exec tsx scripts/build-source-map.mjs
 
@@ -1644,14 +1646,6 @@ changelog:
 # Preview changelog without writing
 changelog-preview:
     git-cliff --unreleased
-
-# Install git hooks (no-op if scripts/hooks/pre-commit absent)
-install-hooks:
-    @if [ -f {{ root }}/scripts/hooks/pre-commit ]; then \
-      ln -sf ../../scripts/hooks/pre-commit {{ root }}/.git/hooks/pre-commit && echo "Git hooks installed."; \
-    else \
-      echo "No scripts/hooks/pre-commit yet — skipping."; \
-    fi
 
 # Show environment info
 info:

@@ -13,9 +13,12 @@ import { describe, expect, it } from 'vitest';
 // the scaffold-side twin so the two repos cannot re-diverge silently.
 //
 // The invariants, per `context/house-frontend-stack.md`:
-// - Skeleton + skeleton-svelte are EXACT `4.15.2` — there is NO Skeleton v5 GA
-//   (only `5.0.0-next.*`); a "bump to v5" PR must fail here first, before
-//   anything visual.
+// - Skeleton + skeleton-svelte are EXACT `4.15.2`. Skeleton v5 GA now exists
+//   (5.0.0/5.0.1 are GA and the apex ships 5.0.0 — corrected 2026-09-03; this
+//   comment previously claimed only `5.0.0-next.*` existed). This repo stays
+//   on 4.15.2 pending the paired-bump migration: both @skeletonlabs packages
+//   must move together (see closed PRs #202/#203). A "bump to v5" PR must
+//   still fail here first, before anything visual.
 // - `typescript` is EXACT-pinned on the 6.0.x line (the one real manifest
 //   major); it must never float behind a caret/tilde.
 // - pnpm is `10.13.1` EXACT via corepack — never pnpm 9.
