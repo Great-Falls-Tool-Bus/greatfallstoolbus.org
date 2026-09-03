@@ -74,13 +74,42 @@ mail sending — see **Hard rules** below.
 6. **Operator reviews the staged draft** and, when ready, sends the body to
    `discuss@latoolb.us` **themselves**, from their own mail client. No part
    of steps 1–5 sends mail.
-7. **Reconciliation (future step, not implemented here).** Once the post
-   lands in the public HyperKitty archive, a human flips `published: true`
-   and adds the real `archiveUrl` (the public thread deep link, same shape as
-   `publicThreadUrl()` in `$lib/server/discuss-archive.ts`). The schema
-   enforces that `archiveUrl` is required once `published` is `true`, so a
+7. **Reconciliation (`just discuss-reconcile`,
+   `scripts/discuss-reconcile.mts`).** Once the post lands in the public
+   HyperKitty archive, the operator copies the thread permalink from the
+   archive page they are already looking at and runs, on their keyed
+   machine:
+
+   ```sh
+   just discuss-reconcile -- --slug <slug> \
+     --archive-url 'https://lists.latoolb.us/hyperkitty/list/discuss@latoolb.us/thread/<thread-id>/'
+   ```
+
+   The tool flips `published: true`, injects the `archiveUrl`, and removes
+   the pending-notice comment — a minimal textual edit (never a YAML
+   re-serialization), so the reconcile diff reviews as exactly three hunks.
+   The schema enforces that `archiveUrl` is required once `published` is
+   `true` and must sit under its exported `PUBLIC_THREAD_URL_PREFIX`, so a
    draft can never claim to be live without pointing at a real destination.
-   Until reconciliation happens, the pending-notice comment stands:
+   Before writing anything, the tool re-runs the full draft validation
+   in-process against the reconciled text — naming-consent identity gate,
+   bare-email/phone gates, mdsvex compile, schema decode — and fails
+   closed, writing nothing, on any violation.
+
+   The archive URL is verified **textually**: https, the exact public
+   discuss@ thread deep-link prefix, one alphanumeric thread id, no query
+   string, fragment, port, or userinfo — the same anonymous-200 read-path
+   family the lifecycle spec's public-nav gate probed
+   (`docs/spec/discuss-board-lifecycle-2026-09-01.md`). The tool
+   deliberately performs **no live probe**: the operator just loaded that
+   page to copy the link, and nothing in this pipeline touches the network.
+
+   Like generation, reconciliation **requires
+   `~/.gftb/naming-consent.key`** — it changes staged content, so the same
+   "CI scope" rule below applies as when staging a new draft: validate and
+   commit from a keyed machine; a keyless CI run fails closed on the
+   changed draft. Until reconciliation happens, the pending-notice comment
+   stands:
 
    ```html
    <!-- pending discuss@ posting by operator; svx to be reconciled to the posted archive URL -->
@@ -316,6 +345,9 @@ just naming-consent-hashes-verify   # confirm no drift before committing
 
 just discuss-to-svx -- --input path/to/export.json
 just discuss-drafts-validate
+
+# [OPERATOR] after manually posting a draft's body to discuss@ (step 6):
+just discuss-reconcile -- --slug <slug> --archive-url '<public thread deep link>'
 ```
 
 See `scripts/discuss-to-svx.mjs` for the full input contract,

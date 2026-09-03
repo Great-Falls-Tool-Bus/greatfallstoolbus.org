@@ -1115,6 +1115,18 @@ discuss-to-svx *args:
 discuss-drafts-validate:
     cd {{ root }} && pnpm exec tsx scripts/validate-discuss-drafts.mts
 
+# [OPERATOR, local-only] Reconcile ONE staged draft after manually posting it
+# to discuss@ (runbook step 7): flips published:true, injects the public
+# HyperKitty thread deep link as archiveUrl, removes the pending-notice
+# comment, and re-runs the full draft validation in-process before writing
+# anything. NEVER sends mail, NEVER touches the network (the URL is verified
+# textually against the public discuss@ thread family). Requires
+# ~/.gftb/naming-consent.key, like discuss-to-svx. Usage:
+#   just discuss-reconcile -- --slug <slug> --archive-url <public thread URL>
+# See docs/runbooks/discuss-to-svx-pipeline.md step 7.
+discuss-reconcile *args:
+    cd {{ root }} && pnpm exec tsx scripts/discuss-reconcile.mts {{ args }}
+
 # Ensure local Playwright browser cache exists; CI uses Nix Chromium instead
 playwright-ensure:
     cd {{ root }} && if [ "${CI:-}" = "true" ] && command -v nix >/dev/null 2>&1; then \
