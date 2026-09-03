@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
 	DiscussArchiveError,
+	DiscussThreadNotFoundError,
 	LIST_ADDRESS,
 	PUBLIC_ARCHIVE_BASE,
 	PUBLIC_ARCHIVE_URL,
@@ -18,6 +19,7 @@ import {
 	mapThread,
 	mapThreadDetail,
 	neutralizeInlineAddresses,
+	originFromEnv,
 	publicThreadUrl,
 	safeDisplayName,
 	sanitizeBody,
@@ -109,6 +111,10 @@ describe('sanitizeExcerpt', () => {
 	});
 	it('stops at the signature delimiter', () => {
 		expect(sanitizeExcerpt('Real body.\n-- \nSecret Signature')).toBe('Real body.');
+	});
+	it('neutralizes an inline address exactly like the thread-body path', () => {
+		expect(sanitizeExcerpt('mail me at bob@example.com today')).toBe('mail me at bob@… today');
+		expect(sanitizeExcerpt(`or write ${LIST_ADDRESS} instead`)).toBe(`or write ${LIST_ADDRESS} instead`);
 	});
 	it('caps at 280 characters with an ellipsis', () => {
 		const out = sanitizeExcerpt('word '.repeat(120));
@@ -234,6 +240,19 @@ describe('assertSnapshotIsPublicSafe (privacy gate; spec: discuss-only, no addre
 			assertSnapshotIsPublicSafe({ ...safe, threads: [thread({ excerpt: 'mail me at bob@evil.com' })] }),
 		).toThrow(DiscussArchiveError);
 	});
+	it('allows the neutralized @… sentinel, mirroring the thread gate', () => {
+		expect(() =>
+			assertSnapshotIsPublicSafe({
+				...safe,
+				threads: [thread({ subject: 'ping bob@…', excerpt: 'reach me at bob@… today' })],
+			}),
+		).not.toThrow();
+	});
+	it('still hard-fails on a neutralized keyholders address (survives neutralization)', () => {
+		expect(() =>
+			assertSnapshotIsPublicSafe({ ...safe, threads: [thread({ excerpt: 'mail keyholders@…' })] }),
+		).toThrow(/keyholders/);
+	});
 	it('hard-fails on a HyperKitty-obfuscated address', () => {
 		expect(() =>
 			assertSnapshotIsPublicSafe({ ...safe, threads: [thread({ starterName: 'bob (a) evil.org' })] }),
@@ -358,6 +377,83 @@ describe('fetchDiscussSnapshot', () => {
 		});
 		expect(snap.threadCount).toBe(0);
 		expect(() => assertValidSnapshotShape(snap)).not.toThrow();
+	});
+
+	it('renders an inline address in a subject neutralized in the index (never empties it)', async () => {
+		const snap = await fetchDiscussSnapshot({
+			origin: 'http://svc:8080',
+			fetch: mockFetch({
+				'/threads/': [{ ...listBody[0], subject: '[Discuss] mail bob@example.com about the lathe' }],
+				'/thread/TID1/': { ...detail, subject: '[Discuss] mail bob@example.com about the lathe' },
+				'/email/TID1/': starter,
+			}),
+		});
+		expect(snap.threadCount).toBe(1);
+		expect(snap.threads[0].subject).toBe('mail bob@… about the lathe');
+		expect(JSON.stringify(snap)).not.toMatch(/example\.com/);
+	});
+
+	it('drops only the failing thread when one hydration read fails', async () => {
+		// T1 and T3 hydrate; T2's detail read 500s -> T2 alone is dropped.
+		const list = ['T1', 'T2', 'T3'].map((id, i) => ({
+			thread_id: id,
+			subject: `[Discuss] ${id}`,
+			date_active: `2026-07-0${i + 1}T00:00:00Z`,
+			replies_count: 0,
+			starting_email: `http://svc/hyperkitty/api/list/discuss@latoolb.us/email/E${id}/?format=json`,
+		}));
+		const byId = Object.fromEntries(list.map((l) => [l.thread_id, l]));
+		const perThread = (id: string) => ({ ...byId[id], participants_count: 1 });
+		const snap = await fetchDiscussSnapshot({
+			origin: 'http://svc:8080',
+			fetch: mockFetch({
+				'/threads/': list,
+				'/thread/T1/': perThread('T1'),
+				'/thread/T3/': perThread('T3'),
+				'/email/ET1/': { sender_name: 'A Neighbor', date: '2026-07-01T00:00:00Z', content: 'hi' },
+				'/email/ET3/': { sender_name: 'A Neighbor', date: '2026-07-03T00:00:00Z', content: 'hi' },
+			}),
+		});
+		expect(snap.threads.map((t) => t.threadId)).toEqual(['T3', 'T1']);
+		expect(snap.threadCount).toBe(2);
+	});
+
+	it('serves the honest empty state when EVERY hydration read fails', async () => {
+		const snap = await fetchDiscussSnapshot({
+			origin: 'http://svc:8080',
+			fetch: mockFetch({ '/threads/': listBody }), // detail/starter reads all 404
+			now: () => new Date('2026-07-06T00:00:00.000Z'),
+		});
+		expect(snap.threadCount).toBe(0);
+		expect(() => assertValidSnapshotShape(snap)).not.toThrow();
+	});
+
+	it('still empties the index on a post-neutralization violation (keyholders trace)', async () => {
+		const snap = await fetchDiscussSnapshot({
+			origin: 'http://svc:8080',
+			fetch: mockFetch({
+				'/threads/': listBody,
+				'/thread/TID1/': detail,
+				'/email/TID1/': { ...starter, content: 'please mail keyholders@latoolb.us about this' },
+			}),
+			now: () => new Date('2026-07-06T00:00:00.000Z'),
+		});
+		// Neutralization leaves `keyholders@…`, which the gate must still refuse:
+		// fail-closed on anything that survives neutralization.
+		expect(snap.threadCount).toBe(0);
+		expect(JSON.stringify(snap)).not.toMatch(/keyholders/);
+	});
+});
+
+describe('originFromEnv', () => {
+	it('prefers the whole-origin knob, falls back to the namespace knob, else undefined', () => {
+		expect(originFromEnv({ DISCUSS_ARCHIVE_ORIGIN: 'http://localhost:18080' })).toBe('http://localhost:18080');
+		expect(
+			originFromEnv({ DISCUSS_ARCHIVE_ORIGIN: 'http://localhost:18080', DISCUSS_ARCHIVE_NAMESPACE: EXAMPLE_NAMESPACE }),
+		).toBe('http://localhost:18080');
+		expect(originFromEnv({ DISCUSS_ARCHIVE_NAMESPACE: EXAMPLE_NAMESPACE })).toBe(inClusterOrigin(EXAMPLE_NAMESPACE));
+		expect(originFromEnv({})).toBeUndefined();
+		expect(originFromEnv(undefined)).toBeUndefined();
 	});
 });
 
@@ -653,10 +749,29 @@ describe('fetchDiscussThread', () => {
 		}
 	});
 
-	it('throws DiscussArchiveError on an unknown thread (HTTP 404)', async () => {
+	it('throws DiscussThreadNotFoundError when the archive 404s the thread resource', async () => {
 		const calls: Array<{ url: string; init?: RequestInit }> = [];
 		const read = fetchDiscussThread('NOPE', { origin: FQDN_ORIGIN, fetch: recordingFetch(calls) });
+		await expect(read).rejects.toBeInstanceOf(DiscussThreadNotFoundError);
+	});
+
+	it('keeps a sub-read 404 (archive inconsistency) a generic DiscussArchiveError, not not-found', async () => {
+		// Thread resource resolves, but a message read 404s: unavailable, NOT 404.
+		const partial: Record<string, unknown> = {
+			'/thread/TID1/emails/': emailsList,
+			'/thread/TID1/?': threadDetail,
+			'/email/H1/': email1,
+			// '/email/H2/' intentionally missing -> 404
+		};
+		const impl = vi.fn(async (url: string | URL) => {
+			const key = String(url);
+			const match = Object.keys(partial).find((k) => key.includes(k));
+			if (!match) return { ok: false, status: 404, json: async () => ({}) } as Response;
+			return { ok: true, status: 200, json: async () => partial[match] } as Response;
+		}) as unknown as typeof fetch;
+		const read = fetchDiscussThread('TID1', { origin: FQDN_ORIGIN, fetch: impl });
 		await expect(read).rejects.toBeInstanceOf(DiscussArchiveError);
+		await expect(read).rejects.not.toBeInstanceOf(DiscussThreadNotFoundError);
 	});
 
 	it('throws (never returns a fallback) when the transport fails', async () => {

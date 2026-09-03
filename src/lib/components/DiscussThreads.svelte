@@ -50,7 +50,7 @@
 					<h3 class="text-xl leading-snug font-semibold break-words">
 						<a
 							href={`${base}/discuss/${thread.threadId}`}
-							class="hover:text-primary-600 dark:hover:text-primary-400 underline-offset-4 hover:underline"
+							class="hover:text-primary-600-400 underline-offset-4 hover:underline"
 						>
 							{thread.subject}
 						</a>

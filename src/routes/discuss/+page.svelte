@@ -33,7 +33,7 @@
 	<title>Discuss | Great Falls Tool Bus</title>
 	<meta
 		name="description"
-		content="discuss@latoolb.us is the public HyperKitty board for the Great Falls Tool Bus: an open place to talk tools, projects, and the bus in Lewiston-Auburn, Maine."
+		content={`${snapshot.list} is the public HyperKitty board for the Great Falls Tool Bus: an open place to talk tools, projects, and the bus in Lewiston-Auburn, Maine.`}
 	/>
 </svelte:head>
 
@@ -72,8 +72,12 @@
 				Browse the full {snapshot.list} archive
 			</ExternalLink>
 		</p>
+		<!-- Caption re-derived from spec §Public-nav gate: the discuss read path
+		     (list overview, thread permalinks, static assets) is EXEMPT from the
+		     archive host's anti-scrape challenge (TIN-2559), so this link opens
+		     directly — the copy must not claim a browser check gates it. -->
 		<p class="text-surface-500 mt-3 text-sm">
-			A quick browser check keeps bulk scrapers out; a real browser passes it automatically.
+			The archive opens directly — reading is public and anonymous, with nothing to pass first.
 		</p>
 	</section>
 

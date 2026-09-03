@@ -1,6 +1,12 @@
 import { env } from '$env/dynamic/private';
+import { error } from '@sveltejs/kit';
 import type { DiscussThreadDetail } from '$lib/data/discuss-snapshot';
-import { fetchDiscussThread, publicThreadUrl } from '$lib/server/discuss-archive';
+import {
+	DiscussThreadNotFoundError,
+	fetchDiscussThread,
+	originFromEnv,
+	publicThreadUrl,
+} from '$lib/server/discuss-archive';
 import type { PageServerLoad } from './$types';
 
 // On-site thread reader, revived per ruling D15. Mirrors
@@ -21,20 +27,30 @@ import type { PageServerLoad } from './$types';
 export const prerender = false;
 
 export const load: PageServerLoad = async ({ params, fetch }) => {
-	// fetchDiscussThread THROWS on any transport/shape/privacy failure; we swallow
-	// it into a calm unavailable state (detail: null) — never a hard 500, never
-	// invented content (fail-closed, per the lifecycle spec's privacy posture).
+	// fetchDiscussThread THROWS on any transport/shape/privacy failure. Two
+	// distinct outcomes, keyed off the archive's own response class:
+	//   - the archive says the thread does not exist (HTTP 404 on the thread
+	//     resource -> DiscussThreadNotFoundError): a real SvelteKit 404, never a
+	//     soft-200 page for every /discuss/<garbage> URL;
+	//   - anything else (outage, shape, privacy hard-fail): a calm unavailable
+	//     state (detail: null) — never a hard 500, never invented content
+	//     (fail-closed, per the lifecycle spec's privacy posture).
 	// The public archive deep link is built from ids we control, so it is safe to
 	// surface even when the live read failed.
 	const archiveUrl = publicThreadUrl(params.thread);
 	try {
 		const detail: DiscussThreadDetail = await fetchDiscussThread(params.thread, {
 			fetch,
-			origin: env.DISCUSS_ARCHIVE_ORIGIN || undefined,
+			// Both operator knobs flow through $env/dynamic/private via the one
+			// shared precedence helper (mirrors the index load).
+			origin: originFromEnv(env),
 		});
 		return { detail, archiveUrl };
-	} catch (error) {
-		const reason = error instanceof Error ? error.message : String(error);
+	} catch (err) {
+		if (err instanceof DiscussThreadNotFoundError) {
+			error(404, 'Conversation not found');
+		}
+		const reason = err instanceof Error ? err.message : String(err);
 		console.warn(
 			`[discuss-archive] thread read for "${params.thread}" failed (${reason}); rendering unavailable state.`,
 		);

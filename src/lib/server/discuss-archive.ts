@@ -36,10 +36,19 @@
 //   - display names only; no raw email addresses, including HyperKitty's
 //     `name (a) host` obfuscation, may survive into any payload.
 //   - excerpts are plain text, quote/signature-stripped, capped at 280 chars.
-// Any breach hard-fails the payload (throws) rather than emitting a partial
-// or leaky one: the snapshot path downgrades that throw to the empty
-// fallback; the thread path surfaces it to the route, which renders a calm
-// unavailable state. Fail-closed, never partial.
+// A NEUTRALIZABLE inline address (someone writing "mail me at bob@example.com"
+// in a subject or body) is not a breach: both the excerpt/subject path and the
+// thread-body path reduce it to the un-contactable `foo@…` sentinel BEFORE the
+// gates run, so ordinary neighbor prose degrades gracefully instead of taking
+// the surface down. Anything that SURVIVES neutralization (a keyholders
+// address trace, a surviving obfuscated form, any other raw `@`) hard-fails
+// the payload (throws) rather than emitting a partial or leaky one: the
+// snapshot path downgrades that throw to the empty fallback; the thread path
+// surfaces it to the route, which renders a calm unavailable state.
+// Fail-closed, never partial — but availability failures are scoped: one
+// thread whose hydration reads fail is dropped (with a server-side warning)
+// rather than emptying the whole index; only a total failure serves the
+// honest empty state.
 
 // One type source: the UI-facing contract in $lib/data/discuss-snapshot is
 // canonical; this module consumes and re-exports it (the mapper always emits
@@ -72,9 +81,25 @@ export type FetchDiscussSnapshotOptions = {
 };
 
 export class DiscussArchiveError extends Error {
-	constructor(message: string) {
+	/** HTTP status of the failing archive response, when the failure was HTTP. */
+	readonly status?: number;
+	constructor(message: string, options?: { status?: number }) {
 		super(message);
 		this.name = 'DiscussArchiveError';
+		this.status = options?.status;
+	}
+}
+
+/**
+ * The archive itself reported the thread does not exist (HTTP 404 on the
+ * thread resource) — distinct from an outage or privacy hard-fail so the
+ * reader route can answer with a real 404 instead of the calm unavailable
+ * state that a transient failure gets.
+ */
+export class DiscussThreadNotFoundError extends DiscussArchiveError {
+	constructor(threadId: string) {
+		super(`thread not found in archive: ${threadId}`, { status: 404 });
+		this.name = 'DiscussThreadNotFoundError';
 	}
 }
 
@@ -203,8 +228,10 @@ export function safeDisplayName(raw: string | null | undefined): string {
 /**
  * Turn an email body into a plain-text excerpt: drop HTML tags, quoted reply
  * lines, the signature block (everything after a `-- ` delimiter) and bracketed
- * URLs; collapse whitespace; cap at 280 chars on a word boundary with an
- * ellipsis.
+ * URLs; neutralize inline addresses (`foo@bar.com` → `foo@…`, exactly as the
+ * thread-body path does, so a neighbor mentioning an address degrades to the
+ * neutralized form instead of hard-failing the whole index); collapse
+ * whitespace; cap at 280 chars on a word boundary with an ellipsis.
  */
 export function sanitizeExcerpt(raw: string | null | undefined): string {
 	if (!raw) return '';
@@ -219,11 +246,15 @@ export function sanitizeExcerpt(raw: string | null | undefined): string {
 		if (/^On .*wrote:$/.test(trimmed)) continue; // attribution line
 		kept.push(trimmed);
 	}
-	let out = kept
-		.join(' ')
-		.replace(/https?:\/\/\S+/g, ' ')
-		.replace(/\s+/g, ' ')
-		.trim();
+	// Neutralize BEFORE capping so an address is never clipped into an
+	// unrecognizable (and therefore un-neutralized) fragment.
+	let out = neutralizeInlineAddresses(
+		kept
+			.join(' ')
+			.replace(/https?:\/\/\S+/g, ' ')
+			.replace(/\s+/g, ' ')
+			.trim(),
+	);
 	if (out.length > EXCERPT_MAX) {
 		const clipped = out.slice(0, EXCERPT_MAX - 1);
 		const lastSpace = clipped.lastIndexOf(' ');
@@ -335,8 +366,11 @@ export function toIso(value: string): string {
  * the keyholders list (spec §Public-nav gate / leak-scan rule
  * `private-list-archive` — the private archive is never linked or named on any
  * public surface), any raw or obfuscated address other than the allowed public
- * list address, and any other list id. Throws on any hit — the caller turns
- * that into the empty fallback, so a leak is fail-closed, never partial.
+ * list address, and any other list id. Like the thread gate, the `@…` sentinel
+ * a neutralized inline address leaves is allowed — the mappers neutralize
+ * excerpts and subjects before this gate runs, so only an address that SURVIVES
+ * neutralization trips it. Throws on any hit — the caller turns that into the
+ * empty fallback, so a leak is fail-closed, never partial.
  */
 export function assertSnapshotIsPublicSafe(snapshot: DiscussSnapshot): void {
 	if (snapshot.list !== LIST_ADDRESS) {
@@ -350,9 +384,10 @@ export function assertSnapshotIsPublicSafe(snapshot: DiscussSnapshot): void {
 	if (OBFUSCATED_AT.test(serialized)) {
 		throw new DiscussArchiveError('obfuscated email address ("(a)"/"(at)") present in snapshot');
 	}
-	// Remove every allowed occurrence of the public list address, then no "@"
+	// Remove every allowed occurrence of the public list address and the
+	// neutralized `@…` sentinels (mirroring the thread gate), then no raw "@"
 	// may remain anywhere in the payload.
-	const withoutListAddress = serialized.split(LIST_ADDRESS).join('');
+	const withoutListAddress = serialized.split(LIST_ADDRESS).join('').split(`@${NEUTRALIZED_MARK}`).join('');
 	if (RAW_AT.test(withoutListAddress)) {
 		throw new DiscussArchiveError('a raw email address other than the public list address is present in snapshot');
 	}
@@ -516,7 +551,9 @@ export function mapThread(detail: HkThreadDetail, starter: HkEmail): DiscussThre
 	const threadId = detail.thread_id;
 	return {
 		threadId,
-		subject: stripSubjectPrefix(detail.subject),
+		// Neutralized like the excerpt/body paths: an inline address in a subject
+		// degrades to `foo@…` instead of hard-failing the whole index.
+		subject: neutralizeInlineAddresses(stripSubjectPrefix(detail.subject)),
 		startedAt: toIso(starter.date),
 		lastActiveAt: toIso(detail.date_active),
 		repliesCount: Math.max(0, Number(detail.replies_count) || 0),
@@ -553,7 +590,9 @@ export function mapThreadDetail(detail: HkThreadDetail, emails: HkEmailDetail[])
 
 	const threadDetail: DiscussThreadDetail = {
 		threadId: detail.thread_id,
-		subject: stripSubjectPrefix(detail.subject),
+		// Same neutralization the index applies: an inline address in a subject
+		// degrades rather than rendering the whole thread unavailable.
+		subject: neutralizeInlineAddresses(stripSubjectPrefix(detail.subject)),
 		startedAt: messages[0].sentAt,
 		lastActiveAt: detail.date_active ? toIso(detail.date_active) : messages[messages.length - 1].sentAt,
 		participantsCount: Math.max(0, Number(detail.participants_count) || 0),
@@ -593,14 +632,27 @@ function emptySnapshot(generatedAt: string): DiscussSnapshot {
 	return { generatedAt, list: LIST_ADDRESS, archiveUrl: PUBLIC_ARCHIVE_URL, threadCount: 0, threads: [] };
 }
 
+/**
+ * Resolve the archive origin from an env-shaped record — the SINGLE precedence
+ * rule for the two operator knobs: DISCUSS_ARCHIVE_ORIGIN (the whole origin)
+ * wins over DISCUSS_ARCHIVE_NAMESPACE (just the namespace; the rest of the
+ * Service DNS name comes from `inClusterOrigin`). The server loads call this
+ * with SvelteKit's `$env/dynamic/private` so BOTH knobs flow through the same
+ * plumbing (never one via $env and the other via raw process.env); the
+ * process.env read below is only the fallback for direct callers.
+ */
+export function originFromEnv(
+	env: { DISCUSS_ARCHIVE_ORIGIN?: string; DISCUSS_ARCHIVE_NAMESPACE?: string } | undefined,
+): string | undefined {
+	const explicit = env?.DISCUSS_ARCHIVE_ORIGIN?.trim();
+	if (explicit) return explicit;
+	const ns = env?.DISCUSS_ARCHIVE_NAMESPACE?.trim();
+	return ns ? inClusterOrigin(ns) : undefined;
+}
+
 function resolveOrigin(explicit?: string): string {
 	const env = typeof process !== 'undefined' ? process.env : undefined;
-	const fromEnv = env?.DISCUSS_ARCHIVE_ORIGIN;
-	// Narrower knob: the operator supplies only the namespace this repo may not
-	// name, and the rest of the Service DNS name comes from `inClusterOrigin`.
-	const ns = env?.DISCUSS_ARCHIVE_NAMESPACE?.trim();
-	const fromNamespace = ns ? inClusterOrigin(ns) : undefined;
-	return (explicit ?? fromEnv ?? fromNamespace ?? DEFAULT_INCLUSTER_ORIGIN).replace(/\/+$/, '');
+	return (explicit ?? originFromEnv(env) ?? DEFAULT_INCLUSTER_ORIGIN).replace(/\/+$/, '');
 }
 
 /**
@@ -636,7 +688,7 @@ async function getJson<T>(fetchImpl: typeof fetch, url: string, timeoutMs: numbe
 		signal: AbortSignal.timeout(timeoutMs),
 		headers: { Accept: 'application/json', ...(hostHeader ? { host: hostHeader } : {}) },
 	});
-	if (!res.ok) throw new DiscussArchiveError(`HTTP ${res.status} for ${url}`);
+	if (!res.ok) throw new DiscussArchiveError(`HTTP ${res.status} for ${url}`, { status: res.status });
 	return (await res.json()) as T;
 }
 
@@ -696,22 +748,49 @@ export async function fetchDiscussSnapshot(options: FetchDiscussSnapshotOptions 
 			})
 			.slice(0, MAX_THREADS);
 
-		const threads = await mapWithConcurrency(capped, HYDRATE_CONCURRENCY, async (item) => {
-			const detail = await getJson<HkThreadDetail>(
-				fetchImpl,
-				`${apiBase}/thread/${encodeURIComponent(item.thread_id)}/?format=json`,
-				timeoutMs,
-				hostHeader,
+		// Per-thread hydration tolerance: one failed detail/starter read drops
+		// THAT thread from the index (with a server-side warning + count) instead
+		// of emptying the whole board. Only a TOTAL hydration failure — every
+		// thread's reads failing, i.e. the archive is effectively down — escalates
+		// to the outer catch and serves the honest empty-state fallback.
+		const hydrated = await mapWithConcurrency(
+			capped,
+			HYDRATE_CONCURRENCY,
+			async (item): Promise<DiscussThread | null> => {
+				try {
+					const detail = await getJson<HkThreadDetail>(
+						fetchImpl,
+						`${apiBase}/thread/${encodeURIComponent(item.thread_id)}/?format=json`,
+						timeoutMs,
+						hostHeader,
+					);
+					const starterId = idFromUrl(item.starting_email);
+					const starter = await getJson<HkEmail>(
+						fetchImpl,
+						`${apiBase}/email/${encodeURIComponent(starterId)}/?format=json`,
+						timeoutMs,
+						hostHeader,
+					);
+					return mapThread(detail, starter);
+				} catch (error) {
+					const reason = error instanceof Error ? error.message : String(error);
+					console.warn(
+						`[discuss-archive] hydration failed for thread "${item.thread_id}" (${reason}); dropping it from the index.`,
+					);
+					return null;
+				}
+			},
+		);
+		const threads = hydrated.filter((t): t is DiscussThread => t !== null);
+		const dropped = hydrated.length - threads.length;
+		if (capped.length > 0 && threads.length === 0) {
+			throw new DiscussArchiveError(`all ${capped.length} thread hydration read(s) failed`);
+		}
+		if (dropped > 0) {
+			console.warn(
+				`[discuss-archive] dropped ${dropped} of ${capped.length} thread(s) after hydration failures; serving the remainder.`,
 			);
-			const starterId = idFromUrl(item.starting_email);
-			const starter = await getJson<HkEmail>(
-				fetchImpl,
-				`${apiBase}/email/${encodeURIComponent(starterId)}/?format=json`,
-				timeoutMs,
-				hostHeader,
-			);
-			return mapThread(detail, starter);
-		});
+		}
 
 		const snapshot = buildSnapshot(threads, generatedAt);
 		console.info(`[discuss-archive] built snapshot from ${origin}: ${snapshot.threadCount} thread(s)`);
@@ -746,7 +825,10 @@ export type FetchDiscussThreadOptions = {
  * Unlike `fetchDiscussSnapshot`, this THROWS (DiscussArchiveError) on ANY
  * transport, shape, or privacy failure — the reader's `+page.server.ts` catches
  * it and renders a calm "not available right now" state rather than a hard 500
- * or invented content.
+ * or invented content. The one distinguished failure: an archive HTTP 404 on
+ * the thread resource itself throws `DiscussThreadNotFoundError`, so the route
+ * can answer an unknown/garbage thread id with a real 404 instead of a soft
+ * 200 "unavailable" page.
  */
 export async function fetchDiscussThread(
 	threadId: string,
@@ -764,12 +846,24 @@ export async function fetchDiscussThread(
 	const hostHeader = clusterHostHeader(origin);
 	const encoded = encodeURIComponent(id);
 
-	const detail = await getJson<HkThreadDetail>(
-		fetchImpl,
-		`${apiBase}/thread/${encoded}/?format=json`,
-		timeoutMs,
-		hostHeader,
-	);
+	// The thread resource itself 404ing means the archive says the thread does
+	// not exist — key the not-found signal off that response class alone. A 404
+	// on a sub-read (emails list, one message) is archive inconsistency, not
+	// not-found, and stays a generic DiscussArchiveError (-> unavailable state).
+	let detail: HkThreadDetail;
+	try {
+		detail = await getJson<HkThreadDetail>(
+			fetchImpl,
+			`${apiBase}/thread/${encoded}/?format=json`,
+			timeoutMs,
+			hostHeader,
+		);
+	} catch (error) {
+		if (error instanceof DiscussArchiveError && error.status === 404) {
+			throw new DiscussThreadNotFoundError(id);
+		}
+		throw error;
+	}
 	const emailsBody = await getJson<unknown>(
 		fetchImpl,
 		`${apiBase}/thread/${encoded}/emails/?format=json`,

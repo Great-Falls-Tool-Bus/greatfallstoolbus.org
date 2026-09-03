@@ -1,6 +1,6 @@
 import { env } from '$env/dynamic/private';
 import type { DiscussSnapshot } from '$lib/data/discuss-snapshot';
-import { fetchDiscussSnapshot } from '$lib/server/discuss-archive';
+import { fetchDiscussSnapshot, originFromEnv } from '$lib/server/discuss-archive';
 import type { PageServerLoad } from './$types';
 
 // /discuss — the on-site index of the public discuss@ community board, revived
@@ -34,7 +34,9 @@ export const prerender = false;
 const loadDiscussSnapshot = async (fetchImpl: typeof fetch): Promise<DiscussSnapshot> =>
 	fetchDiscussSnapshot({
 		fetch: fetchImpl,
-		origin: env.DISCUSS_ARCHIVE_ORIGIN || undefined,
+		// Both operator knobs (DISCUSS_ARCHIVE_ORIGIN / DISCUSS_ARCHIVE_NAMESPACE)
+		// flow through $env/dynamic/private via the one shared precedence helper.
+		origin: originFromEnv(env),
 	});
 
 export const load: PageServerLoad = async ({ fetch }) => ({

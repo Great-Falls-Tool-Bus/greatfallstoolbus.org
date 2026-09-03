@@ -54,7 +54,7 @@
 <main class="mx-auto max-w-3xl px-6 py-16 md:py-24">
 	<a
 		href={`${base}/discuss`}
-		class="text-surface-500 hover:text-primary-600 dark:hover:text-primary-400 inline-flex items-center gap-1 py-1 text-sm underline-offset-2 hover:underline"
+		class="text-surface-500 hover:text-primary-600-400 inline-flex items-center gap-1 py-1 text-sm underline-offset-2 hover:underline"
 	>
 		<ArrowLeft size={14} aria-hidden="true" />
 		<span>All conversations</span>
@@ -106,7 +106,7 @@
 			<p class="text-sm">
 				<ExternalLink
 					href={data.archiveUrl}
-					class="text-surface-500 hover:text-primary-600 dark:hover:text-primary-400 underline-offset-4 hover:underline"
+					class="text-surface-500 hover:text-primary-600-400 underline-offset-4 hover:underline"
 				>
 					View on the mailing-list archive
 				</ExternalLink>
@@ -114,14 +114,14 @@
 		</footer>
 	{:else}
 		<!-- Calm unavailable state: the live read failed (a transient archive
-		     outage, an unknown thread id, or a privacy hard-fail). Never a hard
+		     outage or a privacy hard-fail — an UNKNOWN thread id is a real 404
+		     from the server load instead, never this soft state). Never a hard
 		     500, never invented content — just an honest note and the way back to
 		     the board. -->
 		<section class="border-surface-200-800 mt-12 border-y px-6 py-16 text-center" aria-label="Conversation unavailable">
 			<h1 class="text-2xl font-semibold">This conversation isn't available right now</h1>
 			<p class="text-surface-700-300 mx-auto mt-4 max-w-prose leading-relaxed">
-				We couldn't load this thread from the archive. It may have moved, or the archive may be briefly unreachable.
-				Please try again later.
+				We couldn't load this thread from the archive. The archive may be briefly unreachable. Please try again later.
 			</p>
 			<p class="mt-8">
 				<a
