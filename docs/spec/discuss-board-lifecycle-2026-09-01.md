@@ -134,7 +134,23 @@ not this repo — recorded here because this spec owns the gating condition):
 - **No removal path in the keyholders reconciler.** Add-only by design
   (ADR 0017); removals are offboarding projections.
 
-## Open divergence (flagged, not resolved here)
+## Open divergence (flagged 2026-09-01; CLOSED 2026-09-03)
+
+> **CLOSED 2026-09-03 (TIN-4268).** The tightening below is ticketed
+> (TIN-4268) and enforced: infra PR
+> [great-falls-tool-bus-infra#173](https://github.com/Great-Falls-Tool-Bus/great-falls-tool-bus-infra/pull/173)
+> amends the ratified `discuss@latoolb.us` baseline to
+> `subscription_policy=moderate` (infra `docs/runbooks/list-operations.md`
+> §5, dated amendment) and ships the attended close lane plus refusal probe
+> (`just list-discuss-writer-gate-close` /
+> `just list-discuss-writer-gate-probe`). The probe receipt — a self-serve
+> subscribe attempt parks for owner approval (HTTP 202) and mints no
+> membership, the parked request is discarded, and the anonymous archive
+> deep link still returns 200 — is emitted at apply time and recorded on
+> TIN-4268. With that receipt on the ticket, "membership is the only add
+> path" holds at the engine layer as well as the platform layer, and public
+> copy may state that subscription itself is members-only. The paragraph
+> below is retained as the historical flag.
 
 The live Mailman `subscription_policy` for `discuss@latoolb.us` is `confirm`
 (anyone can subscribe with email confirmation, per the infra list-operations
