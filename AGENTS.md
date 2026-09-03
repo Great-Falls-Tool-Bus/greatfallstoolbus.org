@@ -190,10 +190,11 @@ repository as private or renamed** in code, comments, docs, or image refs.
 - **Validation**: `just skills-validate` checks every SKILL.md frontmatter for
   required fields and the Anthropic 1,536-char description cap. Wire into
   `just check` in any consuming repo that publishes its own skills.
-- **Public agent index**: `static/llms.txt`, `static/agent-map.md`, and the
-  `/agent` SvelteKit route. The `/agent` route renders skill bodies from
-  `.agents/skills/*/SKILL.md` at build time, do not hand-edit the route to
-  list skills; update the SKILL.md and rebuild.
+- **Public agent index**: this repo serves no live `/agent` route
+  (single-product history, L72 Q3-A); the public agent surfaces are
+  `static/llms.txt` + `static/agent-map.md`. (Corrected 2026-09-03: this
+  bullet previously claimed a live `/agent` SvelteKit route — the only live
+  `/agent` is site.scaffold's; gftb-site deliberately serves none either.)
 - `tinyland.repo.json` is the machine-readable repo-shape manifest. It declares
   this repo an `app-stateful-spoke` and keeps GitOps/edge authority external.
 - Durable operating truth belongs in repo files, schemas, tests, and Just

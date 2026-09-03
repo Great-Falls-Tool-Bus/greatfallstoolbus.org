@@ -55,7 +55,7 @@ Use these layers to characterize the repo and decide what applies:
 | Flywheel | `.bazelrc.flywheel`, `scripts/gloriousflywheel-bazel.sh`, `just flywheel-*` | Endpoint-free config; cache/executor endpoints come from environment. |
 | GitOps lanes | `.github/lanes.json`, CI workflows, dispatch schemas | Blahaj owns PR lanes, reaps, public previews, and final statuses. |
 | Static projection | snapshot recipes, projection docs | Static spokes consume checked-in public snapshots only. |
-| Agent ingestion | `.agents/skills/*`, `.claude/skills/*`, `static/llms.txt`, `static/agent-map.md`, `/agent` | Agent-readable surfaces link back to durable repo truth. |
+| Agent ingestion | `.agents/skills/*`, `.claude/skills/*`, `static/llms.txt`, `static/agent-map.md` | Agent-readable surfaces link back to durable repo truth. |
 | SBOM | `just sbom`, `syft`, `tinyland.repo.json` | SBOM generation is documented and ignored artifacts stay under `build/sbom/`. |
 
 Do not apply static-spoke-only rules to `tinyland.dev` or to
