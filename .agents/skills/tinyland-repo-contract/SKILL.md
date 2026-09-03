@@ -23,9 +23,14 @@ rather than one-off scripts.
 4. Gitleaks is configured and runnable through `just`.
 5. Tests, checks, builds, and compile steps have stable recipes. If the repo is
    Bazel-enabled, CI-relevant validation must also have Bazel targets.
-6. Do not commit loose ad hoc validation files. Use `/tmp` for one-time
-   experiments, or promote the file into `scripts/` plus a Just recipe or Bazel
-   target.
+6. Do not commit loose ad hoc validation files. Promote anything recurring
+   into `scripts/` plus a Just recipe or Bazel target. Working files with
+   durable value (findings, verdicts, plans, notes, unpushed work) go to a
+   durable, git-tracked location in the consuming repo (`docs/`, or
+   `docs/agent-notes/` when present) or to durable home staging
+   (`~/.claude/agent-notes-rescue/YYYY-MM-DD/`) — NEVER `/tmp`,
+   `/private/tmp`, or a harness scratchpad directory; those are wiped without
+   warning. Genuinely transient single-command scratch MAY stay ephemeral.
 7. Do not commit `.env`, credentials, decrypted SOPS data, tokens, kubeconfigs,
    private keys, `.netrc`, or cache auth material.
 

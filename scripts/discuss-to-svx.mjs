@@ -59,6 +59,8 @@ import { DiscussDraftFrontmatter, SOURCE_LIST, TARGET_LIST } from '../src/lib/da
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const DEFAULT_OUT_DIR = path.join(ROOT, 'src', 'content', 'discuss-drafts');
+// Also imported by scripts/discuss-reconcile.mts, which removes this comment
+// during reconciliation — one constant, emitted and removed, never restated.
 export const PENDING_COMMENT =
 	'<!-- pending discuss@ posting by operator; svx to be reconciled to the posted archive URL -->';
 

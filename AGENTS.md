@@ -53,8 +53,19 @@ that lead works; rule 1 still governs WHO may merge:
   double-green where a known flake lives; zero signing bypasses; zero
   consent-gate bypasses; a durable board receipt within 15 min of every
   landing.
+- **Surfacing rule** (operator-derived 2026-09-03; SSD rulings addendum (e)):
+  ratifications, agendas, todos, and review items reach the operator in
+  exactly one of two forms — decisions via the interview feature
+  (AskUserQuestion decision briefs); read/LOOK items opened in the operator's
+  Chrome as tabs. Never prose status lists with shell-command fallbacks;
+  never GUI `open` (fleet guard). Printing via printstack remains the
+  annotation route. The claude-in-chrome prohibition is scoped to agent
+  browsing/QA (gstack supersedes there); operator-attended LOOK tab-opening
+  is the sanctioned exception.
 - SSOT for the full doctrine: `prompts-enqueue` —
-  `context/house-active-dialog-cadence.md` (this cadence),
+  `context/house-active-dialog-cadence.md` (this cadence plus the surfacing
+  rule; created by Jesssullivan/prompts-enqueue#205 — the pointer was dangling
+  before that PR landed),
   `context/house-agent-conventions.md` (the org-wide AX/DX contract), and
   `patterns/multi-agent-orchestration.md` (orchestrator/spawn/verification
   method). Model-tiering authority is `Jesssullivan/prompt-toon`
@@ -192,10 +203,11 @@ repository as private or renamed** in code, comments, docs, or image refs.
 - **Validation**: `just skills-validate` checks every SKILL.md frontmatter for
   required fields and the Anthropic 1,536-char description cap. Wire into
   `just check` in any consuming repo that publishes its own skills.
-- **Public agent index**: `static/llms.txt`, `static/agent-map.md`, and the
-  `/agent` SvelteKit route. The `/agent` route renders skill bodies from
-  `.agents/skills/*/SKILL.md` at build time, do not hand-edit the route to
-  list skills; update the SKILL.md and rebuild.
+- **Public agent index**: this repo serves no live `/agent` route
+  (single-product history, L72 Q3-A); the public agent surfaces are
+  `static/llms.txt` + `static/agent-map.md`. (Corrected 2026-09-03: this
+  bullet previously claimed a live `/agent` SvelteKit route — the only live
+  `/agent` is site.scaffold's; gftb-site deliberately serves none either.)
 - `tinyland.repo.json` is the machine-readable repo-shape manifest. It declares
   this repo an `app-stateful-spoke` and keeps GitOps/edge authority external.
 - Durable operating truth belongs in repo files, schemas, tests, and Just
@@ -228,9 +240,16 @@ repository as private or renamed** in code, comments, docs, or image refs.
   edges are deliberately retired.
 ## Theme & Skeleton
 
-- **Skeleton 4.15.2** (pinned). Do not upgrade casually.
-- Tailwind v4 + the `skeletonTailwindV4Compat()` shim plugin in `vite.config.ts`
-  rewrites `@variant` / `@apply variant-` to stable equivalents. Do not remove.
+- **Skeleton 5.0.1** (pinned, PAIRED). `@skeletonlabs/skeleton` and
+  `@skeletonlabs/skeleton-svelte` are a version-locked pair (skeleton-common
+  component CSS @applies brand presets only core defines) — always bump both
+  to the identical version in ONE commit; the solo bumps in #202/#203 broke CI.
+- Tailwind v4, shim-free: the old `skeletonTailwindV4Compat()` plugin was
+  removed with the v5 bump. Skeleton 5 ships stable `@variant` syntax and its
+  base/globals.css requires `@variant dark` retained (this app uses
+  `[data-mode]`, never `.dark`). Do not reintroduce the shim.
+  `skeletonColorUtilities()` in `vite.config.ts` is separate and stays — it
+  supplies paired utilities (e.g. `text-surface-900-50`) Skeleton never ships.
 - Theme cascade lives in `src/app.css`. Per-site brand themes go under
   `src/lib/styles/themes/`.
 
@@ -290,7 +309,8 @@ After `gh repo create --template tinyland-inc/site.scaffold`:
 - Don't add in-house npm package ranges or allow `package.json` to drift from
   `MODULE.bazel`; use `just inhouse-package-parity` or `just conformance`.
 - Don't bypass `Justfile` in CI or local, DX/AX must stay homogenous.
-- Don't unpin Skeleton or Tailwind v4-compat shim without coordination.
+- Don't unpin Skeleton or split the skeleton/skeleton-svelte paired pin
+  without coordination.
 
 ## V4 ActionPlan And Consumer Boundary
 

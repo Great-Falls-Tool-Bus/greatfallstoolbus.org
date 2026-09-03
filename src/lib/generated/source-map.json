@@ -12,6 +12,8 @@
 		"/contribution": "src/routes/(member)/contribution/+page.svelte",
 		"/contributions": "src/routes/(finance)/contributions/+page.svelte",
 		"/contributions/receipts": "src/routes/(finance)/contributions/receipts/+page.svelte",
+		"/discuss": "src/routes/discuss/+page.svelte",
+		"/discuss/[thread]": "src/routes/discuss/[thread]/+page.svelte",
 		"/home": "src/routes/(member)/home/+page.svelte",
 		"/login": "src/routes/login/+page.svelte",
 		"/logout": "src/routes/logout/+page.svelte",

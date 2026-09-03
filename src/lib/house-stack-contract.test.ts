@@ -13,9 +13,11 @@ import { describe, expect, it } from 'vitest';
 // the scaffold-side twin so the two repos cannot re-diverge silently.
 //
 // The invariants, per `context/house-frontend-stack.md`:
-// - Skeleton + skeleton-svelte are EXACT `4.15.2` — there is NO Skeleton v5 GA
-//   (only `5.0.0-next.*`); a "bump to v5" PR must fail here first, before
-//   anything visual.
+// - Skeleton + skeleton-svelte are EXACT `5.0.1` and move as a version-locked
+//   PAIR in one commit (skeleton-common@5 component CSS @applies brand presets
+//   only core@5 defines — the solo bumps in #202/#203 broke CI for exactly this
+//   reason); any solo or drifted bump must fail here first, before anything
+//   visual.
 // - `typescript` is EXACT-pinned on the 6.0.x line (the one real manifest
 //   major); it must never float behind a caret/tilde.
 // - pnpm is `10.13.1` EXACT via corepack — never pnpm 9.
@@ -44,9 +46,9 @@ const allDeclaredDeps: Record<string, string> = {
 };
 
 describe('house frontend-stack exact-pin contract', () => {
-	it('keeps Skeleton + skeleton-svelte EXACT at 4.15.2 (no phantom v5)', () => {
-		expect(packageJson.devDependencies?.['@skeletonlabs/skeleton']).toBe('4.15.2');
-		expect(packageJson.devDependencies?.['@skeletonlabs/skeleton-svelte']).toBe('4.15.2');
+	it('keeps Skeleton + skeleton-svelte EXACT at 5.0.1 (version-locked pair, bumped together)', () => {
+		expect(packageJson.devDependencies?.['@skeletonlabs/skeleton']).toBe('5.0.1');
+		expect(packageJson.devDependencies?.['@skeletonlabs/skeleton-svelte']).toBe('5.0.1');
 	});
 
 	it('keeps typescript EXACT-pinned on the 6.0.x line (no caret/tilde float)', () => {
@@ -67,8 +69,8 @@ describe('house frontend-stack exact-pin contract', () => {
 		expect(directZag).toEqual([]);
 	});
 
-	it('keeps the Node 22 engines window', () => {
-		expect(packageJson.engines?.node).toBe('>=22 <25');
+	it('keeps the Node 24 engines window', () => {
+		expect(packageJson.engines?.node).toBe('>=24 <25');
 	});
 
 	it('keeps MODULE.bazel ts_version identical to the package.json typescript pin (TIN-2355)', () => {

@@ -12,9 +12,21 @@
 
 ## Skills
 
-- `tinyland-inc/GloriousFlywheel/.agents/skills/tinyland-flywheel-enroll/SKILL.md`
-- `.agents/skills/tinyland-static-spoke/SKILL.md`
+Five repository-local tinyland-* skills:
+
+- `.agents/skills/tinyland-whoami/SKILL.md`
+- `.agents/skills/tinyland-spawn-sister-site/SKILL.md`
+- `.agents/skills/tinyland-scaffold-doctor/SKILL.md`
 - `.agents/skills/tinyland-repo-contract/SKILL.md`
+- `.agents/skills/tinyland-static-spoke/SKILL.md`
+
+GloriousFlywheel v4 adoption follows the upstream
+`tinyland-inc/GloriousFlywheel/.agents/skills/tinyland-flywheel-enroll/SKILL.md`;
+this consumer does not vendor the retired cache/profile skill.
+
+Seven generated mail lace-up skills (`.agents/skills/gftb-mail-laceup-*` for
+gmail, thunderbird, apple-mail, kmail, geary, sieve, outlook), produced by
+`scripts/build-agent-skills.mjs` via `just skills-build`; do not hand-edit.
 
 Claude-compatible project skill entrypoints are symlinked from
 `.claude/skills/*` to the canonical `.agents/skills/*` directories.
@@ -63,4 +75,4 @@ preserve dirty work, patch minimal conformance gaps, and validate through Just.
 - Browser or edge fetches back to `tinyland.dev` for projections.
 - Hard-coded Bazel cache, executor, token, or header values.
 - OpenTofu, devserver, or image-push targets marked RBE eligible.
-- Committed ad hoc validation scripts. Use `/tmp` or promote to a named script plus Just/Bazel target.
+- Committed ad hoc validation scripts. Promote to a named script plus Just/Bazel target. Durable working output (findings, notes, plans) goes to a git-tracked docs/ location, never `/tmp` or a harness scratchpad dir; only genuinely transient single-command scratch may stay ephemeral.

@@ -73,7 +73,8 @@ Keep these synchronized when truth changes:
 - `.agents/skills/*/SKILL.md`: Codex/agent project skills.
 - `.claude/skills/*/SKILL.md`: Claude-compatible project skill entrypoints.
 - `static/llms.txt`: public LLM index for the deployed site.
-- `/agent`: human- and agent-readable route that links the repo contracts.
+- No live `/agent` route in this repo (single-product history, L72 Q3-A);
+  the public agent surfaces are `static/llms.txt` + `static/agent-map.md`.
 
 Do not put hidden operational requirements only in an LLM prompt. Put durable
 truth in repo docs, Justfile recipes, schemas, or tests.

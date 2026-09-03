@@ -22,7 +22,7 @@
         pkgs = nixpkgs.legacyPackages.${system};
         corePackages = with pkgs; [
           # Core JS toolchain
-          nodejs_22
+          nodejs_24
           pnpm
           typescript
           typescript-language-server
@@ -176,7 +176,7 @@
           pkgs.writeShellApplication {
             name = role;
             text = ''
-              exec ${pkgs.nodejs_22}/bin/node ${./scripts/platform-entrypoint.mjs} ${role} "$@"
+              exec ${pkgs.nodejs_24}/bin/node ${./scripts/platform-entrypoint.mjs} ${role} "$@"
             '';
           };
         webEntrypoint = mkPlatformEntrypoint "web";
@@ -202,7 +202,7 @@
         imageRoot = pkgs.buildEnv {
           name = "gftb-image-root";
           paths = [
-            pkgs.nodejs_22
+            pkgs.nodejs_24
             pkgs.dumb-init
             pkgs.cacert
             pkgs.coreutils

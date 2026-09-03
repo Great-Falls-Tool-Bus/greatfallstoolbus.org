@@ -219,7 +219,7 @@
 					<Dialog.Trigger class="hover:bg-surface-200-800 p-2 lg:hidden" aria-label="Open navigation">
 						<Menu class="h-5 w-5" />
 					</Dialog.Trigger>
-					<!-- Portal to <body>: Skeleton 4 dialogs do not auto-portal, and the
+					<!-- Portal to <body>: Skeleton 5 dialogs (anatomy unchanged from v4) do not auto-portal, and the
 					     saturn-nav backdrop-filter makes the AppBar the containing block
 					     for fixed descendants (CSS Filter Effects 2). Rendered inline the
 					     backdrop/positioner's inset resolved against the ~52px AppBar box,

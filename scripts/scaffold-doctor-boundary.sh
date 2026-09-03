@@ -145,12 +145,17 @@ fi
 
 # Skeleton pin check
 if [ -f package.json ]; then
-  sk="$(python3 -c "import json; pkg=json.load(open('package.json')); print((pkg.get('dependencies') or {}).get('@skeletonlabs/skeleton',''))")"
-  if [ -n "$sk" ] && [ "$sk" != "4.15.2" ]; then
-    check_warn "@skeletonlabs/skeleton=$sk (scaffold canonical: 4.15.2)"
-  elif [ -n "$sk" ]; then
-    check_pass "@skeletonlabs/skeleton pinned at 4.15.2"
-  fi
+  # The pins live in devDependencies; check BOTH halves of the version-locked pair.
+  for skpkg in @skeletonlabs/skeleton @skeletonlabs/skeleton-svelte; do
+    sk="$(python3 -c "import json,sys; pkg=json.load(open('package.json')); deps={**(pkg.get('dependencies') or {}), **(pkg.get('devDependencies') or {})}; print(deps.get(sys.argv[1],''))" "$skpkg")"
+    if [ -z "$sk" ]; then
+      check_warn "$skpkg missing from package.json (scaffold canonical: 5.0.1 paired)"
+    elif [ "$sk" != "5.0.1" ]; then
+      check_warn "$skpkg=$sk (scaffold canonical: 5.0.1; the two Skeleton packages must move as a pair)"
+    else
+      check_pass "$skpkg pinned at 5.0.1"
+    fi
+  done
 fi
 
 echo ""

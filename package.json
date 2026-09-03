@@ -12,7 +12,7 @@
 	"license": "MIT",
 	"packageManager": "pnpm@10.13.1",
 	"engines": {
-		"node": ">=22 <25"
+		"node": ">=24 <25"
 	},
 	"scripts": {
 		"prepare": "node scripts/build-tinyvectors.mjs",
@@ -48,21 +48,22 @@
 		"stripe": "^22.5.0"
 	},
 	"devDependencies": {
+		"@eslint/js": "^9.39.4",
 		"@playwright/test": "^1.62.1",
-		"@skeletonlabs/skeleton": "4.15.2",
-		"@skeletonlabs/skeleton-svelte": "4.15.2",
+		"@skeletonlabs/skeleton": "5.0.1",
+		"@skeletonlabs/skeleton-svelte": "5.0.1",
 		"@sveltejs/kit": "^2.70.3",
 		"@sveltejs/vite-plugin-svelte": "^7.3.0",
 		"@tailwindcss/vite": "^4.3.3",
 		"@testcontainers/postgresql": "^12.1.0",
 		"@tummycrypt/vite-plugin-a11y": "0.2.2",
 		"@tummycrypt/vite-plugin-skeleton-colors": "0.2.2",
-		"@types/node": "^22.20.1",
+		"@types/node": "^24.10.1",
 		"@types/pg": "^8.20.0",
 		"@vitest/coverage-v8": "^4.1.11",
 		"drizzle-kit": "^0.30.5",
 		"esbuild": "^0.28.2",
-		"eslint": "^9.39.4",
+		"eslint": "^9.39.5",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.23.0",
 		"globals": "^17.11.0",
@@ -73,7 +74,7 @@
 		"serve": "^14.2.6",
 		"sharp": "^0.35.3",
 		"shiki": "^4.4.3",
-		"svelte": "^5.56.10",
+		"svelte": "^5.57.0",
 		"svelte-check": "^4.7.6",
 		"svgo": "^4.0.2",
 		"tailwindcss": "^4.3.3",

@@ -377,7 +377,7 @@ db-migrate *args:
 # reaches node builtins through require(), which bare ESM output cannot do.
 db-migrator-bundle:
     cd {{ root }} && pnpm exec esbuild src/lib/server/db/migrate.ts \
-        --bundle --platform=node --format=esm --target=node22 \
+        --bundle --platform=node --format=esm --target=node24 \
         --outfile=build/migrator.mjs \
         --external:pg-native --external:cloudflare:sockets \
         --tsconfig-raw='{}' \
@@ -389,7 +389,7 @@ db-migrator-bundle:
 # (pg is CommonJS), with drizzle-orm inlined alongside it.
 worker-bundle:
     cd {{ root }} && pnpm exec esbuild src/lib/server/worker.ts \
-        --bundle --platform=node --format=esm --target=node22 \
+        --bundle --platform=node --format=esm --target=node24 \
         --outfile=build/worker.mjs \
         --external:pg-native --external:cloudflare:sockets \
         '--alias:$lib=./src/lib' \
@@ -1083,6 +1083,18 @@ discuss-to-svx *args:
 discuss-drafts-validate:
     cd {{ root }} && pnpm exec tsx scripts/validate-discuss-drafts.mts
 
+# [OPERATOR, local-only] Reconcile ONE staged draft after manually posting it
+# to discuss@ (runbook step 7): flips published:true, injects the public
+# HyperKitty thread deep link as archiveUrl, removes the pending-notice
+# comment, and re-runs the full draft validation in-process before writing
+# anything. NEVER sends mail, NEVER touches the network (the URL is verified
+# textually against the public discuss@ thread family). Requires
+# ~/.gftb/naming-consent.key, like discuss-to-svx. Usage:
+#   just discuss-reconcile -- --slug <slug> --archive-url <public thread URL>
+# See docs/runbooks/discuss-to-svx-pipeline.md step 7.
+discuss-reconcile *args:
+    cd {{ root }} && pnpm exec tsx scripts/discuss-reconcile.mts {{ args }}
+
 # Ensure local Playwright browser cache exists; CI uses Nix Chromium instead
 playwright-ensure:
     cd {{ root }} && if [ "${CI:-}" = "true" ] && command -v nix >/dev/null 2>&1; then \
@@ -1221,8 +1233,10 @@ skills-build:
 skills-check: skills-build
     cd {{ root }} && git diff --exit-code -- .agents/skills .claude/skills static/llms.txt
 
-# Derive the page source map (route id -> repo-relative +page.svelte) that
-# SourceLink.svelte reads to render the "View source" / "Edit this page" affordance.
+# Derive the page source map (route id -> repo-relative +page.svelte).
+# NOTE (2026-09-03): the consumer, SourceLink.svelte, was removed in 23d9513 and
+# no page reads this map today; the generator and source-map-check gate keep
+# running while a restore-or-retire decision (D-06) is pending.
 source-map-build:
     cd {{ root }} && pnpm exec tsx scripts/build-source-map.mjs
 
@@ -1296,14 +1310,6 @@ changelog:
 # Preview changelog without writing
 changelog-preview:
     git-cliff --unreleased
-
-# Install git hooks (no-op if scripts/hooks/pre-commit absent)
-install-hooks:
-    @if [ -f {{ root }}/scripts/hooks/pre-commit ]; then \
-      ln -sf ../../scripts/hooks/pre-commit {{ root }}/.git/hooks/pre-commit && echo "Git hooks installed."; \
-    else \
-      echo "No scripts/hooks/pre-commit yet — skipping."; \
-    fi
 
 # Show environment info
 info:

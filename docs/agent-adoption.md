@@ -55,7 +55,7 @@ Use these layers to characterize the repo and decide what applies:
 | Flywheel v4 | `.github/lanes.json`, immutable `spoke-ci-v4.yml`, consumer-owned `-infra` overlay | Finite Bazel actions; no provider, endpoint, runner, cache-only, local, or hosted fallback. |
 | Owner transactions | Consumer `-infra` overlay and controller results | Non-action publication, preview, reap, and apply operations use typed owner transactions; the application does not dispatch directly to a provider. |
 | Static projection | snapshot recipes, projection docs | Static spokes consume checked-in public snapshots only. |
-| Agent ingestion | `.agents/skills/*`, `.claude/skills/*`, `static/llms.txt`, `static/agent-map.md`, `/agent` | Agent-readable surfaces link back to durable repo truth. |
+| Agent ingestion | `.agents/skills/*`, `.claude/skills/*`, `static/llms.txt`, `static/agent-map.md` | Agent-readable surfaces link back to durable repo truth. |
 | SBOM | `just sbom`, `syft`, `tinyland.repo.json` | SBOM generation is documented and ignored artifacts stay under `build/sbom/`. |
 
 Do not apply static-spoke-only rules to `tinyland.dev` or to

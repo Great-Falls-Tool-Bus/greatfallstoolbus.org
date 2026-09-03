@@ -3,7 +3,7 @@
 @import '@skeletonlabs/skeleton';
 @import '@skeletonlabs/skeleton-svelte';
 
-/* omux Warm/Pragmatic house theme (Skeleton 4 house format, OKLCH). */
+/* omux Warm/Pragmatic house theme (Skeleton v5 token format, OKLCH). */
 @import './lib/styles/themes/omux.css';
 
 /* Self-hosted fonts (all @fontsource ship font-display:swap, FOUC-safe).
@@ -92,7 +92,7 @@
 }
 
 /* ===== Body + global typography baseline =====
-   Skeleton 4 themes declare --typo-base/heading--font-family, but app code
+   Skeleton themes declare --typo-base/heading--font-family, but app code
    has to anchor body to that variable so prose actually picks up Inter. */
 html {
 	overflow-x: clip;
