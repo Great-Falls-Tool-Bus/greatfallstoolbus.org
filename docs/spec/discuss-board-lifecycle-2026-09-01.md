@@ -61,12 +61,34 @@ Status per the 2026-09-01 recon of this repository and the infra overlay:
   DSN and an approved template (TIN-4062 machinery).
 - Archive edge stack in the infra overlay (`k8s/archive/` production
   declaration) — live, serving the public read path.
+- *(update 2026-09-03)* `provision.add_lists` (TIN-3964): fresh membership
+  activation (`src/lib/server/membership/activate.ts` via
+  `src/lib/server/membership/provision.ts`) now enqueues one
+  `provision.add_lists` job in the same transaction as the membership commit
+  (ADR 0024 §1.5), identity key `<tenant>:membership:<id>:add_lists`,
+  ids-only payload. The handler
+  (`src/lib/server/outbox/handlers/add-lists.ts`) and the standing
+  `offboard.remove_lists` handler share one delivery gate:
+  `GFTB_LIST_AUTOMATION=enabled` + `GFTB_MAILMAN_API_URL` (Mailman 3 core
+  REST DSN, names only in this repo — `src/lib/server/lists/`) wire real
+  subscribe/unsubscribe on `discuss@latoolb.us` (409/404 tolerated as
+  idempotent success); gate-disabled — the default — both complete as
+  recorded no-ops. Members activated before this landed, and members
+  activated while the gate stays closed, are covered by the gate-opening
+  reconciliation runbook step (ADR 0024 §1.5, operator-run), not by this
+  code.
 
 **Planned (not yet built)**
 
-- `provision.add_lists` / `provision.enable_mailbox` outbox kinds (TIN-3964,
-  Backlog). Activation enqueues **no** provisioning jobs today; the
-  `add_lists` half is independent of the mailbox gate and can land first.
+- `provision.enable_mailbox` outbox kind (TIN-3964, Backlog) — still behind
+  the mailbox gate. *(The companion `provision.add_lists` half shipped
+  2026-09-03; see Shipped above. Before that date, activation enqueued
+  **no** provisioning jobs.)*
+- Operator activation of the list-automation gate: provisioning the
+  `GFTB_MAILMAN_API_URL` value apply-plane-side (the
+  `gftb-mailman-admin-password` REST credential, plane gftb-infra-sops),
+  flipping `GFTB_LIST_AUTOMATION=enabled`, and running the ADR 0024 §1.5
+  reconciliation over every Active member.
 - Platform outbound SMTP transport DSN (TIN-4208) and its CA-trust
   prerequisite (TIN-4216).
 - The mail-automation readiness gate proof (TIN-3813, due 2026-09-10): prove

@@ -9,8 +9,11 @@
  *     an UNCONSUMED activation token;
  *   - `person_id` survives an email change; the prior address remains in
  *     `person_email` history;
- *   - activation succeeds with the contribution AND outbox tables unreachable
- *     (contribution/mail are not activation predicates — row 10);
+ *   - activation succeeds with the contribution tables unreachable
+ *     (contribution/mail are not activation PREDICATES — row 10; the outbox
+ *     half of the old invariant is superseded by ADR 0024 §1.5: fresh
+ *     activation now enqueues exactly one `provision.add_lists` row in the
+ *     same transaction, and a converged replay adds none);
  *   - every transition this lane ships writes its audit row with actor,
  *     aggregate, transition, result, agreement version, timestamp — and no
  *     audit row carries a token plaintext, URL, or free text;
@@ -362,7 +365,12 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 		expect(result.activated).toBe(true);
 	});
 
-	it('succeeds with the contribution AND outbox tables unreachable — they are not activation predicates (S6 acceptance row 4)', async () => {
+	it('succeeds with the contribution tables unreachable — contribution is not an activation predicate (S6 acceptance row 4, narrowed by ADR 0024 §1.5)', async () => {
+		// `outbox_job` WAS on this revoke list until ADR 0024 §1.5 superseded
+		// that half of the row-10 invariant: fresh activation now enqueues
+		// `provision.add_lists` in its own transaction, so an outbox-write
+		// failure correctly rolls back activation (exactly as it already does
+		// for leave/remove). The contribution half of the invariant stands.
 		const tenantId = await newTenant();
 		const keyholder = await newKeyholder(tenantId);
 		const agreement = await withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'V1.' }), db);
@@ -374,7 +382,6 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 		await exec(fixture.migratorDsn, [
 			'revoke all on contribution_agreement from gftb_app',
 			'revoke all on finance_receipt from gftb_app',
-			'revoke all on outbox_job from gftb_app',
 		]);
 		try {
 			const result = await withTenant(
@@ -394,9 +401,62 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 			await exec(fixture.migratorDsn, [
 				'grant select, insert, update, delete on contribution_agreement to gftb_app',
 				'grant select, insert on finance_receipt to gftb_app',
-				'grant select, insert, update, delete on outbox_job to gftb_app',
 			]);
 		}
+	});
+
+	it('fresh activation enqueues exactly one pending provision.add_lists row; a replayed activation adds none (ADR 0024 §1.5)', async () => {
+		const tenantId = await newTenant();
+		const keyholder = await newKeyholder(tenantId);
+		const agreement = await withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'V1.' }), db);
+		const prov = await provisioned(tenantId, keyholder);
+		const token = await activationToken(tenantId, prov.application.id);
+
+		const provisionRows = () =>
+			asTenant(fixture.runtimeDsn, tenantId, async (client) => {
+				const { rows } = await client.query(
+					`select kind, status, idempotency_key, payload from outbox_job
+					 where aggregate_id = $1 and kind = 'provision.add_lists'`,
+					[prov.membership.id],
+				);
+				return rows;
+			});
+
+		const first = await withTenant(
+			tenantId,
+			(tx) =>
+				activateMembership(tx, {
+					token,
+					password: 'a-long-fixture-password',
+					agreementVersionId: agreement.id,
+					hashOptions: FAST_HASH,
+				}),
+			db,
+		);
+		expect(first.activated).toBe(true);
+
+		const afterFresh = await provisionRows();
+		expect(afterFresh).toHaveLength(1);
+		expect(afterFresh[0].status).toBe('pending');
+		expect(afterFresh[0].idempotency_key).toBe(`${tenantId}:membership:${prov.membership.id}:add_lists`);
+		// Ids only — the S3 payload doctrine: never an address in the row.
+		expect(afterFresh[0].payload).toEqual({ membershipId: prov.membership.id, personId: prov.person.id });
+
+		// Converged replay (same consumed token, right password) enqueues NOTHING:
+		// the fresh-activation path is the only enqueue site.
+		const replay = await withTenant(
+			tenantId,
+			(tx) =>
+				activateMembership(tx, {
+					token,
+					password: 'a-long-fixture-password',
+					agreementVersionId: agreement.id,
+					hashOptions: FAST_HASH,
+				}),
+			db,
+		);
+		expect(replay.activated).toBe(false);
+		expect(await provisionRows()).toHaveLength(1);
 	});
 
 	it('replay with the consumed token converges ONLY with the right password (spec §6 duplicate → original result)', async () => {

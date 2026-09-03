@@ -28,10 +28,21 @@
  *
  * WHAT ACTIVATION MUST NOT TOUCH, STRUCTURALLY (slices §2.2 row 10: "no
  * contribution or mail predicate"): nothing in this module reads or writes
- * `contribution_agreement`, `finance_receipt`, or `outbox_job`. The S6
- * acceptance proves it by revoking the runtime role's access to those tables
- * and activating anyway; the S8 static fence (no
- * `membership/** → contribution/**` import) makes it compile-visible.
+ * `contribution_agreement` or `finance_receipt`. The S6 acceptance proves it
+ * by revoking the runtime role's access to those tables and activating
+ * anyway; the S8 static fence (no `membership/** → contribution/**` import)
+ * makes it compile-visible.
+ *
+ * `outbox_job` USED to be on that list; ADR 0024 §1.5 (2026-08-30) supersedes
+ * that half of the invariant: "Activation emits idempotent mailbox and
+ * discussion-list projection intent." Fresh activation therefore enqueues
+ * `provision.add_lists` through `./provision.ts` in the SAME transaction as
+ * the membership commit (the outbox contract's enqueue-rides-the-domain-write
+ * rule), exactly as `leave`/`remove` already do for offboarding — so an
+ * outbox-write failure now correctly rolls back activation. The row-10 guard
+ * that survives is "no contribution or mail PREDICATE": enqueueing projection
+ * intent is not a predicate, and the S6 row-4 acceptance is narrowed to the
+ * contribution tables accordingly.
  */
 
 import { and, eq, isNull } from 'drizzle-orm';
@@ -66,6 +77,7 @@ import {
 	type MintedToken,
 } from '../application/tokens';
 import { requireCurrentAgreement } from './agreement';
+import { enqueueProvisioning } from './provision';
 import { writeAudit } from '../audit/write';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -450,6 +462,14 @@ export async function activateMembership(tx: DbTransaction, input: ActivateInput
 		agreementVersionId: agreement.id,
 		now,
 	});
+
+	// ADR 0024 §1.5: fresh activation emits the idempotent discussion-list
+	// projection intent (`provision.add_lists`), SAME transaction as the
+	// membership commit — the outbox contract's enqueue rule, and the reason
+	// the converge-replay path above never reaches this line (the original
+	// activation already enqueued; identity keys make even a double-commit
+	// convergent). See ./provision.ts and the discuss-board lifecycle spec.
+	await enqueueProvisioning(tx, updated[0]);
 
 	// Session issuance, same unit of work. authenticate re-verifies the
 	// password against the hash just written and mints the session through
