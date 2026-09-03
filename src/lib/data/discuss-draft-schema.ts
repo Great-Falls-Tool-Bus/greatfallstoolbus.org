@@ -14,12 +14,12 @@
 // this repo actually wires to a live page (scoped to content/tools/**only).
 // A draft file existing here has NO effect on the deployed site.
 //
-// RECONCILIATION (future step, not implemented by this schema or the
-// generator): once a draft's body has actually been posted, a human (or a
-// follow-up PR) flips `published: true` and adds the real `archiveUrl` — the
-// public HyperKitty deep link the post landed at. The schema's own filter
-// below enforces that pairing so a draft can never claim `published: true`
-// without a real destination.
+// RECONCILIATION (scripts/discuss-reconcile.mts, `just discuss-reconcile`):
+// once a draft's body has actually been posted by the operator, that tool
+// flips `published: true`, injects the real `archiveUrl` — the public
+// HyperKitty deep link the post landed at — and removes the pending-notice
+// comment. The schema's own filter below enforces the pairing so a draft can
+// never claim `published: true` without a real destination.
 //
 // NO `redactionsApplied` / `consentVerified` FRONTMATTER KEY, DELIBERATELY.
 // An earlier version of this schema pinned both to a schema-enforced
@@ -43,6 +43,14 @@ import { Schema } from 'effect';
 export const SOURCE_LIST = 'keyholders@latoolb.us';
 /** The one legal destination for a draft: the public discuss@ archive. */
 export const TARGET_LIST = 'discuss@latoolb.us';
+/**
+ * The one legal `archiveUrl` prefix: a public discuss@ thread deep link, the
+ * same anonymous-200 read-path family the lifecycle spec's public-nav gate
+ * probed (docs/spec/discuss-board-lifecycle-2026-09-01.md). Exported so the
+ * reconcile tool (scripts/discuss-reconcile.mts) and this schema's own filter
+ * share one literal and can never drift.
+ */
+export const PUBLIC_THREAD_URL_PREFIX = `https://lists.latoolb.us/hyperkitty/list/${TARGET_LIST}/thread/`;
 
 const IsoTimestamp = Schema.NonEmptyString.pipe(
 	Schema.filter((s) => !Number.isNaN(Date.parse(s)) || 'must be a parseable ISO-8601 timestamp'),
@@ -76,8 +84,7 @@ export const DiscussDraftFrontmatter = Schema.Struct({
 		Schema.NonEmptyString.pipe(
 			Schema.filter(
 				(url) =>
-					url.startsWith(`https://lists.latoolb.us/hyperkitty/list/${TARGET_LIST}/thread/`) ||
-					`archiveUrl must be a public ${TARGET_LIST} thread deep link`,
+					url.startsWith(PUBLIC_THREAD_URL_PREFIX) || `archiveUrl must be a public ${TARGET_LIST} thread deep link`,
 			),
 		),
 	),
