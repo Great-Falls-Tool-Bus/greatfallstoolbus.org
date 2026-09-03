@@ -249,9 +249,8 @@ describe('assertSnapshotIsPublicSafe (privacy gate; spec: discuss-only, no addre
 		).not.toThrow();
 	});
 	it('still hard-fails on a neutralized keyholders address (survives neutralization)', () => {
-		expect(() =>
-			assertSnapshotIsPublicSafe({ ...safe, threads: [thread({ excerpt: 'mail keyholders@…' })] }),
-		).toThrow(/keyholders/);
+		const leaky = { ...safe, threads: [thread({ excerpt: 'mail keyholders@…' })] };
+		expect(() => assertSnapshotIsPublicSafe(leaky)).toThrow(/keyholders/);
 	});
 	it('hard-fails on a HyperKitty-obfuscated address', () => {
 		expect(() =>
@@ -448,9 +447,8 @@ describe('fetchDiscussSnapshot', () => {
 describe('originFromEnv', () => {
 	it('prefers the whole-origin knob, falls back to the namespace knob, else undefined', () => {
 		expect(originFromEnv({ DISCUSS_ARCHIVE_ORIGIN: 'http://localhost:18080' })).toBe('http://localhost:18080');
-		expect(
-			originFromEnv({ DISCUSS_ARCHIVE_ORIGIN: 'http://localhost:18080', DISCUSS_ARCHIVE_NAMESPACE: EXAMPLE_NAMESPACE }),
-		).toBe('http://localhost:18080');
+		const both = { DISCUSS_ARCHIVE_ORIGIN: 'http://localhost:18080', DISCUSS_ARCHIVE_NAMESPACE: EXAMPLE_NAMESPACE };
+		expect(originFromEnv(both)).toBe('http://localhost:18080');
 		expect(originFromEnv({ DISCUSS_ARCHIVE_NAMESPACE: EXAMPLE_NAMESPACE })).toBe(inClusterOrigin(EXAMPLE_NAMESPACE));
 		expect(originFromEnv({})).toBeUndefined();
 		expect(originFromEnv(undefined)).toBeUndefined();
