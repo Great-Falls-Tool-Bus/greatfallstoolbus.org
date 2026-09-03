@@ -27,8 +27,8 @@ record, the landed record wins.
 
 | Capability | Who | Mechanism | Authority |
 | --- | --- | --- | --- |
-| Read the discuss archive | Anyone, anonymously | Public `archive_policy` on `discuss@latoolb.us`; HyperKitty recomputes authorization per request | ADR 0019 §2.2: "the private-board read grant is a **derived** property — a pure function of (archive account exists) × (address is subscribed)… **Do not build a `grant_board_read` projection.**" Public archive requires nothing — anonymous read is the design. |
-| Read the keyholders archive | Subscribed keyholders with an archive account | Private `archive_policy`; anonymous requests are refused (verified 403, see the probe log below) | ADR 0019 §1 (the gap statement): "A list subscription alone does not deliver the private archive. Reading a private board requires a second object — an archive account…" §2.2 derives the consequence: the read grant is recomputed from (archive account) × (subscription) per request. |
+| Read the discuss archive | Anyone, anonymously | Public `archive_policy` on `discuss@latoolb.us`; HyperKitty recomputes authorization per request | Current ADR 0019 §1.4: public `discuss@` archive reading does not require the private-list predicate. Public archive access grants no member identity or entitlement. |
+| Read the keyholders archive | Subscribed keyholders authenticated through the shared controlled OIDC subject | Private `archive_policy`; anonymous requests are refused (verified 403, see the probe log below) | Current ADR 0019 §1.4: private archive authorization is the conjunction of the shared authenticated subject and a live `keyholders@` subscription; there is no separate archive signup or identity. |
 | Hold an archive identity | Every Active member | The archive accepts the same controlled OIDC subject that maps to immutable `person_id`; there is no second signup or archive-provisioning job | Unified Member v0 identity carrier, Meta `main` `26bc8c696c4170ffb944d0890b40e34751ef5208` §§0.1–0.3. The subject-binding schema/wiring is a separate carrier from this P1/P4 outbox slice; mutable email is never an identity key. |
 | Write to (post on) discuss | Subscribed members | Subscription-gated posting; non-member posts are held (`default_nonmember_action=hold`) | Operator ruling above; ADR 0024 §3: "Every Active member is subscribed to `discuss@` by default." |
 | Become subscribed to discuss | Members, via activation only | Membership activation emits the list projection; no other add path is sanctioned | ADR 0024 §3: "Activation emits idempotent mailbox and discussion-list projection intent. The mail-automation readiness gate controls when the external effects may run, not whether the member is entitled to them… opening it must reconcile every Active member." The same section establishes that activation is the assent. |
@@ -111,9 +111,9 @@ Status per the 2026-09-01 recon of this repository and the infra overlay:
   prerequisite (TIN-4216).
 - The mail-automation readiness gate proof (TIN-3813, due 2026-09-10): prove
   automated mailbox/list provisioning end to end or keep member mail
-  disabled. Carrier values from ADR 0024 §4: account ceiling 64,
+  disabled. Carrier values from ADR 0024 §3: account ceiling 64,
   alert at 48.
-- Member-facing "where the boards are" disclosure page (ADR 0019 §2.3
+- Member-facing "where the boards are" disclosure page (ADR 0014 §0.5
   consequence).
 - Infra `mailman-listsync` keyholders-into-discuss reconciler: declared in the
   infra overlay but **suspended** (`suspend: true`, dry-run default, Secret
@@ -154,8 +154,8 @@ not this repo — recorded here because this spec owns the gating condition):
   never the HyperKitty root or Postorius index — the root list index sits
   outside the read-path exemption and surfaces the private list's 403.
 - Label it "Discussion archive", external-link shape, ungated. Anonymous read
-  is ratified (ADR 0019 §2.2/2.3: the public archive grants nothing a
-  stranger lacks) and empirically live.
+  is ratified by ADR 0014 §0.5 and current ADR 0019 §1.4 (the public archive
+  grants no member identity or entitlement) and empirically live.
 - Never link the keyholders archive anywhere public (leak-scan rule
   `private-list-archive` enforces this in both repos).
 - Nearby copy must carry the read-is-free / write-requires-membership
@@ -172,8 +172,9 @@ not this repo — recorded here because this spec owns the gating condition):
   the member's own mail client.
 - **No second archive signup.** HyperKitty identity is a projection of the
   member identity, never an independent public registration path.
-- **No read-grant projection.** Read access stays a derived property
-  recomputed by HyperKitty (ADR 0019 §2.2).
+- **No read-grant projection.** Private archive authorization remains the
+  conjunction of the shared controlled subject and a live `keyholders@`
+  subscription; public discuss reading needs neither (current ADR 0019 §1.4).
 - **No removal path in the keyholders reconciler.** Add-only by design
   (ADR 0017); removals are offboarding projections.
 

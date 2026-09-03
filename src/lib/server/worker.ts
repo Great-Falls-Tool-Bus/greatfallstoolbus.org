@@ -8,12 +8,13 @@
  * NOTHING else: no HTTP listener, no migrations on startup (spec §6 — only
  * the migrator runs DDL), no mail, no live delivery targets.
  *
- * HANDLERS START EMPTY AND GROW ONE SLICE AT A TIME. Member v0 registers job
- * kinds as each owning slice lands: S9 (Stripe) registers `stripe.project`
- * (`./outbox/handlers/stripe-project.ts`); S7 registers the three §2.3
- * offboarding projections (`offboard.cancel_billing`, `offboard.remove_lists`,
- * `offboard.disable_mailbox`). `defaultRuntime` registers only effects whose
- * delivery exists and names closed-gate kinds in its deferred claim set. Any
+ * HANDLERS START EMPTY AND GROW ONE SLICE AT A TIME. S9 (Stripe) registers
+ * `stripe.project` (`./outbox/handlers/stripe-project.ts`). S7 declares three
+ * §2.3 offboarding projections, but only `offboard.cancel_billing` currently
+ * has a delivery-capable handler; `offboard.remove_lists` and
+ * `offboard.disable_mailbox` remain deferred with the P1/P4 projection kinds.
+ * `defaultRuntime` registers only effects whose delivery exists and names
+ * closed-gate kinds in its deferred claim set. Any
  * OTHER kind still burns its attempts and dead-letters VISIBLY through
  * `UnknownJobKindError`; a deferred kind remains pending at attempts=0. A
  * worker that exits 0 while discarding jobs would be the queue-shaped version
@@ -148,8 +149,8 @@ FOR UPDATE SKIP LOCKED under a lease, runs the registered handler for each
 job's kind, retries failures with exponential full-jitter backoff, and
 dead-letters a job once its bounded attempt count is spent. At-least-once by
 contract; consumers are idempotent by contract. S9's "stripe.project", S7's
-three offboarding kinds ("offboard.cancel_billing", "offboard.remove_lists",
-"offboard.disable_mailbox"), TIN-4062's three application-mail kinds
+delivery-capable "offboard.cancel_billing", and TIN-4062's three
+application-mail kinds
 ("application.receipt_email", "application.decision_email",
 "application.withdrawn_ack") are registered by default; any other non-deferred
 job kind still dead-letters visibly rather than being absorbed by a
