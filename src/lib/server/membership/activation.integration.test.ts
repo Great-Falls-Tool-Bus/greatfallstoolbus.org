@@ -7,6 +7,8 @@
  *   - activation is ATOMIC: an injected failure after password creation
  *     leaves no Active membership, no partial audit event, no auth user, and
  *     an UNCONSUMED activation token;
+ *   - a failure on the second P1 outbox write rolls back the first projection
+ *     row together with activation, assent, auth, audit, and token consumption;
  *   - `person_id` survives an email change; the prior address remains in
  *     `person_email` history;
  *   - activation succeeds with the contribution tables unreachable
@@ -365,6 +367,80 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 			db,
 		);
 		expect(result.activated).toBe(true);
+	});
+
+	it('is ATOMIC when the second P1 outbox write fails: activation, audit, and both projection rows roll back (Meta P1 acceptance 1)', async () => {
+		const tenantId = await newTenant();
+		const keyholder = await newKeyholder(tenantId);
+		const agreement = await withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'V1.' }), db);
+		const prov = await provisioned(tenantId, keyholder);
+		const token = await activationToken(tenantId, prov.application.id);
+		const constraint = 'outbox_job_fixture_reject_second_projection';
+
+		// The exact membership-scoped constraint lets provision.add_lists insert,
+		// then rejects provision.enable_mailbox. That proves the first outbox row
+		// cannot survive a failure on the second enqueue in the same transaction.
+		await exec(fixture.migratorDsn, [
+			`alter table outbox_job add constraint ${constraint}
+			 check (aggregate_id <> '${prov.membership.id}'::uuid or kind <> 'provision.enable_mailbox')`,
+		]);
+		let activationFailure: unknown;
+		try {
+			await withTenant(
+				tenantId,
+				(tx) =>
+					activateMembership(tx, {
+						token,
+						password: 'a-long-fixture-password',
+						agreementVersionId: agreement.id,
+						hashOptions: FAST_HASH,
+					}),
+				db,
+			);
+		} catch (error) {
+			activationFailure = error;
+		} finally {
+			await exec(fixture.migratorDsn, [`alter table outbox_job drop constraint ${constraint}`]);
+		}
+		expect(activationFailure).toMatchObject({
+			cause: expect.objectContaining({ code: '23514', constraint }),
+		});
+
+		const state = await asTenant(fixture.runtimeDsn, tenantId, async (client) => {
+			const membership = await client.query('select status from membership where id = $1', [prov.membership.id]);
+			const audit = await client.query(
+				"select count(*)::int as n from audit_event where aggregate_id = $1 and event = 'membership.activated'",
+				[prov.membership.id],
+			);
+			const assent = await client.query('select count(*)::int as n from assent where membership_id = $1', [
+				prov.membership.id,
+			]);
+			const projections = await client.query(
+				"select count(*)::int as n from outbox_job where aggregate_id = $1 and kind like 'provision.%'",
+				[prov.membership.id],
+			);
+			const person = await client.query('select auth_user_id from person where id = $1', [prov.person.id]);
+			const activation = await client.query(
+				"select consumed_at from application_email_token where application_id = $1 and purpose = 'activate'",
+				[prov.application.id],
+			);
+			return {
+				membershipStatus: membership.rows[0].status,
+				activatedAuditCount: audit.rows[0].n,
+				assentCount: assent.rows[0].n,
+				projectionCount: projections.rows[0].n,
+				authUserId: person.rows[0].auth_user_id,
+				tokenConsumed: activation.rows.map((row) => row.consumed_at),
+			};
+		});
+		expect(state).toEqual({
+			membershipStatus: 'pending_assent',
+			activatedAuditCount: 0,
+			assentCount: 0,
+			projectionCount: 0,
+			authUserId: null,
+			tokenConsumed: [null],
+		});
 	});
 
 	it('succeeds with the contribution tables unreachable — contribution is not an activation predicate (S6 acceptance row 4, narrowed by ADR 0024 §1.5)', async () => {
