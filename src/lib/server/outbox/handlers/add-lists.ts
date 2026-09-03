@@ -4,18 +4,19 @@
  *
  * The payload carries ids only. Before network work, the handler binds the
  * job tenant and membership aggregate, then the database read proves that the
- * payload person actually owns that membership. Active and paused members
- * converge to exactly their current address: every historical address is
- * removed and the current address is subscribed. Every other membership
- * state converges to no address subscribed.
+ * payload person actually owns that membership. Mailman membership is keyed
+ * by address, so every address in the carrier person's history converges to
+ * the tenant-wide union: subscribed when it is current for at least one
+ * Active/paused person, absent otherwise. This preserves another member's
+ * entitlement when an address is shared or reassigned.
  *
  * External effects cannot share the membership transaction, so one read is
  * not enough. The handler reads a status/address revision, applies its desired
  * state, and reads again. If a concurrent offboard or email change moved the
  * revision, it repeats from current truth; persistent churn throws and lets
  * the outbox retry visibly. A change after the final stable read is still
- * covered because both offboarding and email change enqueue their own
- * reconciliation trigger in the same transaction as the state change.
+ * covered because activation, offboarding, and email change enqueue their
+ * own reconciliation trigger in the same transaction as the state change.
  *
  * Mailman mutation remains in `great-falls-tool-bus-infra`. This public repo
  * owns only the delivery seam, ids-only state resolution, and convergence
@@ -75,21 +76,22 @@ export function createListReconciliationHandler(seams: ListReconciliationSeams):
 				throw new Error(`list projection: membership ${payload.membershipId} is not bound to its payload person`);
 			}
 
-			if (isEntitled(before.membershipStatus)) {
-				if (!before.currentAddress) {
-					throw new Error(
-						`list projection: person ${payload.personId} has no current address (job ${job.id})`,
-					);
-				}
-				for (const address of before.addresses) {
-					if (address !== before.currentAddress) await seams.unsubscribe(address);
-				}
-				await seams.subscribe(before.currentAddress);
-			} else {
-				if (before.addresses.length === 0) {
-					throw new Error(`list projection: person ${payload.personId} has no address history (job ${job.id})`);
-				}
-				for (const address of before.addresses) await seams.unsubscribe(address);
+			if (isEntitled(before.membershipStatus) && !before.currentAddress) {
+				throw new Error(
+					`list projection: person ${payload.personId} has no current address (job ${job.id})`,
+				);
+			}
+			if (before.addresses.length === 0) {
+				throw new Error(`list projection: person ${payload.personId} has no address history (job ${job.id})`);
+			}
+
+			const desiredSubscribed = new Set(before.desiredSubscribedAddresses);
+			for (const address of before.addresses) {
+				// Re-subscription here is load-bearing: another person's entitlement
+				// may have committed while a stale pass was removing this address,
+				// and that person's own trigger may already have completed.
+				if (desiredSubscribed.has(address)) await seams.subscribe(address);
+				else await seams.unsubscribe(address);
 			}
 
 			const after = await readState(job);

@@ -79,13 +79,17 @@ Status per the 2026-09-01 recon of this repository and the infra overlay:
   `GFTB_LIST_AUTOMATION=enabled` + `GFTB_MAILMAN_API_URL` (Mailman 3 core
   REST DSN, names only in this repo — `src/lib/server/lists/`) wire real
   subscribe/unsubscribe on `discuss@latoolb.us` (409/404 tolerated as
-  idempotent success). It binds membership to person, removes historical
-  addresses, ensures the current address only while the person has an
-  Active/paused membership, and re-reads state after delivery to close
-  offboard/email-change races. A verified-email change owes a fresh ids-only
-  trigger in the same transaction. When the gate is closed, both kinds remain
-  `pending` with `attempts=0`; opening the gate makes those standing rows
-  claimable. No delivery-disabled branch may mark an external effect done.
+  idempotent success). It binds membership to person, then converges every
+  affected address against the tenant-wide union: subscribed while it is the
+  current address of at least one Active/paused person, absent otherwise. That
+  address-level rule prevents an old removal from revoking another member when
+  an address is shared or reassigned. The handler re-reads state after delivery
+  to close offboard/email-change races; a changed second snapshot can repair a
+  stale unsubscribe by re-subscribing the newly entitled address. A
+  verified-email change owes a fresh ids-only trigger in the same transaction.
+  When the gate is closed, both kinds remain `pending` with `attempts=0`;
+  opening the gate makes those standing rows claimable. No delivery-disabled
+  branch may mark an external effect done.
 
 **Planned (not yet built)**
 

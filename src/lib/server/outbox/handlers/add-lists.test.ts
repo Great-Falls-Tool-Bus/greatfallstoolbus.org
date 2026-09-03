@@ -60,8 +60,10 @@ function state(
 	revision: string,
 	currentAddress: string | null,
 	addresses: string[],
+	desiredSubscribedAddresses: string[] =
+		(membershipStatus === 'active' || membershipStatus === 'paused') && currentAddress ? [currentAddress] : [],
 ): ListProjectionState {
-	return { membershipStatus, revision, currentAddress, addresses };
+	return { membershipStatus, revision, currentAddress, addresses, desiredSubscribedAddresses };
 }
 
 function stateReader(states: ListProjectionState[]): () => Promise<ListProjectionState> {
@@ -155,14 +157,20 @@ describe('list projection desired-state convergence', () => {
 		expect([...deliveries.subscribed]).toEqual(['new@example.org']);
 	});
 
-	it.each(['left', 'removed'])('ensures every historical address is absent for a terminal %s membership', async (status) => {
-		const deliveries = memoryDeliveries(['old@example.org', 'new@example.org']);
-		const terminal = state(status, 'v3', null, ['old@example.org', 'new@example.org']);
-		const handler = createListReconciliationHandler({ ...deliveries, readState: stateReader([terminal, terminal]) });
-		await handler(removalJob());
-		expect(deliveries.calls).toEqual(['remove:old@example.org', 'remove:new@example.org']);
-		expect([...deliveries.subscribed]).toEqual([]);
-	});
+	it.each(['left', 'removed'])(
+		'ensures every unowned historical address is absent for a terminal %s membership',
+		async (status) => {
+			const deliveries = memoryDeliveries(['old@example.org', 'new@example.org']);
+			const terminal = state(status, 'v3', null, ['old@example.org', 'new@example.org']);
+			const handler = createListReconciliationHandler({
+				...deliveries,
+				readState: stateReader([terminal, terminal]),
+			});
+			await handler(removalJob());
+			expect(deliveries.calls).toEqual(['remove:old@example.org', 'remove:new@example.org']);
+			expect([...deliveries.subscribed]).toEqual([]);
+		},
+	);
 
 	it('an old removal job preserves the current address after a later valid membership', async () => {
 		const deliveries = memoryDeliveries(['new@example.org']);
@@ -177,6 +185,82 @@ describe('list projection desired-state convergence', () => {
 		await handler(removalJob());
 		expect(deliveries.calls).toEqual(['remove:old@example.org', 'add:new@example.org']);
 		expect([...deliveries.subscribed]).toEqual(['new@example.org']);
+	});
+
+	it("an old terminal person's job preserves an address now owed to another Active person", async () => {
+		const deliveries = memoryDeliveries(['shared@example.org']);
+		const terminalWithEntitledOwner = state(
+			'left',
+			'person-1-left:person-2-active',
+			'shared@example.org',
+			['shared@example.org'],
+			['shared@example.org'],
+		);
+		const handler = createListReconciliationHandler({
+			...deliveries,
+			readState: stateReader([terminalWithEntitledOwner, terminalWithEntitledOwner]),
+		});
+		await handler(removalJob());
+		expect(deliveries.calls).toEqual(['add:shared@example.org']);
+		expect([...deliveries.subscribed]).toEqual(['shared@example.org']);
+	});
+
+	it("an Active person's email reconciliation preserves a historical address now current for another member", async () => {
+		const deliveries = memoryDeliveries(['shared@example.org']);
+		const bothEntitled = state(
+			'active',
+			'person-1-new:person-2-shared',
+			'new@example.org',
+			['shared@example.org', 'new@example.org'],
+			['shared@example.org', 'new@example.org'],
+		);
+		const handler = createListReconciliationHandler({
+			...deliveries,
+			readState: stateReader([bothEntitled, bothEntitled]),
+		});
+		await handler(job());
+		expect(deliveries.calls).toEqual(['add:shared@example.org', 'add:new@example.org']);
+		expect([...deliveries.subscribed].sort()).toEqual(['new@example.org', 'shared@example.org']);
+	});
+
+	it('repairs its stale unsubscribe when another person becomes entitled before the second snapshot', async () => {
+		const deliveries = memoryDeliveries(['shared@example.org']);
+		const unprotected = state('left', 'person-1-left:no-owner', 'shared@example.org', ['shared@example.org']);
+		const protectedByAnother = state(
+			'left',
+			'person-1-left:person-2-active',
+			'shared@example.org',
+			['shared@example.org'],
+			['shared@example.org'],
+		);
+		const handler = createListReconciliationHandler({
+			...deliveries,
+			readState: stateReader([unprotected, protectedByAnother, protectedByAnother, protectedByAnother]),
+			log: () => undefined,
+		});
+		await handler(removalJob());
+		expect(deliveries.calls).toEqual(['remove:shared@example.org', 'add:shared@example.org']);
+		expect([...deliveries.subscribed]).toEqual(['shared@example.org']);
+	});
+
+	it('repairs its stale subscribe when the last entitled owner offboards before the second snapshot', async () => {
+		const deliveries = memoryDeliveries();
+		const protectedByAnother = state(
+			'left',
+			'person-1-left:person-2-active',
+			'shared@example.org',
+			['shared@example.org'],
+			['shared@example.org'],
+		);
+		const unprotected = state('left', 'person-1-left:person-2-left', 'shared@example.org', ['shared@example.org']);
+		const handler = createListReconciliationHandler({
+			...deliveries,
+			readState: stateReader([protectedByAnother, unprotected, unprotected, unprotected]),
+			log: () => undefined,
+		});
+		await handler(removalJob());
+		expect(deliveries.calls).toEqual(['add:shared@example.org', 'remove:shared@example.org']);
+		expect([...deliveries.subscribed]).toEqual([]);
 	});
 
 	it('closes the late-add/offboard interleaving with final state absent', async () => {

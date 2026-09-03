@@ -27,7 +27,7 @@
  * discussion access by ratified design — see `./transition.ts`).
  */
 
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { DbTransaction } from '../db/client';
 import type { Membership, OutboxJob } from '../db/schema';
 import { membership as membershipTable, personEmail } from '../db/schema';
@@ -258,19 +258,22 @@ export function parseListProjectionJob(job: ClaimedJob): ListJobPayload {
 
 /**
  * The current state a list-projection handler re-reads inside its own unit
- * of work (§5 staleness guard): the membership's CURRENT status and the
- * person's CURRENT (unsuperseded) address. Payloads are ids-only, so this
- * read — not the payload — is the truth the external effect acts on.
+ * of work (§5 staleness guard): the carrier person's membership/address
+ * history plus every tenant-local Active/paused owner of an affected address.
+ * Payloads are ids-only, so this read — not the payload — is the truth the
+ * external effect acts on.
  */
 export interface ListProjectionState {
 	/** `null`: the carrier membership is not bound to the payload person. */
 	membershipStatus: string | null;
-	/** Changes on every membership transition or address-history revision. */
+	/** Changes on every carrier or tenant-wide address-owner revision. */
 	revision: string;
 	/** `null`: the person has no current address row. */
 	currentAddress: string | null;
-	/** Every address ever projected for this person, deduplicated oldest first. */
+	/** Every address ever projected for the carrier person, deduplicated oldest first. */
 	addresses: string[];
+	/** Carrier-history addresses currently owed by at least one Active/paused person in this tenant. */
+	desiredSubscribedAddresses: string[];
 }
 
 export async function listProjectionState(tx: DbTransaction, payload: ListJobPayload): Promise<ListProjectionState> {
@@ -280,13 +283,20 @@ export async function listProjectionState(tx: DbTransaction, payload: ListJobPay
 		.where(and(eq(membershipTable.id, payload.membershipId), eq(membershipTable.personId, payload.personId)))
 		.limit(1);
 	if (!carrierRows[0]) {
-		return { membershipStatus: null, revision: 'missing', currentAddress: null, addresses: [] };
+		return {
+			membershipStatus: null,
+			revision: 'missing',
+			currentAddress: null,
+			addresses: [],
+			desiredSubscribedAddresses: [],
+		};
 	}
 
-	// Desired list state belongs to the PERSON, not permanently to the carrier
-	// membership. A late removal job from an old terminal membership must not
-	// unsubscribe someone after a valid restoration/new membership. The unique
-	// live-membership constraint permits at most one Active/paused row.
+	// The carrier person's membership history decides whether that person still
+	// has an entitlement. The address-level union below then protects a shared
+	// or reassigned address that another person is currently entitled to use.
+	// The unique live-membership constraint permits at most one Active/paused
+	// row for this person.
 	const memberships = await tx
 		.select({ id: membershipTable.id, status: membershipTable.status, version: membershipTable.version })
 		.from(membershipTable)
@@ -303,10 +313,57 @@ export async function listProjectionState(tx: DbTransaction, payload: ListJobPay
 		.where(eq(personEmail.personId, payload.personId))
 		.orderBy(personEmail.effectiveFrom, personEmail.id);
 	const current = emails.find((row) => row.supersededAt === null);
+	const addresses = [...new Set(emails.map((row) => row.email))];
+
+	// Mailman membership is address-keyed, while this database deliberately
+	// does not make email an identity key. A carrier person's old address may
+	// therefore be another Active person's current, verified address. Resolve
+	// desired state for every affected address across the whole tenant: an old
+	// removal must never revoke a different member's standing entitlement.
+	const entitledOwners =
+		addresses.length === 0
+			? []
+			: await tx
+					.select({
+						address: personEmail.email,
+						emailId: personEmail.id,
+						personId: personEmail.personId,
+						membershipId: membershipTable.id,
+						membershipStatus: membershipTable.status,
+						membershipVersion: membershipTable.version,
+					})
+					.from(personEmail)
+					.innerJoin(
+						membershipTable,
+						and(
+							eq(membershipTable.tenantId, personEmail.tenantId),
+							eq(membershipTable.personId, personEmail.personId),
+						),
+					)
+					.where(
+						and(
+							isNull(personEmail.supersededAt),
+							inArray(personEmail.email, addresses),
+							inArray(membershipTable.status, ['active', 'paused']),
+						),
+					)
+					.orderBy(personEmail.email, personEmail.personId, membershipTable.id);
+	const desiredSubscribed = new Set(entitledOwners.map((row) => row.address));
 	return {
 		membershipStatus: entitled?.status ?? carrier?.status ?? null,
-		revision: `${memberships.map((row) => `${row.id}:${row.status}:${row.version}`).join(',')}:${current?.id ?? 'none'}:${emails.map((row) => row.id).join(',')}`,
+		revision: [
+			memberships.map((row) => `${row.id}:${row.status}:${row.version}`).join(','),
+			current?.id ?? 'none',
+			emails.map((row) => row.id).join(','),
+			entitledOwners
+				.map(
+					(row) =>
+						`${row.emailId}:${row.personId}:${row.membershipId}:${row.membershipStatus}:${row.membershipVersion}`,
+				)
+				.join(','),
+		].join(':'),
 		currentAddress: current?.email ?? null,
-		addresses: [...new Set(emails.map((row) => row.email))],
+		addresses,
+		desiredSubscribedAddresses: addresses.filter((address) => desiredSubscribed.has(address)),
 	};
 }
