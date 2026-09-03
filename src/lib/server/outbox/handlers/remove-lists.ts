@@ -36,6 +36,12 @@ export function createRemoveListsHandler(seams: RemoveListsSeams = {}) {
 			// Gate-disabled mail automation: complete as a recorded no-op. The
 			// line carries ids only — never an address (S3 payload doctrine
 			// applies to logs the same way).
+			// KNOWN ASYMMETRY (PR #239 adversarial verify, LOW): add-lists.ts
+			// validates the payload BEFORE its gate check, dead-lettering
+			// poison even while closed; this path completes a malformed
+			// payload as a recorded no-op without parsing it. Adopting the
+			// same validate-first posture is a named follow-up, deliberately
+			// not restructured here.
 			log(`[offboard.remove_lists] mail automation gate-disabled; recorded no-op for membership ${job.aggregateId}`);
 			return;
 		}

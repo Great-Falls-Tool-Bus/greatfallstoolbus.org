@@ -35,7 +35,8 @@
 
 import type { Db } from '../db/client';
 import { withTenant } from '../db/tenant';
-import { listProjectionState, parseListJobPayload } from '../membership/provision';
+import { parseListJobPayload, personAddressHistory } from '../membership/provision';
+import type { ClaimedJob } from '../outbox/schema';
 import type { ListRemovalDelivery } from '../outbox/handlers/remove-lists';
 import type { ListSubscribeDelivery } from '../outbox/handlers/add-lists';
 import { readListAutomationConfig } from './config';
@@ -171,13 +172,19 @@ export function createMailmanClient(apiUrl: string, deps: MailmanClientDeps = {}
 export interface DiscussListDeliveries {
 	/** For `provision.add_lists` — subscribe an address to discuss. */
 	subscribe: ListSubscribeDelivery;
-	/** For `offboard.remove_lists` — resolve the member's current address and unsubscribe it. */
+	/** For `offboard.remove_lists` — resolve the member's whole address history and unsubscribe every address. */
 	remove: ListRemovalDelivery;
 }
 
 export interface ResolveDeps extends MailmanClientDeps {
 	/** Test seam: the db `withTenant` opens the removal delivery's read on. Production omits it. */
 	db?: Db;
+	/**
+	 * Test seam: replaces the whole withTenant address-history read (the
+	 * `add-lists.ts` `readState` idiom), so the every-address removal is
+	 * unit-testable without a fixture database. Production omits it.
+	 */
+	readRemovalAddresses?: (job: ClaimedJob) => Promise<string[]>;
 }
 
 /**
@@ -187,11 +194,16 @@ export interface ResolveDeps extends MailmanClientDeps {
  * `ListConfigError` on a half-configured environment (the worker's BLOCK-1
  * startup posture maps that to exit 78).
  *
- * The removal delivery re-reads the person's CURRENT address inside its own
- * `withTenant` transaction (payloads are ids-only by the S3 doctrine), then
- * unsubscribes it from discuss; the missing-address case throws — ids only —
- * so it retries into dead-letter VISIBLY rather than completing a removal
- * that never happened.
+ * The removal delivery re-reads the person's WHOLE address history inside its
+ * own `withTenant` transaction (payloads are ids-only by the S3 doctrine) and
+ * unsubscribes EVERY address, superseded rows included: `changeEmail`
+ * supersedes addresses with no list projection, so after an email change the
+ * subscribed address is a historical one — unsubscribing only the current
+ * address would 404 into idempotent "success" and leave the old address a
+ * discuss writer forever (PR #239 adversarial verify, MAJOR 1). Each DELETE
+ * is 404-tolerant, so the sweep stays idempotent with no receipt table. A
+ * person with NO address rows at all throws — ids only — so it retries into
+ * dead-letter VISIBLY rather than completing a removal that never happened.
  */
 export function resolveDiscussListDeliveries(
 	env: NodeJS.ProcessEnv = process.env,
@@ -204,14 +216,19 @@ export function resolveDiscussListDeliveries(
 		subscribe: (address) => client.subscribe(DISCUSS_LIST_ID, address),
 		remove: async (job) => {
 			const payload = parseListJobPayload(job.payload, job.id);
-			const state = await withTenant(job.tenantId, (tx) => listProjectionState(tx, payload), deps.db);
-			if (!state.address) {
+			const readAddresses =
+				deps.readRemovalAddresses ??
+				((j: ClaimedJob) => withTenant(j.tenantId, (tx) => personAddressHistory(tx, payload.personId), deps.db));
+			const addresses = await readAddresses(job);
+			if (addresses.length === 0) {
 				throw new Error(
-					`offboard.remove_lists: person ${payload.personId} has no current address row — ` +
-						`cannot resolve the subscriber to remove (job ${job.id})`,
+					`offboard.remove_lists: person ${payload.personId} has no address rows — ` +
+						`cannot resolve the subscribers to remove (job ${job.id})`,
 				);
 			}
-			await client.unsubscribe(DISCUSS_LIST_ID, state.address);
+			for (const address of addresses) {
+				await client.unsubscribe(DISCUSS_LIST_ID, address);
+			}
 		},
 	};
 }

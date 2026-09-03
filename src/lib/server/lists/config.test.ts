@@ -76,10 +76,10 @@ describe('readListAutomationConfig — the enabled shape', () => {
 		expect(config).toEqual({ enabled: true, apiUrl: VALID[MAILMAN_API_URL_ENV] });
 	});
 
-	it('accepts plain http (an in-cluster REST endpoint shape)', () => {
+	it('accepts plain http (an in-cluster REST endpoint shape — fixture host only; zero cluster endpoints, ever)', () => {
 		const config = readListAutomationConfig({
 			...VALID,
-			[MAILMAN_API_URL_ENV]: 'http://restadmin:pw@mailman-core.mail.svc:8001/',
+			[MAILMAN_API_URL_ENV]: 'http://restadmin:pw@mailman.example.invalid:8001/',
 		} as NodeJS.ProcessEnv);
 		expect(config.enabled).toBe(true);
 	});

@@ -17,10 +17,16 @@
  * when list automation is GATE-DISABLED — the default, and the truthful state
  * of this deployment — the job completes as a RECORDED no-op: completion is
  * the record, the job row's `done` status is durable, and nothing is ever
- * faked as "subscribed" when no subscribe happened. ADR 0024 §1.5's
- * gate-opening reconciliation ("opening it must reconcile every Active
- * member") is what covers the no-op'd rows — an operator-run enqueue keyed by
- * the same identity keys, convergent by construction, not this handler's job.
+ * faked as "subscribed" when no subscribe happened. NOTE (corrected
+ * 2026-09-03, PR #239 adversarial verify, MAJOR 2): the recorded no-op row is
+ * `done` under the activation's identity key, and `enqueue()` absorbs a
+ * re-enqueue of a done key silently (`enqueued: false`) — so a gate flip does
+ * NOT retroactively subscribe gate-closed activations, and an operator re-run
+ * keyed by the same identity keys covers only PRE-GATE activations (no row at
+ * all). Covering the recorded no-ops needs the audited replay surface
+ * (`../enqueue.ts` docstring: reset attempts/status — a named follow-up, not
+ * yet built) or a distinct reconciliation key; the spec's shipped-status note
+ * carries the same correction.
  *
  * STALENESS GUARD (payloads are ids-only, S3 doctrine): the handler re-reads
  * CURRENT membership status and CURRENT address in its own `withTenant`
@@ -98,6 +104,12 @@ export function createAddListsHandler(seams: AddListsSeams = {}): OutboxHandler 
 
 		// The network call runs OUTSIDE the read transaction (at-least-once by
 		// contract; the subscribe is naturally idempotent via 409-tolerance).
+		// KNOWN LIMITATION (PR #239 adversarial verify, LOW): the staleness
+		// read above and this subscribe are not atomic — an offboard whose
+		// remove_lists job enqueues, claims, AND completes inside that window
+		// is outrun by this late subscribe, and nothing removes it. The window
+		// is one attempt wide (retries re-read), accepted for the minimal
+		// slice; the gate-opening reconciliation is the backstop.
 		await seams.delivery(state.address);
 	};
 }

@@ -5,10 +5,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import type { ClaimedJob } from '../outbox/schema';
 import { LIST_AUTOMATION_ENV, ListConfigError, MAILMAN_API_URL_ENV } from './config';
 import { DISCUSS_LIST_ID, MailmanRequestError, createMailmanClient, resolveDiscussListDeliveries } from './mailman';
 
 const DSN = 'https://restadmin:pass@mailman.example.invalid/api';
+const OPEN_GATE_ENV = { [LIST_AUTOMATION_ENV]: 'enabled', [MAILMAN_API_URL_ENV]: DSN } as NodeJS.ProcessEnv;
 
 interface Captured {
 	input: string;
@@ -135,15 +137,116 @@ describe('resolveDiscussListDeliveries — the one door', () => {
 
 	it('returns both deliveries behind the open gate, and subscribe targets the discuss list', async () => {
 		const captured: Captured[] = [];
-		const deliveries = resolveDiscussListDeliveries(
-			{ [LIST_AUTOMATION_ENV]: 'enabled', [MAILMAN_API_URL_ENV]: DSN } as NodeJS.ProcessEnv,
-			{ fetchFn: fixtureFetch(201, captured) },
-		);
+		const deliveries = resolveDiscussListDeliveries(OPEN_GATE_ENV, { fetchFn: fixtureFetch(201, captured) });
 		expect(deliveries).toBeDefined();
 		await deliveries?.subscribe('member@example.org');
 		expect(captured).toHaveLength(1);
 		const body = new URLSearchParams(String(captured[0].init.body));
 		expect(body.get('list_id')).toBe(DISCUSS_LIST_ID);
 		expect(typeof deliveries?.remove).toBe('function');
+	});
+});
+
+/**
+ * The remove delivery must sweep the person's WHOLE address history —
+ * `changeEmail` supersedes addresses with no list projection, so after an
+ * email change the address Mailman still holds is a historical one (PR #239
+ * adversarial verify, MAJOR 1). History rides the `readRemovalAddresses`
+ * test seam (the add-lists `readState` idiom): no database, no network.
+ */
+describe('resolveDiscussListDeliveries — the remove delivery unsubscribes the whole address history', () => {
+	const MEMBERSHIP_ID = '22222222-3333-4444-8555-666666666666';
+	const PERSON_ID = '33333333-4444-4555-8666-777777777777';
+
+	function removalJob(overrides: Partial<ClaimedJob> = {}): ClaimedJob {
+		return {
+			id: 'job-remove-1',
+			tenantId: '11111111-2222-4333-8444-555555555555',
+			kind: 'offboard.remove_lists',
+			aggregateType: 'membership',
+			aggregateId: MEMBERSHIP_ID,
+			payload: { membershipId: MEMBERSHIP_ID, personId: PERSON_ID },
+			idempotencyKey: `tenant:membership:${MEMBERSHIP_ID}:remove_lists`,
+			status: 'leased',
+			attempts: 0,
+			maxAttempts: 8,
+			availableAt: new Date(),
+			leaseOwner: 'worker#lease-1',
+			leaseExpiresAt: new Date(Date.now() + 60_000),
+			lastError: null,
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			leaseToken: 'worker#lease-1',
+			...overrides,
+		};
+	}
+
+	/** Answers request N with statuses[N] (last status repeats). */
+	function sequencedFetch(statuses: number[], captured: Captured[]): typeof fetch {
+		let call = 0;
+		return (async (input: string | URL | Request, init?: RequestInit) => {
+			captured.push({ input: String(input), init: init ?? {} });
+			const status = statuses[Math.min(call, statuses.length - 1)];
+			call += 1;
+			const body = status === 204 ? null : status >= 400 ? 'fixture error body' : '{}';
+			return new Response(body, { status });
+		}) as typeof fetch;
+	}
+
+	it('after an email change, offboarding unsubscribes BOTH the old and the new address', async () => {
+		const captured: Captured[] = [];
+		const deliveries = resolveDiscussListDeliveries(OPEN_GATE_ENV, {
+			fetchFn: sequencedFetch([204], captured),
+			readRemovalAddresses: async () => ['old@example.org', 'new@example.org'],
+		});
+		await expect(deliveries?.remove(removalJob())).resolves.toBeUndefined();
+		expect(captured).toHaveLength(2);
+		expect(captured[0].input).toBe(
+			'https://mailman.example.invalid/api/3.1/lists/discuss.latoolb.us/member/old%40example.org',
+		);
+		expect(captured[1].input).toBe(
+			'https://mailman.example.invalid/api/3.1/lists/discuss.latoolb.us/member/new%40example.org',
+		);
+		expect(captured.every((request) => request.init.method === 'DELETE')).toBe(true);
+	});
+
+	it('tolerates 404 on any historical address (absent member = idempotent no-op) and still sweeps the rest', async () => {
+		const captured: Captured[] = [];
+		const deliveries = resolveDiscussListDeliveries(OPEN_GATE_ENV, {
+			// The new (current) address 404s — the post-change offboard shape —
+			// and the sweep still reaches and removes the old one.
+			fetchFn: sequencedFetch([404, 204], captured),
+			readRemovalAddresses: async () => ['new@example.org', 'old@example.org'],
+		});
+		await expect(deliveries?.remove(removalJob())).resolves.toBeUndefined();
+		expect(captured).toHaveLength(2);
+	});
+
+	it('a non-idempotent failure on ANY address in the sweep still throws (retry → dead-letter visibly)', async () => {
+		const captured: Captured[] = [];
+		const deliveries = resolveDiscussListDeliveries(OPEN_GATE_ENV, {
+			fetchFn: sequencedFetch([204, 500], captured),
+			readRemovalAddresses: async () => ['old@example.org', 'new@example.org'],
+		});
+		await expect(deliveries?.remove(removalJob())).rejects.toThrow(MailmanRequestError);
+		expect(captured).toHaveLength(2);
+	});
+
+	it('a person with NO address rows throws ids-only — dead-letters visibly, never a faked removal', async () => {
+		const captured: Captured[] = [];
+		const deliveries = resolveDiscussListDeliveries(OPEN_GATE_ENV, {
+			fetchFn: sequencedFetch([204], captured),
+			readRemovalAddresses: async () => [],
+		});
+		let message = '';
+		try {
+			await deliveries?.remove(removalJob());
+		} catch (caught) {
+			message = (caught as Error).message;
+		}
+		expect(message).toContain(PERSON_ID);
+		expect(message).toContain('job-remove-1');
+		expect(message).not.toContain('@');
+		expect(captured).toHaveLength(0);
 	});
 });

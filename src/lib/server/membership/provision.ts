@@ -140,3 +140,24 @@ export async function listProjectionState(tx: DbTransaction, payload: ListJobPay
 		address: emails[0]?.email ?? null,
 	};
 }
+
+/**
+ * EVERY address in the person's history — superseded rows included — deduped,
+ * oldest first. This is the set the `offboard.remove_lists` delivery must
+ * unsubscribe: `changeEmail` (./activate.ts) supersedes the current row and
+ * emits NO list projection, so the address Mailman still holds after an email
+ * change is a HISTORICAL one, and unsubscribing only the current address
+ * would 404 (idempotent "success") while the old address stayed a discuss
+ * writer forever (PR #239 adversarial verify, MAJOR 1). Each unsubscribe is
+ * 404-tolerant, so removing the whole history stays idempotent with no
+ * receipt table. Inlined query (same no-import-cycle reason as above; the
+ * `emailHistory` twin in ./activate.ts is record-keeping, this is state).
+ */
+export async function personAddressHistory(tx: DbTransaction, personId: string): Promise<string[]> {
+	const rows = await tx
+		.select({ email: personEmail.email })
+		.from(personEmail)
+		.where(eq(personEmail.personId, personId))
+		.orderBy(personEmail.effectiveFrom, personEmail.id);
+	return [...new Set(rows.map((row) => row.email))];
+}

@@ -73,10 +73,20 @@ Status per the 2026-09-01 recon of this repository and the infra overlay:
   REST DSN, names only in this repo — `src/lib/server/lists/`) wire real
   subscribe/unsubscribe on `discuss@latoolb.us` (409/404 tolerated as
   idempotent success); gate-disabled — the default — both complete as
-  recorded no-ops. Members activated before this landed, and members
-  activated while the gate stays closed, are covered by the gate-opening
-  reconciliation runbook step (ADR 0024 §1.5, operator-run), not by this
-  code.
+  recorded no-ops. *(corrected 2026-09-03, PR #239 adversarial verify,
+  MAJOR 2)* The gate-opening reconciliation as previously worded — an
+  operator-run enqueue keyed by the same `<tenant>:membership:<id>:add_lists`
+  identity keys — covers only **pre-gate** activations (no standing outbox
+  row). A member activated **while the gate is closed** already holds a
+  `done` recorded-no-op row under that key, and `enqueue()` absorbs the
+  conflict silently (`enqueued: false`, nothing re-runs) — so flipping
+  `GFTB_LIST_AUTOMATION=enabled` does **not** retroactively subscribe
+  gate-closed activations. Covering those rows requires the audited operator
+  replay/backfill surface (spec §3.1 posture: reset attempts/status,
+  audited), which is a **named follow-up, not yet built** — or an enqueue
+  under a distinct reconciliation key. The flip-day runbook must treat
+  gate-closed recorded no-ops as an explicit backfill step, not as covered
+  by re-enqueueing.
 
 **Planned (not yet built)**
 
@@ -89,6 +99,11 @@ Status per the 2026-09-01 recon of this repository and the infra overlay:
   `gftb-mailman-admin-password` REST credential, plane gftb-infra-sops),
   flipping `GFTB_LIST_AUTOMATION=enabled`, and running the ADR 0024 §1.5
   reconciliation over every Active member.
+- The audited operator replay/backfill surface for `done`/`dead` outbox rows
+  (spec §3.1: reset attempts/status, audited). Required before the gate flip
+  can reconcile **gate-closed** activations — their `add_lists` rows are
+  `done` recorded no-ops that a same-key re-enqueue silently absorbs (see the
+  2026-09-03 correction under Shipped).
 - Platform outbound SMTP transport DSN (TIN-4208) and its CA-trust
   prerequisite (TIN-4216).
 - The mail-automation readiness gate proof (TIN-3813, due 2026-09-10): prove
