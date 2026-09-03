@@ -28,7 +28,7 @@ jobs:
     # `flywheel-build` / `bazel-graph` jobs.
     uses: tinyland-inc/ci-templates/.github/workflows/spoke-ci.yml@v3.1.0
     with:
-      node_version: '22'
+      node_version: '24'
       pnpm_version: '10.13.1'
       # Cache-first shared-cache enrollment (TIN-2119). flywheel_config must be
       # `flywheel` (not local) so flywheel-bazel forwards --remote_cache; the
