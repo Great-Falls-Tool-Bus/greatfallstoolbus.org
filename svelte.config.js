@@ -72,37 +72,13 @@ const config = {
 		prerender: {
 			handleHttpError: 'warn',
 			handleMissingId: 'warn',
-			// DATA-DEPENDENT PRERENDER ENTRIES (TIN-3898).
-			//
-			// `/discuss/[thread]` enumerates its pages from the LIVE HyperKitty
-			// archive: src/routes/discuss/[thread]/+page.server.ts `entries()`
-			// reads the same snapshot the index renders, and `fetchDiscussSnapshot`
-			// fails soft to an empty snapshot rather than throwing. So any build
-			// that cannot reach the archive — local dev, fork CI, an in-cluster
-			// runner with no namespace configured — legitimately yields zero
-			// entries, the route is never crawled, and that file's stated contract
-			// is "the build MUST NOT fail off-cluster".
-			//
-			// SvelteKit >= 2.16 defaults `handleUnseenRoutes` to 'fail', which
-			// breaks that contract. Tolerate exactly this one route and keep the
-			// build-breaking default for every other unseen prerenderable route,
-			// so a genuinely orphaned/unlinked page still fails the gate here.
-			//
-			// Nothing is lost when the list is unreachable: the static build is a
-			// local/CI gate only (ADR 0010 — Cloudflare Pages is the spinning-down
-			// interim lane), and the production ADAPTER=node image turns prerender
-			// off for this route entirely and reads it per request.
-			handleUnseenRoutes: ({ routes, message }) => {
-				const unexpected = routes.filter((id) => id !== '/discuss/[thread]');
-				if (unexpected.length > 0) {
-					throw new Error(message);
-				}
-				console.warn(
-					'[prerender] /discuss/[thread] produced no entries — the discuss archive was ' +
-						'unreachable at build time, so no thread pages were baked. Expected off-cluster; ' +
-						'set DISCUSS_ARCHIVE_NAMESPACE or DISCUSS_ARCHIVE_ORIGIN to prerender them.',
-				);
-			},
+			// `handleUnseenRoutes` keeps its SvelteKit >= 2.16 default ('fail'): a
+			// genuinely orphaned/unlinked prerenderable page fails the gate here.
+			// The former TIN-3898 carve-out for `/discuss/[thread]` (its entries()
+			// enumerated pages from the live archive, so off-cluster builds
+			// legitimately produced none) is retired with the D15 revival: the
+			// revived /discuss routes are `prerender = false` and served only by
+			// the ADAPTER=node origin, so they never enter the prerenderer at all.
 		},
 	},
 };
