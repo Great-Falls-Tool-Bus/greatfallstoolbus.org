@@ -75,7 +75,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout pinned GloriousFlywheel core (read-only deploy key)
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           repository: tinyland-inc/GloriousFlywheel
           ref: ${{ env.GF_CORE_REF }}
@@ -112,12 +112,12 @@ jobs:
       source_sha: ${{ github.sha }}
     steps:
       - name: Checkout overlay
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           path: overlay
           persist-credentials: false
       - name: Checkout pinned GloriousFlywheel core (read-only deploy key)
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           repository: tinyland-inc/GloriousFlywheel
           ref: ${{ env.GF_CORE_REF }}

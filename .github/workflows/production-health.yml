@@ -49,7 +49,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout probe
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
       - name: Probe gated production hostnames

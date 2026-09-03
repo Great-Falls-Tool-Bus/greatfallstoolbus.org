@@ -46,7 +46,7 @@ jobs:
     timeout-minutes: 30
     if: github.repository != 'tinyland-inc/greatfallstoolbus.org' || github.event_name == 'workflow_dispatch'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       # No install-nix-action: tinyland-nix ships the Nix daemon and the
       # GloriousFlywheel cache configuration already (TIN-3914).
