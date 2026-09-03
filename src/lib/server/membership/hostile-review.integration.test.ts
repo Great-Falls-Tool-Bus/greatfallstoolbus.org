@@ -432,19 +432,19 @@ describe('hostile: pause preserves LOGIN, not merely the standing session (TIN-3
 		expect(row.status).toBe('paused');
 		expect(canBorrow({ status: row.status as 'paused' })).toBe(false);
 		// Pause enqueues NOTHING — no offboarding, no NEW list/mailbox traffic.
-		// The single standing row is ACTIVATION's `provision.add_lists`
-		// projection (ADR 0024 §1.5), enqueued before the pause; pause itself
+		// The four standing rows are ACTIVATION's generation-1 projections
+		// (ADR 0024 §1.5), enqueued before the pause; pause itself
 		// added no row of any kind (pause preserves discussion access, so no
 		// re-subscribe is ever needed on resume).
 		expect(
 			await countRows(
-				"select count(*)::int as n from outbox_job where aggregate_id = $1 and kind <> 'provision.add_lists'",
+				"select count(*)::int as n from outbox_job where aggregate_id = $1 and kind not like 'provision.%'",
 				[prov.membership.id],
 			),
 		).toBe(0);
 		expect(
 			await countRows('select count(*)::int as n from outbox_job where aggregate_id = $1', [prov.membership.id]),
-		).toBe(1);
+		).toBe(4);
 	});
 });
 

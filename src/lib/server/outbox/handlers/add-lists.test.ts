@@ -1,12 +1,12 @@
 /**
  * `provision.add_lists` handler (TIN-3964) — unit lane: the payload guard,
- * the gate-disabled recorded no-op, and the §5 staleness guard, all provable
+ * the tenant-bound payload and §5 staleness guards, all provable
  * without a database via the handler's seams (the `stripe-project.test.ts`
  * idiom; state re-reads ride the injectable `readState` seam).
  */
 
 import { describe, expect, it } from 'vitest';
-import { ListJobPayloadError } from '../../membership/provision';
+import { ProvisionJobPayloadError } from '../../membership/provision';
 import type { ClaimedJob } from '../schema';
 import { ADD_LISTS_JOB_KIND, createAddListsHandler } from './add-lists';
 
@@ -20,8 +20,14 @@ function job(overrides: Partial<ClaimedJob> = {}): ClaimedJob {
 		kind: ADD_LISTS_JOB_KIND,
 		aggregateType: 'membership',
 		aggregateId: MEMBERSHIP_ID,
-		payload: { membershipId: MEMBERSHIP_ID, personId: PERSON_ID },
-		idempotencyKey: `tenant:membership:${MEMBERSHIP_ID}:add_lists`,
+		payload: {
+			schemaVersion: 1,
+			tenantId: '11111111-2222-4333-8444-555555555555',
+			membershipId: MEMBERSHIP_ID,
+			personId: PERSON_ID,
+			generation: 1,
+		},
+		idempotencyKey: `tenant:membership:${MEMBERSHIP_ID}:add_lists:g1`,
 		status: 'leased',
 		attempts: 0,
 		maxAttempts: 8,
@@ -41,15 +47,21 @@ describe('createAddListsHandler — the malformed-payload guard', () => {
 		[undefined, 'undefined payload'],
 		[null, 'null payload'],
 		[{}, 'empty payload'],
-		[{ membershipId: MEMBERSHIP_ID }, 'missing personId'],
-		[{ membershipId: 'not-a-uuid', personId: PERSON_ID }, 'non-UUID membershipId'],
-	] as const)('rejects a poisoned job (%s) even while the gate is closed — poison dead-letters, never silently completes', async (payload) => {
-		const handler = createAddListsHandler({});
-		await expect(handler(job({ payload }))).rejects.toThrow(ListJobPayloadError);
+		[{ membershipId: MEMBERSHIP_ID }, 'legacy unversioned carrier'],
+		[{
+			schemaVersion: 1,
+			tenantId: '11111111-2222-4333-8444-555555555555',
+			membershipId: 'not-a-uuid',
+			personId: PERSON_ID,
+			generation: 1,
+		}, 'non-UUID membershipId'],
+	] as const)('rejects a poisoned job (%s) before database or delivery work', async (payload) => {
+		const handler = createAddListsHandler({ delivery: async () => undefined });
+		await expect(handler(job({ payload }))).rejects.toThrow(ProvisionJobPayloadError);
 	});
 
 	it('the payload error names ids only — never an address', async () => {
-		const handler = createAddListsHandler({});
+		const handler = createAddListsHandler({ delivery: async () => undefined });
 		let message = '';
 		try {
 			await handler(job({ id: 'job-poisoned-1', payload: { membershipId: 42 } }));
@@ -58,28 +70,6 @@ describe('createAddListsHandler — the malformed-payload guard', () => {
 		}
 		expect(message).toContain('job-poisoned-1');
 		expect(message).not.toContain('@');
-	});
-});
-
-describe('createAddListsHandler — gate-disabled recorded no-op (the default)', () => {
-	it('completes without delivery and logs ids only', async () => {
-		const lines: string[] = [];
-		const handler = createAddListsHandler({ log: (line) => lines.push(line) });
-		await expect(handler(job())).resolves.toBeUndefined();
-		expect(lines).toHaveLength(1);
-		expect(lines[0]).toContain('gate-disabled');
-		expect(lines[0]).toContain(MEMBERSHIP_ID);
-		expect(lines[0]).not.toContain('@');
-	});
-
-	it('never reads state while the gate is closed (zero I/O of any kind)', async () => {
-		const handler = createAddListsHandler({
-			log: () => undefined,
-			readState: () => {
-				throw new Error('gate-disabled path touched the database');
-			},
-		});
-		await expect(handler(job())).resolves.toBeUndefined();
 	});
 });
 

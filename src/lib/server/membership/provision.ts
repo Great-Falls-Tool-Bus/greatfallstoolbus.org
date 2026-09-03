@@ -7,18 +7,16 @@
  * (`activateMembership` commits the membership to `active` in its own
  * transaction and this fan-out rides THAT transaction via S3's
  * `enqueue(tx, job)`), the same identity-key doctrine
- * (`<tenant>:membership:<id>:<effect>`, no caller segment, so a replayed
+ * (`<tenant>:membership:<id>:<effect>:g<generation>`, no caller segment, so a replayed
  * activation could never enqueue a second effect set — `enqueue`'s unique key
  * absorbs it), and the same ids-only payload doctrine (S3: the handler reads
  * current state itself inside its own unit of work; the payload never carries
  * an address, secret, or token).
  *
- * ONE KIND TODAY. `provision.enable_mailbox` is deliberately ABSENT: the
- * mailbox half sits behind the mail-automation readiness gate
- * (TIN-4208/TIN-3813) and the spec records that "the `add_lists` half is
- * independent of the mailbox gate and can land first". Adding the mailbox
- * kind later means appending to `PROVISION_JOB_KINDS` — the fan-out below
- * already iterates.
+ * FOUR ENTITLEMENTS, ONE ACTIVATION. Becoming Active emits the identity,
+ * mailbox, discuss-list, and archive projections together. A readiness gate
+ * controls when a projection may be claimed; it never deletes the member's
+ * entitlement and never converts an undelivered effect into success.
  *
  * WHO ENQUEUES, EXACTLY (spec ruling 2026-09-01): the FRESH-activation path
  * of `activateMembership` only — "membership account creation is the ONLY
@@ -29,21 +27,28 @@
  * discussion access by ratified design — see `./transition.ts`).
  */
 
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { DbTransaction } from '../db/client';
 import type { Membership, OutboxJob } from '../db/schema';
 import { membership as membershipTable, personEmail } from '../db/schema';
 import { enqueue } from '../outbox/enqueue';
 
 /** The ratified activation projections (ADR 0024 §1.5), in fan-out order. */
-export const PROVISION_JOB_KINDS = ['provision.add_lists'] as const;
+export const PROVISION_JOB_KINDS = [
+	'provision.ensure_identity',
+	'provision.enable_mailbox',
+	'provision.add_lists',
+	'provision.ensure_archive',
+] as const;
+
+export const PROVISION_GENERATION = 1 as const;
 
 export type ProvisionJobKind = (typeof PROVISION_JOB_KINDS)[number];
 
-/** `<tenant>:membership:<id>:<effect>` — the §2.3 identity key shape, mirrored. */
+/** `<tenant>:membership:<id>:<effect>:g1` — one receipt per projection generation. */
 export function provisionIdempotencyKey(tenantId: string, membershipId: string, kind: ProvisionJobKind): string {
 	const effect = kind.slice('provision.'.length);
-	return `${tenantId}:membership:${membershipId}:${effect}`;
+	return `${tenantId}:membership:${membershipId}:${effect}:g${PROVISION_GENERATION}`;
 }
 
 /**
@@ -62,12 +67,52 @@ export async function enqueueProvisioning(tx: DbTransaction, row: Membership): P
 			kind,
 			aggregateType: 'membership',
 			aggregateId: row.id,
-			payload: { membershipId: row.id, personId: row.personId },
+			payload: {
+				schemaVersion: 1,
+				tenantId: row.tenantId,
+				membershipId: row.id,
+				personId: row.personId,
+				generation: PROVISION_GENERATION,
+			},
 			idempotencyKey: provisionIdempotencyKey(row.tenantId, row.id, kind),
 		});
 		jobs.push(result.job);
 	}
 	return jobs;
+}
+
+/**
+ * Repair pre-carrier Active/paused rows automatically. This is deliberately
+ * the same enqueue path activation uses: missing intent is created, standing
+ * pending/done intent converges on its receipt, and dead intent fails loudly
+ * for the audited replay lane instead of being silently replaced.
+ */
+export async function reconcileActiveProvisioning(tx: DbTransaction): Promise<number> {
+	const rows = await tx
+		.select()
+		.from(membershipTable)
+		.where(inArray(membershipTable.status, ['active', 'paused']))
+		.orderBy(membershipTable.createdAt, membershipTable.id);
+
+	for (const row of rows) await enqueueProvisioning(tx, row);
+	return rows.length;
+}
+
+/** Closed, versioned payload for activation provisioning effects. */
+export interface ProvisionJobPayload {
+	schemaVersion: 1;
+	tenantId: string;
+	membershipId: string;
+	personId: string;
+	generation: 1;
+}
+
+/** A provisioning job whose payload is not the exact v1 ids-only shape. */
+export class ProvisionJobPayloadError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'ProvisionJobPayloadError';
+	}
 }
 
 /** The ids-only payload both list projections carry (S3 payload doctrine). */
@@ -85,6 +130,42 @@ export class ListJobPayloadError extends Error {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Validate the exact v1 carrier and bind it to the claimed job's tenant. */
+export function parseProvisionJobPayload(
+	payload: unknown,
+	jobId: string,
+	expectedTenantId: string,
+): ProvisionJobPayload {
+	const record = payload && typeof payload === 'object' && !Array.isArray(payload)
+		? (payload as Record<string, unknown>)
+		: {};
+	const expectedKeys = ['generation', 'membershipId', 'personId', 'schemaVersion', 'tenantId'];
+	const keys = Object.keys(record).sort();
+	const malformed = (detail: string): never => {
+		throw new ProvisionJobPayloadError(`provisioning job ${jobId} carries a malformed v1 payload: ${detail}`);
+	};
+
+	if (keys.length !== expectedKeys.length || keys.some((key, index) => key !== expectedKeys[index])) {
+		malformed('fields must be exactly schemaVersion, tenantId, membershipId, personId, generation');
+	}
+	if (record.schemaVersion !== 1) malformed('schemaVersion must be 1');
+	if (record.generation !== PROVISION_GENERATION) malformed(`generation must be ${PROVISION_GENERATION}`);
+	if (typeof record.tenantId !== 'string' || !UUID_RE.test(record.tenantId)) malformed('tenantId must be a UUID');
+	if (record.tenantId !== expectedTenantId) malformed('tenantId must match the claimed job tenant');
+	if (typeof record.membershipId !== 'string' || !UUID_RE.test(record.membershipId)) {
+		malformed('membershipId must be a UUID');
+	}
+	if (typeof record.personId !== 'string' || !UUID_RE.test(record.personId)) malformed('personId must be a UUID');
+
+	return {
+		schemaVersion: 1,
+		tenantId: record.tenantId,
+		membershipId: record.membershipId,
+		personId: record.personId,
+		generation: PROVISION_GENERATION,
+	};
+}
 
 /**
  * Validate a claimed list-projection job's payload BEFORE any database or

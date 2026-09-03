@@ -12,7 +12,7 @@
  *   - activation succeeds with the contribution tables unreachable
  *     (contribution/mail are not activation PREDICATES — row 10; the outbox
  *     half of the old invariant is superseded by ADR 0024 §1.5: fresh
- *     activation now enqueues exactly one `provision.add_lists` row in the
+ *     activation now enqueues exactly four provisioning rows in the
  *     same transaction, and a converged replay adds none);
  *   - every transition this lane ships writes its audit row with actor,
  *     aggregate, transition, result, agreement version, timestamp — and no
@@ -44,6 +44,7 @@ import { submitApplication, validateSubmission, verifyEmail } from '../applicati
 import { TokenRejectedError, mintToken } from '../application/tokens';
 import { activateMembership, changeEmail, emailHistory, mintActivationToken, provisionOnApproval } from './activate';
 import { NoAgreementVersionError, SupersededAgreementError, publishAgreementVersion } from './agreement';
+import { PROVISION_JOB_KINDS, reconcileActiveProvisioning } from './provision';
 
 let fixture: PgFixture;
 let pool: pg.Pool;
@@ -368,7 +369,7 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 	it('succeeds with the contribution tables unreachable — contribution is not an activation predicate (S6 acceptance row 4, narrowed by ADR 0024 §1.5)', async () => {
 		// `outbox_job` WAS on this revoke list until ADR 0024 §1.5 superseded
 		// that half of the row-10 invariant: fresh activation now enqueues
-		// `provision.add_lists` in its own transaction, so an outbox-write
+		// all four provisioning intents in its own transaction, so an outbox-write
 		// failure correctly rolls back activation (exactly as it already does
 		// for leave/remove). The contribution half of the invariant stands.
 		const tenantId = await newTenant();
@@ -405,7 +406,7 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 		}
 	});
 
-	it('fresh activation enqueues exactly one pending provision.add_lists row; a replayed activation adds none (ADR 0024 §1.5)', async () => {
+	it('fresh activation enqueues all four pending generation-1 projections; replay adds none (ADR 0024 §1.5)', async () => {
 		const tenantId = await newTenant();
 		const keyholder = await newKeyholder(tenantId);
 		const agreement = await withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'V1.' }), db);
@@ -416,7 +417,8 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 			asTenant(fixture.runtimeDsn, tenantId, async (client) => {
 				const { rows } = await client.query(
 					`select kind, status, idempotency_key, payload from outbox_job
-					 where aggregate_id = $1 and kind = 'provision.add_lists'`,
+					 where aggregate_id = $1 and kind like 'provision.%'
+					 order by kind`,
 					[prov.membership.id],
 				);
 				return rows;
@@ -436,11 +438,22 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 		expect(first.activated).toBe(true);
 
 		const afterFresh = await provisionRows();
-		expect(afterFresh).toHaveLength(1);
-		expect(afterFresh[0].status).toBe('pending');
-		expect(afterFresh[0].idempotency_key).toBe(`${tenantId}:membership:${prov.membership.id}:add_lists`);
-		// Ids only — the S3 payload doctrine: never an address in the row.
-		expect(afterFresh[0].payload).toEqual({ membershipId: prov.membership.id, personId: prov.person.id });
+		expect(afterFresh).toHaveLength(4);
+		expect(afterFresh.map((row) => row.kind).sort()).toEqual([...PROVISION_JOB_KINDS].sort());
+		for (const row of afterFresh) {
+			expect(row.status).toBe('pending');
+			expect(row.idempotency_key).toBe(
+				`${tenantId}:membership:${prov.membership.id}:${row.kind.slice('provision.'.length)}:g1`,
+			);
+			// Versioned ids only — never an address, token, or mutable email key.
+			expect(row.payload).toEqual({
+				schemaVersion: 1,
+				tenantId,
+				membershipId: prov.membership.id,
+				personId: prov.person.id,
+				generation: 1,
+			});
+		}
 
 		// Converged replay (same consumed token, right password) enqueues NOTHING:
 		// the fresh-activation path is the only enqueue site.
@@ -456,7 +469,20 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 			db,
 		);
 		expect(replay.activated).toBe(false);
-		expect(await provisionRows()).toHaveLength(1);
+		expect(await provisionRows()).toHaveLength(4);
+
+		// Pre-carrier repair: remove one fixture row to model an Active member
+		// created before the four-projection fan-out, then run the exact startup
+		// reconciliation. It restores only the missing generation-1 receipt.
+		await asTenant(fixture.runtimeDsn, tenantId, (client) =>
+			client.query(
+				"delete from outbox_job where aggregate_id = $1 and kind = 'provision.ensure_archive'",
+				[prov.membership.id],
+			),
+		);
+		expect(await provisionRows()).toHaveLength(3);
+		expect(await withTenant(tenantId, (tx) => reconcileActiveProvisioning(tx), db)).toBe(1);
+		expect(await provisionRows()).toHaveLength(4);
 	});
 
 	it('replay with the consumed token converges ONLY with the right password (spec §6 duplicate → original result)', async () => {

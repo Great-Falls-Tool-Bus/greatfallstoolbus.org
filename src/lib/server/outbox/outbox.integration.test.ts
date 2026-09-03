@@ -710,22 +710,27 @@ describe('dead-letter: bounded attempts, terminal, never rolls back the committe
 		expect(await displayName(tenantId)).toBe('committed-fact');
 	});
 
-	it('a job whose kind has no handler is poison: burns its attempts and dead-letters visibly', async () => {
+	it('unknown work dead-letters visibly while an explicitly deferred kind stays pending at attempts=0', async () => {
 		const tenantId = await newTenant();
 		await withTenant(tenantId, (tx) => enqueue(tx, jobInput({ kind: 'fixture.removed-kind', maxAttempts: 1 })), db);
+		await withTenant(tenantId, (tx) => enqueue(tx, jobInput({ kind: 'fixture.delivery-gated' })), db);
 
 		const summary = await dispatchOnce({
 			tenantId,
 			worker: 'no-handlers',
 			registry: EMPTY_REGISTRY,
+			deferredKinds: ['fixture.delivery-gated'],
 			db,
 			backoffMs: () => 0,
 		});
 		expect(summary).toMatchObject({ claimed: 1, dead: 1 });
 
-		const [row] = await outboxRows(tenantId);
-		expect(row.status).toBe('dead');
-		expect(row.last_error).toContain('UnknownJobKindError');
-		expect(row.last_error).toContain('fixture.removed-kind');
+		const rows = await outboxRows(tenantId);
+		const unknown = rows.find((row) => row.kind === 'fixture.removed-kind');
+		const deferred = rows.find((row) => row.kind === 'fixture.delivery-gated');
+		expect(unknown).toMatchObject({ status: 'dead', attempts: 1 });
+		expect(unknown?.last_error).toContain('UnknownJobKindError');
+		expect(unknown?.last_error).toContain('fixture.removed-kind');
+		expect(deferred).toMatchObject({ status: 'pending', attempts: 0, lease_owner: null });
 	});
 });

@@ -14,19 +14,10 @@
  * `../../lists/mailman.ts`'s one-door resolver), it subscribes the member's
  * current address to discuss — idempotently, because Mailman answers a
  * duplicate subscribe with HTTP 409 and the client treats that as success;
- * when list automation is GATE-DISABLED — the default, and the truthful state
- * of this deployment — the job completes as a RECORDED no-op: completion is
- * the record, the job row's `done` status is durable, and nothing is ever
- * faked as "subscribed" when no subscribe happened. NOTE (corrected
- * 2026-09-03, PR #239 adversarial verify, MAJOR 2): the recorded no-op row is
- * `done` under the activation's identity key, and `enqueue()` absorbs a
- * re-enqueue of a done key silently (`enqueued: false`) — so a gate flip does
- * NOT retroactively subscribe gate-closed activations, and an operator re-run
- * keyed by the same identity keys covers only PRE-GATE activations (no row at
- * all). Covering the recorded no-ops needs the audited replay surface
- * (`../enqueue.ts` docstring: reset attempts/status — a named follow-up, not
- * yet built) or a distinct reconciliation key; the spec's shipped-status note
- * carries the same correction.
+ * when list automation is GATE-DISABLED, the worker does not register this
+ * handler and excludes the kind from claims. The durable row therefore stays
+ * `pending`, attempts=0, until the delivery exists. This handler itself can
+ * only be constructed with a delivery; it has no false-success mode.
  *
  * STALENESS GUARD (payloads are ids-only, S3 doctrine): the handler re-reads
  * CURRENT membership status and CURRENT address in its own `withTenant`
@@ -45,7 +36,11 @@
 
 import type { Db } from '../../db/client';
 import { withTenant } from '../../db/tenant';
-import { listProjectionState, parseListJobPayload, type ListProjectionState } from '../../membership/provision';
+import {
+	listProjectionState,
+	parseProvisionJobPayload,
+	type ListProjectionState,
+} from '../../membership/provision';
 import type { ClaimedJob, OutboxHandler } from '../schema';
 
 export const ADD_LISTS_JOB_KIND = 'provision.add_lists';
@@ -54,7 +49,7 @@ export const ADD_LISTS_JOB_KIND = 'provision.add_lists';
 export type ListSubscribeDelivery = (address: string) => Promise<void>;
 
 export interface AddListsSeams {
-	delivery?: ListSubscribeDelivery;
+	delivery: ListSubscribeDelivery;
 	log?: (line: string) => void;
 	/** Test seam: the db `withTenant` opens the staleness re-read on. Production omits it (pool fence). */
 	db?: Db;
@@ -62,21 +57,10 @@ export interface AddListsSeams {
 	readState?: (job: ClaimedJob) => Promise<ListProjectionState>;
 }
 
-export function createAddListsHandler(seams: AddListsSeams = {}): OutboxHandler {
+export function createAddListsHandler(seams: AddListsSeams): OutboxHandler {
 	const log = seams.log ?? ((line: string) => console.log(line));
 	return async function addListsHandler(job: ClaimedJob): Promise<void> {
-		// Validate BEFORE any gate check or database work: a malformed payload
-		// is deterministic poison and must dead-letter visibly even while the
-		// gate is closed, never be silently completed by the no-op path.
-		const payload = parseListJobPayload(job.payload, job.id);
-
-		if (!seams.delivery) {
-			// Gate-disabled list automation: complete as a recorded no-op. The
-			// line carries ids only — never an address (S3 payload doctrine
-			// applies to logs the same way).
-			log(`[provision.add_lists] list automation gate-disabled; recorded no-op for membership ${job.aggregateId}`);
-			return;
-		}
+		const payload = parseProvisionJobPayload(job.payload, job.id, job.tenantId);
 
 		const readState =
 			seams.readState ??

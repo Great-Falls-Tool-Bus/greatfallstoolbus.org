@@ -29,8 +29,8 @@
  * `resolveDiscussListDeliveries` is the ONE DOOR from "built" to "reachable"
  * (the `mail/delivery.ts` `resolveDelivery` pattern): a client is constructed
  * only behind `GFTB_LIST_AUTOMATION=enabled`; every other environment gets
- * `undefined`, and the handlers then complete as gate-disabled recorded
- * no-ops with zero network I/O.
+ * `undefined`; the worker then defers both list kinds so their rows remain
+ * pending with attempts=0 and no network I/O.
  */
 
 import type { Db } from '../db/client';

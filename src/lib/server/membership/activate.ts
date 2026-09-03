@@ -36,7 +36,7 @@
  * `outbox_job` USED to be on that list; ADR 0024 §1.5 (2026-08-30) supersedes
  * that half of the invariant: "Activation emits idempotent mailbox and
  * discussion-list projection intent." Fresh activation therefore enqueues
- * `provision.add_lists` through `./provision.ts` in the SAME transaction as
+ * all four generation-bound provisioning intents through `./provision.ts` in the SAME transaction as
  * the membership commit (the outbox contract's enqueue-rides-the-domain-write
  * rule), exactly as `leave`/`remove` already do for offboarding — so an
  * outbox-write failure now correctly rolls back activation. The row-10 guard
@@ -463,8 +463,8 @@ export async function activateMembership(tx: DbTransaction, input: ActivateInput
 		now,
 	});
 
-	// ADR 0024 §1.5: fresh activation emits the idempotent discussion-list
-	// projection intent (`provision.add_lists`), SAME transaction as the
+	// ADR 0024 §1.5: fresh activation emits all four idempotent identity,
+	// mailbox, discussion-list, and archive projection intents in the SAME transaction as the
 	// membership commit — the outbox contract's enqueue rule, and the reason
 	// the converge-replay path above never reaches this line (the original
 	// activation already enqueued; identity keys make even a double-commit

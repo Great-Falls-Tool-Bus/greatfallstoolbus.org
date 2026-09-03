@@ -1,13 +1,20 @@
 /**
  * Provisioning fan-out — pure halves (TIN-3964): the identity-key shape and
- * the ids-only payload guard. No database, no network; the transactional
+ * the versioned ids-only payload guards. No database, no network; the transactional
  * enqueue-at-activation behavior is proven in
- * `./activation.integration.test.ts` (fresh activation → exactly one pending
- * `provision.add_lists` row; converged replay → none added).
+ * `./activation.integration.test.ts` (fresh activation → exactly four pending
+ * projection rows; converged replay → none added).
  */
 
 import { describe, expect, it } from 'vitest';
-import { ListJobPayloadError, PROVISION_JOB_KINDS, parseListJobPayload, provisionIdempotencyKey } from './provision';
+import {
+	ListJobPayloadError,
+	PROVISION_JOB_KINDS,
+	ProvisionJobPayloadError,
+	parseListJobPayload,
+	parseProvisionJobPayload,
+	provisionIdempotencyKey,
+} from './provision';
 
 const TENANT_ID = '11111111-2222-4333-8444-555555555555';
 const MEMBERSHIP_ID = '22222222-3333-4444-8555-666666666666';
@@ -16,12 +23,53 @@ const PERSON_ID = '33333333-4444-4555-8666-777777777777';
 describe('provisionIdempotencyKey — the §2.3 identity-key shape, mirrored', () => {
 	it('derives from the membership id alone, no caller segment', () => {
 		expect(provisionIdempotencyKey(TENANT_ID, MEMBERSHIP_ID, 'provision.add_lists')).toBe(
-			`${TENANT_ID}:membership:${MEMBERSHIP_ID}:add_lists`,
+			`${TENANT_ID}:membership:${MEMBERSHIP_ID}:add_lists:g1`,
 		);
 	});
 
-	it('covers exactly the one ratified kind — provision.enable_mailbox stays behind the mailbox gate', () => {
-		expect(PROVISION_JOB_KINDS).toEqual(['provision.add_lists']);
+	it('covers the four activation entitlements; readiness gates defer delivery, never intent', () => {
+		expect(PROVISION_JOB_KINDS).toEqual([
+			'provision.ensure_identity',
+			'provision.enable_mailbox',
+			'provision.add_lists',
+			'provision.ensure_archive',
+		]);
+	});
+});
+
+describe('parseProvisionJobPayload — exact tenant-bound v1 carrier', () => {
+	const payload = {
+		schemaVersion: 1,
+		tenantId: TENANT_ID,
+		membershipId: MEMBERSHIP_ID,
+		personId: PERSON_ID,
+		generation: 1,
+	} as const;
+
+	it('accepts only the v1 ids-only carrier emitted by activation', () => {
+		expect(parseProvisionJobPayload(payload, 'job-1', TENANT_ID)).toEqual(payload);
+	});
+
+	it.each([
+		[undefined],
+		[{ ...payload, schemaVersion: 2 }],
+		[{ ...payload, generation: 2 }],
+		[{ ...payload, tenantId: '44444444-5555-4666-8777-888888888888' }],
+		[{ ...payload, address: 'must-not-enter-the-outbox@example.org' }],
+		[{ ...payload, membershipId: 'not-a-uuid' }],
+	])('rejects malformed, cross-tenant, or widened payloads (%j)', (candidate) => {
+		expect(() => parseProvisionJobPayload(candidate, 'job-1', TENANT_ID)).toThrow(ProvisionJobPayloadError);
+	});
+
+	it('names only the job and violated field, never poisoned content', () => {
+		let message = '';
+		try {
+			parseProvisionJobPayload({ ...payload, personId: 'secret-looking@example.org' }, 'job-poisoned-1', TENANT_ID);
+		} catch (error) {
+			message = (error as Error).message;
+		}
+		expect(message).toContain('job-poisoned-1');
+		expect(message).not.toContain('secret-looking');
 	});
 });
 
