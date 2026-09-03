@@ -6,10 +6,9 @@ This spec binds the discuss-board account lifecycle for the Great Falls Tool
 Bus platform: who can read the HyperKitty discuss archive, who can write to
 `discuss@latoolb.us`, how a member acquires write access, and when the public
 site may ship the board as a top-level nav item. It records the operator
-ruling and maps it onto the ratified meta clauses and the proposed unified
-Member v0 identity carrier. Meta PR #58 must land before this implementation;
-until then its exact P1/P4 projection contract and identity clauses are a
-merge-order dependency, not a claim about current `meta` main.
+ruling and maps it onto the ratified meta clauses and the unified Member v0
+identity carrier landed on Meta `main` at `26bc8c696c4170ffb944d0890b40e34751ef5208`;
+nothing here invents a second policy or carries a transcript-only ruling.
 
 ## Operator ruling (2026-09-01, recorded verbatim)
 
@@ -30,7 +29,7 @@ record, the landed record wins.
 | --- | --- | --- | --- |
 | Read the discuss archive | Anyone, anonymously | Public `archive_policy` on `discuss@latoolb.us`; HyperKitty recomputes authorization per request | ADR 0019 §2.2: "the private-board read grant is a **derived** property — a pure function of (archive account exists) × (address is subscribed)… **Do not build a `grant_board_read` projection.**" Public archive requires nothing — anonymous read is the design. |
 | Read the keyholders archive | Subscribed keyholders with an archive account | Private `archive_policy`; anonymous requests are refused (verified 403, see the probe log below) | ADR 0019 §1 (the gap statement): "A list subscription alone does not deliver the private archive. Reading a private board requires a second object — an archive account…" §2.2 derives the consequence: the read grant is recomputed from (archive account) × (subscription) per request. |
-| Hold an archive identity | Every Active member | The archive accepts the same controlled OIDC subject that maps to immutable `person_id`; there is no second signup or archive-provisioning job | Unified Member v0 identity carrier, Meta PR #58 §§0.1–0.3 (merge-order dependency). The subject-binding schema/wiring is a separate carrier from this P1/P4 outbox slice; mutable email is never an identity key. |
+| Hold an archive identity | Every Active member | The archive accepts the same controlled OIDC subject that maps to immutable `person_id`; there is no second signup or archive-provisioning job | Unified Member v0 identity carrier, Meta `main` `26bc8c696c4170ffb944d0890b40e34751ef5208` §§0.1–0.3. The subject-binding schema/wiring is a separate carrier from this P1/P4 outbox slice; mutable email is never an identity key. |
 | Write to (post on) discuss | Subscribed members | Subscription-gated posting; non-member posts are held (`default_nonmember_action=hold`) | Operator ruling above; ADR 0024 §1.3: "Every Active member is subscribed to `discuss@` by default." |
 | Become subscribed to discuss | Members, via activation only | Membership activation emits the list projection; no other add path is sanctioned | ADR 0024 §1.5: "Activation emits idempotent mailbox and discussion-list projection intent. The mail-automation readiness gate controls when the external effects may run, not whether the member is entitled to them… opening it must reconcile every Active member." ADR 0024 §2: "Activation is the assent." |
 | Keyholders on discuss | Every keyholder, automatically | Add-only infra reconciler (`mailman-listsync` CronJob) | ADR 0017: "Every address with `role=member` on `keyholders@latoolb.us` is also a member of `discuss@latoolb.us`… enforced going forward by an automated reconciler." "The reconciler only adds `keyholders@` members to `discuss@`; it has no removal path." Disclosure rides the admission notice — "keyholders are also subscribed to `discuss@`, whose archive is public" — landing before the auto-add fires. |
@@ -127,9 +126,9 @@ Status per the 2026-09-01 recon of this repository and the infra overlay:
   member once; the controlled OIDC subject binds that immutable `person_id` to
   Keycloak and the archive, while protected P1/P4 handlers converge mailbox and
   list delivery. People may choose not to use the provided mailbox;
-  provisioning it is still part of activation. This row becomes landed
-  authority when Meta PR #58 merges, and is a hard merge-order dependency for
-  this carrier.
+  provisioning it is still part of activation. Meta `main`
+  `26bc8c696c4170ffb944d0890b40e34751ef5208` is the landed authority for this
+  invariant.
 
 ## Public-nav gate
 
@@ -198,7 +197,7 @@ come with membership.
 - Meta ADR `decisions/0017-keyholders-discuss-autoadd-carrier-2026-08-20.md`
   (TIN-3965 carrier): keyholders-into-discuss invariant, add-only reconciler,
   operator-gated activation, disclosure line.
-- Meta PR #58 (TIN-4215), required to merge first: §0 fixes one
+- Meta `main` `26bc8c696c4170ffb944d0890b40e34751ef5208` (TIN-4215): §0 fixes one
   application-owned `person_id` and controlled OIDC subject with no separate
   archive signup; P1 defines exactly the two activation jobs; P4 defines the
   exact verified-email rekey job.
