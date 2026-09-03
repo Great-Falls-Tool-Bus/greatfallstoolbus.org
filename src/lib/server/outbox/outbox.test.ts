@@ -17,7 +17,6 @@ import {
 	DEFAULT_BACKOFF_CAP_MS,
 	MAX_LAST_ERROR_LENGTH,
 	type ClaimedJob,
-	type HandlerRegistry,
 } from './schema';
 import { WORKER_EXIT, runWorker } from '../worker';
 
@@ -361,28 +360,6 @@ describe('the worker process boundary', () => {
 			'deferred: provision.ensure_identity, provision.enable_mailbox, provision.add_lists, provision.ensure_archive, offboard.remove_lists, offboard.disable_mailbox',
 		);
 		expect(closed[0].deferredKinds).toContain('provision.add_lists');
-
-		const open: Array<Record<string, unknown>> = [];
-		await runWorker({
-			args: ['--once'],
-			env: {
-				...env,
-				GFTB_LIST_AUTOMATION: 'enabled',
-				GFTB_MAILMAN_API_URL: 'https://fixture-name:fixture-value@mailman.example.invalid/',
-			},
-			io: { stdout: capture(), stderr: capture() },
-			probeTenantFn: async () => true,
-			reconcileProvisioningFn: async () => 0,
-			dispatchOnceFn: async (options) => {
-				open.push({ ...options });
-				return { claimed: 0, done: 0, retried: 0, dead: 0, lost: 0 };
-			},
-		});
-		expect((open[0].registry as HandlerRegistry).kinds()).toEqual(
-			expect.arrayContaining(['provision.add_lists', 'offboard.remove_lists']),
-		);
-		expect(open[0].deferredKinds).not.toContain('provision.add_lists');
-		expect(open[0].deferredKinds).not.toContain('offboard.remove_lists');
 	});
 
 	it('still announces "none registered" for a caller-supplied EMPTY_REGISTRY (e.g. an operator forcing fail-closed)', async () => {

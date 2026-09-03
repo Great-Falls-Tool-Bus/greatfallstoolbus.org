@@ -44,8 +44,8 @@ import { submitApplication, validateSubmission, verifyEmail } from '../applicati
 import { TokenRejectedError, mintToken } from '../application/tokens';
 import { activateMembership, changeEmail, emailHistory, mintActivationToken, provisionOnApproval } from './activate';
 import { NoAgreementVersionError, SupersededAgreementError, publishAgreementVersion } from './agreement';
-import { PROVISION_JOB_KINDS, listProjectionState, reconcileActiveProvisioning } from './provision';
-import { leaveMembership, pauseMembership } from './transition';
+import { PROVISION_JOB_KINDS, reconcileActiveProvisioning } from './provision';
+import { pauseMembership } from './transition';
 
 let fixture: PgFixture;
 let pool: pg.Pool;
@@ -486,8 +486,8 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 		expect(await provisionRows()).toHaveLength(4);
 
 		// Paused members retain the same identity/mail/list/archive entitlement.
-		// A pre-carrier paused row is therefore repaired too, and a second startup
-		// pass converges on the four standing idempotency receipts.
+		// One dead projection is an audited-replay obligation, not permission to
+		// crash startup or block repair of another missing projection.
 		await withTenant(
 			tenantId,
 			(tx) =>
@@ -498,16 +498,23 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 				}),
 			db,
 		);
-		await asTenant(fixture.runtimeDsn, tenantId, (client) =>
-			client.query("delete from outbox_job where aggregate_id = $1 and kind = 'provision.add_lists'", [
-				prov.membership.id,
-			]),
-		);
+		await asTenant(fixture.runtimeDsn, tenantId, async (client) => {
+			await client.query(
+				"update outbox_job set status = 'dead', attempts = max_attempts where aggregate_id = $1 and kind = 'provision.add_lists'",
+				[prov.membership.id],
+			);
+			await client.query(
+				"delete from outbox_job where aggregate_id = $1 and kind = 'provision.ensure_archive'",
+				[prov.membership.id],
+			);
+		});
 		expect(await provisionRows()).toHaveLength(3);
 		expect(await withTenant(tenantId, (tx) => reconcileActiveProvisioning(tx), db)).toBe(1);
-		expect(await provisionRows()).toHaveLength(4);
-		expect(await withTenant(tenantId, (tx) => reconcileActiveProvisioning(tx), db)).toBe(1);
-		expect(await provisionRows()).toHaveLength(4);
+		const repaired = await provisionRows();
+		expect(repaired).toHaveLength(4);
+		expect(repaired.find((row) => row.kind === 'provision.add_lists')?.status).toBe('dead');
+		expect(repaired.find((row) => row.kind === 'provision.ensure_archive')?.status).toBe('pending');
+		expect(await withTenant(tenantId, (tx) => reconcileActiveProvisioning(tx), db)).toBe(0);
 	});
 
 	it('replay with the consumed token converges ONLY with the right password (spec §6 duplicate → original result)', async () => {
@@ -581,123 +588,6 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 });
 
 describe('identity invariants (spec §4; S6 acceptance row 3)', () => {
-	it('list projection state rejects a same-tenant membership/person mismatch', async () => {
-		const tenantId = await newTenant();
-		const keyholder = await newKeyholder(tenantId);
-		const first = await provisioned(tenantId, keyholder);
-		const second = await provisioned(tenantId, keyholder);
-		const state = await withTenant(
-			tenantId,
-			(tx) =>
-				listProjectionState(tx, {
-					membershipId: first.membership.id,
-					personId: second.person.id,
-				}),
-			db,
-		);
-		expect(state).toEqual({
-			membershipStatus: null,
-			revision: 'missing',
-			currentAddress: null,
-			addresses: [],
-			desiredSubscribedAddresses: [],
-		});
-	});
-
-	it('resolves a shared or reassigned address from every entitled person in the tenant', async () => {
-		const tenantId = await newTenant();
-		const keyholder = await newKeyholder(tenantId);
-		const agreement = await withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'V1.' }), db);
-		const first = await provisioned(tenantId, keyholder);
-		const second = await provisioned(tenantId, keyholder);
-		const firstToken = await activationToken(tenantId, first.application.id);
-		const secondToken = await activationToken(tenantId, second.application.id);
-		const firstActive = await withTenant(
-			tenantId,
-			(tx) =>
-				activateMembership(tx, {
-					token: firstToken,
-					password: 'a-long-first-fixture-password',
-					agreementVersionId: agreement.id,
-					hashOptions: FAST_HASH,
-				}),
-			db,
-		);
-		const secondActive = await withTenant(
-			tenantId,
-			(tx) =>
-				activateMembership(tx, {
-					token: secondToken,
-					password: 'a-long-second-fixture-password',
-					agreementVersionId: agreement.id,
-					hashOptions: FAST_HASH,
-				}),
-			db,
-		);
-		const [firstOriginal] = await withTenant(tenantId, (tx) => emailHistory(tx, first.person.id), db);
-		const firstCurrent = await withTenant(
-			tenantId,
-			(tx) => changeEmail(tx, { personId: first.person.id, newEmail: `first-${randomUUID()}@example.org` }),
-			db,
-		);
-		const secondShared = await withTenant(
-			tenantId,
-			(tx) => changeEmail(tx, { personId: second.person.id, newEmail: firstOriginal.email }),
-			db,
-		);
-
-		const whileBothActive = await withTenant(
-			tenantId,
-			(tx) => listProjectionState(tx, { membershipId: first.membership.id, personId: first.person.id }),
-			db,
-		);
-		expect(new Set(whileBothActive.addresses)).toEqual(new Set([firstOriginal.email, firstCurrent.email]));
-		expect(new Set(whileBothActive.desiredSubscribedAddresses)).toEqual(
-			new Set([firstOriginal.email, firstCurrent.email]),
-		);
-		expect(whileBothActive.revision).toContain(secondShared.id);
-		expect(whileBothActive.revision).toContain(secondActive.membership.id);
-
-		await withTenant(
-			tenantId,
-			(tx) =>
-				leaveMembership(tx, {
-					membershipId: first.membership.id,
-					memberPersonId: first.person.id,
-					expectedVersion: firstActive.membership.version,
-				}),
-			db,
-		);
-		const afterFirstLeaves = await withTenant(
-			tenantId,
-			(tx) => listProjectionState(tx, { membershipId: first.membership.id, personId: first.person.id }),
-			db,
-		);
-		expect(afterFirstLeaves.membershipStatus).toBe('left');
-		expect(afterFirstLeaves.desiredSubscribedAddresses).toEqual([firstOriginal.email]);
-		expect(afterFirstLeaves.revision).toContain(secondShared.id);
-		expect(afterFirstLeaves.revision).toContain(secondActive.membership.id);
-
-		await withTenant(
-			tenantId,
-			(tx) =>
-				leaveMembership(tx, {
-					membershipId: second.membership.id,
-					memberPersonId: second.person.id,
-					expectedVersion: secondActive.membership.version,
-				}),
-			db,
-		);
-		const afterLastOwnerLeaves = await withTenant(
-			tenantId,
-			(tx) => listProjectionState(tx, { membershipId: first.membership.id, personId: first.person.id }),
-			db,
-		);
-		expect(afterLastOwnerLeaves.desiredSubscribedAddresses).toEqual([]);
-		expect(afterLastOwnerLeaves.revision).not.toBe(afterFirstLeaves.revision);
-		expect(afterLastOwnerLeaves.revision).not.toContain(secondActive.membership.id);
-	});
-
 	it('an Active member email change atomically owes a fresh ids-only list reconciliation', async () => {
 		const tenantId = await newTenant();
 		const keyholder = await newKeyholder(tenantId);

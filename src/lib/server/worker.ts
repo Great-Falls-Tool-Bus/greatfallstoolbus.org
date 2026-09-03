@@ -59,25 +59,14 @@ import { tenant } from './db/schema';
 import { assertTenantId, withTenant } from './db/tenant';
 import { dispatchOnce, runWorkerLoop, type DispatchSummary, type WorkerLoopOptions } from './outbox/dispatch';
 import { createHandlerRegistry } from './outbox/handlers';
-import {
-	ADD_LISTS_JOB_KIND,
-	createListReconciliationHandler,
-	REMOVE_LISTS_JOB_KIND,
-} from './outbox/handlers/add-lists';
 import { cancelBillingHandler } from './outbox/handlers/cancel-billing';
 import { createProductionStripeProjectHandler, STRIPE_PROJECT_JOB_KIND } from './outbox/handlers/stripe-project';
-import {
-	DEFAULT_BATCH_SIZE,
-	DEFAULT_LEASE_SECONDS,
-	type HandlerRegistry,
-	type OutboxHandler,
-} from './outbox/schema';
+import { DEFAULT_BATCH_SIZE, DEFAULT_LEASE_SECONDS, type HandlerRegistry } from './outbox/schema';
 import { createDecisionEmailHandler, DECISION_EMAIL_JOB_KIND } from './outbox/handlers/application-decision-email';
 import { createReceiptEmailHandler, RECEIPT_EMAIL_JOB_KIND } from './outbox/handlers/application-receipt-email';
 import { createWithdrawnAckHandler, WITHDRAWN_ACK_JOB_KIND } from './outbox/handlers/application-withdrawn-ack';
 import { readMailConfig } from './mail/config';
 import { activationHazardWarning } from './mail/activation';
-import { resolveDiscussListDeliveries } from './lists/mailman';
 import { PROVISION_JOB_KINDS, reconcileActiveProvisioning } from './membership/provision';
 
 /**
@@ -86,11 +75,11 @@ import { PROVISION_JOB_KINDS, reconcileActiveProvisioning } from './membership/p
  * (`./outbox/handlers/stripe-project.ts`), the three TIN-4062
  * application-mail kinds (`application.receipt_email`,
  * `application.decision_email`, `application.withdrawn_ack`,
- * `./outbox/handlers/application-*.ts`), and — as of TIN-3964 — the
- * activation projections (`./membership/provision.ts`). Every entitlement is
- * enqueued, but only a kind with real delivery is registered; closed-gate
- * kinds are explicitly deferred rather than completed by placeholders. Any
- * undeclared kind still dead-letters visibly through `UnknownJobKindError`.
+ * `./outbox/handlers/application-*.ts`). TIN-3964's activation projections
+ * are enqueued but explicitly deferred until their protected, restricted
+ * delivery interfaces exist. A broad Mailman credential is never accepted by
+ * this application. Any undeclared kind still dead-letters visibly through
+ * `UnknownJobKindError`.
  *
  * THE MAIL HANDLERS ALWAYS SEND FOR REAL ONLY IF THEY CAN. `readMailConfig(env)`
  * below is a STARTUP VALIDATION call, same BLOCK-1 posture as
@@ -124,37 +113,20 @@ function defaultRuntime(env: NodeJS.ProcessEnv): DefaultRuntime {
 	// before any job ever claims a mail kind. See the docstring above.
 	readMailConfig(env);
 
-	// Same BLOCK-1 posture for list automation (TIN-3964): a half-configured
-	// GFTB_LIST_AUTOMATION=enabled with no GFTB_MAILMAN_API_URL throws here
-	// and maps to exit 78 below. When the gate is closed (the default), this
-	// resolves to `undefined` and BOTH list kinds remain pending at attempts=0.
-	// One switch governs both directions; no disabled handler can claim a row.
-	const listDeliveries = resolveDiscussListDeliveries(env);
-
-	const handlers: Record<string, OutboxHandler> = {
+	const handlers = {
 		[STRIPE_PROJECT_JOB_KIND]: createProductionStripeProjectHandler(env),
 		'offboard.cancel_billing': cancelBillingHandler,
 		[RECEIPT_EMAIL_JOB_KIND]: createReceiptEmailHandler({ env }),
 		[DECISION_EMAIL_JOB_KIND]: createDecisionEmailHandler({ env }),
 		[WITHDRAWN_ACK_JOB_KIND]: createWithdrawnAckHandler({ env }),
 	};
-	const deferredKinds = [
-		...PROVISION_JOB_KINDS,
-		'offboard.remove_lists',
-		'offboard.disable_mailbox',
-	];
-
-	if (listDeliveries) {
-		const listHandler = createListReconciliationHandler(listDeliveries);
-		handlers[REMOVE_LISTS_JOB_KIND] = listHandler;
-		handlers[ADD_LISTS_JOB_KIND] = listHandler;
-	}
-
 	return {
 		registry: createHandlerRegistry(handlers),
-		deferredKinds: listDeliveries
-			? deferredKinds.filter((kind) => kind !== ADD_LISTS_JOB_KIND && kind !== REMOVE_LISTS_JOB_KIND)
-			: deferredKinds,
+		deferredKinds: [
+			...PROVISION_JOB_KINDS,
+			'offboard.remove_lists',
+			'offboard.disable_mailbox',
+		],
 		reconcileProvisioning: true,
 	};
 }
@@ -183,14 +155,14 @@ contract; consumers are idempotent by contract. S9's "stripe.project", S7's
 three offboarding kinds ("offboard.cancel_billing", "offboard.remove_lists",
 "offboard.disable_mailbox"), TIN-4062's three application-mail kinds
 ("application.receipt_email", "application.decision_email",
-"application.withdrawn_ack"), and delivery-enabled provisioning projections
-are registered by default; any other non-deferred job kind still dead-letters
-visibly rather than being absorbed by a placeholder. The mail kinds resolve to a disabled,
-no-network-I/O journal outcome unless GFTB_MAIL_DELIVERY=enabled, a transport
-DSN, and an operator-approved template all agree; the two discuss-list kinds
-("provision.add_lists" subscribe, "offboard.remove_lists" unsubscribe)
-remain pending with attempts=0 unless GFTB_LIST_AUTOMATION=enabled and a
-Mailman REST DSN agree — see Environment below.
+"application.withdrawn_ack") are registered by default; any other non-deferred
+job kind still dead-letters visibly rather than being absorbed by a
+placeholder. The mail kinds resolve to a disabled, no-network-I/O journal
+outcome unless GFTB_MAIL_DELIVERY=enabled, a transport DSN, and an
+operator-approved template all agree. Identity, mailbox, list, archive, and
+offboarding projection jobs remain pending with attempts=0 until their
+protected restricted interfaces land; this application never accepts a broad
+Mailman or cluster credential.
 
 Options:
   --help               Print this and exit 0. Never touches the database.
@@ -226,19 +198,6 @@ Environment:
                    send, loudly, per spec's fail-closed doctrine — never
                    silently). Startup prints a WARNING (not a failure) when
                    it detects this shape; see mail/activation.ts.
-  GFTB_LIST_AUTOMATION, GFTB_MAILMAN_API_URL
-                   Discuss-list automation (provision.add_lists subscribe,
-                   offboard.remove_lists unsubscribe) is DISABLED by default
-                   regardless of these. GFTB_LIST_AUTOMATION must be exactly
-                   "enabled" AND GFTB_MAILMAN_API_URL must carry the Mailman 3
-                   core REST DSN (https://user:pass@host/ shape, the
-                   gftb-mailman-admin-password credential embedded —
-                   apply-plane-side value, a name only here) to reach the
-                   engine; see src/lib/server/lists/config.ts. Half-configured
-                   (enabled without the DSN) fails closed at startup, exit 78.
-                   Gate-disabled jobs remain pending with attempts=0. Worker
-                   startup reconciles every Active/paused member through the
-                   same generation-bound activation fan-out.
   GFTB_PUBLIC_ORIGIN
                    Optional override for the origin rendered links use.
                    Defaults to the production public origin.
