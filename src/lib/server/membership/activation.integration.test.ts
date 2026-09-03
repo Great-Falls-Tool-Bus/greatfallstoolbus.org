@@ -473,10 +473,9 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 		// created before the two-projection fan-out, then run the exact startup
 		// reconciliation. It restores only the missing P1 receipt.
 		await asTenant(fixture.runtimeDsn, tenantId, (client) =>
-			client.query(
-				"delete from outbox_job where aggregate_id = $1 and kind = 'provision.enable_mailbox'",
-				[prov.membership.id],
-			),
+			client.query("delete from outbox_job where aggregate_id = $1 and kind = 'provision.enable_mailbox'", [
+				prov.membership.id,
+			]),
 		);
 		expect(await provisionRows()).toHaveLength(1);
 		expect(await withTenant(tenantId, (tx) => reconcileActiveProvisioning(tx), db)).toBe(1);
@@ -489,10 +488,9 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 				"update outbox_job set status = 'dead', attempts = max_attempts where aggregate_id = $1 and kind = 'provision.add_lists'",
 				[prov.membership.id],
 			);
-			await client.query(
-				"delete from outbox_job where aggregate_id = $1 and kind = 'provision.enable_mailbox'",
-				[prov.membership.id],
-			);
+			await client.query("delete from outbox_job where aggregate_id = $1 and kind = 'provision.enable_mailbox'", [
+				prov.membership.id,
+			]);
 		});
 		expect(await provisionRows()).toHaveLength(1);
 		expect(await withTenant(tenantId, (tx) => reconcileActiveProvisioning(tx), db)).toBe(1);
@@ -515,10 +513,9 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 			db,
 		);
 		await asTenant(fixture.runtimeDsn, tenantId, (client) =>
-			client.query(
-				"delete from outbox_job where aggregate_id = $1 and kind = 'provision.enable_mailbox'",
-				[prov.membership.id],
-			),
+			client.query("delete from outbox_job where aggregate_id = $1 and kind = 'provision.enable_mailbox'", [
+				prov.membership.id,
+			]),
 		);
 		expect(await withTenant(tenantId, (tx) => reconcileActiveProvisioning(tx), db)).toBe(0);
 		expect(await provisionRows()).toHaveLength(1);

@@ -209,12 +209,7 @@ export interface ClaimOptions {
  * `renewLease` that `dispatchOnce` performs (see the module header, HIGH-1).
  */
 export async function claimBatch(tx: DbTransaction, options: ClaimOptions): Promise<ClaimedJob[]> {
-	const {
-		worker,
-		batchSize = DEFAULT_BATCH_SIZE,
-		leaseSeconds = DEFAULT_LEASE_SECONDS,
-		deferredKinds = [],
-	} = options;
+	const { worker, batchSize = DEFAULT_BATCH_SIZE, leaseSeconds = DEFAULT_LEASE_SECONDS, deferredKinds = [] } = options;
 	if (!worker.trim()) throw new Error('outbox claim: "worker" must be a non-empty string');
 	if (worker.includes('#')) {
 		throw new Error('outbox claim: "worker" must not contain "#" — it delimits the per-claim lease token');
@@ -411,16 +406,7 @@ export interface DispatchSummary {
  * only the handler's own throw can consume an attempt (review MEDIUM-1).
  */
 export async function dispatchOnce(options: DispatchOptions): Promise<DispatchSummary> {
-	const {
-		tenantId,
-		worker,
-		registry,
-		db,
-		batchSize,
-		leaseSeconds,
-		deferredKinds,
-		signal,
-	} = options;
+	const { tenantId, worker, registry, db, batchSize, leaseSeconds, deferredKinds, signal } = options;
 	const backoff = options.backoffMs ?? fullJitterBackoffMs;
 
 	const claimed = await withTenant(

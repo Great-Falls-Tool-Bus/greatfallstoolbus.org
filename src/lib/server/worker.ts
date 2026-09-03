@@ -122,12 +122,7 @@ function defaultRuntime(env: NodeJS.ProcessEnv): DefaultRuntime {
 	};
 	return {
 		registry: createHandlerRegistry(handlers),
-		deferredKinds: [
-			...PROVISION_JOB_KINDS,
-			REKEY_EMAIL_JOB_KIND,
-			'offboard.remove_lists',
-			'offboard.disable_mailbox',
-		],
+		deferredKinds: [...PROVISION_JOB_KINDS, REKEY_EMAIL_JOB_KIND, 'offboard.remove_lists', 'offboard.disable_mailbox'],
 		reconcileProvisioning: true,
 	};
 }
@@ -457,8 +452,7 @@ export async function runWorker(options: WorkerOptions = {}): Promise<number> {
 
 		if (shouldReconcileProvisioning) {
 			const reconcile =
-				reconcileProvisioningFn ??
-				((id: string) => withTenant(id, (tx) => reconcileActiveProvisioning(tx)));
+				reconcileProvisioningFn ?? ((id: string) => withTenant(id, (tx) => reconcileActiveProvisioning(tx)));
 			const membershipCount = await reconcile(tenantId);
 			if (membershipCount > 0) {
 				io.stdout.write(`worker: reconciled provisioning intent for ${membershipCount} active memberships\n`);
