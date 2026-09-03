@@ -41,15 +41,16 @@ export default defineConfig({
 			: []),
 	],
 	webServer: {
-		// adapter-node emits a Node server bundle in build/ — run it with node,
-		// not a static file server. The server reads PORT/ORIGIN from the env.
-		command: 'pnpm run build && node build',
+		// adapter-node emits a Node server bundle in build/, but booting it needs
+		// the full runtime env (DATABASE_URL etc.) that the CI playwright job does
+		// not have — CI run 33715124706 proved `node build` cannot start there.
+		// The static server below serves only the prerendered subset of build/,
+		// which is exactly the surface the current e2e specs exercise. Dynamic
+		// (server-rendered) routes are NOT covered by this suite; full-server e2e
+		// belongs to the integration/preview-tailnet lane.
+		command: 'pnpm run build && pnpm exec serve build -l ' + port,
 		port,
 		timeout: 180_000,
 		reuseExistingServer: !process.env.CI,
-		env: {
-			PORT: String(port),
-			ORIGIN: baseURL,
-		},
 	},
 });
