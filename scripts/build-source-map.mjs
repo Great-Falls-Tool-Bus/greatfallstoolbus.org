@@ -2,8 +2,11 @@
 //
 // Walks src/routes/**/+page.svelte and emits src/lib/generated/source-map.json,
 // mapping each SvelteKit route id to its repo-relative source path plus the
-// repo URL and default branch. SourceLink.svelte reads this file to render the
-// "View source" / "Edit this page" affordance in the shared PageHeader.
+// repo URL and default branch. The original consumer — SourceLink.svelte,
+// which rendered the "View source" / "Edit this page" affordance in the shared
+// PageHeader — was removed in 23d9513; nothing reads this map today. The
+// generator and the `just source-map-check` gate keep running while a
+// restore-or-retire decision (D-06) is pending.
 //
 // Why derived, not per-page hand-links: the map is generated from architectural
 // zero so a new page cannot silently lack the affordance, and NO org/repo string

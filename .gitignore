@@ -39,6 +39,9 @@ bundle-report.json
 .DS_Store
 Thumbs.db
 
+# Python bytecode (gftb-site ignores this too; do not rely on a global ignore)
+__pycache__/
+
 # direnv + Nix
 .direnv/
 result
