@@ -82,9 +82,9 @@ Non-negotiables beyond the scaffold contract: this repo holds
 **zero secrets and zero cluster endpoints, ever** (public repo; sops+age
 material lives in the org apply-plane overlay `great-falls-tool-bus-infra`
 under its `secrets/` lane); IaC here is declare-only intent, apply authority
-is `great-falls-tool-bus-infra` (mail/list/Anubis/DNS apply + runners,
-TIN-2299; packet 0001 Amendment 1 / memo 0002, blahaj is replaceable
-substrate consumed by reference); never scaffold a runner or
+is `great-falls-tool-bus-infra` (mail/list/Anubis/DNS apply + execution demand,
+TIN-2299; packet 0001 Amendment 1 / memo 0002; provider supply and placement are
+opaque here); never scaffold a runner or
 bake a cache/executor endpoint; the five sewing-cell ASINs stay opaque until
 operator-mediated resolution (never invent product names); all money-donation
 copy stays recipient-neutral with no tax-deductibility claims until decision
@@ -95,7 +95,8 @@ row (h) is signed.
 This repo is the **Great Falls Tool Bus platform**: an `app-stateful-spoke`
 (TIN-3815, ADR 0014). It owns member, contact, payment, and inventory behavior
 — runtime routes, domain state, schema and migrations, and the one immutable
-image that carries the `web`, `worker`, and `migrator` process boundaries.
+deployment bundle carrying the `web`, `worker`, and `migrator` process
+boundaries for qualified owner publication.
 
 What it still does **not** own, and must never acquire: secret values, cluster
 credentials, kubeconfigs, DNS or edge mutation, and GitOps apply. Those stay in
@@ -112,8 +113,9 @@ repository as private or renamed** in code, comments, docs, or image refs.
 
 ## Taxonomy Boundary
 
-- Cross-repo repo-shape truth lives in
-  `docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md`.
+- Cross-repo repo-shape truth is the exact site.scaffold v2 schema carried at
+  `docs/schemas/tinyland-repo-manifest.v2.schema.json`; this repository carries
+  only its consumer instance.
 - Static-spoke rules retained in this repo apply to its **scaffold/template
   surfaces** and to sister sites spawned from them — not to the platform's own
   runtime behavior, which is app-stateful by declaration. Do not apply them
@@ -123,19 +125,8 @@ repository as private or renamed** in code, comments, docs, or image refs.
   `app-stateful-spoke` manifest must set `owns_runtime_backend: true` and leave
   `owns_gitops_apply` and `owns_cloudflare_mutation` false.
 - Org-wide rules still apply everywhere: clear `AGENTS.md`, reproducible
-  Just/Nix entrypoints where commands exist, secrets scanning, GitHub-first CI,
+  Just/Nix entrypoints where commands exist, secrets scanning, v4 action CI,
   and no hidden prompt-only requirements.
-- The desired convergence is a GloriousFlywheel-powered, Blahaj-routed GitOps
-  path where repo shape is declarative and lane/reaper/public-preview plumbing
-  is not duplicated per repo. **This describes mechanism layer B (the
-  gated-convergence chain), which meta ADR
-  `decisions/0020-adopt-production-convergence-contract-2026-08-21.md` §2
-  tracks but does NOT adopt** — its GFTB carrier (TIN-2611) is Backlog behind
-  seven unmet prerequisites, and the *dispatch* shape this bullet names is
-  what `converge-agent.md` §3 forbids outright once GFTB declares a carrier
-  under mechanism A. See the "Per-PR Ephemeral Envs" and "Tofu Posture"
-  sections ~375 lines below for the current, superseded-and-stamped state of
-  the Blahaj-routed path specifically.
 
 ## Authoritative Entrypoints
 
@@ -144,30 +135,24 @@ repository as private or renamed** in code, comments, docs, or image refs.
   `bazelisk` directly outside the Justfile unless adding a new recipe.
 - **Shell**: `nix develop` (auto-loaded by `direnv`), never assume host
   toolchain. CI runs `nix develop --command just <recipe>`.
-- **Build**: `just build` with no `ADAPTER` set produces a static `build/`
-  (adapter-static). That default is the local/CI fallback ADR 0010 Amendment 1
-  item 2 requires; the image recipes select adapter-node explicitly.
-- **Image entrypoints**: `just platform-entrypoints-check` runs the exact
-  derivations the image installs at `/bin/web`, `/bin/worker`, and
-  `/bin/migrator`. It needs no container daemon, so it is the per-entrypoint
-  proof to run locally. `just container-image-smoke` proves the *assembled*
-  image instead (per-role `--entrypoint … --help`, in-container `id -u` = 1001);
-  it skips with a message when no container daemon answers.
+- **Build**: `just build` and Bazel `//:build` produce the adapter-node server
+  under `build/`. Production and validation no longer compile different app
+  shapes behind an `ADAPTER` switch.
 - **Database (Member v0, TIN-3817 S1)**: `just db-generate` regenerates the
   checked-in migration SQL and its hash manifest; `just db-check` refuses a
   drifted tree, an edited committed migration, or a recipe that reaches for
   `drizzle push`, and rides inside `just check`; `just db-migrate` runs the
   real migrator against `$DATABASE_URL` (a runtime *name* — the value belongs
-  to `great-falls-tool-bus-infra`); `just db-migrator-bundle` builds the
-  `/bin/migrator` payload the image ships. Migrations are forward-only: an
-  applied file's hash is immutable, and changing one fails closed rather than
-  reapplying.
+  to `great-falls-tool-bus-infra`). The application-owned
+  `build/migrator.mjs` payload is included in `//:deployment_bundle`; GF-I09
+  owns the final image `/bin` wrappers and their proof. Migrations are
+  forward-only: an applied file's hash is immutable, and changing one fails
+  closed rather than reapplying.
 - **Integration tests**: `just test-integration` runs the testcontainers-backed
   PostgreSQL 16.15 suite (RLS, `FORCE`, advisory lock, ledger drift, runtime
-  role grants). It **skips loudly, exit 0, when no container daemon answers** —
-  this org's ARC pool advertises only `tinyland-nix` and has no dind runner, so
-  those rows are CI-pending, not merely flaky. The tree-shaped half of the same
-  properties is proved by `just check`.
+  role grants). It fails closed when neither a container daemon nor the
+  operator-supplied `GFTB_TEST_PG_SUPERUSER_DSN` is available; unavailable
+  integration infrastructure is not a green result.
 - **Check**: `just check` runs sync + svelte-check.
 - **SBOM**: `just sbom` generates local CycloneDX JSON and SPDX JSON artifacts
   under ignored `build/sbom/`.
@@ -190,14 +175,16 @@ repository as private or renamed** in code, comments, docs, or image refs.
   `/plugin install scaffold-core@site-scaffold`. Plugin skills are sibling
   symlinks under `plugins/scaffold-core/skills/` that resolve back to the
   canonical `.agents/skills/<name>`.
-- **Published skills** (six):
+- **Published scaffold skills** (five):
   - `tinyland-whoami`, cold-landing repo-role classifier. Run via `just whoami`.
-  - `tinyland-spawn-sister-site`, user-only; wraps the `gh repo create
-    --template` + `scripts/rebrand.sh` ritual.
+  - `tinyland-spawn-sister-site`, user-only discovery shim; executable creation
+    and rebrand mechanics live only in `tinyland-inc/site.scaffold`.
   - `tinyland-scaffold-doctor`, drift audit. Run via `just scaffold-doctor`.
   - `tinyland-repo-contract`, house-style baseline (Justfile/flake/gitleaks).
   - `tinyland-static-spoke`, per-spoke customization for static brand sites.
-  - `tinyland-flywheel-bazel`, cache-first Bazel through GloriousFlywheel.
+  - GloriousFlywheel v4 adoption follows the upstream
+    `tinyland-flywheel-enroll` skill; this repo no longer vendors the retired
+    v3 cache/profile skill.
 - **Validation**: `just skills-validate` checks every SKILL.md frontmatter for
   required fields and the Anthropic 1,536-char description cap. Wire into
   `just check` in any consuming repo that publishes its own skills.
@@ -211,52 +198,38 @@ repository as private or renamed** in code, comments, docs, or image refs.
 - Durable operating truth belongs in repo files, schemas, tests, and Just
   recipes. Do not hide requirements only in prompt text.
 
-## Bazel Posture
+## GloriousFlywheel v4 Action Fabric
 
-- Bazel exists for **module-graph integrity proofs**, cache-first package
-  authority, and future RBE pipeline acceleration. The canonical app build
-  remains `pnpm run build` until a spoke proves the matching Bazel target class.
-- Registry order: `tinyland-inc/bazel-registry` first, then BCR.
-- Local smoke: `just bazel-graph` may inspect module-graph health inside the
-  Nix dev shell.
-- Flywheel-backed build/test/fetch work goes through
-  `scripts/gloriousflywheel-bazel.sh` or the `just flywheel-*` wrappers. The
-  wrapper chooses cache-only vs executor-backed mode from validated environment;
-  raw Bazel config flags are not the scaffold contract.
-- In-house `@tummycrypt/*` / `@tinyland/*` npm dependencies are compatibility
-  edges for pnpm/Vite until the static build moves fully under Bazel. Their
-  versions must be either an exact semver matching the corresponding
-  `bazel_dep` version or the registry-named GitHub tag-archive URL whose repo
-  matches the package and whose tag version matches that `bazel_dep`
-  (TIN-3165 npm retirement).
-
-## GloriousFlywheel Cache Enrollment (cache-first, TIN-2119)
-
-- This spoke is **enrolled in the shared Bazel cache** via the `cache_backed`
-  lane of `tinyland-inc/ci-templates/.github/workflows/spoke-ci.yml` (pinned at
-  `@v2.9.0`, `cache_backed: true`, `flywheel_config: flywheel`). The
-  `flywheel-build` and `bazel-graph` jobs read the shared cache over the cluster
-  substrate; `vite build` + `svelte-check` + `vitest` are wrapped as
-  flywheel-eligible CAS-cacheable Bazel actions (`//:build`,
-  `//:sveltekit_types`, `//:svelte_check_test`, `//:unit_tests`).
-  Naming note: `flywheel-test` is the template's matrix name for the pure-pnpm
-  `just check` lane (no Bazel); real Bazel cache attach lives in
-  `flywheel-build` / `bazel-graph`.
-- **Do NOT create runners.** Enrollment attaches to the existing in-cluster
-  `tinyland-nix` ARC pool. Hosted / repo-shaped runner fallback is rejected
-  fail-closed by `scripts/cache-attachment-contract.sh`.
-- **Do NOT treat raw `bazelisk build` as enrollment.** A green local-only build
-  proves nothing. Real enrollment = the `--config=ci-cached` lane reading
-  `$BAZEL_REMOTE_CACHE`, with `build:ci --disk_cache=` so a green build cannot be
-  an incidental local-disk hit. The remote-cache hit/transfer lines in the
-  cache-backed step's log are the real-attach proof.
-- **Self-verify** before claiming enrollment: `just cache-contract-strict`
-  (reads `enrollment.substrateMode` from `tinyland.repo.json` as the
-  authoritative expected mode and fails closed on a declared-vs-actual mismatch).
-- **CACHE-FIRST only** (TIN-1997 Option D): no remote executor is wired here.
-  REAPI / executor-backed mode is classified but out of scope for this spoke.
-  Cache attach is not an org-migration closure.
-
+- This application owns finite Bazel targets and the ActionPlan/v4 schema-3
+  result dispositions in
+  `.github/lanes.json`. It does not own a runner, pool, endpoint, platform,
+  cache profile, token exchange, or provider placement.
+- `.github/workflows/ci.yml` invokes only the immutable
+  `tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@32e39ced0008edf4564ebeb173a5e8fbf069e28f`
+  (`v5.1.0`, carrying ActionPlan/v4 schema 3) and
+  selects one checked-in action name. The image-custodied compiled
+  `gf-action-client` is the sole execution entrypoint.
+- The Great-Falls-Tool-Bus organization installs the GF GitHub App. Its sibling
+  `great-falls-tool-bus-infra` repository owns the signed
+  `OwnerInstallation/v1` and `TenantOverlay/v1` demand instances. GF core
+  owns their types and verifier, never these consumer instances.
+- Provider supply and placement are opaque to this repository. Missing App,
+  overlay, catalog, binding, OIDC, client, or REAPI authority is a product
+  failure and fails closed.
+- There is no v4 fallback to local execution, cache-only execution, a hosted or
+  repo-shaped runner, a direct endpoint, a profile, a port-forward, or a
+  producer-held consumer registry.
+- Local `just` recipes remain developer tools; their output is never v4
+  evidence and never substitutes for a refused remote action.
+- This application exports `//:deployment_bundle`; it does not construct or
+  publish an OCI image. Only upstream GF-I07/v5 may qualify its verified
+  `ActionOutputSet/v1`; only the GF-I09 owner materializer/publisher/controller
+  may then construct, publish, and converge that image. Those authorities are
+  not available to the current source carrier, so publication remains
+  fail-closed with no application-owned bridge.
+- In-house packages enter only through the pinned Bzlmod/BCR graph. Node-facing
+  developer recipes may hydrate those graph outputs, but package.json,
+  pnpm-lock.yaml, and v4 actions have no npm-shadow or fallback source.
 ## Theme & Skeleton
 
 - **Skeleton 5.0.1** (pinned, PAIRED). `@skeletonlabs/skeleton` and
@@ -272,21 +245,12 @@ repository as private or renamed** in code, comments, docs, or image refs.
 - Theme cascade lives in `src/app.css`. Per-site brand themes go under
   `src/lib/styles/themes/`.
 
-## Projection And Broker Display
+## Static Projection Ingestion
 
 - This site is a **read-only consumer** of reviewed `tinyland.dev` content.
-- `greatfallstoolbus.org` supports two read-only spoke modes:
-  - **Static projection ingestion**: checked-in JSON artifacts validated at
-    build time. This is the default for product, service, offer, and simple
-    brand sites.
-  - **Runtime broker display**: a static Cloudflare Pages shell fetches
-    reviewed content from a public Tinyland broker route at runtime. This is
-    the intended mode for blog/Pulse surfaces that need fresh posts, notes,
-    media, or stream items without committing content payloads into the spoke.
-- Runtime broker display still does not make the spoke an authority. The spoke
-  may render public broker data, but it must not own writes, auth, private
-  media, checkout, ActivityPub delivery, inboxes, followers, retries,
-  tombstones, or moderation state.
+- `greatfallstoolbus.org` may ingest checked-in JSON projection artifacts that
+  are validated at build time. It never fetches a Tinyland broker at runtime
+  and never makes this application a content authority.
 - Use `just validate-static-projection <snapshot>` before trusting a copied
   snapshot.
 - Use `just sync-static-projection <source> <target>` for generic static-spoke
@@ -301,392 +265,80 @@ repository as private or renamed** in code, comments, docs, or image refs.
   payment custody, ActivityPub delivery workers, or public Fediverse
   federation.
 - `.github/workflows/pulse-ingest.yml` is allowed to open checked-in snapshot
-  refresh PRs. It must not push directly to the default branch. It is not the
-  runtime broker-display path.
-
-## Per-Site Customization Checklist
-
-After `gh repo create --template tinyland-inc/site.scaffold`:
-
-1. `direnv allow`
-2. `scripts/rebrand.sh <site.example.com>`, rewrites name strings, env vars,
-   bazel cache name, etc.
-3. Update `MODULE.bazel` `module(name = ...)` to underscored site name.
-4. Update `README.md` / `AGENTS.md` with the per-site brand purpose.
-5. Replace `src/routes/+page.svelte` with the brand landing page.
-6. Set the GH repo description and homepage URL via `gh repo edit`.
-7. Push first commit; verify CI green (secrets-scan, build-and-test, bazel-graph).
+  refresh PRs. It must not push directly to the default branch.
 
 ## What Not To Do
 
-- Don't add a runtime database / API server to a **sister site** spawned from
-  these scaffold surfaces, or to the `gftb-site` microsite. Keep those static.
-  This platform repo may own that behavior; it still may not own cluster apply,
-  edge credentials, or secret values.
+- Don't add runtime state or APIs to the `gftb-site` microsite. This platform
+  repo owns GFTB application behavior; it still may not own cluster apply, edge
+  credentials, or secret values.
 - Don't fork tinyland-color-utils / tinyvectors / vite plugins per-site.
   Pin via the BCR.
-- Don't add in-house npm package ranges or allow `package.json` to drift from
-  `MODULE.bazel`; use `just inhouse-package-parity` or `just conformance`.
+- Don't add an in-house npm source edge. Keep each BCR module linked through its
+  public `:pkg` target; use `just inhouse-package-parity` or `just conformance`.
 - Don't bypass `Justfile` in CI or local, DX/AX must stay homogenous.
 - Don't unpin Skeleton or split the skeleton/skeleton-svelte paired pin
   without coordination.
 
-## Multi-Lane Posture
+## V4 ActionPlan And Consumer Boundary
 
-- The normative CI + lane contract is [`docs/CI-SCHEMA.md`](./docs/CI-SCHEMA.md).
-  Read it before changing `.github/lanes.json`, `.github/workflows/*.yml`,
-  any `tofu/` file, or any `flywheel-*` Justfile recipe.
-- A spoke runs one or more **lanes** declared in `.github/lanes.json`. The
-  default scaffold ships a single `default` lane; multi-trunk spokes
-  (MassageIthaca-shaped) add more, up to 8.
-- Lane edits are a one-file change. After editing `.github/lanes.json`,
-  run `just lanes-validate` and `just conformance` before committing.
-- A three-lane reference is checked in at `.github/lanes.example.json`
-  (not loaded by CI, copy fields you need into `lanes.json`).
+- The normative interface is [`docs/CI-SCHEMA.md`](./docs/CI-SCHEMA.md).
+- `.github/lanes.json` contains only named `build` or `test` actions, finite
+  workspace-local Bazel targets, and the abstract `rbe-linux-x86_64`
+  capability. It contains no tenant or provider data.
+- Every action declares one closed result disposition. Validation is
+  `status-only`. The product build selects exact target
+  `//:deployment_bundle` with `export-regular-files` and output group
+  `default`; only its verified `ActionOutputSet/v1` may cross into a separate
+  owner publication transaction.
+- One immutable ci-templates invocation selects one member. Plan membership is
+  admission, not a request to execute every member in one ARC job.
+- ARC is only the thin GitHub admission edge. Bazel actions, REAPI scheduling,
+  and the shared CAS/AC are the compute fabric.
+- Browser LOOK, publication, OpenTofu, mutable preview lifecycle, and production
+  apply are not Bazel actions. A PR LOOK route needs a separately admitted
+  controller result and an owner-overlay reap transaction; neither may be
+  approximated by a local preview or direct cluster mutation.
+- Source presence is not activation. Keep a v4 adoption Draft until the exact
+  consumer-owned overlay, resolved catalog, protected client image, and
+  measurement attribution exist.
+## Build target (one adapter-node product shape)
 
-## Flywheel Binding
+GFTB is an `app-stateful-spoke`, not a static scaffold instance. `just build`
+and Bazel `//:build` compile the same adapter-node server shape, while
+`//:deployment_bundle` is the sole application-owned promotion input. A
+qualified owner publication transaction consumes those verified bytes; it does
+not authorize a second application build. The retired adapter-static branch and
+`ADAPTER` selector are absent: a green local/static build cannot stand in for
+the artifact promoted on main.
 
-- The canonical spoke entrypoint is `scripts/gloriousflywheel-bazel.sh`, usually
-  through `just flywheel-build`, `just flywheel-test`, or `just flywheel-fetch`.
-  Do not call raw `bazelisk build/test/run` for cache-backed or executor-backed
-  work.
-- The advertised enrollment path is `just flywheel-enroll`, then
-  `just flywheel-doctor`, then `just flywheel-verify`. These commands inspect
-  the GloriousFlywheel fleet profile state and fail closed before agents run
-  cache-backed Bazel.
-- Endpoint authority is environment-driven, not `.bazelrc`-driven:
-  - `GF_FLYWHEEL_PROFILE_STATE` records the fleet enrollment state:
-    `unattached`, `shared-cache-backed`, `executor-backed`, or `local-proof`.
-  - `BAZEL_REMOTE_CACHE` is required for Flywheel-backed Bazel work.
-  - `GF_BAZEL_SUBSTRATE_MODE=shared-cache-backed` means remote cache only.
-  - `GF_BAZEL_SUBSTRATE_MODE=executor-backed` also requires
-    `BAZEL_REMOTE_EXECUTOR`.
-  - `GF_BAZEL_REMOTE_UPLOAD=true` is only for trusted default-branch or operator
-    cache-writing jobs; pull requests remain read-only.
-  - Optional auth material is runtime-only:
-    `BAZEL_CREDENTIAL_HELPER`, `BAZEL_REMOTE_HEADER`,
-    `BAZEL_REMOTE_CACHE_HEADER`, and `BAZEL_REMOTE_EXEC_HEADER` may be supplied
-    by CI/operator environment and must not be committed.
-  - `BAZEL_REMOTE_INSTANCE_NAME` is non-secret routing metadata. When present,
-    the wrapper must pass it through as `--remote_instance_name` so the REAPI
-    cell does not fall back to the `default` tenant.
-  - `GF_BAZEL_JOBS` and `BAZEL_REMOTE_MAX_CONNECTIONS` are optional executor
-    throttles for bounded proof lanes and small executor pools; they must come
-    from runtime profile/operator context, not checked-in defaults.
-- `.bazelrc.flywheel` is endpoint-free. It may hold safe Bazel behavior such as
-  timeouts, download mode, worker platform hints, and `flywheel-eligible` tag
-  filters, but it must not hard-code `remote_cache` or `remote_executor`.
-- Proved-for-spoke target classes (mirrored from
-  `tinyland-inc/GloriousFlywheel/config/rbe-target-eligibility.json`):
-  `sveltekit-app-build`, `sveltekit-unit-tests`,
-  `deployment-bundle-packaging`, `docs-site-static-build`. Candidate
-  (still rejected at runtime): `web-playwright-chromium-static-smoke`.
-- Hard NOs: current RustFS is not trusted CAS/action-cache/publication authority
-  until TIN-1147 proves repair or replacement; no OpenTofu RBE
-  (`opentofu-validate`/`opentofu-fmt` are blocked); no developer-server RBE
-  (`//app:dev` cannot run on REAPI); cache hits are not RBE.
-- Local DX: `nix develop` for the toolchain. If `BAZEL_REMOTE_CACHE` is absent,
-  Flywheel Bazel recipes fail fast instead of silently doing heavy local work.
-  Use `just bazel-graph` for local module-graph inspection only.
+**Application role.** This repository is an `app-stateful-spoke`, not a live
+scaffold conversion. Schema v2 forbids `taxonomy.spawned_repo_role` on this
+role. It carries no rebrand implementation or adapter selector: those are
+owned by `tinyland-inc/site.scaffold` and run only inside a newly generated
+child. GFTB consumes the resulting repo-shape contract.
 
-## Testing & Browser-RBE Smoke Suite
-
-Back-propagated from the `darkmap.phasi.space` spoke, which matured this surface
-first. These are reusable directives; the example targets/scenarios are
-illustrative, not scaffold content.
-
-- **Remote-first.** Browserful Playwright e2e (and any server-bundle build) are
-  remote-first. Locally use `just check` / `just ci-quick`; do **not** run
-  browserful e2e locally unless explicitly gated (`LOCAL=1`). CI is the source of
-  truth for browser regressions.
-- **Browser-RBE smoke SUITE pattern.** Prefer one aggregate `test_suite`
-  (`playwright_browser_rbe_smoke_suite`) wrapping **thin per-scenario `js_test`
-  wrappers** that each set a `*_RBE_SMOKE_SCENARIO` env var and `await import()` a
-  single shared orchestrator (server spawn + Chromium launch + network mocks +
-  the scenario). One runner, N cheap wrappers. Two **load-bearing tag gotchas**:
-  - `test_suite` `tags` are *filters*, not metadata, keep them to the shared tag
-    set or the suite silently resolves to zero targets.
-  - A target needs `tags = ["flywheel-eligible"]` or `--config=flywheel-executor`'s
-    tag filter matches **zero** targets (a silent no-op). Add `manual` so bare
-    `bazel test //...` doesn't run browserful work by accident.
-  - `executor-backed` must force the remote spawn strategy and disable local
-    fallback; cache hits or processwrapper/local execution are not RBE proof.
-- **The proof cell has NO fonts and NO WebGL** (same as the gstack `/browse`
-  headless cell). Consequences, learned the hard way:
-  - The MapLibre/WebGL canvas **never paints** in CI, assert layout/DOM, not
-    pixels. Text-only nodes render zero-size, so use Playwright
-    `waitFor({ state: 'attached' })` + `textContent`/attributes, **not**
-    `{ state: 'visible' }` or `.click()` on them.
-  - **Click the map canvas at its own CENTER**, `canvas.click()` with **no**
-    `position`. A viewport-relative `position` breaks once the map is inset
-    (framed/gutter layouts): the click point falls outside the smaller canvas and
-    times out as "not visible/stable". (Real regression caught only by the live
-    proof, never by static review.)
-  - **Trust the live browser-RBE proof over static analysis** for smoke impact, a static read of the smokes cannot see runtime actionability failures.
-- **Font/WebGL-dependent visuals are CI-blind.** Verify them **locally** with a
-  SwiftShader Chrome capture tool (`just capture-shipped-ui` →
-  `scripts/capture-shipped-ui.mjs`): it serves the build and drives the system
-  Chrome with `--enable-unsafe-swiftshader --use-gl=angle --use-angle=swiftshader`
-  (+ real fonts) so the canvas actually renders for per-route screenshots. This is
-  the only camera that can see a framed/gutter layout regression.
-- **`root_lib_test` lists files explicitly, NO glob.** Top-level `src/lib/*.ts` +
-  `*.test.ts` are enrolled by explicit label in `BUILD.bazel` (Bazel globs stop at
-  sub-package boundaries, and aspect_rules_js rejects raw cross-package file
-  labels). A new lib module + its test must be **added to both the `data` and
-  `args` lists**; cross-package `$lib/...` sources are pulled in via a wrapping
-  `js_library` in the root package. Forgetting this silently drops the test from
-  the slice.
-
-## Build target (adapter-static fallback default; adapter-node chosen explicitly)
-
-The scaffold default is **adapter-static** (cheap, DB-less, no edge auth) and that
-is the house baseline for content/brand spokes. **adapter-node** is a
-*sanctioned opt-in*, adopt it only when a spoke genuinely needs a server: a
-secret-holding proxy, upstream normalization (e.g. ad-header stripping / bbox
-rewriting), or thin API routes the browser can't do safely. The
-`darkmap.phasi.space` spoke is the adapter-node reference (it proxies + normalizes
-an upstream GeoServer). A spoke that switches must also flip its deploy lane
-(container build → server) and its smoke serve path (`node build/index.js` vs a
-static file server), keep both documented; never silently switch the default.
-
-**Here, adapter-node is the served artifact but NOT the no-`ADAPTER` default
-(TIN-3815 S0).** The platform is served by adapter-node, and every image recipe
-sets `ADAPTER=node` explicitly (`ContainerFile`, `just container-image-build`,
-`just container-image-publish`). `svelte.config.js` keeps its adapter-static
-default on purpose: ADR 0010 Amendment 1 item 2 retains adapter-static as "a
-local/CI fallback build (`just build` with no `ADAPTER` set stays green against
-the frozen lockfile, so the default gates never regress)". Flipping that default
-would amend a standing ADR as a side effect. If the operator later wants it
-flipped, that is a one-paragraph erratum against Amendment 1 item 2, raised on
-its own.
-
-**Dynamic-spoke variant (adapter-node, flagged at spawn, TIN-2228).** Rather than
-hand-rolling the static→node swap (the way `printstack`/TIN-1280 did), the swap is a
-flagged mode IN this scaffold. `scripts/rebrand.sh` takes `--adapter=node|static`
-(default `static`): `--adapter=node <domain>` jq-swaps the `@sveltejs/adapter-static`
-devDependency for `@sveltejs/adapter-node`, rewrites `svelte.config.js` to
-`adapterNode()` (dropping the `fallback`/`precompress`/`prerender` static-isms, keeping
-runes + `BASE_PATH`), and stamps `taxonomy.spawned_repo_role = "app-stateful-spoke"`
-in `tinyland.repo.json`. The edits are crash-safe (tmp+mv) and idempotent. The
-rationale, role decision (reuse `app-stateful-spoke`, do not add a new enum), and
-the static-vs-dynamic deploy lanes live in
-[`docs/decisions/dynamic-spoke-adapter-mode.md`](docs/decisions/dynamic-spoke-adapter-mode.md)
-and [`docs/decisions/dynamic-canary-blue-green.md`](docs/decisions/dynamic-canary-blue-green.md).
-A dynamic spoke is `app-stateful-spoke`, so the static-spoke boundary block does NOT
-constrain it, re-check `boundaries` in `tinyland.repo.json` after flipping.
-
-**Deploy lane (GFTB = on-cluster, `adapter-node`).** ADR 0010
-([`docs/decisions/0010-on-prem-is-the-production-host.md`](docs/decisions/0010-on-prem-is-the-production-host.md),
-executed 2026-07-06, Amendment 2 2026-07-07) retired the Cloudflare Pages
-opt-in this section used to describe: `.github/workflows/deploy-pages.yml` has
-been removed. Production now serves on-cluster behind the `cloudflared` tunnel
-— `adapter-node` -> OCI image (`.github/workflows/container-ghcr.yml` -> GHCR)
--> K8s Deployment in `great-falls-tool-bus-infra`. This public repo still
-never stores CF credentials or edge-apply authority; Blahaj/the org overlay
-own DNS, Access, Tunnel, and the image pin.
-
-**This repo publishes; it does not deploy (TIN-3899).** `container-ghcr.yml`
-used to carry a `signal-cd` job that resolved the pushed `@sha256` digest and
-fired a `repository_dispatch` (`web-image-published`) at the overlay's
-`web-stack.yml`, which then applied it — continuous deployment on merge-to-main.
-Both ends are retired: the overlay workflow is deleted and the signal job is
-gone, so a push to `main` builds and publishes an image and stops there. No
-`INFRA_CD_DISPATCH_TOKEN` is consumed, and nothing in this repository can mutate
-the live Deployment. Production changes are an attended, reviewed release in the
-overlay. Cloudflare Pages is not just
-retired — the project itself is **deleted** (ADR 0010 Amendment 2, TIN-2560:
-the operator closed the rollback window early, 2026-07-06, rather than holding
-it warm to ~2026-07-08) — see
-[`docs/deploy/cloudflare-pages.md`](docs/deploy/cloudflare-pages.md)
-(historical) and
-[`docs/runbooks/cf-pages-rollback.md`](docs/runbooks/cf-pages-rollback.md)
-(why its rollback procedure no longer applies; rollback is now an attended
-on-cluster re-plan/re-apply of the overlay's reviewed release chain with the
-previous digest — the infra `web-stack.yml` dispatch this line used to name was
-retired by TIN-3899). The
-scaffold default remains GitHub Pages for personal/static spokes; GFTB's
-history of overrides is ADR 0003 (Cloudflare Pages) then ADR 0010
-(on-cluster, Pages deleted).
-
-**Dynamic deploy lane.** A `--adapter=node` spoke does NOT use the Pages lane. Its
-deploy is **blue/green via the Blahaj GitOps receiver** (build a server image →
-stand up GREEN beside BLUE → health-gate GREEN cold → Blahaj flips ingress →
-rollback = flip back to the still-warm BLUE). The static lane's safety is instead a
-post-deploy **health-gate** on an atomic-publish host (rollback = re-publish the
-prior artifact). Both lanes are designed in
-[`docs/decisions/dynamic-canary-blue-green.md`](docs/decisions/dynamic-canary-blue-green.md)
-(design-stage; no workflow/tofu wiring is shipped yet).
-
-## Per-PR Ephemeral Envs — SUPERSEDED, see meta ADR 0020
-
-> **SUPERSEDED (2026-08-21).** The `tinyland-inc/blahaj` GitHub App
-> `repository_dispatch` receiver this section describes was deleted 2026-08-05
-> (PR #1255 / `813ef8c0`, operator ruling: "fully remove, these are
-> application infra substrate that should not live in blahaj"). Nothing
-> execution-shaped has replaced it estate-wide. Reading this section in the
-> present tense is the exact failure mode
-> `org-standard-cd-pattern-truth-20260821.md` C6/D21 names: an agent's first
-> read is the superseded pattern. CD authority for GFTB now routes through
-> `meta` ADR `decisions/0020-adopt-production-convergence-contract-2026-08-21.md`
-> (Great-Falls-Tool-Bus/meta#34, DRAFT — operator merges); the
-> preview-environment companion decision is
-> `great-falls-tool-bus-infra` ADR `docs/decisions/0003-preview-cd-authority-companion-2026-08-21.md`
-> (great-falls-tool-bus-infra#125, DRAFT). The ratified interim is a tailnet
-> preview (`tailscale serve`, `just preview-tailnet`); the ratified target is
-> `staging.greatfallstoolbus.org` promote-on-PR after the infra apply
-> sitting. The text below is retained per the no-silent-rewrite convention —
-> it describes the scaffold's generic Per-PR Ephemeral Envs shape, which this
-> repository does not currently run.
-
-- Each PR provisions one ephemeral environment per declared lane via the
-  `tinyland-inc/blahaj` GitHub App (`repository_dispatch` payload
-  schema: `docs/schemas/blahaj-dispatch.schema.json`).
-- DNS naming: `pr-{PR_NUMBER}-{LANE}.<spoke.domain>`.
-- Image tag template: `pr-{PR_NUMBER}-sha-{COMMIT_SHA}` (override per
-  spoke or per lane).
-- TTL: default 72h. Per-PR raise via labels `lane-ttl/7d`,
-  `lane-ttl/30d`, `lane-ttl/keep` (capped at 720h). Reap on PR close +
-  hourly TTL backstop + manual `workflow_dispatch`. Reap is idempotent.
-- Historical local dry-run: `just lane-dispatch <pr>` and
-  `just lane-reap <pr>` constructed these payloads. TIN-489 removed both
-  recipes and `scripts/lane-dispatch.py` after the receiver disappeared.
-- `.github/workflows/lane-env.yml` was the fail-open sender for this retired
-  path and has also been removed. `docs/schemas/blahaj-dispatch.schema.json`
-  records the historical payload contract only.
-
-## Public Client Previews — SUPERSEDED, see meta ADR 0020
-
-> **SUPERSEDED (2026-08-21).** Same failure mode as the two stamped sections
-> around this one (C6/D21: an agent's first read is the superseded pattern) —
-> missed in the first stamping pass, closed here. "Public/client review URLs
-> are explicit overlays requested through
-> `docs/schemas/public-preview-dispatch.schema.json`" describes a dispatch
-> receiver in the same evicted `tinyland-inc/blahaj` GitHub App family as
-> "Per-PR Ephemeral Envs" above — and the freshly re-ingested
-> `docs/CI-SCHEMA.md` (current, this same PR) states plainly that "the former
-> Blahaj lane, reaper, and public-preview dispatch schemas are removed" and
-> preserved only in git history, not an execution contract. GFTB CD authority
-> routes through `meta` ADR
-> `decisions/0020-adopt-production-convergence-contract-2026-08-21.md`
-> (Great-Falls-Tool-Bus/meta#34, DRAFT) and the preview companion
-> `great-falls-tool-bus-infra` ADR
-> `docs/decisions/0003-preview-cd-authority-companion-2026-08-21.md`
-> (great-falls-tool-bus-infra#125, DRAFT) from here forward. The text below
-> is retained per the no-silent-rewrite convention.
-
-- Tailnet PR lanes are the default. Public/client review URLs are explicit
-  overlays requested through `docs/schemas/public-preview-dispatch.schema.json`.
-- Default auth is Cloudflare Access One-time PIN with allowlisted emails or
-  domains. Fully public routes require an explicit exception in the spoke's
-  `AGENTS.md`.
-- Spokes do not receive Cloudflare API credentials. Blahaj owns public DNS,
-  Access app/policy creation, Tunnel ingress rules, and TTL cleanup.
-- Do not recycle retired names such as `alpha` or `beta` for client previews.
-  Use purpose-specific aliases such as `jen-preview.<domain>`.
-- The current reference adoption tranche is documented in
-  `docs/spec/massageithaca-pattern-backfeed-2026-05-19.md`; use it when
-  updating this scaffold, `ci-templates`, Blahaj, or GloriousFlywheel to keep
-  the pattern consistent across repos.
-
-## Tofu Posture — SUPERSEDED, see meta ADR 0020
-
-> **SUPERSEDED (2026-08-21).** `spoke-state-namespace` below is the module
-> the current site.scaffold `docs/CI-SCHEMA.md` §8 (as re-ingested into this
-> repo in the same change as this stamp) calls "the retired
-> state-namespace/env-reaper IAM module." GFTB's actual per-spoke `tofu/`
-> wiring and its relationship to the org-standard production-convergence
-> carrier are governed by `meta` ADR
-> `decisions/0020-adopt-production-convergence-contract-2026-08-21.md`
-> (Great-Falls-Tool-Bus/meta#34, DRAFT) from here forward, not by this
-> section. This repository owns no gitops apply
-> (`tinyland.repo.json` `boundaries.owns_gitops_apply=false`); actual `tofu/`
-> state for GFTB's workloads lives in `great-falls-tool-bus-infra`, whose own
-> preview-authority companion decision is
-> `docs/decisions/0003-preview-cd-authority-companion-2026-08-21.md`
-> (great-falls-tool-bus-infra#125, DRAFT). The text below is retained per the
-> no-silent-rewrite convention as the scaffold's generic Tofu Posture shape;
-> confirm current module pins against `great-falls-tool-bus-infra` before
-> relying on the specifics.
-
-- Per-spoke infrastructure lives in `tofu/`. The five spoke-facing
-  modules come from `tinyland-inc/GloriousFlywheel/tofu/modules/spoke-*`
-  pinned by version tag in `tofu/main.tf`.
-- State backend is **operator-provisioned S3-compatible storage**, key
-  `spokes/<spoke-slug>/terraform.tfstate`. In Tinyland today that storage plane
-  is RustFS. Spokes must not hard-code provider endpoints; backend endpoint,
-  credentials, retention, and restore behavior are environment/operator
-  authority.
-- Consumed modules (from `tinyland-inc/GloriousFlywheel@spoke-tofu-modules-v1.0.0`):
-  - `spoke-state-namespace`, S3 prefix + reaper IAM.
-  - `spoke-dns-pr-env`, wildcard CNAME `*.pr.<domain>`.
-  - `spoke-cache-quota`, Attic + Bazel cache allocation.
-  - `spoke-runner-binding`, runner-class ACL (hard-deny).
-  - `spoke-blahaj-app-install`, Blahaj GitHub App binding.
-- Required spoke inputs (in `tofu/spoke.auto.tfvars`): `spoke_slug`,
-  `brand_domain`, `github_org`, `blahaj_installation_id`,
-  `allowed_runner_classes`, `lane_allowlist`. `scripts/rebrand.sh`
-  fills in `spoke_slug` and `brand_domain` on template instantiation.
+**Non-action release transactions.** Browser LOOK, image publication, preview
+lifecycle, reap, OpenTofu, production apply, and edge mutation are not Bazel
+actions. This application declares product source and public intent. Its
+consumer-owned `great-falls-tool-bus-infra` overlay owns signed demand and
+owner transactions; provider supply and placement remain opaque here. The
+retired Blahaj dispatch schemas, app-owned OpenTofu execution root, and
+Cloudflare Pages rollback surfaces are absent rather than preserved as
+fallbacks.
 
 ## Conformance
 
-- `just conformance` runs **two** scripts, always both: the ingested
-  `scripts/check-conformance.sh` (the checklist in `docs/CI-SCHEMA.md` §11,
-  byte-identical to `site.scaffold`), then `scripts/check-conformance-local.sh`
-  (GFTB-specific items with no scaffold equivalent — see that file's own
-  header for why it's separate rather than patched into the ingested one). A
-  green run on both means the spoke is house-style compliant. MANUAL items
-  (org ruleset, required status checks) require operator verification
-  outside this repo.
-- **Known-red rows, as of this re-ingest** — see each script's own comments
-  for the full account; this is the pointer, not the duplicate: the
-  ingested script's role gate, `validate-substrate-boundary.py`,
-  `test-production-convergence-contract.py`, and
-  `modules/converge_agent/tests/test_converge_agent_contract.py` rows are
-  expected red (scaffold gates this repo doesn't carry yet; see
-  `scripts/check-conformance.sh`'s own numbered comments for which). The
-  local addendum's two rows (endpoint leak scan, `app-stateful-spoke` role)
-  are expected **green** — if either goes red, treat it as a real finding,
-  not scaffold drift.
-- This scaffold conforms to `docs/CI-SCHEMA.md` at `tinyland-inc/site.scaffold`
-  commit `8659dcd7702524697220c5c2e79d6096921f4b84` (`origin/main`,
-  2026-08-18), re-ingested 2026-08-21. `site.scaffold`'s actual `v0.3.0` git
-  tag points at an earlier commit (`5c6b8bc5`, 2026-07-08) that predates
-  every `docs/patterns/*` document this re-ingest exists to reach, by 94
-  commits — no tag currently covers `8659dcd7` (meta ADR 0020 §1 has the
-  full derivation).
-- **`tinyland.repo.json`'s `scaffold_tag` field holds that same SHA, not
-  `v0.3.0`, on purpose.** The field's schema (`docs/schemas/tinyland-repo-manifest.schema.json`)
-  types it as a bare non-empty string with no tag-shape pattern, and
-  `tinyland-scaffold-doctor`'s Layer 2 reads it only to run
-  `git checkout "$SCAFFOLD_TAG"` against a `site.scaffold` clone — a
-  40-hex SHA is exactly as valid there as a tag name, so this keeps the
-  doctor chain green. The two rejected alternatives: stamping the literal
-  string `v0.3.0` would be false about the ingested bytes on this ADR's own
-  evidence (the tag does not cover the commit); adding a sibling
-  `scaffold_sha` field would fail conformance item 0 outright, since the
-  manifest schema sets `additionalProperties: false` at the top level and
-  editing that schema is its own re-ingest-scope decision, not this PR's.
-  Re-pin to a real covering tag (`v0.3.1`+, a proper tag string again) once
-  `site.scaffold` cuts one, per the ask meta ADR 0020 §1 already makes.
-- **`config/production-convergence.json` is deliberately absent, not
-  merely default.** GFTB does not converge yet and is not declaring a
-  carrier. The scaffold's own contract test
-  (`scripts/test-production-convergence-contract.py`,
-  `test_declaring_neither_carrier_fails`) treats a declaration file that
-  exists but names zero or two carriers as a **violation**, not an opt-out
-  — only a *missing* file reads as "out of scope, the template-repository
-  default" (`production-convergence.md:144-148`). There is no third,
-  schema-legal "consciously declared non-converging" shape: any file with
-  an `armed`/`enabled`/comment-only body and no `carrier_workflow` or
-  `carrier_resource` key fails the same way an empty `{}` does. Given that,
-  writing the file would turn a currently-invisible, correctly-out-of-scope
-  product into a mechanically FAILING one for no doctrinal gain — so this
-  repository stays in the silent-absence state and records the reasoning
-  here instead, per meta ADR 0020 §8/§10 and
-  `org-standard-cd-pattern-truth-20260821.md` §3.4 item 4's own instruction
-  to "choose consciously and record which." Re-open this note once GFTB
-  adopts a real carrier (ADR 0020 §2) or once `site.scaffold` grows a
-  legitimate declared-non-converging shape, whichever comes first.
+- `just conformance` runs the single application-aware
+  `scripts/check-conformance.sh`; there is no second local conformance engine.
+- `just repo-manifest-validate` routes only schema version 2 through
+  `scripts/validate_repo_manifest.py`. Version 1 is retired and fails closed.
+- `tinyland.repo.json` records the exact scaffold origin commit and the
+  consumer-owned organization overlay. It never records provider placement.
+- `just lanes-validate` and `just lanes-list` read the ActionPlan/v4 schema-3
+  `.github/lanes.json` ActionPlan's `.actions` map.
+- MANUAL rows (org ruleset and required status checks) require operator
+  verification outside this repository.
 
 ## GFTB SSOT grounding (binding; pointers only — content lives at each SSOT)
 

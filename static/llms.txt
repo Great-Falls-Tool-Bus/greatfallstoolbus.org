@@ -12,23 +12,25 @@
 - [Claude contract](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/CLAUDE.md)
 - [README](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/README.md)
 - [Repo manifest](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/tinyland.repo.json)
-- [Repo manifest schema](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/docs/schemas/tinyland-repo-manifest.schema.json)
+- [Repo manifest schema](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/docs/schemas/tinyland-repo-manifest.v2.schema.json)
 - [Agent adoption flow](https://github.com/tinyland-inc/site.scaffold/blob/main/docs/agent-adoption.md)
 - [CI schema](https://github.com/tinyland-inc/site.scaffold/blob/main/docs/CI-SCHEMA.md)
-- [Repo taxonomy and GitOps convergence](https://github.com/tinyland-inc/site.scaffold/blob/main/docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md)
 - [Justfile](https://github.com/tinyland-inc/site.scaffold/blob/main/Justfile)
-- [Bazel wrapper](https://github.com/tinyland-inc/site.scaffold/blob/main/scripts/gloriousflywheel-bazel.sh)
+- [V4 ActionPlan](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.github/lanes.json)
 
 ## Skills
 
-This repository carries six tinyland-* skills under `.agents/skills/`:
+This repository carries five tinyland-* skills under `.agents/skills/`:
 
 - [tinyland-whoami](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/tinyland-whoami/SKILL.md): cold-landing repo-role classification.
-- [tinyland-spawn-sister-site](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/tinyland-spawn-sister-site/SKILL.md): user-only spawn ritual for sister sites.
+- [tinyland-spawn-sister-site](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/tinyland-spawn-sister-site/SKILL.md): consumer shim routing protected creation to `tinyland-inc/site.scaffold`.
 - [tinyland-scaffold-doctor](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/tinyland-scaffold-doctor/SKILL.md): house-style drift audit.
 - [tinyland-repo-contract](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/tinyland-repo-contract/SKILL.md): Just, Nix, gitleaks, validation, and no-ad-hoc-file contract.
 - [tinyland-static-spoke](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/tinyland-static-spoke/SKILL.md): static spoke site customization and projection rules.
-- [tinyland-flywheel-bazel](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/blob/main/.agents/skills/tinyland-flywheel-bazel/SKILL.md): cache-first Bazel and GloriousFlywheel RBE wiring.
+
+GloriousFlywheel v4 adoption follows the external
+[tinyland-flywheel-enroll](https://github.com/tinyland-inc/GloriousFlywheel/blob/main/.agents/skills/tinyland-flywheel-enroll/SKILL.md):
+consumer-owned ActionPlan and overlay adoption with no fallback path.
 
 ## Mail lace-up skills
 

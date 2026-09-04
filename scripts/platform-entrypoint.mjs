@@ -1,22 +1,20 @@
 #!/usr/bin/env node
 // Member v0 platform process dispatcher (TIN-3815, slice S0).
 //
-// The platform publishes ONE immutable image carrying THREE stable process
-// names — `web`, `worker`, and `migrator`. This file is that image's single
-// dispatcher: the image installs `/bin/web`, `/bin/worker`, and
-// `/bin/migrator` as thin links onto it, so an OCI runtime (and a Kubernetes
-// Deployment/Job) selects a process boundary by executable name rather than by
-// a bespoke argv contract per workload.
+// The owner publication contract produces ONE immutable image carrying THREE
+// stable process names — `web`, `worker`, and `migrator`. This file is the
+// application bundle's single dispatcher. The GF-I09 owner materializer owns
+// the OCI wrappers/config that expose those names; this consumer does not
+// prescribe links, interpreter paths, image layout, or runtime configuration.
 //
 // Two invocation shapes are supported, deliberately:
 //
-//   1. By linked name — `/bin/worker --help`. The role is read from
-//      `basename(argv[1])`. Node keeps argv[1] as the *link* path rather than
-//      the realpath, which is what makes the link scheme work at all.
+//   1. By executable name — `worker --help`. The role is read from
+//      `basename(argv[1])`, independent of how the owner materializer exposes
+//      that executable.
 //   2. By explicit argument — `node scripts/platform-entrypoint.mjs worker
-//      --help`. This is the shape the Nix wrappers and `just
-//      platform-entrypoints-check` use, and the shape a developer gets without
-//      an image.
+//      --help`. This is the shape a developer can exercise before the Bazel
+//      bundle is consumed by the qualified owner publication transaction.
 //
 // `--help` answers for every role and exits 0 before any role-specific work.
 // That is load-bearing: it is the per-entrypoint liveness proof in S0's
@@ -24,12 +22,14 @@
 //
 // `migrator` was declared and failed closed in S0; TIN-3817 slice S1 filled it
 // in, without changing this image contract. It now dispatches into the bundled
-// applier (`build/migrator.mjs`, built by `just db-migrator-bundle` from
-// src/lib/server/db/migrate.ts) which takes a PostgreSQL advisory lock and
+// applier (`build/migrator.mjs`, built by Bazel `//:migrator_bundle` or the
+// `just db-migrator-bundle` developer mirror from src/lib/server/db/migrate.ts)
+// which takes a PostgreSQL advisory lock and
 // applies the checked-in drizzle/ migrations against an immutable hash ledger.
 // `worker` was the last placeholder; TIN-3817 slice S3 filled it in the same
 // way. It dispatches into the bundled outbox worker (`build/worker.mjs`, built
-// by `just worker-bundle` from src/lib/server/worker.ts), which claims
+// by Bazel `//:worker_bundle` or the `just worker-bundle` developer mirror from
+// src/lib/server/worker.ts), which claims
 // transactional-outbox jobs with FOR UPDATE SKIP LOCKED under a lease and
 // retries/dead-letters per spec §3.1. All three roles are now real; a missing
 // bundle is a malformed image (70), never a healthy no-op.
@@ -41,7 +41,7 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-/** Stable process names carried by the platform image. Order is the help order. */
+/** Stable application roles exported for GF-I09. Order is the help order. */
 export const PLATFORM_ROLES = Object.freeze(['web', 'worker', 'migrator']);
 
 /**
@@ -90,7 +90,7 @@ const ROLE_SET = new Set(PLATFORM_ROLES);
 /**
  * Resolve which process boundary was requested.
  *
- * Invocation by linked name wins over the positional argument, so
+ * Invocation by executable name wins over the positional argument, so
  * `/bin/worker web` cannot smuggle the web server into a worker Deployment.
  *
  * @param {string} argv1 value of `process.argv[1]` (the script or link path)
@@ -98,8 +98,8 @@ const ROLE_SET = new Set(PLATFORM_ROLES);
  * @returns {{ role: string | undefined, args: string[] }}
  */
 export function resolvePlatformRole(argv1, args) {
-	const linkedName = path.basename(argv1 ?? '');
-	if (ROLE_SET.has(linkedName)) return { role: linkedName, args };
+	const executableName = path.basename(argv1 ?? '');
+	if (ROLE_SET.has(executableName)) return { role: executableName, args };
 
 	const [role, ...rest] = args;
 	return { role, args: rest };
@@ -134,10 +134,9 @@ export function platformRoleHelp(role) {
  * which lets browsers cache the page essentially forever without
  * revalidating.
  *
- * In the image the entrypoint sits at an absolute path handed over by
- * GFTB_WEB_ENTRYPOINT, because the dispatcher itself is installed into the Nix
- * store (or /app/scripts) and cannot assume a repo-relative layout. Outside the
- * image the repo-relative `server.js` is the natural default.
+ * In an owner-materialized image the entrypoint may sit at an absolute path
+ * handed over by GFTB_WEB_ENTRYPOINT. In the exported application root the
+ * repo-relative `server.js` is the natural default.
  *
  * @param {string | undefined} override
  * @returns {URL}
@@ -150,16 +149,15 @@ export function resolveWebEntrypoint(override) {
 /**
  * Locate the bundled migrator (TIN-3817 S1).
  *
- * Same shape as the web entrypoint, for the same reason: in the image this
- * dispatcher lives in the Nix store (or /app/scripts) and cannot infer a
- * repo-relative layout, so GFTB_MIGRATOR_ENTRYPOINT hands it the absolute path.
- * Outside the image the repo-relative `build/migrator.mjs` — the output of
- * `just db-migrator-bundle` — is the natural default.
+ * Same shape as the web entrypoint: an owner-materialized image may hand over
+ * an absolute path through GFTB_MIGRATOR_ENTRYPOINT. In the exported
+ * application root the repo-relative `build/migrator.mjs` — the output of
+ * Bazel `//:migrator_bundle` (or `just db-migrator-bundle`) — is the natural
+ * default.
  *
- * The migrator is a BUNDLE rather than the TypeScript source because the
- * production image deliberately carries no node_modules: the adapter-node
- * build inlines the web server's dependencies, and the migrator's single
- * dependency (`pg`) is inlined the same way.
+ * The migrator is a BUNDLE rather than the TypeScript source so it has one
+ * immutable entrypoint. The image also carries adapter-node's external
+ * runtime node_modules closure for the web process.
  *
  * @param {string | undefined} override
  * @returns {URL}
@@ -172,8 +170,10 @@ export function resolveMigratorEntrypoint(override) {
 /**
  * Locate the bundled outbox worker (TIN-3817 S3). Same contract as the
  * migrator bundle: GFTB_WORKER_ENTRYPOINT in the image, the repo-relative
- * output of `just worker-bundle` outside it, and a BUNDLE (pg and drizzle-orm
- * inlined) because the production image carries no node_modules.
+ * output of Bazel `//:worker_bundle` (or `just worker-bundle`) outside it, and
+ * a BUNDLE (pg and drizzle-orm inlined) so worker startup does not depend on
+ * the runtime module-resolution layout. The web image separately carries its
+ * production node_modules closure.
  *
  * @param {string | undefined} override
  * @returns {URL}
@@ -279,7 +279,7 @@ export async function runPlatformEntrypoint(options = {}) {
 
 /**
  * True when this module was executed directly rather than imported. Compared
- * through realpath so the /bin/<role> links still count as "direct".
+ * through realpath so an owner-selected launcher path still counts as direct.
  *
  * @param {string | undefined} argv1
  * @param {string} moduleUrl

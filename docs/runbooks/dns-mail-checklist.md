@@ -56,26 +56,15 @@ dig NS greatfallstoolbus.org +short @1.1.1.1
 dig NS latoolb.us +short @1.1.1.1
 ```
 
-## 2. Web: apex + www for greatfallstoolbus.org -> Pages
+## 2. Web: apex + www for greatfallstoolbus.org
 
-Repo-side precondition (scaffold contract, see `AGENTS.md` "Deploy lane"):
-add `static/CNAME` containing `greatfallstoolbus.org` and build with
-`BASE_PATH=""` before pointing DNS, otherwise the Pages build serves broken
-project-path URLs.
+The adapter-node application is the sole origin. This application repo neither
+declares provider records nor publishes a Pages fallback.
 
-In the Cloudflare zone for `greatfallstoolbus.org` (GitHub Pages lane, the
-shipped default in `.github/workflows/deploy-pages.yml`):
-
-| Name | Type | Value |
-| --- | --- | --- |
-| `greatfallstoolbus.org` (apex) | `A` | `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153` |
-| `www` | `CNAME` | `great-falls-tool-bus.github.io` |
-
-Set both records **DNS-only (grey cloud)** until GitHub Pages finishes
-custom-domain verification and issues the certificate; only then optionally
-enable the Cloudflare proxy. If the spoke later opts into Cloudflare Pages
-(`docs/deploy/cloudflare-pages.md`), replace both rows with the CNAMEs that
-lane documents.
+Do not copy provider records from this runbook. The exact public declaration is
+[`tofu/dns-intent/intent.yaml`](../../tofu/dns-intent/intent.yaml); the
+consumer overlay resolves and applies it without exposing provider placement to
+this application.
 
 Verify:
 

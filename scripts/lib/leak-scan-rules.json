@@ -78,7 +78,7 @@
 		},
 		{
 			"id": "private-loopback-address",
-			"description": "IPv4 loopback address (127.0.0.0/8) — SPLIT OUT of private-network-address on purpose, at the surface layer, not the rule layer: this rule applies to leak-scan-build with no exclusions (a loopback literal in published output can still name a specific machine's admin surface), but is excluded from leak-scan-tree only, because this repo's own docs/preview-tailnet.md cites 127.0.0.1 repeatedly to document a loopback-only-binding SAFETY property, not a leak",
+				"description": "IPv4 loopback address (127.0.0.0/8), split from private-network-address so published surfaces can classify it explicitly",
 			"pattern": "\\b127(?:\\.\\d{1,3}){3}\\b",
 			"flags": "u"
 		},

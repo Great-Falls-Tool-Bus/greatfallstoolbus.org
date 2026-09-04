@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { normalizeSha, buildSha, buildShaShort } from './build-info';
 
 // build-info wires the footer "built from <sha>" provenance. The sha reaches the
-// client through import.meta.env.PUBLIC_BUILD_SHA, set ONLY by the container image
-// recipes. The normalizer must fail-quiet — anything that is not a real hex sha
-// (unset, the literal 'unknown', or noise) must read as '' so the footer renders
-// no line rather than a bogus commit link on local / adapter-static builds.
+// client through import.meta.env.PUBLIC_BUILD_SHA once the typed GF-I07/GF-I09
+// provenance carrier supplies it. The normalizer must fail-quiet — anything
+// that is not a real hex sha (unset, the literal 'unknown', or noise) must read
+// as '' so the footer renders no line rather than a bogus commit link.
 describe('normalizeSha', () => {
 	it('accepts a full 40-char hex sha and lowercases it', () => {
 		const sha = '378508B4AA23185D19B6D250CE97F3A071B98807';

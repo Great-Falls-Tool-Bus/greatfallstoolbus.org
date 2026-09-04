@@ -17,15 +17,12 @@ updates:
       - dependency-name: '@types/node'
         update-types:
           - 'version-update:semver-major'
-      # drizzle-orm is hard-pinned to 0.39.3 because @tummycrypt/tinyland-auth-pg@0.2.4
-      # declares it as an exact dependency. Bumping it here does not upgrade the copy the
-      # auth adapter executes against — pnpm installs a SECOND physical copy and the
-      # adapter keeps resolving 0.39.3 — so the bump closes no advisory while adding a
-      # duplicate. No update-types filter: the bumps arrive as semver-minor, which a
-      # majors-only entry would not catch. Revisit when auth-pg ships a release that
-      # moves its own pin (tracked: the drizzle advisory is unfixable downstream until
-      # then, and residual exploitability is low — production source has no
-      # sql.identifier or $dynamic call sites).
+      # drizzle-orm is hard-pinned to 0.39.3 because the BCR-only
+      # tummycrypt_tinyland_auth_pg@0.2.4 graph declares that exact runtime
+      # dependency. Bumping only this third-party Node edge would split the
+      # application from the adapter contract; move it only with the BCR module.
+      # No update-types filter: these bumps arrive as semver-minor, which a
+      # majors-only entry would not catch.
       - dependency-name: 'drizzle-orm'
       # drizzle-kit travels with drizzle-orm: migrations.test.ts hard-asserts the literal
       # '^0.30.5' range, so a minor bump turns that gate red on its own.

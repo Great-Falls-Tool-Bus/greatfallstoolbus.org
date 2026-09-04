@@ -1,18 +1,82 @@
 """
 Root BUILD.bazel for greatfallstoolbus.org.
 
-The SvelteKit static site still has ergonomic pnpm-backed Justfile recipes, but
-Bazel owns finite graphable targets for Flywheel cache/RBE proof surfaces.
+The SvelteKit adapter-node product has ergonomic pnpm-backed Justfile recipes,
+while Bazel owns the finite graphable actions submitted through Flywheel.
 """
 
-load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_run_binary", "js_test")
-load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@aspect_bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_image_layer", "js_run_binary", "js_test")
+load("@aspect_rules_js//npm:defs.bzl", "npm_link_package")
+load("@npm//:defs.bzl", "npm_link_all_packages", "npm_link_targets")
+load("@npm//:esbuild/package_json.bzl", esbuild_bin = "bin")
 load("@npm//:eslint/package_json.bzl", eslint_bin = "bin")
 load("@npm//:prettier/package_json.bzl", prettier_bin = "bin")
 load("@npm//:vitest/package_json.bzl", vitest = "bin")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//:gitleaks_test.bzl", "gitleaks_test")
+load("//:scripts/bazel/deployment_archive.bzl", "extract_deployment_app_root")
 
 npm_link_all_packages(name = "node_modules")
+
+# First-party packages are sourced only from the tinyland-inc/bazel-registry
+# Bzlmod graph. package.json and pnpm-lock.yaml deliberately carry no
+# @tummycrypt/@tinyland source edge.
+npm_link_package(
+    name = "node_modules/@tummycrypt/tinyland-auth",
+    src = "@tummycrypt_tinyland_auth//:pkg",
+)
+
+npm_link_package(
+    name = "node_modules/@tummycrypt/tinyland-auth-pg",
+    src = "@tummycrypt_tinyland_auth_pg//:pkg",
+)
+
+npm_link_package(
+    name = "node_modules/@tummycrypt/tinyland-color-utils",
+    src = "@tummycrypt_tinyland_color_utils//:pkg",
+)
+
+npm_link_package(
+    name = "node_modules/@tummycrypt/tinyvectors",
+    src = "@tummycrypt_tinyvectors//:pkg",
+)
+
+npm_link_package(
+    name = "node_modules/@tummycrypt/vite-plugin-a11y",
+    src = "@tummycrypt_vite_plugin_a11y//:pkg",
+)
+
+npm_link_package(
+    name = "node_modules/@tummycrypt/vite-plugin-skeleton-colors",
+    src = "@tummycrypt_vite_plugin_skeleton_colors//:pkg",
+)
+
+TINYLAND_HOUSE_PACKAGES = [
+    ":node_modules/@tummycrypt/tinyland-auth",
+    ":node_modules/@tummycrypt/tinyland-auth-pg",
+    ":node_modules/@tummycrypt/tinyland-color-utils",
+    ":node_modules/@tummycrypt/tinyvectors",
+    ":node_modules/@tummycrypt/vite-plugin-a11y",
+    ":node_modules/@tummycrypt/vite-plugin-skeleton-colors",
+]
+
+# Only these first-party packages remain external at application runtime. The
+# other four house packages are build inputs whose code/assets are already in
+# the adapter-node output. The exported app-root test proves these runtime links.
+TINYLAND_RUNTIME_HOUSE_PACKAGES = [
+    ":node_modules/@tummycrypt/tinyland-auth",
+    ":node_modules/@tummycrypt/tinyland-auth-pg",
+]
+
+# Direct production links plus each link's transitive store closure. Selecting
+# labels rather than the catch-all :node_modules target prevents test, lint,
+# bundler, and other devDependencies from entering the publication input.
+PRODUCTION_NODE_MODULES = npm_link_targets(
+    name = "node_modules",
+    dev = False,
+    prod = True,
+)
 
 filegroup(
     name = "app_srcs",
@@ -20,8 +84,9 @@ filegroup(
         [
             "src/**",
             "static/**",
+            "scripts/**/*.js",
+            "scripts/**/*.mjs",
             "scripts/**/*.mts",
-            "scripts/bazel/**/*.mjs",
             # Generated + hand-written migrations (TIN-3817 S1). Enrolled so a
             # change to a migration invalidates //:unit_tests — the ledger
             # assertions in src/lib/server/db/migrations.test.ts read this tree,
@@ -35,35 +100,158 @@ filegroup(
         # recipe invokes `drizzle push`.
         "Justfile",
         "drizzle.config.ts",
+        "eslint.config.ts",
         "vitest.integration.config.ts",
-        # The platform process dispatcher (TIN-3815 S0). The scripts/ glob above
-        # only reaches *.mts and scripts/bazel/*.mjs, so this file must be
-        # enrolled by explicit label or //:unit_tests silently loses
-        # scripts/platform-entrypoint.test.mts's subject.
-        "scripts/platform-entrypoint.mjs",
-        # Same story: scripts/discuss-reconcile.mts and its test import
-        # PENDING_COMMENT from this .mjs generator, which the scripts/ glob
-        # above does not reach.
-        "scripts/discuss-to-svx.mjs",
         "package.json",
         "playwright.config.ts",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml",
         "svelte.config.js",
+        "server.js",
         "tsconfig.json",
         "vite.config.ts",
         "vitest.config.ts",
     ],
 )
 
+# Complete checked-in source capsule for commands whose declared scope is the
+# repository root (`eslint .`, `prettier --check .`, and current-source
+# Gitleaks). Keep top-level files explicit so a new authority surface cannot
+# silently join an action; directory families are globbed because those trees
+# are intentionally open-ended source collections.
+filegroup(
+    name = "current_tracked_source_srcs",
+    srcs = [
+        ".bazelignore",
+        ".bazelrc",
+        ".bazelversion",
+        ".editorconfig",
+        ".envrc",
+        ".gitignore",
+        ".gitleaks.toml",
+        ".npmrc",
+        ".nvmrc",
+        ".prettierignore",
+        ".prettierrc",
+        "AGENTS.md",
+        "BUILD.bazel",
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "Justfile",
+        "LICENSE",
+        "LICENSE-content",
+        "MODULE.bazel",
+        "MODULE.bazel.lock",
+        "NOTICE",
+        "README.md",
+        "RELEASING.md",
+        "SECURITY.md",
+        "cliff.toml",
+        "drizzle.config.ts",
+        "eslint.config.ts",
+        "flake.lock",
+        "flake.nix",
+        "gitleaks_test.bzl",
+        "multitool.lock.json",
+        "package.json",
+        "playwright.config.ts",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "secrets.contract.yaml",
+        "server.js",
+        "svelte.config.js",
+        "tinyland.repo.json",
+        "tsconfig.json",
+        "vite.config.ts",
+        "vitest.config.ts",
+        "vitest.integration.config.ts",
+    ] + glob(
+        [
+            ".agents/**",
+            ".claude/**",
+            ".github/**",
+            "docs/**",
+            "drizzle/**",
+            "e2e/**",
+            "nix/**",
+            "plugins/**",
+            "scripts/**",
+            "src/**",
+            "static/**",
+            "tofu/**",
+        ],
+        allow_empty = True,
+        exclude = [
+            "**/.DS_Store",
+            "**/__pycache__/**",
+        ],
+    ),
+)
+
 filegroup(
     name = "e2e_srcs",
-    srcs = glob(["e2e/**"], allow_empty = True),
+    srcs = glob(
+        ["e2e/**"],
+        allow_empty = True,
+    ),
+)
+
+# Exact inputs for the GFTB-as-consumer boundary. The two allow-empty paths make
+# a copied scaffold executable or ADR visible to the unit contract if either is
+# ever reintroduced.
+filegroup(
+    name = "scaffold_consumer_boundary_srcs",
+    srcs = [
+        ".agents/skills/tinyland-spawn-sister-site/SKILL.md",
+        "AGENTS.md",
+        "MODULE.bazel",
+        "scripts/check-conformance.sh",
+    ] + glob(
+        [
+            "docs/decisions/dynamic-spoke-adapter-mode.md",
+            "scripts/rebrand.sh",
+        ],
+        allow_empty = True,
+    ),
+)
+
+# The v4 validation action carries its own exact source capsule. Secret
+# scanning is therefore a hermetic Bazel test inside the same REAPI action,
+# not a second runner job or a local/hosted fallback.
+filegroup(
+    name = "current_source_secret_scan_srcs",
+    srcs = [":current_tracked_source_srcs"],
+)
+
+gitleaks_test(
+    name = "current_source_secret_scan_test",
+    timeout = "short",
+    srcs = [":current_source_secret_scan_srcs"],
+    config = ".gitleaks.toml",
+    required_paths = [
+        ".bazelignore",
+        ".claude/skills/tinyland-whoami/SKILL.md",
+        ".editorconfig",
+        "CHANGELOG.md",
+        "LICENSE-content",
+        "NOTICE",
+        "RELEASING.md",
+        "SECURITY.md",
+        "cliff.toml",
+        "eslint.config.ts",
+        "plugins/scaffold-core/plugin.json",
+        "scripts/build-agent-skills.mjs",
+        "scripts/discuss-reconcile.mts",
+        "scripts/optimize-images.js",
+        "secrets.contract.yaml",
+        "server.js",
+        "tofu/dns-intent/intent.yaml",
+    ],
 )
 
 js_binary(
     name = "sveltekit_sync_bin",
-    data = [":node_modules"],
+    data = [":node_modules"] + TINYLAND_HOUSE_PACKAGES,
     entry_point = "scripts/bazel/run-sveltekit-sync.mjs",
 )
 
@@ -71,67 +259,59 @@ js_run_binary(
     name = "sveltekit_types",
     srcs = [":app_srcs"],
     out_dirs = [".svelte-kit"],
-    tags = ["flywheel-eligible"],
     tool = ":sveltekit_sync_bin",
 )
 
 js_binary(
     name = "svelte_check_bin",
-    data = [":node_modules"],
+    data = [":node_modules"] + TINYLAND_HOUSE_PACKAGES,
     entry_point = "scripts/bazel/run-svelte-check.mjs",
 )
 
 js_test(
     name = "svelte_check_test",
+    timeout = "long",
     data = [
         ":app_srcs",
         ":node_modules",
         ":sveltekit_types",
-    ],
+    ] + TINYLAND_HOUSE_PACKAGES,
     entry_point = "scripts/bazel/run-svelte-check.mjs",
-    tags = ["flywheel-eligible"],
-    timeout = "long",
 )
 
-# Remote-eligible lint as a cache-first Bazel TEST target (TIN-2226). Runs the
-# same `eslint .` the `lint` recipe runs, but as a CAS-cacheable action so the
-# GloriousFlywheel shared cache can serve a green result. READ-ONLY: no writes.
+# Exact, read-only lint target selected by the v4 ActionPlan.
 eslint_bin.eslint_test(
     name = "eslint_test",
+    timeout = "moderate",
     args = ["."],
     data = [
-        ":app_srcs",
+        "eslint.config.ts",
+        ":current_tracked_source_srcs",
         ":node_modules",
         ":node_modules/@eslint/js",
         ":sveltekit_types",
-        "eslint.config.ts",
-    ],
-    tags = ["flywheel-eligible"],
-    timeout = "moderate",
+    ] + TINYLAND_HOUSE_PACKAGES,
 )
 
-# Remote-eligible format check as a cache-first Bazel TEST target (TIN-2226).
-# Mirrors `prettier --check .` (the `format-check` recipe) as a CAS-cacheable,
-# READ-ONLY action — it never rewrites files.
+# Exact, read-only format target selected by the v4 ActionPlan.
 prettier_bin.prettier_test(
     name = "prettier_check_test",
+    timeout = "short",
     args = [
         "--check",
         ".",
     ],
     data = [
-        ":app_srcs",
-        ":node_modules",
         ".prettierignore",
         ".prettierrc",
-    ],
-    tags = ["flywheel-eligible"],
-    timeout = "short",
+        ":current_tracked_source_srcs",
+        ":node_modules",
+    ] + TINYLAND_HOUSE_PACKAGES,
 )
 
 js_binary(
     name = "vite_build_bin",
-    data = [":node_modules"],
+    data = [":node_modules"] + TINYLAND_HOUSE_PACKAGES,
     entry_point = "scripts/bazel/run-vite-build.mjs",
 )
 
@@ -143,29 +323,77 @@ js_run_binary(
     ],
     out_dirs = ["build"],
     patch_node_fs = False,
-    tags = ["flywheel-eligible"],
     tool = ":vite_build_bin",
     visibility = ["//visibility:public"],
 )
 
-vitest.vitest_test(
-    name = "unit_tests",
-    data = [
+# Exact Bazel counterparts of the developer-facing Just recipes. Both are
+# single-file Node 24 ESM payloads so the worker and migrator do not depend on
+# the web process's module-resolution layout.
+esbuild_bin.esbuild(
+    name = "migrator_bundle",
+    args = [
+        "src/lib/server/db/migrate.ts",
+        "--bundle",
+        "--platform=node",
+        "--format=esm",
+        "--target=node24",
+        "--outfile=$@",
+        "--external:pg-native",
+        "--external:cloudflare:sockets",
+        "--tsconfig-raw={}",
+        "--banner:js=import { createRequire as __gftbCreateRequire } from 'node:module'; const require = __gftbCreateRequire(import.meta.url);",
+    ],
+    outs = ["bazel-role-bundles/migrator.mjs"],
+    srcs = [
         ":app_srcs",
         ":node_modules",
-        ":node_modules/vitest",
-        "vitest.config.ts",
+    ] + TINYLAND_HOUSE_PACKAGES,
+    tags = ["manual"],
+)
+
+esbuild_bin.esbuild(
+    name = "worker_bundle",
+    args = [
+        "src/lib/server/worker.ts",
+        "--bundle",
+        "--platform=node",
+        "--format=esm",
+        "--target=node24",
+        "--outfile=$@",
+        "--external:pg-native",
+        "--external:cloudflare:sockets",
+        "--alias:$$lib=./src/lib",
+        "--tsconfig-raw={}",
+        "--banner:js=import { createRequire as __gftbCreateRequire } from 'node:module'; const require = __gftbCreateRequire(import.meta.url);",
     ],
+    outs = ["bazel-role-bundles/worker.mjs"],
+    srcs = [
+        ":app_srcs",
+        ":node_modules",
+    ] + TINYLAND_HOUSE_PACKAGES,
+    tags = ["manual"],
+)
+
+vitest.vitest_test(
+    name = "unit_tests",
     args = [
         "run",
         "--reporter=verbose",
         "--config",
         "$(rootpath vitest.config.ts)",
     ],
-    tags = [
-        "flywheel-eligible",
-        "vitest",
-    ],
+    data = [
+        "BUILD.bazel",
+        "MODULE.bazel",
+        "MODULE.bazel.lock",
+        "vitest.config.ts",
+        ":app_srcs",
+        ":node_modules",
+        ":node_modules/vitest",
+        ":scaffold_consumer_boundary_srcs",
+    ] + TINYLAND_HOUSE_PACKAGES,
+    tags = ["vitest"],
     visibility = ["//visibility:public"],
 )
 
@@ -175,13 +403,7 @@ vitest.vitest_test(
 # operator host, and `no-cache` makes every successful invocation fresh proof.
 vitest.vitest_test(
     name = "first_membership_rehearsal_test",
-    data = [
-        ":app_srcs",
-        ":node_modules",
-        ":node_modules/vitest",
-        "src/lib/server/membership/first-membership-rehearsal.integration.test.ts",
-        "vitest.integration.config.ts",
-    ],
+    timeout = "long",
     args = [
         "run",
         "$(rootpath src/lib/server/membership/first-membership-rehearsal.integration.test.ts)",
@@ -189,118 +411,183 @@ vitest.vitest_test(
         "--config",
         "$(rootpath vitest.integration.config.ts)",
     ],
+    data = [
+        "src/lib/server/membership/first-membership-rehearsal.integration.test.ts",
+        "vitest.integration.config.ts",
+        ":app_srcs",
+        ":node_modules",
+        ":node_modules/vitest",
+    ] + TINYLAND_HOUSE_PACKAGES,
     tags = [
         "integration",
         "local",
         "manual",
         "no-cache",
     ],
-    timeout = "long",
     visibility = ["//visibility:public"],
 )
 
+# Finite, hermetic Node enrollment for the fail-closed first-party package
+# authority gate. Its inputs are explicit and it runs inside the same v4
+# validation action as the product tests; there is no host-Python dependency.
 js_test(
-    name = "playwright_static_smoke",
+    name = "inhouse_package_parity_test",
     data = [
-        ":build",
-        ":e2e_srcs",
         ":node_modules",
-        "scripts/bazel/run-playwright-static-smoke.mjs",
-    ],
-    entry_point = "scripts/bazel/run-playwright-static-smoke.mjs",
-    tags = [
-        "gloriousflywheel-rbe-candidate",
-        "playwright",
-        "web-playwright-chromium-static-smoke",
-    ],
-    timeout = "moderate",
-    visibility = ["//visibility:public"],
-)
-
-# Pure, finite custody/preservation negative controls. Keep tracked scripts
-# non-executable and invoke them explicitly through Bash. Native sh_test
-# requires one executable src, so a finite launcher is generated for Bazel.
-# The generated runtime line is single-quoted: genrule's build shell must emit,
-# not expand, TEST_SRCDIR/TEST_WORKSPACE for the eventual test process.
-genrule(
-    name = "preview_tailnet_state_contract_test_runner",
-    outs = ["preview-tailnet-state-contract-test-runner.sh"],
-    cmd = "printf '%s\\n' '#!/usr/bin/env bash' 'exec bash \"$${TEST_SRCDIR}/$${TEST_WORKSPACE}/scripts/preview-tailnet-state.test.sh\" \"$${TEST_SRCDIR}/$${TEST_WORKSPACE}/scripts/preview-tailnet-state.sh\" \"$${TEST_SRCDIR}/$${TEST_WORKSPACE}/Justfile\"' > \"$@\" && chmod 0555 \"$@\"",
-    executable = True,
-)
-
-sh_test(
-    name = "preview_tailnet_state_contract_test",
-    srcs = [":preview_tailnet_state_contract_test_runner"],
-    data = [
-        "Justfile",
-        "scripts/preview-tailnet-state.sh",
-        "scripts/preview-tailnet-state.test.sh",
-    ],
-    tags = [
-        "gloriousflywheel-cache-only",
-        "no-remote-exec",
-        "security-contract",
-    ],
+        ".github/lanes.json",
+        "BUILD.bazel",
+        "MODULE.bazel",
+        "package.json",
+        "pnpm-lock.yaml",
+    ] + TINYLAND_HOUSE_PACKAGES,
+    entry_point = "scripts/check-inhouse-package-parity.mjs",
+    tags = ["supply-chain-contract"],
 )
 
 test_suite(
     name = "ci_validation_suite",
     tests = [
-        ":preview_tailnet_state_contract_test",
+        ":current_source_secret_scan_test",
+        ":deployment_app_root_test",
+        ":eslint_test",
+        ":inhouse_package_parity_test",
+        ":prettier_check_test",
         ":svelte_check_test",
         ":unit_tests",
     ],
 )
 
-# Proved static-spoke class: deployment-bundle-packaging (TIN-2543). Packages the
-# adapter-static production build (//:build) into a deterministic deployment
-# tarball. This is a hermetic rules_pkg action, so it is BOTH cache-eligible and
-# executor-eligible (it is a proved static-spoke class) — tagged flywheel-eligible.
-pkg_tar(
-    name = "deployment_bundle",
-    srcs = [":build"],
-    extension = "tar.gz",
-    tags = [
-        "deployment-bundle-packaging",
-        "flywheel-eligible",
-    ],
-    visibility = ["//visibility:public"],
+# The deployment graph is a normal rules_js runtime: prod-only direct links,
+# their complete transitive package stores, and the two BCR runtime packages.
+# js_image_layer is the supported relocation boundary: it rewrites every
+# node_modules link so the resulting tar layers are self-contained rather than
+# pointing back into a Bazel execroot. The Node toolchain layer is deliberately
+# not selected below because the owner image supplies the pinned Node 24 runtime.
+js_binary(
+    name = "deployment_runtime_graph",
+    data = PRODUCTION_NODE_MODULES + TINYLAND_RUNTIME_HOUSE_PACKAGES,
+    entry_point = "server.js",
+    tags = ["manual"],
 )
 
-# Container / OCI build target (TIN-2543): the deterministic input set the
-# daemonless nix2container image build (flake `.#image` + `just
-# container-image-publish`) consumes. flake.nix + flake.lock pin the PRIMARY
-# nix2container path; nix/oci-image.nix is the retained nixpkgs-only fallback.
-# It is CACHE-eligible (the shared GloriousFlywheel cache serves a green result
-# for an unchanged recipe) but explicitly NOT executor-eligible: per skill rule 8
-# + docs/CI-SCHEMA.md §5, `container-image-and-push` is blocked at the
-# GloriousFlywheel manifest layer, so image assembly/push never runs on a remote
-# executor. The tag is deliberately NOT "flywheel-eligible", so the
-# `--{build,test}_tag_filters=flywheel-eligible` executor filter excludes it
-# while cache-first mode (config=flywheel) still caches it. The SvelteKit build
-# INPUTS remain cache-accelerated via //:build and //:sveltekit_types.
-pkg_tar(
-    name = "container_image_context",
+js_image_layer(
+    name = "deployment_runtime_layers",
+    binary = ":deployment_runtime_graph",
+    compression = "none",
+    root = "/app/.rules_js_runtime",
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "deployment_runtime_package_store_3p",
+    srcs = [":deployment_runtime_layers"],
+    output_group = "package_store_3p",
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "deployment_runtime_package_store_1p",
+    srcs = [":deployment_runtime_layers"],
+    output_group = "package_store_1p",
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "deployment_runtime_node_modules",
+    srcs = [":deployment_runtime_layers"],
+    output_group = "node_modules",
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "deployment_runtime_app",
+    srcs = [":deployment_runtime_layers"],
+    output_group = "app",
+    tags = ["manual"],
+)
+
+# Materialize only the flat application-owned files. node_modules comes from
+# the topology-preserving js_image_layer archive above; copy_to_directory must
+# never dereference that graph.
+copy_to_directory(
+    name = "deployment_app_files",
     srcs = [
-        "ContainerFile",
-        "flake.lock",
-        "flake.nix",
-        "nix/oci-image.nix",
+        ":build",
+        ":migrator_bundle",
+        ":worker_bundle",
         "package.json",
-        "pnpm-lock.yaml",
-        # The three stable process names (web/worker/migrator) are part of the
-        # image contract, so the dispatcher is part of the image input set: a
-        # change to it must invalidate the container context (TIN-3815 S0).
         "scripts/platform-entrypoint.mjs",
-        "svelte.config.js",
+        "server.js",
+    ] + glob(
+        ["drizzle/**"],
+    ),
+    replace_prefixes = {
+        "bazel-role-bundles": "build",
+    },
+    root_paths = ["."],
+    tags = ["manual"],
+)
+
+pkg_tar(
+    name = "deployment_app_files_tar",
+    srcs = [":deployment_app_files"],
+    extension = "tar",
+    package_dir = "app",
+    strip_prefix = "deployment_app_files",
+    tags = ["manual"],
+)
+
+# Merge the supported rules_js layers in their documented order and expose the
+# graph at app/node_modules through a relative link that remains valid after
+# extraction anywhere. The hidden runfiles tree is wholly inside app/.
+pkg_tar(
+    name = "deployment_app_root_archive",
+    allow_duplicates_from_deps = False,
+    allow_duplicates_with_different_content = False,
+    deps = [
+        ":deployment_app_files_tar",
+        ":deployment_runtime_package_store_3p",
+        ":deployment_runtime_package_store_1p",
+        ":deployment_runtime_node_modules",
+        ":deployment_runtime_app",
     ],
     extension = "tar",
-    tags = [
-        "container-image-and-push",
-        "gloriousflywheel-cache-only",
-        "no-remote-exec",
-    ],
+    package_dir = "/",
+    symlinks = {
+        "app/node_modules": ".rules_js_runtime/deployment_runtime_graph.runfiles/_main/node_modules",
+    },
+    tags = ["manual"],
+)
+
+# The validation action extracts the same uncompressed archive that is wrapped
+# below, so its imports, three role dispatches, and server startup exercise the
+# exact exported app root. Final OCI wrappers/config remain GF-I09 output proof.
+extract_deployment_app_root(
+    name = "deployment_app_root",
+    src = ":deployment_app_root_archive",
+    tags = ["manual"],
+)
+
+js_test(
+    name = "deployment_app_root_test",
+    args = ["$(rootpath :deployment_app_root)"],
+    data = [":deployment_app_root"],
+    entry_point = "scripts/bazel/check-deployment-app-root.mjs",
+    tags = ["deployment-contract"],
+    timeout = "moderate",
+)
+
+# Reproducible publication input rooted at app/. It is deliberately only an
+# artifact: image construction, registry publication, and promotion remain
+# separate owner-authorized transactions outside this application repository.
+pkg_tar(
+    name = "deployment_bundle",
+    allow_duplicates_from_deps = False,
+    allow_duplicates_with_different_content = False,
+    deps = [":deployment_app_root_archive"],
+    extension = "tar.gz",
+    package_dir = "/",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
 )
 
@@ -311,7 +598,6 @@ exports_files(
         "playwright.config.ts",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml",
-        "scripts/bazel/run-playwright-static-smoke.mjs",
         "scripts/bazel/run-svelte-check.mjs",
         "scripts/bazel/run-sveltekit-sync.mjs",
         "scripts/bazel/run-vite-build.mjs",

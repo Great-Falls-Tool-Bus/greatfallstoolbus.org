@@ -1,264 +1,157 @@
-# Tinyland spoke CI and lane-metadata contract
+# GFTB v4 action-fabric contract
 
-Status: current after the TIN-489/TIN-3066 receiver contraction on 2026-08-03.
+Status: source canary under TIN-4251. Source presence, merge, or a GitHub job
+pickup is not v4 activation or remote-execution evidence.
 
-Machine-readable authority:
+## Ownership
 
-- [`schemas/lanes.schema.json`](./schemas/lanes.schema.json) — build and QA
-  metadata for a spoke.
-- [`schemas/tinyland-repo-manifest.schema.json`](./schemas/tinyland-repo-manifest.schema.json)
-  and
-  [`schemas/tinyland-repo-manifest.v2.schema.json`](./schemas/tinyland-repo-manifest.v2.schema.json)
-  — repository role and ownership.
+`greatfallstoolbus.org` owns product source, finite Bazel targets, and the
+checked-in ActionPlan. `Great-Falls-Tool-Bus/great-falls-tool-bus-infra` owns
+the signed `OwnerInstallation/v1` and `TenantOverlay/v1` consumer instances.
+GloriousFlywheel owns interface types, verification, the controller contract,
+the compiled action client, scheduling, and measurement semantics. Provider
+repositories own concrete endpoints, workers, storage, and placement.
 
-The former Blahaj lane, reaper, and public-preview dispatch schemas are removed.
-Git history preserves them; they are not an execution contract.
+GF core does not own Great-Falls-Tool-Bus tenant or repository rows. This
+consumer does not name a provider, cluster, node, pool, runner, endpoint,
+instance, credential, or placement decision.
 
-## 1. Scope and ownership
+## ActionPlan
 
-This document defines:
-
-- `.github/lanes.json` validation;
-- CI runner and GloriousFlywheel target metadata;
-- finite Just/Bazel validation entrypoints;
-- required source gates and conformance.
-
-This document does not define an application receiver, OpenTofu apply plane,
-PR-environment controller, DNS mutation path, public-preview sender, or reaper.
-Lane metadata grants none of those authorities.
-
-Static publication uses the repository's declared atomic host. An application
-or stateful product delegates live workloads, protected state/apply, PR
-create/reap, and runtime receipts to its dedicated owner overlay.
-
-## 2. Lane metadata
-
-`.github/lanes.json` is the only spoke-side lane declaration. It feeds CI
-matrices, build variants, static projection selection, and Flywheel target-class
-checks. A consumer may use the metadata only under its own reviewed authority.
-
-Minimal example:
+`.github/lanes.json` validates against `docs/schemas/lanes.schema.json` and is
+the only application-side execution declaration:
 
 ```json
 {
-  "$schema": "../docs/schemas/lanes.schema.json",
-  "schema_version": 1,
-  "spoke": {
-    "name": "example-site",
-    "domain": "example.tinyland.dev"
-  },
-  "defaults": {
-    "runner_class": "tinyland-nix",
-    "flywheel_target_classes": [
-      "sveltekit-app-build",
-      "sveltekit-unit-tests"
-    ]
-  },
-  "lanes": [
-    {
-      "name": "default",
-      "theme": "tinyland",
-      "snapshot_source": "checked-in"
+  "schema_version": 3,
+  "actions": {
+    "build": {
+      "command": "build",
+      "targets": ["//:deployment_bundle"],
+      "capability": "rbe-linux-x86_64",
+      "result": {
+        "mode": "export-regular-files",
+        "output_groups": ["default"]
+      }
+    },
+    "validate": {
+      "command": "test",
+      "targets": [
+        "//:current_source_secret_scan_test",
+        "//:deployment_app_root_test",
+        "//:eslint_test",
+        "//:inhouse_package_parity_test",
+        "//:prettier_check_test",
+        "//:svelte_check_test",
+        "//:unit_tests"
+      ],
+      "capability": "rbe-linux-x86_64",
+      "result": {"mode": "status-only"}
     }
-  ]
+  }
 }
 ```
 
-Rules:
+It contains only named `build` or `test` commands, finite workspace-local Bazel
+labels, one provider-blind abstract capability, and one closed result
+disposition. `status-only` exposes no output claim and forbids output groups.
+`export-regular-files` requires exact non-pattern targets and a non-empty list
+of output groups; the compiled client emits one bounded `ActionOutputSet/v1`
+only after the complete Bazel event graph and selected blobs are verified
+against the resolved tenant CAS. There is no omitted/default disposition.
+The schema admits Linux and Darwin demand without claiming either has live
+provider supply; unavailable supply fails during resolution. The plan carries
+no runner, endpoint, target-class, lifecycle, free-form artifact description,
+publication, repository, tenant, or provider field.
 
-- `schema_version` is currently `1`.
-- `spoke.name` is a stable slug; `spoke.domain` is metadata, not DNS authority.
-- Each lane has a unique `name`, `theme`, and `snapshot_source`.
-- `runner_class` must be in the schema enum.
-- `flywheel_target_classes` must be a subset of the schema allowlist.
-- Lifecycle-shaped optional fields remain compatibility metadata. Their
-  presence never creates a workflow, state namespace, or apply permission.
-- Validate with `just lanes-validate` and `just conformance`.
+`//:deployment_bundle` produces one reproducible `tar.gz` rooted at `app/`.
+That application root contains the adapter-node `build/`, the custom
+`server.js`, the Node 24 package manifest, the checked-in `drizzle/`
+migrations, the worker and migrator ESM payloads, and the single three-role
+dispatcher. Its relative `node_modules` link points into a self-contained
+rules_js `js_image_layer` runfiles tree carrying the production-only
+third-party package-store closure and both BCR-sourced first-party runtime
+packages. The Node toolchain layer is omitted because the owner image supplies
+the pinned Node 24 executable; no host, Nix, registry, or local bridge supplies
+application packages. `//:deployment_app_root_test` extracts the exact
+uncompressed archive that the bundle wraps, proves representative direct and
+transitive bare imports from that root, invokes the bundled dispatcher as each
+of `web`, `worker`, and `migrator` with `--help`, and starts its adapter-node
+server. This proves the application-owned role boundaries, not `/bin/*`
+wrappers, an image UID, OCI config, or an interpreter closure; those are GF-I09
+owner-materializer output proofs. The bundle is a runnable publication input,
+not an OCI image, a registry write, a publication request, or a deployment
+transaction.
 
-## 3. Canonical entrypoints
+## GitHub edge
 
-All developer and CI operations route through `just`:
+`.github/workflows/ci.yml` calls
+`tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@32e39ced0008edf4564ebeb173a5e8fbf069e28f`
+(`v5.1.0`, carrying ActionPlan/v4 schema 3) once for the exact deployment
+bundle and once for validation. ARC admits each thin
+GitHub job and runs the image-custodied
+`/usr/local/bin/gf-action-client`; ARC is not the compute scheduler. The client
+binds the exact plan bytes, action, and source SHA to the controller-resolved
+catalog and submits the Bazel action to REAPI.
+
+There is no v4 path through a vendored wrapper, local Bazel execution,
+cache-only execution, a hosted or repo-shaped runner, a direct endpoint,
+`.env` profile, port-forward, v1 token exchange, or producer-held consumer
+registry. Missing authority is a refusal to repair, never a downgrade signal.
+
+The application stops at the verified `ActionOutputSet/v1` for
+`//:deployment_bundle`. GF-I07/v5 must first qualify those bytes against
+independent execution/cache observation; only the GF-I09 owner
+materializer/publisher/controller may then construct and publish an OCI image
+and converge it through the consumer overlay. ci-templates v5.1.0 invokes the
+actions but does not yet expose that qualified output to a publication job, and
+GFTB has no remote action producing its publishable OCI payload. Publication
+and production convergence therefore remain blocked rather than falling back
+to an application-owned workflow.
+
+The same boundary currently leaves application source provenance unavailable:
+ci-templates authenticates the source SHA to `gf-action-client`, but the v4
+execution sandbox does not expose that value to Vite as `PUBLIC_BUILD_SHA`.
+Consequently the current bundle renders an empty `/health.sha` and no footer
+SHA. Only a typed GF-I07/GF-I09 provenance carrier may bind that authenticated
+revision into the qualified artifact; this consumer must not recover it from
+ambient Git state or introduce an application-specific execution channel.
+
+## Activation gates
+
+Keep the source carrier Draft until all of these exist for the same immutable
+tuple:
+
+1. the GF GitHub App observes this organization and repository;
+2. the consumer-owned infra repo publishes signed `OwnerInstallation/v1` and
+   `TenantOverlay/v1` instances using the ratified controller schema;
+3. the controller publishes an immutable resolved catalog containing the exact
+   raw ActionPlan digest and source identity;
+4. the dispatcher image contains the protected `gf-action-client`;
+5. GitHub OIDC and REAPI admission accept the exact tuple; and
+6. LGTM attributes a remote Execute or same-tenant CAS/AC withdrawal; and
+7. GF-I07/GF-I09 bind the authenticated source revision into the qualified
+   artifact and prove the final owner-image wrappers/config for all three roles.
+
+No consumer overlay instance is added here before the controller schema lands;
+inventing a parallel JSON wire would fork the product interface.
+
+## Non-action transactions
+
+Browser LOOK, image publication, PR-environment lifecycle, reap, OpenTofu,
+production apply, and edge mutation are not Bazel actions. They require their
+own controller result and owner-overlay transaction. A local preview or direct
+cluster command cannot stand in for those receipts.
+
+## Validation
+
+Use existing registered entrypoints:
 
 ```text
-nix develop --command just check
-nix develop --command just build
-nix develop --command just test-unit
-nix develop --command just lanes-validate
-nix develop --command just repo-manifest-validate
-nix develop --command just conformance
+just lanes-validate
+just repo-manifest-validate
+just conformance
 ```
 
-The local build/test recipes execute finite Bazel targets. This is an entrypoint
-claim, not remote-execution proof.
-
-## 4. GloriousFlywheel binding
-
-Flywheel-backed work uses `scripts/gloriousflywheel-bazel.sh` through the
-`just flywheel-*` recipes. Endpoint and credential authority is runtime-only.
-
-Required state:
-
-| Variable | Meaning |
-| --- | --- |
-| `GF_FLYWHEEL_PROFILE_STATE` | `unattached`, `shared-cache-backed`, `executor-backed`, or `local-proof` |
-| `GF_BAZEL_SUBSTRATE_MODE` | `shared-cache-backed` or, only for proved classes, `executor-backed` |
-| `BAZEL_REMOTE_CACHE` | runtime-provided cache endpoint |
-| `BAZEL_REMOTE_EXECUTOR` | required only for executor-backed mode |
-| `GF_BAZEL_REMOTE_UPLOAD` | false/unset for PRs; true only in a trusted writing lane |
-| `BAZEL_REMOTE_INSTANCE_NAME` | non-secret tenant routing metadata |
-
-Optional credential helpers, headers, job limits, and connection limits remain
-runtime inputs. They must not appear in `.bazelrc`, workflows, examples, or
-tracked environment files.
-
-Cold landing:
-
-```text
-just flywheel-enroll
-just flywheel-doctor
-just flywheel-verify
-```
-
-Missing enrollment fails closed. Do not substitute a local disk-cache build and
-claim shared-cache or RBE evidence.
-
-The scaffold remains `shared-cache-backed`. TIN-2851 blocks routine
-executor-backed use even for otherwise proved target classes; executor mode is
-limited to separately authorized product proofs.
-
-Proved static-spoke classes:
-
-- `sveltekit-app-build`
-- `sveltekit-unit-tests`
-- `deployment-bundle-packaging`
-- `docs-site-static-build`
-
-`web-playwright-chromium-static-smoke` remains candidate-only until the
-GloriousFlywheel authority promotes it. OpenTofu, dev servers, browserful local
-acceptance, and image publication are never executor-eligible.
-
-## 5. Runner classes
-
-| Class | Use |
-| --- | --- |
-| `tinyland-nix` | normal Nix/Bazel CI |
-| `tinyland-nix-heavy` | reviewed high-memory build |
-| `tinyland-nix-kvm` | KVM-required proof |
-| `tinyland-nix-gpu` | GPU-required proof |
-| `tinyland-docker` / `tinyland-dind` | explicitly reviewed container job |
-
-**No-hosted rule (TIN-3914):** no workflow in this repository may name a
-GitHub-hosted label (`ubuntu-*`, `macos-*`, `windows-*`) in `runs-on:`, at any
-nesting -- scalar, list item, or the `{group:, labels:}` mapping form. The
-former escape hatch for `gh api` calls, webhook dispatches, and pre-trust
-security gates is withdrawn by operator ruling 2026-08-19: those jobs run fine
-on the GF cache-fronted ARC fleet. Do not create a runner or hosted fallback in
-a spoke. Enrollment binds a repository to an existing owner-approved pool.
-
-## 6. CI gates
-
-The scaffold's `.github/workflows/ci.yml` calls the pinned reusable spoke CI
-workflow and adds a direct-reach boundary check. Its stable `merge-gate` requires
-both results.
-
-The source gates cover:
-
-- secrets scanning;
-- lanes and repository manifest validation;
-- finite Bazel graph/build/test products;
-- cache attachment where declared;
-- no direct application/PR receiver reach;
-- package/module parity and static-spoke conformance.
-
-Runtime QA and production admission are product-owned gates. The scaffold does
-not ship a receiver-coupled admission workflow. A product may require an
-owner-authenticated exact-head QA receipt plus a SHA-bound operator decision
-before merge; see
-[`patterns/operator-gate-handoff.md`](./patterns/operator-gate-handoff.md).
-
-Default-branch rulesets are documented in
-[`ci/branch-protection.md`](./ci/branch-protection.md). Repository settings are
-operator authority and are not inferred from a source PR.
-
-## 7. Static and dynamic publication
-
-The default adapter-static product publishes an immutable build through GitHub
-Pages. A custom static host must keep workflow, base path, and rollback behavior
-consistent.
-
-`scripts/rebrand.sh --adapter=node` changes repository role and build shape. It
-does not install a deployment carrier. A dynamic product's owner overlay must
-provide image-digest identity, state, saved-plan apply, health, rollback, PR
-lifecycle, and real-edge served readback.
-
-Spokes never receive long-lived Cloudflare mutation credentials. Edge intent
-crosses to its owning infrastructure flow only through a reviewed product
-contract.
-
-## 8. OpenTofu posture
-
-The generic `tofu/` composition is not an application apply plane. It keeps
-SemVer-pinned bindings to GloriousFlywheel cache and runner products. Shared
-OpenTofu module authority is `tinyland-inc/site.scaffold`; GloriousFlywheel
-remains the runner/cache/RBE/execution-product authority. The composition does
-not install PR DNS, an application receiver, or the retired
-state-namespace/env-reaper IAM module.
-
-Hard rules:
-
-- backend type is S3-compatible with endpoint and credentials supplied by the
-  operator environment;
-- source never hard-codes provider endpoints or credentials;
-- current Tinyland storage is RustFS, never an inferred alternate substrate;
-- no OpenTofu target enters Flywheel RBE;
-- application workloads, Secrets, admission, and PR lifecycle stay in the
-  product owner overlay;
-- `tofu apply` is never implied by source review or merge.
-
-## 9. Local escape hatch
-
-Browserful E2E and server-bundle acceptance are remote-first. A local escape is
-allowed only when the repository documents and explicitly gates it, for example
-`LOCAL=1`. Local output does not substitute for a required served QA route or
-real-edge observation.
-
-## 10. Versioning
-
-- Reusable CI references use a reviewed SemVer release or immutable SHA, never
-  `@main`.
-- Breaking lane-schema changes bump `schema_version` and include migration
-  notes.
-- GloriousFlywheel target-class changes land in its authority first, then this
-  schema, then consumers.
-- Sister sites conform to the scaffold tag they deliberately adopted; source
-  does not silently mutate them.
-
-## 11. Conformance checklist
-
-`just conformance` checks the enforceable source subset. A complete review also
-confirms the manual repository settings and product-owned runtime evidence that
-source cannot observe.
-
-- [ ] repository manifest validates and declares the correct role;
-- [ ] lanes validate as metadata;
-- [ ] reusable CI references are immutable/versioned;
-- [ ] Flywheel configuration is endpoint-free and target classes are allowed;
-- [ ] in-house packages are Bazel-only and exact-pinned;
-- [ ] gitleaks working-tree and history recipes exist;
-- [ ] no GitHub-hosted runner label (`ubuntu-*`, `macos-*`, `windows-*`) in any
-  `runs-on:` under `.github/workflows/`, at any nesting (TIN-3914);
-- [ ] SBOM posture matches the manifest;
-- [ ] `just substrate-boundary` reports zero direct application/PR receiver
-  reaches;
-- [ ] production-convergence contract tests pass;
-- [ ] default-branch rules and required contexts are read back separately;
-- [ ] any product UI change has a real owner-issued QA route and human LOOK;
-- [ ] no source check is misreported as `PINNED`, `RUNNING`, or `SERVED`.
-
-## Cross-references
-
-- [`patterns/production-convergence.md`](./patterns/production-convergence.md)
-- [`patterns/owner-overlay-apply-plane.md`](./patterns/owner-overlay-apply-plane.md)
-- [`patterns/operator-gate-handoff.md`](./patterns/operator-gate-handoff.md)
-- [`spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md`](./spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md)
-- [`agent-adoption.md`](./agent-adoption.md)
+Graph formatting and schema validation prove only the source contract. They do
+not prove activation, execution, cache attribution, publication, or production.

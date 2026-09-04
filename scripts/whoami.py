@@ -20,33 +20,27 @@ ROLE_SKILLS: dict[str, list[str]] = {
     "static-spoke": [
         "tinyland-repo-contract",
         "tinyland-static-spoke",
-        "tinyland-flywheel-bazel",
+        "tinyland-flywheel-enroll",
     ],
     "static-spoke-scaffold": [
         "tinyland-repo-contract",
         "tinyland-static-spoke",
-        "tinyland-flywheel-bazel",
+        "tinyland-flywheel-enroll",
         "tinyland-spawn-sister-site",
         "tinyland-scaffold-doctor",
     ],
-    # A spoke that owns runtime behavior. `dynamic-spoke` is the heuristic
-    # spelling (svelte.config.js selects adapter-node with no manifest present);
-    # `app-stateful-spoke` is the manifest/schema spelling. They are the same
-    # shape, so they share one entry — see AGENTS.md "Dynamic-spoke variant",
-    # which rules that a dynamic spoke reuses `app-stateful-spoke` rather than
-    # adding an enum. Deliberately NOT `tinyland-static-spoke`: that skill's
-    # advice ("keep it static") is wrong for this role.
+    # `dynamic-spoke` is only the no-manifest heuristic spelling;
+    # `app-stateful-spoke` is the schema-v2 role. Static-spoke guidance does
+    # not apply to its application runtime.
     "app-stateful-spoke": [
         "tinyland-repo-contract",
-        "tinyland-flywheel-bazel",
-        "tinyland-scaffold-doctor",
+        "tinyland-flywheel-enroll",
     ],
     "dynamic-spoke": [
         "tinyland-repo-contract",
-        "tinyland-flywheel-bazel",
-        "tinyland-scaffold-doctor",
+        "tinyland-flywheel-enroll",
     ],
-    "package-producer": ["tinyland-repo-contract", "tinyland-flywheel-bazel"],
+    "package-producer": ["tinyland-repo-contract", "tinyland-flywheel-enroll"],
     "package-authority": ["tinyland-repo-contract"],
     "infra": ["tinyland-repo-contract"],
     "tooling": ["tinyland-repo-contract"],
@@ -61,19 +55,20 @@ ROLE_RISKS: dict[str, str] = {
     # to app-stateful widens what the repo may own, it does NOT relax where
     # apply authority lives (ADR 0014 §0.2). `just conformance` enforces it.
     "app-stateful-spoke": (
-        "OWNS runtime backend, domain state, migrations, and the web/worker/migrator image. "
-        "Must NOT own gitops apply, Cloudflare/DNS mutation, secret values, or cluster "
-        "credentials — those stay in the infra apply plane; runtime references only. "
-        "Static-spoke rules bind only retained scaffold surfaces, never platform code."
+        "OWNS runtime backend, domain state, migrations, and its finite application "
+        "targets/deployment bundle. Must NOT construct or publish the OCI image, own "
+        "gitops apply, mutate Cloudflare/DNS, hold secret values or cluster credentials, "
+        "or name provider placement; those require the owner overlay and upstream GF "
+        "authorities. Static-spoke rules bind only retained scaffold surfaces."
     ),
     "dynamic-spoke": (
-        "owns its own data store; consumes hub auth only. "
-        "Must NOT own gitops apply, Cloudflare/DNS mutation, or secret values — "
-        "apply authority stays in the operator overlay."
+        "heuristic only until a schema-v2 manifest declares app-stateful-spoke; "
+        "must NOT own publication, gitops apply, Cloudflare/DNS mutation, secret "
+        "values, or provider placement"
     ),
     "package-producer": "publishes into tinyland-inc/bazel-registry; consumers pin exact versions",
     "package-authority": "registry integrity; no consumer logic",
-    "infra": "GitOps receiver; cluster authority; per-repo AGENTS.md is load-bearing",
+    "infra": "only manifest-declared authority applies; per-repo AGENTS.md is load-bearing",
     "tooling": "templates and validates other repos; meta-layer",
     "business-internal": "private; entity-scoped; never federate publicly",
 }
@@ -208,7 +203,7 @@ def main() -> int:
     )
     print(
         "\n[whoami] tinyland.repo.json is absent. Consider authoring one — "
-        "see docs/schemas/tinyland-repo-manifest.schema.json.",
+        "see docs/schemas/tinyland-repo-manifest.v2.schema.json.",
         file=sys.stderr,
     )
     return 1 if role != "unknown" else 2

@@ -3,10 +3,8 @@
  * spec §4 A2 `submit`; spec §6 request contract).
  *
  * NOT PRERENDERED: this page carries a form action, and its content is
- * request-time state (whether intake is open). Under the default
- * adapter-static build the route is simply not emitted (svelte.config.js sets
- * `strict: false` + a 404 fallback); the production ADAPTER=node origin
- * serves it live — the same split `/discuss` uses.
+ * request-time state (whether intake is open). The sole adapter-node product
+ * serves it live.
  *
  * THE ACTION IS BUILT BY A FACTORY so the integration suite can drive the
  * real request path (429 shape, constant bodies) with injected seams while

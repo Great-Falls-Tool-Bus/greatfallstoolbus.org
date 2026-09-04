@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Check spoke conformance with docs/CI-SCHEMA.md §11 checklist.
+# Check spoke conformance with the source contract in docs/CI-SCHEMA.md.
 #
 # Exit 0 if all mechanical checks pass; non-zero with a checklist of
 # failures otherwise. Repository settings that are not mechanically verifiable
@@ -28,33 +28,31 @@ man() {
   fi
 }
 
-echo "Conformance check (see docs/CI-SCHEMA.md §11)"
+echo "Conformance check (see docs/CI-SCHEMA.md)"
 echo
 
-# 0. repo manifest exists and validates against the repo taxonomy schema
-# matching its schema_version (1 -> v1 schema, 2 -> v2 schema).
+# 0. repo manifest exists and validates against the sole v4 schema. Version 1
+# is retired; an absent, mistyped, or non-2 value fails closed.
 if [[ -f tinyland.repo.json ]]; then
-  manifest_schema=docs/schemas/tinyland-repo-manifest.schema.json
-  if [[ "$(jq -r '.schema_version // 1' tinyland.repo.json)" == "2" ]]; then
-    manifest_schema=docs/schemas/tinyland-repo-manifest.v2.schema.json
-  fi
   set +e
-  python3 scripts/validate-lanes.py \
-    --schema "$manifest_schema" \
-    --instance tinyland.repo.json >/dev/null 2>&1
+  manifest_out=$(python3 scripts/validate_repo_manifest.py \
+    --manifest tinyland.repo.json 2>&1)
   rc=$?
   set -e
+  manifest_line="${manifest_out##*$'\n'}"
+  manifest_line="${manifest_line#error: }"
   case $rc in
-    0) ok "tinyland.repo.json validates against ${manifest_schema##*/}" ;;
+    0) ok "$manifest_line" ;;
     2) man "tinyland.repo.json validator unavailable (jsonschema missing — run inside nix develop)" ;;
+    3|4) no "$manifest_line" ;;
     *) no "tinyland.repo.json fails schema validation (run just repo-manifest-validate for details)" ;;
   esac
 
   role=$(jq -r '.taxonomy.primary_role // empty' tinyland.repo.json)
-  if [[ "$role" == "static-spoke" || "$role" == "static-spoke-scaffold" ]]; then
-    ok "repo manifest declares a static-spoke-compatible role"
+  if [[ "$role" == "app-stateful-spoke" ]]; then
+    ok "repo manifest declares the GFTB application role"
   else
-    no "repo manifest must declare static-spoke or static-spoke-scaffold for this scaffold (got: ${role:-missing})"
+    no "repo manifest must declare app-stateful-spoke for this application (got: ${role:-missing})"
   fi
 else
   no "tinyland.repo.json is missing"
@@ -75,12 +73,12 @@ else
   no ".github/lanes.json is missing"
 fi
 
-# 2. ci.yml pins ci-templates by SemVer
+# 2. ci.yml pins the immutable v4 contract.
 if [[ -f .github/workflows/ci.yml ]]; then
-  if grep -qE 'tinyland-inc/ci-templates[^@]*@(v[0-9]+\.[0-9]+\.[0-9]+|[0-9a-f]{40})' .github/workflows/ci.yml; then
-    ok ".github/workflows/ci.yml pins ci-templates by SemVer or sha"
+  if grep -q 'tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@32e39ced0008edf4564ebeb173a5e8fbf069e28f' .github/workflows/ci.yml; then
+    ok ".github/workflows/ci.yml pins the reviewed ci-templates v5.1.0 schema-3 commit"
   elif grep -qE 'tinyland-inc/ci-templates' .github/workflows/ci.yml; then
-    no ".github/workflows/ci.yml references ci-templates but not via SemVer pin"
+    no ".github/workflows/ci.yml does not pin the reviewed v4 action contract"
   else
     man "ci.yml does not reference ci-templates yet (pre-cutover OK)"
   fi
@@ -91,22 +89,6 @@ fi
 # 3 & 4. Org ruleset + required checks
 man "Org ruleset tinyland-spoke-default imported (verify: gh api repos/{owner}/{repo}/rulesets)"
 man "Required status checks per §6 configured at the repo level"
-
-# 5. flywheel_target_classes subset of proved allowlist
-if [[ -f .github/lanes.json ]]; then
-  allowed='sveltekit-app-build sveltekit-unit-tests deployment-bundle-packaging docs-site-static-build web-playwright-chromium-static-smoke'
-  bad=""
-  while IFS= read -r cls; do
-    if [[ -n "$cls" ]] && ! echo " $allowed " | grep -q " $cls "; then
-      bad="$bad $cls"
-    fi
-  done < <(jq -r '[(.defaults.flywheel_target_classes // [])[], (.lanes[]?.flywheel_target_classes // [])[]] | .[]' .github/lanes.json 2>/dev/null | sort -u)
-  if [[ -z "$bad" ]]; then
-    ok "flywheel_target_classes (if any) are within the proved allowlist"
-  else
-    no "flywheel_target_classes contains non-allowlisted entries:$bad"
-  fi
-fi
 
 # 6. No GitHub-hosted runner label anywhere in .github/workflows (TIN-3914).
 # Operator ruling 2026-08-19: this org's CI runs only on the GF cache-fronted
@@ -148,33 +130,26 @@ if [[ -d .github/workflows ]]; then
   fi
 fi
 
-# 7. Flywheel recipes use the wrapper, not raw Bazel/Bazelisk.
-if [[ -f Justfile ]]; then
-  if [[ -x scripts/gloriousflywheel-bazel.sh || -f scripts/gloriousflywheel-bazel.sh ]]; then
-    if awk '/^flywheel-[A-Za-z0-9_-]+/{in_recipe=1; next} /^[A-Za-z0-9_.-]+[[:space:]]*:/ {in_recipe=0} in_recipe && /bazelisk[[:space:]]+(build|test|run|coverage)/ {bad=1} END {exit bad ? 0 : 1}' Justfile; then
-      no "flywheel-* Justfile recipes invoke raw bazelisk instead of scripts/gloriousflywheel-bazel.sh"
-    elif grep -q 'scripts/gloriousflywheel-bazel.sh' Justfile; then
-      ok "Flywheel Justfile recipes route through scripts/gloriousflywheel-bazel.sh"
-    else
-      no "Flywheel Justfile recipes do not call scripts/gloriousflywheel-bazel.sh"
-    fi
-  else
-    no "scripts/gloriousflywheel-bazel.sh is missing"
-  fi
-fi
-
-# 7b. Endpoint and upload authority must not live in scaffold rc/workflow files.
-# Ignore the defensive rejection regex inside `just sync-flywheel-bazelrc`.
+# Direct endpoint and upload authority must not live in source surfaces.
 endpoint_hits=$(
   grep -rnE '(--remote_cache=|--remote_executor=|--remote_upload_local_results=true)' \
-    --include='.bazelrc.flywheel' --include='Justfile' --include='*.yml' --include='*.yaml' \
+    --include='.bazelrc' --include='Justfile' --include='*.yml' --include='*.yaml' \
     --exclude-dir=node_modules --exclude-dir=.git . 2>/dev/null \
-    | grep -v 'grep -Eq --' || true
+    || true
 )
 if [[ -n "$endpoint_hits" ]]; then
-  no "Hard-coded Flywheel endpoint or cache-upload authority found outside wrapper env"
+  no "Hard-coded Flywheel endpoint or cache-upload authority found in source"
 else
-  ok "No hard-coded Flywheel endpoint or cache-upload authority in rc/workflow/Justfile surfaces"
+  ok "No hard-coded Flywheel endpoint or cache-upload authority in source surfaces"
+fi
+
+# Preserve the application-specific public-source check formerly routed
+# through the second conformance engine.
+if [[ -x scripts/scan-internal-endpoints.sh ]] \
+  && bash scripts/scan-internal-endpoints.sh >/dev/null 2>&1; then
+  ok "No internal cluster endpoint or hostname in public source"
+else
+  no "Internal cluster endpoint or hostname found (run just scan-endpoints)"
 fi
 
 # 8. No provider-specific state endpoint in spoke wiring. Descriptive prose is
@@ -188,43 +163,30 @@ else
   ok "No provider-specific state-backend wiring in repo"
 fi
 
-# 8b. Storage substrate is RustFS only — never Garage/MinIO (both hallucinations).
-# Flag garage/minio in actual Tofu HCL wiring (endpoint/host literals); strip `#` comments first so
-# the descriptive "never Garage/MinIO" guidance in backend.tf is not itself a false positive.
-if find ./tofu -name '*.tf' -not -path '*/.git/*' -exec sed 's/#.*//' {} + 2>/dev/null | grep -qiE '\b(garage|minio)\b'; then
-  no "Garage/MinIO referenced in tofu/*.tf wiring — the state substrate is RustFS only (Garage/MinIO are hallucinations)"
+# 12. GFTB is a consumer of the upstream scaffold transaction, never a second
+# owner of its rebrand executable or adapter-selection ADR.
+if [[ ! -e scripts/rebrand.sh && ! -L scripts/rebrand.sh \
+  && ! -e docs/decisions/dynamic-spoke-adapter-mode.md \
+  && ! -L docs/decisions/dynamic-spoke-adapter-mode.md ]]; then
+  ok "GFTB carries no copied scaffold rebrand implementation or adapter ADR"
 else
-  ok "No Garage/MinIO in tofu/*.tf wiring (RustFS-only state substrate)"
+  no "GFTB must consume rebrand and adapter-selection truth from tinyland-inc/site.scaffold"
 fi
 
-# 9. No OpenTofu in flywheel_target_classes (already covered by item 5)
-ok "OpenTofu target-class check (subsumed by allowlist check)"
-
-# 10. Optional artifact-repository metadata shape
-if [[ -f .github/lanes.json ]]; then
-  img=$(jq -r '.spoke.image_repository // empty' .github/lanes.json)
-  if [[ -z "$img" ]]; then
-    ok "spoke.image_repository unset (optional artifact metadata not declared)"
-  elif echo "$img" | grep -qE '^ghcr\.io/[a-z0-9._-]+/[a-z0-9._-]+$'; then
-    ok "spoke.image_repository metadata matches ghcr.io/<owner>/<repo>"
-  else
-    no "spoke.image_repository does not match ghcr.io/<owner>/<repo>: $img"
-  fi
-fi
-
-# 12. AGENTS.md cites scaffold tag
-if grep -qE 'site\.scaffold|scaffold (tag|version|@v[0-9])|spawned from' AGENTS.md 2>/dev/null \
-   && grep -qE '\b(tag|spawned from|conforms to)\b' AGENTS.md 2>/dev/null; then
-  ok "AGENTS.md cites the scaffold tag/spawning point"
+spawn_shim=.agents/skills/tinyland-spawn-sister-site/SKILL.md
+if [[ -f "$spawn_shim" ]] \
+  && grep -qF 'tinyland-inc/site.scaffold' "$spawn_shim" \
+  && ! grep -qE '^[[:space:]]*(gh repo create|git push .* main|\./scripts/rebrand\.sh)' "$spawn_shim"; then
+  ok "Sister-site skill is a discovery shim to the upstream protected transaction"
 else
-  man "AGENTS.md cites the scaffold tag the repo conforms to (pre-D3 PR7 OK)"
+  no "Sister-site skill must remain a non-executing upstream discovery shim"
 fi
 
 # 13. In-house package Bazel-only ingestion (TIN-2838): no org npm specifier in
 #     package.json AND each org package present as bazel_dep + npm_link_package.
 if [[ -f package.json && -f MODULE.bazel ]]; then
   set +e
-  python3 scripts/check-inhouse-package-parity.py >/dev/null 2>&1
+  node scripts/check-inhouse-package-parity.mjs >/dev/null 2>&1
   rc=$?
   set -e
   if [[ "$rc" -eq 0 ]]; then
@@ -284,81 +246,8 @@ if [[ -f tinyland.repo.json ]]; then
   esac
 fi
 
-# 16. Substrate-boundary conformance (TIN-2423 / TIN-3066): the scaffold has
-# no direct Blahaj application/PR receiver reach.
-if [[ -f scripts/validate-substrate-boundary.py ]]; then
-  set +e
-  python3 scripts/validate-substrate-boundary.py >/dev/null 2>&1
-  rc=$?
-  set -e
-  if [[ "$rc" -eq 0 ]]; then
-    ok "substrate-boundary validation passed (zero direct application/PR receiver reach)"
-  else
-    no "substrate-boundary validation failed (run scripts/validate-substrate-boundary.py for details)"
-  fi
-else
-  no "scripts/validate-substrate-boundary.py is missing"
-fi
-
-# 17. Production-convergence contract (TIN-489 / TIN-3065): main is the only
-# durable branch, no checked-in receipts, no SHA literals in binding documents
-# outside the receipt claim, and any declared converge carrier must exist and
-# reference a checked-in workflow-state toggle document.
-if [[ -f scripts/test-production-convergence-contract.py ]]; then
-  set +e
-  python3 scripts/test-production-convergence-contract.py >/dev/null 2>&1
-  rc=$?
-  set -e
-  if [[ "$rc" -eq 0 ]]; then
-    ok "production-convergence contract holds (run just production-convergence-contract for details)"
-  else
-    no "production-convergence contract violated (run just production-convergence-contract for details)"
-  fi
-else
-  no "scripts/test-production-convergence-contract.py is missing"
-fi
-
-# 17b. Published converge-agent carrier module contract (TIN-2030): module-source
-# laws (kill switch proven by EXECUTING the gate against enabled:true/false
-# fixtures, digest-not-tag, template-mode derivation, edge-probe custody) plus
-# N-tenant isolation laws. The module directory is .bazelignore'd from the
-# root graph on purpose (nested Bazel module published to the registry), so
-# the root Bazel lanes never run its test — this item and the ci.yml
-# carrier-module-contract job are its standing gates.
-if [[ -f modules/converge_agent/tests/test_converge_agent_contract.py ]]; then
-  set +e
-  python3 modules/converge_agent/tests/test_converge_agent_contract.py >/dev/null 2>&1
-  rc=$?
-  set -e
-  if [[ "$rc" -eq 0 ]]; then
-    ok "converge-agent carrier module contract holds (run just converge-agent-module-contract for details)"
-  else
-    no "converge-agent carrier module contract violated (run just converge-agent-module-contract for details)"
-  fi
-else
-  no "modules/converge_agent/tests/test_converge_agent_contract.py is missing"
-fi
-
 echo
 echo "--------------------------------------------------------------------------"
-# 18. Anti-dogfooding + packaging tag-shape scan (TIN-2672 phase 1, P4 of the
-# maximize-Bazel-SSOT roadmap). WARN only: never touches pass/fail/manual and
-# never affects this script's exit code. The two anti-patterns detected are:
-#   (1) an in-house @tummycrypt/@tinyland package.json dep declared as
-#       workspace:* or a vendored tarball/producer-tree path instead of a
-#       bazel-registry-pinned exact npm version;
-#   (2) a pkg_tar/container packaging Bazel target whose tags mix or omit
-#       pieces of the two disjoint packaging classes (deployment-bundle-
-#       packaging+flywheel-eligible OR container-image-and-push+
-#       gloriousflywheel-cache-only+no-remote-exec, never mixed).
-# A later PR flips this to a hard-fail conformance item once the fleet has had
-# a chance to react to the drift it surfaces.
-if [[ -f scripts/check-bazel-ssot-report-only.py ]]; then
-  python3 scripts/check-bazel-ssot-report-only.py || true
-else
-  echo "  ⚠ REPORT-ONLY: scripts/check-bazel-ssot-report-only.py is missing (skipping scan)"
-fi
-
 echo
 echo "summary: ${pass} pass, ${fail} fail, ${manual} manual"
 if (( fail > 0 )); then exit 1; fi

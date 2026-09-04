@@ -10,7 +10,7 @@
 	// for any site's <svelte:head>; never hand-roll ad-hoc inline meta blocks.
 	//
 	// NOTE vs. MassageIthaca: MI is SSR (adapter-node) and gates `noindex` on the
-	// live request host. greatfallstoolbus.org is fully prerendered (adapter-static), so a
+	// live request host. greatfallstoolbus.org prerenders this metadata, so a
 	// host check would bake noindex into the static HTML at build time. We honor
 	// the explicit `noindex` prop ONLY and read just `page.url.pathname` (stable
 	// per-route during prerender) for the canonical path.

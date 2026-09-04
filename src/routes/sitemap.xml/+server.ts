@@ -1,5 +1,5 @@
-// M3.3 sitemap.xml endpoint. Prerendered at build time by adapter-static so the
-// XML lives at build/sitemap.xml. Add additional routes here as M5 lands them.
+// M3.3 sitemap.xml endpoint. Prerendered into the adapter-node build. Add
+// additional routes here as M5 lands them.
 //
 // Single-product history (L72 Q3-A): the 15 legacy marketing-tree route
 // families (mission, tools, cells, cell-sheets, wants, donate, safety,

@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const host = '127.0.0.1';
 const port = 3000;
-const baseURL = `http://localhost:${port}`;
+const baseURL = `http://${host}:${port}`;
 const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
 
 export default defineConfig({
@@ -41,16 +42,11 @@ export default defineConfig({
 			: []),
 	],
 	webServer: {
-		// The default build is adapter-static: svelte.config.js only selects
-		// adapter-node when ADAPTER=node is set, so a plain `pnpm run build`
-		// emits no Node entry (no build/index.js). That is why CI run
-		// 33715124706's `node build` died with MODULE_NOT_FOUND — the bundle it
-		// tried to boot was never built. The static server below serves the
-		// prerendered surface of build/, which is exactly what the current e2e
-		// specs exercise. Full-server e2e (ADAPTER=node build plus the runtime
-		// env that server needs) belongs to the integration/preview-tailnet lane.
-		command: 'pnpm run build && pnpm exec serve build -l ' + port,
-		port,
+		// Exercise the same custom adapter-node server and explicit origin shape
+		// that production uses. A static file server would skip request-time
+		// routes and the cache-header wrapper in server.js.
+		command: `pnpm run build && HOST=${host} PORT=${port} ORIGIN=${baseURL} NODE_ENV=production node server.js`,
+		url: baseURL,
 		timeout: 180_000,
 		reuseExistingServer: !process.env.CI,
 	},

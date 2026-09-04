@@ -14,7 +14,7 @@ records below; the sibling `tofu/stacks/edge-dns` predates TIN-2385 and
 stays permanently fail-closed — don't cite it as the apply authority);
 runner tenancy also in `great-falls-tool-bus-infra` per TIN-2299. This
 subdirectory declares no resources, no providers, no backend, and is never
-referenced by any `.tf` file; `just tofu-plan` neither reads nor needs it.
+referenced by any app-owned `.tf` file. This repository has no plan/apply path.
 
 ## What is declared (see `intent.yaml`)
 

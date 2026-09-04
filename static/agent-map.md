@@ -6,22 +6,26 @@
 2. `CLAUDE.md` when running under Claude
 3. `tinyland.repo.json` for machine-readable repo shape
 4. `docs/agent-adoption.md` when adopting this contract in another repo
-5. `docs/CI-SCHEMA.md` before CI, lane, Blahaj, Tofu, or Flywheel changes
-6. `docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md`
-   before applying static-spoke rules to app repos or `tinyland.dev`
-7. The relevant `.agents/skills/*/SKILL.md`
-8. `Justfile`
+5. `docs/CI-SCHEMA.md` before v4 action or owner-transaction changes
+6. The relevant `.agents/skills/*/SKILL.md`
+7. `Justfile`
 
 ## Skills
 
-Six tinyland-* skills:
+Five repository-local tinyland-* skills:
 
 - `.agents/skills/tinyland-whoami/SKILL.md`
 - `.agents/skills/tinyland-spawn-sister-site/SKILL.md`
 - `.agents/skills/tinyland-scaffold-doctor/SKILL.md`
 - `.agents/skills/tinyland-repo-contract/SKILL.md`
 - `.agents/skills/tinyland-static-spoke/SKILL.md`
-- `.agents/skills/tinyland-flywheel-bazel/SKILL.md`
+
+GloriousFlywheel v4 adoption follows the upstream
+`tinyland-inc/GloriousFlywheel/.agents/skills/tinyland-flywheel-enroll/SKILL.md`;
+this consumer does not vendor the retired cache/profile skill.
+
+The spawn entry is a discovery shim only. The executable creation transaction,
+adapter selection, and rebrand implementation live in `tinyland-inc/site.scaffold`.
 
 Seven generated mail lace-up skills (`.agents/skills/gftb-mail-laceup-*` for
 gmail, thunderbird, apple-mail, kmail, geary, sieve, outlook), produced by
@@ -47,23 +51,17 @@ preserve dirty work, patch minimal conformance gaps, and validate through Just.
 - `just sbom`
 - `just bazel-graph`
 - `just repo-manifest-validate`
-- `just flywheel-enroll`
-- `just flywheel-doctor`
-- `just flywheel-verify`
-- `just flywheel-info`
-- `just flywheel-build`
-- `just flywheel-test`
 - `just conformance`
 
-## Flywheel Environment
+## Flywheel v4
 
-- `GF_FLYWHEEL_PROFILE_STATE` records the enrollment state:
-  `unattached`, `shared-cache-backed`, `executor-backed`, or `local-proof`.
-- `BAZEL_REMOTE_CACHE` is required for Flywheel-backed work.
-- `GF_BAZEL_SUBSTRATE_MODE=shared-cache-backed` uses remote cache only.
-- `GF_BAZEL_SUBSTRATE_MODE=executor-backed` also requires `BAZEL_REMOTE_EXECUTOR`.
-- `GF_BAZEL_REMOTE_UPLOAD=true` is trusted-lane only.
-- Pull requests are read-only cache consumers.
+- `.github/lanes.json` is the complete application-side ActionPlan.
+- `spoke-ci-v4.yml@32e39ced0008edf4564ebeb173a5e8fbf069e28f`
+  (`v5.1.0`, carrying ActionPlan/v4 schema 3) invokes only the image-custodied
+  `gf-action-client`.
+- `great-falls-tool-bus-infra` owns signed installation and demand instances.
+- Missing App, overlay, binding, OIDC, client, or REAPI authority fails closed;
+  there is no local, cache-only, hosted, profile, or endpoint fallback.
 
 ## Taxonomy
 
@@ -71,10 +69,8 @@ preserve dirty work, patch minimal conformance gaps, and validate through Just.
   behavior.
 - `tinyland.dev` is the mothership/content authority and is not governed by
   static-spoke conformance.
-- MassageIthaca-shaped app repos may own runtime behavior but should consume
-  generic lane, reaper, public-preview, and Flywheel contracts.
-- Blahaj should be the generic GitOps receiver for lane envs, TTL reaps, public
-  previews, runtime smoke, and final lane statuses.
+- Application repos own product behavior and finite Bazel actions; their
+  consumer overlays own signed demand and non-action owner transactions.
 
 ## Prohibited
 

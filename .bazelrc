@@ -43,49 +43,27 @@ common --registry=https://raw.githubusercontent.com/tinyland-inc/bazel-registry/
 # in-house Bazel modules resolve before falling through to bcr.bazel.build.
 common --registry=https://bcr.bazel.build
 
-# Build performance
+# Local graph inspection only. Product actions execute through the compiled v4
+# client and its controller-resolved REAPI binding; this file carries no cache,
+# executor, endpoint, profile, or fallback authority.
 build --jobs=auto
 build --worker_sandboxing
-build --disk_cache=~/.cache/bazel-greatfallstoolbus
 build --keep_going
 build --show_timestamps
 
-# Flywheel cache + REAPI behavior lives in .bazelrc.flywheel, but endpoint
-# authority lives in scripts/gloriousflywheel-bazel.sh. The wrapper passes
-# --remote_cache and optional --remote_executor explicitly from validated env.
-# See docs/CI-SCHEMA.md §5 for the contract.
-try-import %workspace%/.bazelrc.flywheel
-
 # rules_ts: skip lib check is required for SvelteKit-style declaration files.
 build --@aspect_rules_ts//ts:skipLibCheck=always
-build --spawn_strategy=sandboxed,worker,local
-
-# CI base config. The cache-backed enrollment lane (ci.yml cache_backed: true)
-# layers `--config=ci-cached` on top of this. Empty the disk cache in CI so a
-# green cache-backed build proves the REMOTE shared cache rather than an
-# incidental local-disk hit (TIN-2119 real-attach discipline).
-build:ci --disk_cache=
-build:ci --remote_retries=3
-build:ci --jobs=auto
-build:ci --color=no
-build:ci --curses=no
-build:ci --show_progress_rate_limit=30
-build:ci --noshow_loading_progress
-
-# ci-cached: endpoint-free shared-cache behavior for the cache_backed lane,
-# mirroring tinyland-inc/ci-templates bazelrc/ci-cached.bazelrc. The workflow
-# supplies --remote_cache and upload policy at invocation after validating
-# BAZEL_REMOTE_CACHE via scripts/cache-attachment-contract.sh. CACHE-FIRST only
-# (TIN-1997 Option D): this never selects a remote executor.
-build:ci-cached --config=ci
-build:ci-cached --remote_upload_local_results=false
-build:ci-cached --remote_download_minimal
-build:ci-cached --remote_timeout=60
+build --spawn_strategy=sandboxed,worker
+# Local developer builds use Bazel's internal CopyFile action to materialize
+# rules_js runfiles; that bookkeeping mnemonic has no Darwin sandbox
+# implementation. Protected v4 actions do not read this file: the compiled
+# gf-action-client invokes Bazel with --ignore_all_rc_files. A later
+# --spawn_strategy cannot override this mnemonic-specific setting, so any
+# change to that client boundary requires a fresh execution-policy review.
+build --strategy=CopyFile=local
 
 # Test output
 test --test_output=errors
 test --test_summary=detailed
 test --test_verbose_timeout_warnings
 test --test_timeout=120,600,1800,3600
-
-try-import %workspace%/user.bazelrc

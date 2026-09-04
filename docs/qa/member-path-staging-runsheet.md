@@ -31,7 +31,7 @@ The contribution visibility boundary is a separate registered domain proof:
 src/lib/server/contribution/visibility.test.ts locks the permitted keyholder
 summary to exactly offered plus helpRequested and excludes amount, rail,
 cadence, processor state, and version. It is enrolled in //:unit_tests through
-//:app_srcs. Exact remote flywheel-test proof passed at signed source
+//:app_srcs. A historical v3 remote proof passed at signed source
 31f8afc2a6c130b2208d84e8a95483a6b060da36:
 [job 99167490982](https://github.com/Great-Falls-Tool-Bus/greatfallstoolbus.org/actions/runs/33277725087/job/99167490982).
 That proves the closed serializer shape. It does not invent a deployed
@@ -504,7 +504,7 @@ non-sensitive receipt and all of these are true:
   seven gates.
 - PINNED: committed infra digest equals the live pod imageID.
 - RUNNING: observed generation and intended replica readiness agree.
-- SERVED: external /health.sha equals the application source SHA.
+- SERVED: external /health.sha equals the GF-qualified application source SHA.
 - Mail remains disabled unless separately authorized after template approval.
 
 Until a finance-write surface exists, cash/check remains BLOCKED. Until

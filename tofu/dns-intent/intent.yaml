@@ -52,9 +52,8 @@ zones:
           Deployment (ADR 0010). History: GitHub Pages apex A-set
           (185.199.108-111.153) through 2026-07-02 -> CF Pages custom domain
           (greatfallstoolbus-org.pages.dev, infra PR #15, 2026-07-03) -> this
-          tunnel cutover (infra PR #63). Rollback is a one-line `pages_host`
-          change in the edge stack while the CF Pages project still exists;
-          see docs/runbooks/cf-pages-rollback.md.
+          tunnel cutover (infra PR #63). Rollback authority belongs to the
+          consumer overlay; this application carries no fallback publisher.
       - name: www
         type: CNAME
         value: da3ffda2-68ee-46d1-aa55-ec8dae2bd471.cfargotunnel.com

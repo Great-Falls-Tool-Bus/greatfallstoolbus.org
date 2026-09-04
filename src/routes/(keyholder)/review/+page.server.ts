@@ -2,9 +2,8 @@
  * `/review` — the keyholder review queue (TIN-3440 slice S5; spec §4 A4
  * `claim`; spec §6 request contract).
  *
- * NOT PRERENDERED, same split as `/apply`: request-time state, POST actions,
- * absent from the default adapter-static build (`strict: false`), served live
- * by the ADAPTER=node origin.
+ * NOT PRERENDERED, same shape as `/apply`: request-time state and POST actions
+ * served by the adapter-node origin.
  *
  * WHO SEES IT: a live session holding a live `keyholder` grant. The session
  * comes from `hooks.server.ts` (S2); the GRANT check runs inside the same

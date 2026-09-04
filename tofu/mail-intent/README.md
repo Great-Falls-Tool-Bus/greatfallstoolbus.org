@@ -15,10 +15,9 @@ That sentence is the whole contract. Expanded:
   see `docs/decisions/0002-blahaj-substrate-boundary.md`); runner tenancy
   also in `great-falls-tool-bus-infra` per TIN-2299. This directory is the
   first plane only.
-- **Not wired into `tofu plan`.** `tofu/main.tf` composes the five
-  spoke-facing modules; this subdirectory declares no resources, no
-  providers, no backend, and is never referenced by any `.tf` file. Running
-  `just tofu-plan` neither reads nor needs it.
+- **Not wired into an app-owned plan.** This subdirectory declares no
+  resources, providers, or backend. The application carries only public
+  intent; its consumer overlay owns realization.
 - **Zero secrets (row d).** The names of the secrets this intent will
   eventually need are recorded — names only — in `secrets.contract.yaml`
   at the repo root. Values live in the infra overlay's `secrets/`
@@ -35,7 +34,7 @@ That sentence is the whole contract. Expanded:
 | Surface | Intent |
 | --- | --- |
 | `latoolb.us` | Mail domain + DNS redirect/alias to the site (row a) |
-| `greatfallstoolbus.org` | Web domain for this repo's static site |
+| `greatfallstoolbus.org` | Web domain for this repo's adapter-node application |
 | `keyholders@latoolb.us` | First production `MailAccount` application (`mail.tinyland.dev/v1alpha1`; CR applied from the infra overlay, reconciled by the house mail substrate) |
 | `keyholders` list | Mailman 3 + Postorius + HyperKitty, pinned trio 3.3.10 / 1.3.13 / 1.3.12, private/members-only archive or archive off (row e corrected 2026-07-04) |
 | `discuss` list | Public/open discussion list with public archive; source/transport reconciled, smoke proof tracked on TIN-2498 |
@@ -49,4 +48,3 @@ That sentence is the whole contract. Expanded:
 - Manual DNS checklist: [`docs/runbooks/dns-mail-checklist.md`](../../docs/runbooks/dns-mail-checklist.md)
 - Apply-plane runbook: `great-falls-tool-bus-infra/docs/edge-apply-runbook.md` (local pointer stub: [`docs/runbooks/dns-apply.md`](../../docs/runbooks/dns-apply.md))
 - Keyholders list-client instructions: [`docs/runbooks/keyholders-client-setup.md`](../../docs/runbooks/keyholders-client-setup.md)
-- Spoke infra proper (the five composed modules): [`../README.md`](../README.md)

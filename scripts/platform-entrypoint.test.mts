@@ -1,9 +1,10 @@
 // Contract tests for the platform process dispatcher (TIN-3815 slice S0,
 // extended by TIN-3817 slices S1 and S3).
 //
-// These lock the IMAGE CONTRACT, not an implementation detail: three stable
-// role names, `--help` answering 0 for each of them without side effects, and
-// an unimplemented role failing CLOSED rather than reporting healthy.
+// These lock the application dispatcher contract, not GF-I09's still-missing
+// final image wrappers/config: three stable role names, `--help` answering 0
+// for each without side effects, and an unimplemented role failing CLOSED
+// rather than reporting healthy.
 //
 // S1 landed the migrator and S3 landed the worker, so the rows that asserted
 // those roles fail closed now assert they DISPATCH — the contract they were
@@ -25,7 +26,7 @@ import {
 	resolveWorkerEntrypoint,
 	runPlatformEntrypoint,
 	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-	// @ts-ignore -- plain .mjs dispatcher, deliberately not compiled for the image
+	// @ts-ignore -- plain .mjs dispatcher, deliberately carried verbatim in the bundle
 } from './platform-entrypoint.mjs';
 
 function capture() {
@@ -33,12 +34,12 @@ function capture() {
 	return { write: (chunk: string) => chunks.push(chunk), text: () => chunks.join('') };
 }
 
-describe('platform image role contract', () => {
+describe('platform dispatcher role contract', () => {
 	it('carries exactly web, worker, and migrator', () => {
 		expect(PLATFORM_ROLES).toEqual(['web', 'worker', 'migrator']);
 	});
 
-	it('resolves the role from the linked executable name', () => {
+	it('resolves the role from the executable name', () => {
 		expect(resolvePlatformRole('/bin/worker', [])).toEqual({ role: 'worker', args: [] });
 		expect(resolvePlatformRole('/usr/local/bin/migrator', ['--help'])).toEqual({
 			role: 'migrator',
@@ -46,14 +47,14 @@ describe('platform image role contract', () => {
 		});
 	});
 
-	it('falls back to the first positional argument when not invoked by link name', () => {
+	it('falls back to the first positional argument for a generic dispatcher name', () => {
 		expect(resolvePlatformRole('/app/scripts/platform-entrypoint.mjs', ['web', '--help'])).toEqual({
 			role: 'web',
 			args: ['--help'],
 		});
 	});
 
-	it('lets the linked name win, so /bin/worker cannot be argued into serving web', () => {
+	it('lets the executable name win, so worker cannot be argued into serving web', () => {
 		expect(resolvePlatformRole('/bin/worker', ['web'])).toEqual({ role: 'worker', args: ['web'] });
 	});
 });

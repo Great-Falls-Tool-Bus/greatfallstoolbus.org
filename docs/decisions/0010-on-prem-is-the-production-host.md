@@ -14,14 +14,12 @@
     cutover is the executing plan, not a parked option.
 - Relates:
   - Infra ADR `great-falls-tool-bus-infra:docs/decisions/0001-pr-gated-ephemeral-preview-deploys.md`
-    (TIN-2535) - the intent of its Option A (Cloudflare Pages managed previews)
-    is superseded here; PR previews move to the on-cluster reaper pattern. This
-    needs an infra-side companion decision to revive the reaper (TIN-2535
-    reopened in spirit; see §4).
-  - `docs/deploy/oncluster-container-readiness.md` (the build-active artifact),
-    `dynamic-spoke-adapter-mode.md` and `dynamic-canary-blue-green.md` (the
-    adapter-mode / lane design), `0002-blahaj-substrate-boundary.md` (the
-    three-layer boundary this preserves).
+    (TIN-2535) - historical preview decision, superseded again by the v4
+    controller-result and owner-overlay reap contract described in §4.
+  - `docs/CI-SCHEMA.md` (the current v4 product-export contract),
+    `tinyland-inc/site.scaffold:docs/decisions/dynamic-spoke-adapter-mode.md`
+    (the adapter-selection SSOT), and `0002-blahaj-substrate-boundary.md`
+    (the ownership boundary this preserves).
 - Boundary: this repo stays schema-pinned `owns_cloudflare_mutation=false` and
   `owns_gitops_apply=false` (`tinyland.repo.json`). It **codifies the ruling and
   the host of record**; every apply named in §5 is executed by
@@ -38,8 +36,8 @@ declaration of optionality. It closes out 0008's phased path at its final gate
 Prior docs framed the on-cluster move as declare-only intent, "not a hosting
 change," and "optionality not adoption" (0008 P0 framing; 0007 parked option
 (c)). **That framing is superseded.** The technical readiness that framing was
-waiting on is already in hand: the container image builds and publishes today
-(`docs/deploy/oncluster-container-readiness.md`, TIN-2543), the MassageIthaca
+waiting on was then recorded as in hand: the TIN-2543 carrier built and
+published an image, the MassageIthaca
 on-cluster precedent is proven (0008 §1), and the 2026-07-05 live cluster probe
 retired the last capacity blocker (0008 §7.1, ~176 free pod slots cluster-wide).
 The cutover was halted on non-technical grounds, not a missing fact. The ruling
@@ -60,7 +58,7 @@ removes that halt.
 - **adapter-node remains viable, reserved for a future genuine server need.**
   The `adapter-node -> OCI image -> K8s -> cloudflared` path (0008 §3, the
   MassageIthaca house standard) already builds and publishes from this repo
-  (`docs/deploy/oncluster-container-readiness.md`). It is retained as the
+  (the historical TIN-2543 carrier, removed by Amendment 4). It is retained as the
   sanctioned path **if and when** GFTB acquires a real runtime need (a
   secret-holding proxy, thin API routes, upstream normalization). Adopting a Node
   server for a site that has no runtime requirement would be gratuitous, so the
@@ -97,24 +95,18 @@ already runs in production. Cloudflare's proxy still fronts and caches the tunne
 origin at the edge; the on-cluster serving rollback is the re-pin primitive
 (0008 §5), not a second live publisher.
 
-## 4. Decision 3 - PR previews move to the on-cluster reaper pattern
+## 4. Decision 3 - historical preview choice; mechanism superseded
 
-PR previews move from Cloudflare Pages managed previews to the **on-cluster
-ephemeral reaper pattern** (the blahaj / MassageIthaca reaper shape, proven
-healthy in the 2026-07-05 probe, 0008 §7.1).
+This ADR originally selected an on-cluster ephemeral reaper after Cloudflare
+Pages previews were retired. That repository-shaped reaper and its shared
+`ContainerFile` premise no longer exist after the v4 hard cut.
 
-- This **supersedes the intent of infra ADR 0001** (TIN-2535), whose Option A
-  chose Cloudflare Pages previews on the premise that production stays on
-  Cloudflare Pages. With production on-cluster, that premise no longer holds
-  (0008 §4): a preview lane now shares the production `ContainerFile`, GHCR
-  publish, and overlay stack, so the reaper is the coherent choice rather than a
-  net-new capability.
-- **This needs an infra-side companion decision.** Preview provisioning is
-  overlay + blahaj work (`owns_gitops_apply=false` here), so reviving the reaper
-  is a `great-falls-tool-bus-infra` decision. TIN-2535 is reopened in spirit:
-  its preview question is re-weighed with production-on-cluster as the new
-  premise, Option B (on-cluster reaper) now favored. PR #46's pod-cap caution on
-  preview *scale* carries forward unchanged.
+The binding replacement is the v4 boundary: browser LOOK, publication, mutable
+preview lifecycle, and reap are not application Bazel actions. A preview may be
+created only from a separately admitted controller result and removed only by
+the owner-overlay reap transaction. No local tailnet preview, application-owned
+dispatch, or revived reaper is a fallback. This historical ADR does not
+authorize any of those deleted mechanisms.
 
 ## 5. The cutover - operator-gated, and it is THE executing plan
 
@@ -197,7 +189,7 @@ Amendment 2) are likewise unaffected.
 > ~~**adapter-node remains viable, reserved for a future genuine server need.**
 > The `adapter-node -> OCI image -> K8s -> cloudflared` path (0008 §3, the
 > MassageIthaca house standard) already builds and publishes from this repo
-> (`docs/deploy/oncluster-container-readiness.md`). It is retained as the
+> (the historical TIN-2543 carrier, removed by Amendment 4). It is retained as the
 > sanctioned path **if and when** GFTB acquires a real runtime need (a
 > secret-holding proxy, thin API routes, upstream normalization). Adopting a Node
 > server for a site that has no runtime requirement would be gratuitous, so the
@@ -229,71 +221,72 @@ on-cluster GFTB web) turns out to be the shipped shape after all, once the
 operator ruled out any CF-Pages-served lane, interim or long-term, entirely —
 not narrowed to a case-by-case "genuine server need" test.
 
-adapter-static is retained only as:
-
-1. the build target for the deprecated, spinning-down interim Cloudflare Pages
-   lane (`deploy-pages.yml`, §3/§5), until that project is deleted; and
-2. a local/CI fallback build (`just build` with no `ADAPTER` set stays green
-   against the frozen lockfile, so the default gates never regress).
+**Amendment 3 — one product build (2026-09-01).** The operator superseded the
+remaining adapter-static local/CI fallback during the GF v4 hard cut. The Pages
+project and deploy lane are already gone; retaining a second build shape now
+only lets CI validate bytes that cannot be promoted. `svelte.config.js`,
+`just build` and Bazel `//:build` therefore emit the adapter-node server. The
+`ADAPTER` selector and adapter-static dependency are removed. Git history
+carries the old static implementation; it is not a live fallback. Amendment 4
+supersedes the application-owned OCI publisher while preserving this one-product
+build ruling. The unused `PUBLIC_ARCHIVE_LIVE` build flag is removed with that
+second path: no current source consumer or `/discuss` route remains.
 
 Every build-active artifact since this ADR's Accepted date confirms adapter-node
 as the shipped shape, not a reserved future path:
 
-- The GHCR image is built `ADAPTER=node` via `nix2container`
-  (`.github/workflows/container-ghcr.yml`;
-  `docs/deploy/oncluster-container-readiness.md`).
-- The infra web Deployment runs that image today
+- Bazel `//:deployment_bundle` exports the adapter-node server and its three
+  process payloads as the application-owned publication input.
+- The infra web Deployment remains the live state-continuity surface
   (`great-falls-tool-bus-infra:k8s/web/greatfallstoolbus-org-production/`, infra
-  PR #60): digest-pinned, `replicas: 0 -> 2`, readiness/liveness `httpGet
-  /health` probes.
-- The `/health` probe route and the `PUBLIC_ARCHIVE_LIVE` build-time flag are
-  baked into that node image (site PR #111); the probe target
-  (`node build/index.js` serving `GET /health` live) is adapter-node-specific.
-- `/discuss` does a build-time in-cluster fetch of the HyperKitty archive (site
-  PR #113, wired in PR #114), with a documented, deliberate post-cutover flip to
-  **per-request SSR** once adapter-node is the served origin (PR #114: *"Post-
-  cutover (TIN-2543, adapter-node) the `prerender` flip makes this per-request
-  live — deliberately NOT done here."*). Per-request SSR against a live
-  in-cluster origin is a capability a plain static file server structurally
-  cannot provide; it requires a running Node process.
-- **MassageIthaca parity**: the same `adapter-node -> OCI image -> K8s ->
-  cloudflared` shape 0008 §1 established as the house on-cluster pattern is what
-  GFTB now ships.
+  PR #60), with adapter-node readiness/liveness through `GET /health`. Its
+  current image is not evidence of v4 publication or main-to-production
+  convergence.
+- **Serving-shape parity**: the adapter-node server remains the application
+  payload carried inside the owner-published image and served on-cluster.
 
-**Boundary-schema note, flagged not applied (mirrors 0008 §6's own
-convention):** if/when the operator formalizes the container-producing shape in
-the schema, `tinyland.repo.json` would gain `owns_container_image_production=true`
-for the reason 0008 §6 already named — `owns_gitops_apply` and
-`owns_cloudflare_mutation` still stay false; the overlay still owns the pin and
-apply. This amendment flags it; it does not change the schema file.
+**Boundary-schema replacement (2026-09-04):** schema v2 declares this repo an
+`app-stateful-spoke` that owns runtime behavior and the finite
+`//:deployment_bundle` action. It does not own OCI construction/publication,
+application pins or workloads, GitOps apply, Cloudflare mutation, or provider
+placement. Those begin only after GF-I07/v5 qualification and in the GF-I09
+owner transaction described by Amendment 4.
 
 **§7 replacement:** the boundary reasoning tied to "the primary path is
 adapter-static (not adapter-node)" no longer holds — the primary path *is*
-adapter-node. §7's other posture claims (zero secrets/endpoints in the public
-tree; DNS, Access, Tunnel ingress, and manifests staying in
-`great-falls-tool-bus-infra` / blahaj) are unaffected by the adapter-mode
-correction and still stand as written.
+adapter-node. §7's surviving posture is the ownership boundary: zero
+secrets/endpoints in the public application tree, with release/apply authority
+in the consumer-owned `great-falls-tool-bus-infra` overlay and provider
+supply/placement opaque to this repository.
 
-**What this amendment does not change:** §1 (on-prem is the host of record),
-§3 (Cloudflare Pages spins down, warm only for the cutover window), §4 (previews
-move to the on-cluster reaper), §5 (the cutover checklist — none of its seven
-steps name an adapter mode; they describe the Deployment/DNS/Access mechanics
-generically and already match adapter-node operationally, so no wording there
-implies a static-file-server origin), §6 (the Access gate is unaffected), and
-§8's "not yet applied" caveat (the DNS/Access cutover in §5 remains
-operator-gated pending; this amendment corrects the *serving-mode* decision, not
-a claim that the cutover is live) all stand as written.
+**What this amendment does not change:** on-prem remains the host of record and
+the Access policy remains independent of adapter selection. §3–§5 document the
+completed 2026 cutover history; they do not authorize a present release or
+fallback. Amendment 4 governs all current publication and convergence.
 
-**Citations:** site PR #111 (`feat(oncluster): /health probe + bake
-PUBLIC_ARCHIVE_LIVE into node image (TIN-2543)`), site PR #113 (`feat(discuss):
-in-cluster HyperKitty fetch for the discuss@ archive snapshot`), site PR #114
-(`feat(discuss): wire live in-cluster archive fetch into the /discuss load
-(TIN-2528)`), infra PR #60 (`feat(web): ADR 0010 on-cluster cutover — pin
-digest, replicas 0->2, /health probes (TIN-2543)`).
+**Historical citations:** site PRs #111, #113, and #114; infra PR #60. These
+show why adapter-node was selected, not a current publication mechanism.
 
 **Operator decision:** 2026-07-05, reaffirmed 2026-07-06, verbatim: *"none of
 this site should be CF pages served, that was shot down in favor of
 adapter-node."*
+
+## Amendment 4 — application publisher retired; owner-authorized v4 publication (2026-09-04; TIN-4251)
+
+The application stops at Bazel `//:deployment_bundle` and its verified
+`ActionOutputSet/v1`. It does not construct or publish an OCI image. The
+application-owned publication workflow, Nix OCI output, local image recipes,
+and their readiness document are deleted rather than retained as a bridge.
+
+GF-I07/v5 must first qualify those bytes against independent execution/cache
+observation. Only the GF-I09 owner materializer/publisher/controller may then
+construct and publish the OCI image, create the `ApplicationRelease`, and
+converge the consumer overlay. ci-templates v5.1.0 invokes the action but does
+not yet expose qualified output to a publication job, and GFTB has no remote
+action producing its publishable OCI payload. This amendment therefore does
+**not** claim publication, activation, or main-to-production convergence is
+live; it records an exact upstream block and forbids an application-owned
+workflow, local publisher, attended apply, or dispatch fallback.
 
 ## Amendment 2 — §5 step 7 & §8: cutover fully executed, Cloudflare Pages project deleted (AMENDED 2026-07-07, operator ruling; TIN-2560)
 
@@ -343,18 +336,13 @@ All seven §5 steps are **done**:
   the verification: `greatfallstoolbus-org.pages.dev` no longer resolves in
   DNS at all, and apex/`www` are healthy on the tunnel origin.
 
-**Rollback truth, corrected:** the "rollback during the window" primitive this
-ADR named above **no longer exists** — there is no Cloudflare Pages project
-left to flip DNS back to; `var.pages_host = "greatfallstoolbus-org.pages.dev"`
-would now point the apex at a dead host. The **one remaining rollback path** is
-the on-cluster re-pin this ADR always named as the *after*-window primitive
-(0008 §5 / 0010 §5, above): re-dispatch the infra `web-stack.yml` workflow
-(`workflow_dispatch`, `confirm=apply`, `image=<prior known-good
-ghcr.io/great-falls-tool-bus/greatfallstoolbus.org@sha256:<digest>>`) to roll
-the Deployment back to a previously-served image. That path is not new — it
-was always the eventual rollback story once Pages was gone — it is simply now
-the **only** rollback, effective 2026-07-06, not the fallback-of-last-resort it
-read as when this ADR was Accepted.
+**Rollback truth, corrected again 2026-09-04:** neither rollback mechanism this
+ADR previously named remains executable. The Pages project is absent, and infra
+PR #183 deleted `web-stack.yml` with the rest of the attended bridge. The
+ratified replacement is the protected v4 exact-plan transaction re-pinning a
+previously served digest and recording readback; that transaction is not yet
+installed. No application-owned dispatch, local apply, or interim workflow may
+stand in for it, and this repository must not claim rollback is currently armed.
 
 **§8 replacement:** "Not yet applied" is superseded. The cutover is live and
 fully applied end-to-end: on-prem is not merely the *accepted* host, it is the

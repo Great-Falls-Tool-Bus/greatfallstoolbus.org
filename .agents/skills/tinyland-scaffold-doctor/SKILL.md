@@ -1,6 +1,6 @@
 ---
 name: tinyland-scaffold-doctor
-description: Audit a Tinyland repo for drift against the greatfallstoolbus.org house-style contract. Reports a structured scorecard covering Justfile recipes, flake.nix toolchain, .gitleaks.toml rules, AGENTS.md / CLAUDE.md presence, tinyland.repo.json validity, .agents/skills/* presence and naming, .bazelrc / .bazelrc.flywheel shape (endpoint-free), Skeleton/Tailwind pins, snapshot ingestion recipes, lanes.json schema validity, and CI workflow inheritance from ci-templates. Use when onboarding to an unfamiliar sister site, debugging "why does CI fail here but not in scaffold", validating a spawn worked, or pre-merge before raising a PR that bumps the scaffold tag.
+description: Audit a Tinyland repo for drift against its immutable tinyland-inc/site.scaffold creation origin. Reports a scorecard covering repo contracts, manifest validity, schema-v2 ActionPlan shape, immutable ci-templates v4 adoption, and absence of provider placement or fallback execution. Use when validating a spawn, diagnosing CI drift, or preparing a reviewed upstream synchronization.
 when_to_use: |
   Use when the user asks "is this site healthy", "does this match scaffold", "what's
   drifted", "audit conformance", or after running /tinyland-spawn-sister-site to
@@ -25,13 +25,14 @@ allowed-tools:
 
 ## What "drift" means
 
-Drift is divergence between this repo and the scaffold tag it was spawned from.
+Drift is divergence between this repo and the exact scaffold commit recorded in
+its schema-v2 `scaffold_origin`.
 The scaffold ships pinned versions (Skeleton 5.0.1 as a version-locked
 skeleton + skeleton-svelte pair, shim-free Tailwind v4),
 recipe shapes (`just check` / `just ci` / `just conformance`), schemas
-(`docs/schemas/lanes.schema.json`, `tinyland-repo-manifest.schema.json`), and
+(`docs/schemas/lanes.schema.json`, `tinyland-repo-manifest.v2.schema.json`), and
 authority boundaries (no Cloudflare creds in a spoke, no runtime broker fetches,
-no rustfs state backend). Drift erodes those guarantees silently — a spoke that
+no application-owned OpenTofu state or apply). Drift erodes those guarantees silently — a spoke that
 "works" today can fail conformance because a recipe was renamed, a flake input
 was dropped, a Bazel registry entry was unpinned, or a Cloudflare token leaked
 in.
@@ -45,7 +46,7 @@ Three layers, run in this order:
 ### Layer 1 — Existing checks (fast)
 
 ```bash
-just conformance                # conformance checklist (docs/CI-SCHEMA.md §11) + GFTB-local addendum
+just conformance                # registered repo-role conformance checks
 just repo-manifest-validate     # tinyland.repo.json against the JSON Schema
 just lanes-validate             # .github/lanes.json against schema
 just inhouse-package-parity     # package.json versions == MODULE.bazel versions
@@ -57,26 +58,25 @@ A green pass on all six is the floor, not the ceiling.
 
 ### Layer 2 — Scaffold-version drift (deep)
 
-Compare this repo against the scaffold tag it was spawned from.
+Compare this repo against its exact scaffold origin. Never substitute the
+latest release when provenance is absent; report the missing origin as drift.
 
 ```bash
-# 1. Identify the scaffold tag this repo inherits from.
-SCAFFOLD_TAG="$(jq -r '.scaffold_tag // empty' tinyland.repo.json)"
-# (If empty, fall back to the most-recent tinyland-inc/site.scaffold release.)
+# 1. Read the immutable schema-v2 origin.
+SCAFFOLD_REPO="$(jq -r '.scaffold_origin.repository // empty' tinyland.repo.json)"
+SCAFFOLD_SHA="$(jq -r '.scaffold_origin.commit_sha // empty' tinyland.repo.json)"
+test "$SCAFFOLD_REPO" = tinyland-inc/site.scaffold
+test "${#SCAFFOLD_SHA}" -eq 40
 
-# 2. Fetch the scaffold at that tag into /tmp.
-mkdir -p /tmp/scaffold-doctor && cd /tmp/scaffold-doctor
-gh repo clone tinyland-inc/site.scaffold scaffold-"$SCAFFOLD_TAG"
-cd scaffold-"$SCAFFOLD_TAG" && git checkout "$SCAFFOLD_TAG"
-
-# 3. Diff load-bearing files. Surface (not auto-fix) drift.
-for f in Justfile flake.nix .bazelrc .bazelrc.flywheel \
-         .gitleaks.toml docs/CI-SCHEMA.md \
+# 2. Fetch that immutable revision without changing the worktree, then diff
+# load-bearing files directly against it. Surface (not auto-fix) drift.
+git fetch "https://github.com/${SCAFFOLD_REPO}.git" "$SCAFFOLD_SHA"
+for f in Justfile flake.nix .bazelrc .gitleaks.toml AGENTS.md \
+         .github/lanes.json .github/workflows/ci.yml docs/CI-SCHEMA.md \
          docs/schemas/lanes.schema.json \
-         docs/schemas/tinyland-repo-manifest.schema.json \
-         scripts/check-conformance.sh \
-         scripts/gloriousflywheel-bazel.sh; do
-  diff -u "/tmp/scaffold-doctor/scaffold-$SCAFFOLD_TAG/$f" "$f" || true
+         docs/schemas/tinyland-repo-manifest.v2.schema.json \
+         scripts/check-conformance.sh; do
+  diff -u <(git show "$SCAFFOLD_SHA:$f") "$f" || true
 done
 ```
 
@@ -88,7 +88,19 @@ fork vs unintended drift), and whether to fold the scaffold's version back in.
 These are the rules that should NEVER drift in a spoke:
 
 - `tinyland.repo.json` `boundaries.owns_*` flags match the role.
-- `.bazelrc.flywheel` has NO `remote_cache=` or `remote_executor=` lines.
+- `.github/lanes.json` is an ActionPlan/v4 schema-3 declaration containing
+  only finite Bazel commands, exact workspace targets, abstract REAPI
+  capabilities, and closed result dispositions. It owns no tenant,
+  repository, runner, endpoint, credential, publication, or apply instance.
+- The application workflow invokes the immutable
+  `tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@32e39ced0008edf4564ebeb173a5e8fbf069e28f`
+  (`v5.1.0`, carrying ActionPlan/v4 schema 3) and only
+  selects a checked-in action name. It has no v3, cache-only, local,
+  hosted-runner, direct-endpoint, port-forward, or profile fallback.
+- Consumer enrollment instances live in the organization's own `-infra`
+  repository as signed `OwnerInstallation/v1` and `TenantOverlay/v1` values.
+  GF core owns their types and verifier, never those consumer instances, and
+  the application repo never names provider placement.
 - Root `.bazelversion` equals the estate-wide Bazel version the repo
   recorded next to its exact-SHA `bazel-registry` pin, as a
   `# estate-bazelversion: <x.y.z>` line in `.bazelrc` (TIN-3857 Step A).
@@ -102,19 +114,23 @@ These are the rules that should NEVER drift in a spoke:
   `tinyland-inc/bazel-registry` commit itself records. Keeping them in
   agreement is the re-pin procedure's job, not this row's.
 - `flake.nix` has no hard-coded secrets or token paths.
-- `.github/workflows/*.yml` do not invoke a Cloudflare API mutation step
-  directly — they call into `blahaj` via the dispatch schemas.
-- No `package.json` dependency on a non-exact in-house version
-  (`^x.y.z` or `~x.y.z` are forbidden for `@tummycrypt/*` and `@tinyland/*`).
-- `tofu/backend.tf` uses the `s3` backend type with **no hard-coded provider
-  endpoint** (env/operator authority); the state substrate is **RustFS** — never
-  Garage/MinIO (hallucinations).
+- `.github/workflows/*.yml` contain only the immutable v4 CI-template
+  invocation for application actions. They do not dispatch, publish, reap,
+  apply, mutate Cloudflare, or name provider placement.
+- `package.json` and its lockfile contain no in-house npm source edge for
+  `@tummycrypt/*` or `@tinyland/*`; in-house packages enter through the pinned
+  Bzlmod/BCR graph.
+- Application consumers contain no state backend, provider configuration,
+  cluster manifest, direct apply command, or application-owned lifecycle
+  controller. A repo-local `tofu/` path is permitted only for declare-only
+  intent explicitly allowed by its manifest and repo contract.
 - No browser/edge runtime fetch of `tinyland.dev` from a spoke (snapshots
   only, ingested at build time).
 
-`grep` and small-script checks land each of these. Surface any violation as
-**P0 drift** — the spoke is no longer house-style compliant in a way that may
-silently corrupt the federation perimeter.
+Use existing conformance/schema checks plus read-only inspection for these
+rows. Do not add an ad hoc repo-local validator merely to restate the prose.
+Surface any violation as **P0 drift** — the spoke is no longer house-style
+compliant in a way that may silently corrupt the federation perimeter.
 
 ## Output format
 
@@ -123,9 +139,9 @@ Produce a scorecard, one row per check, in this shape:
 ```
 PASS | check-name                      | (one-line evidence)
 PASS | ...
-WARN | flake.nix: missing git-cliff   | scaffold@v0.4.0 adds git-cliff to devShell
-FAIL | .bazelrc.flywheel:23           | hard-codes remote_cache= (forbidden)
-P0   | tofu/backend.tf:7              | hard-codes a provider state endpoint (forbidden — env authority)
+WARN | flake.nix: missing git-cliff   | recorded scaffold origin adds git-cliff to devShell
+FAIL | .github/workflows/ci.yml:18    | invokes v3/cache-only execution instead of ci-templates v4
+P0   | tofu/backend.tf                | application consumer owns a forbidden OpenTofu state/apply root
 ```
 
 Then a `SUMMARY:` line:
@@ -136,13 +152,14 @@ SUMMARY: 14 PASS, 2 WARN, 1 FAIL, 1 P0
 
 Then a `NEXT STEPS:` block: ordered list of fixes, P0 first.
 
-## When to suggest a scaffold-tag bump
+## When to suggest an upstream synchronization
 
-If the doctor finds the scaffold is N+1 minor versions ahead and the spoke
-is missing recipes the scaffold ships, suggest a scaffold-tag bump rather than
-patching ad hoc. Bumps are coordinated by editing `tinyland.repo.json`'s
-`scaffold_tag` (when that field exists) and re-running the spawn ritual's
-post-creation steps minus the `gh repo create`.
+If a reviewed upstream scaffold change should be adopted, port that exact
+change and cite its source commit in the PR. Keep
+`tinyland.repo.json.scaffold_origin.commit_sha` unchanged: it records the
+creation transaction, not the newest synchronized revision. Until the schema
+defines a separate synchronization field, use the reviewed PR/commit record;
+never paper over drift by rewriting creation provenance.
 
 ## What this skill does NOT do
 

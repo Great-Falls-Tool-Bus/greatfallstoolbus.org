@@ -9,8 +9,7 @@
  * Fail-closed configuration: absent or live-shaped keys, and an absent tenant
  * id, all answer 503 WITHOUT acking — Stripe keeps redelivering until the
  * deployment is configured, which is exactly the durability contract. This is
- * an adapter-node (in-cluster) surface; the default adapter-static build
- * simply never serves it (`prerender = false`, and POST has no static form).
+ * an adapter-node surface (`prerender = false`, and POST has no static form).
  */
 
 import { json } from '@sveltejs/kit';
