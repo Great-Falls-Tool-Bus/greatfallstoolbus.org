@@ -30,6 +30,7 @@ const packageText = readFileSync(resolve(repoRoot, 'package.json'), 'utf8');
 const lockText = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 const moduleText = readFileSync(resolve(repoRoot, 'MODULE.bazel'), 'utf8');
 const buildText = readFileSync(resolve(repoRoot, 'BUILD.bazel'), 'utf8');
+const actionPlanText = readFileSync(resolve(repoRoot, '.github/lanes.json'), 'utf8');
 
 function isInHouse(name) {
 	return inHouseScopes.some((scope) => name.startsWith(scope));
@@ -117,6 +118,27 @@ function loadTargetBody(text, targetName) {
 
 function setDifference(left, right) {
 	return [...left].filter((item) => !right.has(item));
+}
+
+function actionPlanFailures(source) {
+	let plan;
+	try {
+		plan = JSON.parse(source);
+	} catch (error) {
+		return [`ActionPlan is not JSON: ${error.message}`];
+	}
+
+	const validate = plan?.actions?.validate;
+	if (validate?.command !== 'test') {
+		return ['ActionPlan validate action is not a Bazel test action'];
+	}
+	if (
+		!Array.isArray(validate.targets) ||
+		!validate.targets.includes('//:deployment_app_root_test')
+	) {
+		return ['ActionPlan validate action omits //:deployment_app_root_test'];
+	}
+	return [];
 }
 
 function contractFailures(packageSource, lockSource, moduleSource, buildSource) {
@@ -220,7 +242,7 @@ function contractFailures(packageSource, lockSource, moduleSource, buildSource) 
 			}
 		}
 	}
-	const appRootBody = loadTargetBody(buildSource, 'deployment_app_root');
+	const appFilesBody = loadTargetBody(buildSource, 'deployment_app_files');
 	for (const carrier of [
 		'":build"',
 		'":migrator_bundle"',
@@ -229,23 +251,121 @@ function contractFailures(packageSource, lockSource, moduleSource, buildSource) 
 		'"package.json"',
 		'"scripts/platform-entrypoint.mjs"',
 		'"server.js"',
-		'"node_modules/.aspect_rules_js/**"',
 		'"bazel-role-bundles": "build"',
+	]) {
+		if (appFilesBody === null || !appFilesBody.includes(carrier)) {
+			failures.push(`deployment_app_files omits ${carrier}`);
+		}
+	}
+	for (const dereferencedGraph of [
 		'PRODUCTION_NODE_MODULES',
 		'TINYLAND_RUNTIME_HOUSE_PACKAGES',
+		'node_modules/.aspect_rules_js',
 	]) {
-		if (appRootBody === null || !appRootBody.includes(carrier)) {
-			failures.push(`deployment_app_root omits ${carrier}`);
+		if (appFilesBody?.includes(dereferencedGraph)) {
+			failures.push(`deployment_app_files must not flatten ${dereferencedGraph}`);
 		}
+	}
+
+	const runtimeGraphBody = loadTargetBody(buildSource, 'deployment_runtime_graph');
+	for (const carrier of [
+		'PRODUCTION_NODE_MODULES',
+		'TINYLAND_RUNTIME_HOUSE_PACKAGES',
+		'entry_point = "server.js"',
+	]) {
+		if (runtimeGraphBody === null || !runtimeGraphBody.includes(carrier)) {
+			failures.push(`deployment_runtime_graph omits ${carrier}`);
+		}
+	}
+
+	const runtimeLayersBody = loadTargetBody(buildSource, 'deployment_runtime_layers');
+	for (const carrier of [
+		'binary = ":deployment_runtime_graph"',
+		'compression = "none"',
+		'root = "/app/.rules_js_runtime"',
+	]) {
+		if (runtimeLayersBody === null || !runtimeLayersBody.includes(carrier)) {
+			failures.push(`deployment_runtime_layers omits ${carrier}`);
+		}
+	}
+	for (const [targetName, outputGroup] of [
+		['deployment_runtime_package_store_3p', 'package_store_3p'],
+		['deployment_runtime_package_store_1p', 'package_store_1p'],
+		['deployment_runtime_node_modules', 'node_modules'],
+		['deployment_runtime_app', 'app'],
+	]) {
+		const body = loadTargetBody(buildSource, targetName);
+		if (body === null || !body.includes('srcs = [":deployment_runtime_layers"]')) {
+			failures.push(`${targetName} does not select deployment_runtime_layers`);
+		}
+		if (body === null || !body.includes(`output_group = "${outputGroup}"`)) {
+			failures.push(`${targetName} does not select ${outputGroup}`);
+		}
+	}
+
+	const appFilesTarBody = loadTargetBody(buildSource, 'deployment_app_files_tar');
+	for (const carrier of [
+		'srcs = [":deployment_app_files"]',
+		'package_dir = "app"',
+		'strip_prefix = "deployment_app_files"',
+	]) {
+		if (appFilesTarBody === null || !appFilesTarBody.includes(carrier)) {
+			failures.push(`deployment_app_files_tar omits ${carrier}`);
+		}
+	}
+
+	const archiveBody = loadTargetBody(buildSource, 'deployment_app_root_archive');
+	const archiveCarriers = [
+		'":deployment_app_files_tar"',
+		'":deployment_runtime_package_store_3p"',
+		'":deployment_runtime_package_store_1p"',
+		'":deployment_runtime_node_modules"',
+		'":deployment_runtime_app"',
+	];
+	for (const carrier of [
+		...archiveCarriers,
+		'"app/node_modules": ".rules_js_runtime/deployment_runtime_graph.runfiles/_main/node_modules"',
+	]) {
+		if (archiveBody === null || !archiveBody.includes(carrier)) {
+			failures.push(`deployment_app_root_archive omits ${carrier}`);
+		}
+	}
+	let previousCarrierPosition = -1;
+	for (const carrier of archiveCarriers) {
+		const position = archiveBody?.indexOf(carrier) ?? -1;
+		if (position <= previousCarrierPosition) {
+			failures.push('deployment_app_root_archive does not preserve rules_js layer order');
+			break;
+		}
+		previousCarrierPosition = position;
+	}
+
+	const appRootBody = loadTargetBody(buildSource, 'deployment_app_root');
+	if (appRootBody === null || !appRootBody.includes('src = ":deployment_app_root_archive"')) {
+		failures.push('deployment_app_root does not extract the publication archive');
+	}
+	const appRootTestBody = loadTargetBody(buildSource, 'deployment_app_root_test');
+	for (const carrier of [
+		'args = ["$(rootpath :deployment_app_root)"]',
+		'data = [":deployment_app_root"]',
+		'entry_point = "scripts/bazel/check-deployment-app-root.mjs"',
+	]) {
+		if (appRootTestBody === null || !appRootTestBody.includes(carrier)) {
+			failures.push(`deployment_app_root_test omits ${carrier}`);
+		}
+	}
+	const validationSuiteBody = loadTargetBody(buildSource, 'ci_validation_suite');
+	if (validationSuiteBody === null || !validationSuiteBody.includes('":deployment_app_root_test"')) {
+		failures.push('ci_validation_suite omits deployment_app_root_test');
 	}
 	const bundleBody = loadTargetBody(buildSource, 'deployment_bundle');
 	if (
 		bundleBody === null ||
-		!bundleBody.includes('":deployment_app_root"') ||
-		!bundleBody.includes('package_dir = "app"') ||
-		!bundleBody.includes('strip_prefix = "deployment_app_root"')
+		!bundleBody.includes('deps = [":deployment_app_root_archive"]') ||
+		!bundleBody.includes('package_dir = "/"') ||
+		!bundleBody.includes('extension = "tar.gz"')
 	) {
-		failures.push('deployment_bundle does not export the complete app-root capsule');
+		failures.push('deployment_bundle does not wrap the exact app-root archive');
 	}
 	return failures;
 }
@@ -320,15 +440,36 @@ function negativeControlFailures() {
 	const incompleteBundle = buildText.replace('\n        ":worker_bundle",', '');
 	if (
 		!contractFailures(packageText, lockText, moduleText, incompleteBundle).some((failure) =>
-			failure.includes('deployment_app_root omits ":worker_bundle"'),
+			failure.includes('deployment_app_files omits ":worker_bundle"'),
 		)
 	) {
 		failures.push('deployment-capsule negative control did not trip');
+	}
+
+	const incompleteRuntime = buildText.replace(
+		'\n        ":deployment_runtime_package_store_3p",',
+		'',
+	);
+	if (
+		!contractFailures(packageText, lockText, moduleText, incompleteRuntime).some((failure) =>
+			failure.includes('deployment_app_root_archive omits ":deployment_runtime_package_store_3p"'),
+		)
+	) {
+		failures.push('deployment-runtime-topology negative control did not trip');
+	}
+
+	const unenrolledProof = actionPlanText.replace(
+		'\n\t\t\t\t"//:deployment_app_root_test",',
+		'',
+	);
+	if (!actionPlanFailures(unenrolledProof).some((failure) => failure.includes('omits'))) {
+		failures.push('deployment-proof enrollment negative control did not trip');
 	}
 	return failures;
 }
 
 const failures = contractFailures(packageText, lockText, moduleText, buildText);
+failures.push(...actionPlanFailures(actionPlanText));
 failures.push(...installedGraphFailures(packageText, moduleText, buildText));
 failures.push(...negativeControlFailures());
 if (failures.length > 0) {

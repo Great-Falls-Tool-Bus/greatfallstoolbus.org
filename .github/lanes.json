@@ -14,6 +14,7 @@
 			"command": "test",
 			"targets": [
 				"//:current_source_secret_scan_test",
+				"//:deployment_app_root_test",
 				"//:eslint_test",
 				"//:inhouse_package_parity_test",
 				"//:prettier_check_test",

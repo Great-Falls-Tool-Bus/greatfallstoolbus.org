@@ -38,6 +38,7 @@ the only application-side execution declaration:
       "command": "test",
       "targets": [
         "//:current_source_secret_scan_test",
+        "//:deployment_app_root_test",
         "//:eslint_test",
         "//:inhouse_package_parity_test",
         "//:prettier_check_test",
@@ -65,11 +66,18 @@ publication, repository, tenant, or provider field.
 
 `//:deployment_bundle` produces one reproducible `tar.gz` rooted at `app/`.
 That application root contains the adapter-node `build/`, the custom
-`server.js`, the Node 24 package manifest, the production-only third-party
-`node_modules` closure, the two BCR-sourced first-party runtime packages, the
-checked-in `drizzle/` migrations, the worker and migrator ESM payloads, and the
-single three-role dispatcher. It is a runnable publication input, not an OCI
-image, a registry write, a publication request, or a deployment transaction.
+`server.js`, the Node 24 package manifest, the checked-in `drizzle/`
+migrations, the worker and migrator ESM payloads, and the single three-role
+dispatcher. Its relative `node_modules` link points into a self-contained
+rules_js `js_image_layer` runfiles tree carrying the production-only
+third-party package-store closure and both BCR-sourced first-party runtime
+packages. The Node toolchain layer is omitted because the owner image supplies
+the pinned Node 24 executable; no host, Nix, registry, or local bridge supplies
+application packages. `//:deployment_app_root_test` extracts the exact
+uncompressed archive that the bundle wraps, proves representative direct and
+transitive bare imports from that root, and starts its adapter-node server. The
+bundle is a runnable publication input, not an OCI image, a registry write, a
+publication request, or a deployment transaction.
 
 ## GitHub edge
 

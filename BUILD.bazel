@@ -6,7 +6,7 @@ while Bazel owns the finite graphable actions submitted through Flywheel.
 """
 
 load("@aspect_bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
-load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_run_binary", "js_test")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_image_layer", "js_run_binary", "js_test")
 load("@aspect_rules_js//npm:defs.bzl", "npm_link_package")
 load("@npm//:defs.bzl", "npm_link_all_packages", "npm_link_targets")
 load("@npm//:esbuild/package_json.bzl", esbuild_bin = "bin")
@@ -15,6 +15,7 @@ load("@npm//:prettier/package_json.bzl", prettier_bin = "bin")
 load("@npm//:vitest/package_json.bzl", vitest = "bin")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("//:gitleaks_test.bzl", "gitleaks_test")
+load("//:scripts/bazel/deployment_archive.bzl", "extract_deployment_app_root")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -415,6 +416,7 @@ js_test(
     name = "inhouse_package_parity_test",
     data = [
         ":node_modules",
+        ".github/lanes.json",
         "BUILD.bazel",
         "MODULE.bazel",
         "package.json",
@@ -428,6 +430,7 @@ test_suite(
     name = "ci_validation_suite",
     tests = [
         ":current_source_secret_scan_test",
+        ":deployment_app_root_test",
         ":eslint_test",
         ":inhouse_package_parity_test",
         ":prettier_check_test",
@@ -436,12 +439,60 @@ test_suite(
     ],
 )
 
-# Materialize the complete, runnable application root. copy_to_directory
-# intentionally dereferences rules_js's node_modules symlinks, then omits the
-# now-redundant private store: the exported tree is standalone rather than a
-# set of links back into a Bazel execroot. A duplicate destination fails closed.
+# The deployment graph is a normal rules_js runtime: prod-only direct links,
+# their complete transitive package stores, and the two BCR runtime packages.
+# js_image_layer is the supported relocation boundary: it rewrites every
+# node_modules link so the resulting tar layers are self-contained rather than
+# pointing back into a Bazel execroot. The Node toolchain layer is deliberately
+# not selected below because the owner image supplies the pinned Node 24 runtime.
+js_binary(
+    name = "deployment_runtime_graph",
+    data = PRODUCTION_NODE_MODULES + TINYLAND_RUNTIME_HOUSE_PACKAGES,
+    entry_point = "server.js",
+    tags = ["manual"],
+)
+
+js_image_layer(
+    name = "deployment_runtime_layers",
+    binary = ":deployment_runtime_graph",
+    compression = "none",
+    root = "/app/.rules_js_runtime",
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "deployment_runtime_package_store_3p",
+    srcs = [":deployment_runtime_layers"],
+    output_group = "package_store_3p",
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "deployment_runtime_package_store_1p",
+    srcs = [":deployment_runtime_layers"],
+    output_group = "package_store_1p",
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "deployment_runtime_node_modules",
+    srcs = [":deployment_runtime_layers"],
+    output_group = "node_modules",
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "deployment_runtime_app",
+    srcs = [":deployment_runtime_layers"],
+    output_group = "app",
+    tags = ["manual"],
+)
+
+# Materialize only the flat application-owned files. node_modules comes from
+# the topology-preserving js_image_layer archive above; copy_to_directory must
+# never dereference that graph.
 copy_to_directory(
-    name = "deployment_app_root",
+    name = "deployment_app_files",
     srcs = [
         ":build",
         ":migrator_bundle",
@@ -451,10 +502,7 @@ copy_to_directory(
         "server.js",
     ] + glob(
         ["drizzle/**"],
-    ) + PRODUCTION_NODE_MODULES + TINYLAND_RUNTIME_HOUSE_PACKAGES,
-    exclude_srcs_patterns = [
-        "node_modules/.aspect_rules_js/**",
-    ],
+    ),
     replace_prefixes = {
         "bazel-role-bundles": "build",
     },
@@ -462,15 +510,64 @@ copy_to_directory(
     tags = ["manual"],
 )
 
+pkg_tar(
+    name = "deployment_app_files_tar",
+    srcs = [":deployment_app_files"],
+    extension = "tar",
+    package_dir = "app",
+    strip_prefix = "deployment_app_files",
+    tags = ["manual"],
+)
+
+# Merge the supported rules_js layers in their documented order and expose the
+# graph at app/node_modules through a relative link that remains valid after
+# extraction anywhere. The hidden runfiles tree is wholly inside app/.
+pkg_tar(
+    name = "deployment_app_root_archive",
+    allow_duplicates_from_deps = False,
+    allow_duplicates_with_different_content = False,
+    deps = [
+        ":deployment_app_files_tar",
+        ":deployment_runtime_package_store_3p",
+        ":deployment_runtime_package_store_1p",
+        ":deployment_runtime_node_modules",
+        ":deployment_runtime_app",
+    ],
+    extension = "tar",
+    package_dir = "/",
+    symlinks = {
+        "app/node_modules": ".rules_js_runtime/deployment_runtime_graph.runfiles/_main/node_modules",
+    },
+    tags = ["manual"],
+)
+
+# The validation action extracts the same uncompressed archive that is wrapped
+# below, so its imports and server startup exercise the exact exported app root.
+extract_deployment_app_root(
+    name = "deployment_app_root",
+    src = ":deployment_app_root_archive",
+    tags = ["manual"],
+)
+
+js_test(
+    name = "deployment_app_root_test",
+    args = ["$(rootpath :deployment_app_root)"],
+    data = [":deployment_app_root"],
+    entry_point = "scripts/bazel/check-deployment-app-root.mjs",
+    tags = ["deployment-contract"],
+    timeout = "moderate",
+)
+
 # Reproducible publication input rooted at app/. It is deliberately only an
 # artifact: image construction, registry publication, and promotion remain
 # separate owner-authorized transactions outside this application repository.
 pkg_tar(
     name = "deployment_bundle",
-    srcs = [":deployment_app_root"],
+    allow_duplicates_from_deps = False,
+    allow_duplicates_with_different_content = False,
+    deps = [":deployment_app_root_archive"],
     extension = "tar.gz",
-    package_dir = "app",
-    strip_prefix = "deployment_app_root",
+    package_dir = "/",
     tags = ["manual"],
     visibility = ["//visibility:public"],
 )
