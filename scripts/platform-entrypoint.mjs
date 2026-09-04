@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Member v0 platform process dispatcher (TIN-3815, slice S0).
 //
-// The platform publishes ONE immutable image carrying THREE stable process
-// names — `web`, `worker`, and `migrator`. This file is that image's single
-// dispatcher: the image installs `/bin/web`, `/bin/worker`, and
-// `/bin/migrator` as thin links onto it, so an OCI runtime (and a Kubernetes
-// Deployment/Job) selects a process boundary by executable name rather than by
-// a bespoke argv contract per workload.
+// The owner publication contract produces ONE immutable image carrying THREE
+// stable process names — `web`, `worker`, and `migrator`. This file is the
+// application bundle's single dispatcher; the qualified owner image installs
+// `/bin/web`, `/bin/worker`, and `/bin/migrator` as thin links onto it, so an
+// OCI runtime (and a Kubernetes Deployment/Job) selects a process boundary by
+// executable name rather than by a bespoke argv contract per workload.
 //
 // Two invocation shapes are supported, deliberately:
 //
@@ -14,9 +14,8 @@
 //      `basename(argv[1])`. Node keeps argv[1] as the *link* path rather than
 //      the realpath, which is what makes the link scheme work at all.
 //   2. By explicit argument — `node scripts/platform-entrypoint.mjs worker
-//      --help`. This is the shape the Nix wrappers and `just
-//      platform-entrypoints-check` use, and the shape a developer gets without
-//      an image.
+//      --help`. This is the shape a developer can exercise before the Bazel
+//      bundle is consumed by the qualified owner publication transaction.
 //
 // `--help` answers for every role and exits 0 before any role-specific work.
 // That is load-bearing: it is the per-entrypoint liveness proof in S0's

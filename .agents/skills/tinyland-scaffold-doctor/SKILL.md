@@ -92,8 +92,8 @@ These are the rules that should NEVER drift in a spoke:
   capabilities, and closed result dispositions. It owns no tenant,
   repository, runner, endpoint, credential, publication, or apply instance.
 - The application workflow invokes the immutable
-  `tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@0067a1f0e16012ea91d0602b7d185e534774cadb`
-  (`v5.0.0`, carrying ActionPlan/v4 schema 3) and only
+  `tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@32e39ced0008edf4564ebeb173a5e8fbf069e28f`
+  (`v5.1.0`, carrying ActionPlan/v4 schema 3) and only
   selects a checked-in action name. It has no v3, cache-only, local,
   hosted-runner, direct-endpoint, port-forward, or profile fallback.
 - Consumer enrollment instances live in the organization's own `-infra`

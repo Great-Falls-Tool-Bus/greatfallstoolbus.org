@@ -8,8 +8,8 @@
 // the carrier resolves this repo's main head with `git ls-remote` and compares
 // it to this field, so convergence is only "ok" when the edge serves the commit
 // it just applied. The value is the existing build-info constant — inlined at
-// build time from PUBLIC_BUILD_SHA, which only the container image recipes set
-// (from BUILD_COMMIT_SHA = the merged main commit). Developer builds carry no
+// build time from PUBLIC_BUILD_SHA when the qualified build action supplies the
+// exact source commit. Builds without that authority carry no
 // provenance, so `sha` degrades to '' — which correctly FAILS
 // a served-sha assert instead of false-passing on an image of unknown origin.
 import type { RequestHandler } from './$types';

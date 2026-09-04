@@ -95,7 +95,8 @@ row (h) is signed.
 This repo is the **Great Falls Tool Bus platform**: an `app-stateful-spoke`
 (TIN-3815, ADR 0014). It owns member, contact, payment, and inventory behavior
 — runtime routes, domain state, schema and migrations, and the one immutable
-image that carries the `web`, `worker`, and `migrator` process boundaries.
+deployment bundle carrying the `web`, `worker`, and `migrator` process
+boundaries for qualified owner publication.
 
 What it still does **not** own, and must never acquire: secret values, cluster
 credentials, kubeconfigs, DNS or edge mutation, and GitOps apply. Those stay in
@@ -148,12 +149,6 @@ repository as private or renamed** in code, comments, docs, or image refs.
 - **Build**: `just build` and Bazel `//:build` produce the adapter-node server
   under `build/`. Production and validation no longer compile different app
   shapes behind an `ADAPTER` switch.
-- **Image entrypoints**: `just platform-entrypoints-check` runs the exact
-  derivations the image installs at `/bin/web`, `/bin/worker`, and
-  `/bin/migrator`. It needs no container daemon, so it is the per-entrypoint
-  proof to run locally. `just container-image-smoke` proves the *assembled*
-  image instead (per-role `--entrypoint … --help`, in-container `id -u` = 1001)
-  and fails closed when no container daemon answers.
 - **Database (Member v0, TIN-3817 S1)**: `just db-generate` regenerates the
   checked-in migration SQL and its hash manifest; `just db-check` refuses a
   drifted tree, an edited committed migration, or a recipe that reaches for
@@ -220,8 +215,8 @@ repository as private or renamed** in code, comments, docs, or image refs.
   `.github/lanes.json`. It does not own a runner, pool, endpoint, platform,
   cache profile, token exchange, or provider placement.
 - `.github/workflows/ci.yml` invokes only the immutable
-  `tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@0067a1f0e16012ea91d0602b7d185e534774cadb`
-  (`v5.0.0`, carrying ActionPlan/v4 schema 3) and
+  `tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@32e39ced0008edf4564ebeb173a5e8fbf069e28f`
+  (`v5.1.0`, carrying ActionPlan/v4 schema 3) and
   selects one checked-in action name. The image-custodied compiled
   `gf-action-client` is the sole execution entrypoint.
 - The Great-Falls-Tool-Bus organization installs the GF GitHub App. Its sibling
@@ -236,6 +231,12 @@ repository as private or renamed** in code, comments, docs, or image refs.
   producer-held consumer registry.
 - Local `just` recipes remain developer tools; their output is never v4
   evidence and never substitutes for a refused remote action.
+- This application exports `//:deployment_bundle`; it does not construct or
+  publish an OCI image. Only upstream GF-I07/v5 may qualify its verified
+  `ActionOutputSet/v1`; only the GF-I09 owner materializer/publisher/controller
+  may then construct, publish, and converge that image. Those authorities are
+  not available to the current source carrier, so publication remains
+  fail-closed with no application-owned bridge.
 - In-house packages enter only through the pinned Bzlmod/BCR graph. Node-facing
   developer recipes may hydrate those graph outputs, but package.json,
   pnpm-lock.yaml, and v4 actions have no npm-shadow or fallback source.
@@ -337,10 +338,13 @@ After `gh repo create --template tinyland-inc/site.scaffold`:
   measurement attribution exist.
 ## Build target (one adapter-node product shape)
 
-GFTB is an `app-stateful-spoke`, not a static scaffold instance. `just build`,
-Bazel `//:build`, and the OCI publisher all compile the same adapter-node server
-shape. The retired adapter-static branch and `ADAPTER` selector are absent: a
-green local/static build cannot stand in for the artifact promoted on main.
+GFTB is an `app-stateful-spoke`, not a static scaffold instance. `just build`
+and Bazel `//:build` compile the same adapter-node server shape, while
+`//:deployment_bundle` is the sole application-owned promotion input. A
+qualified owner publication transaction consumes those verified bytes; it does
+not authorize a second application build. The retired adapter-static branch and
+`ADAPTER` selector are absent: a green local/static build cannot stand in for
+the artifact promoted on main.
 
 **Application role.** This repository is an `app-stateful-spoke`, not a live
 scaffold conversion. Schema v2 forbids `taxonomy.spawned_repo_role` on this

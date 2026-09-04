@@ -1,10 +1,9 @@
 // Build provenance, read at build time through Vite's `import.meta.env` — the
 // same inlining path as the PUBLIC_ feature flags (see flags.ts and the
-// `envPrefix` in vite.config.ts). `PUBLIC_BUILD_SHA` is set ONLY by the container
-// image recipes (Justfile `container-image-publish` / `container-image-build`)
-// from `BUILD_COMMIT_SHA`, which CI wires to `github.sha` (the merged main
-// commit). So the footer "built from" provenance surfaces for a real published
-// image and degrades to nothing for developer builds, which never set it.
+// `envPrefix` in vite.config.ts). `PUBLIC_BUILD_SHA`, when supplied by the
+// qualified build action, binds the artifact to its source commit. The footer
+// degrades to nothing when that authority is absent; this application owns no
+// image-publisher recipe or fallback source for the value.
 // Fail-quiet: absence renders no line, never a broken link.
 
 /**

@@ -1,11 +1,13 @@
 name: GFTB V4 Action Fabric
 
-# ACTIVATION HOLD (TIN-4251): the pinned v5.0.0 commit carries the immutable
+# ACTIVATION HOLD (TIN-4251): the pinned v5.1.0 commit carries the immutable
 # schema-3 ActionPlan/v4 workflow source,
 # but this consumer is not live until its organization-owned -infra overlay
 # publishes signed OwnerInstallation/v1 and TenantOverlay/v1 instances, the
 # controller resolves their exact ActionPlan/source tuple, and the dispatcher
-# image contains gf-action-client. Missing authority fails closed. There is no
+# image contains gf-action-client. The upstream GF-I07/v5 qualifier and GF-I09
+# owner materializer/publisher/controller are not yet available to this
+# source carrier. Missing authority fails closed. There is no
 # v3, cache-only, local, hosted-runner, direct-endpoint, or profile fallback.
 
 on:
@@ -28,7 +30,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@0067a1f0e16012ea91d0602b7d185e534774cadb # v5.0.0
+    uses: tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@32e39ced0008edf4564ebeb173a5e8fbf069e28f # v5.1.0
     with:
       action_name: build
 
@@ -37,6 +39,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@0067a1f0e16012ea91d0602b7d185e534774cadb # v5.0.0
+    uses: tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@32e39ced0008edf4564ebeb173a5e8fbf069e28f # v5.1.0
     with:
       action_name: validate

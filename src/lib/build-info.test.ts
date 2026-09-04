@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { normalizeSha, buildSha, buildShaShort } from './build-info';
 
 // build-info wires the footer "built from <sha>" provenance. The sha reaches the
-// client through import.meta.env.PUBLIC_BUILD_SHA, set ONLY by the container image
-// recipes. The normalizer must fail-quiet — anything that is not a real hex sha
+// client through import.meta.env.PUBLIC_BUILD_SHA when the qualified build action
+// supplies it. The normalizer must fail-quiet — anything that is not a real hex sha
 // (unset, the literal 'unknown', or noise) must read as '' so the footer renders
 // no line rather than a bogus commit link on developer builds.
 describe('normalizeSha', () => {

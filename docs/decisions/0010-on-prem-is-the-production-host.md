@@ -16,7 +16,7 @@
   - Infra ADR `great-falls-tool-bus-infra:docs/decisions/0001-pr-gated-ephemeral-preview-deploys.md`
     (TIN-2535) - historical preview decision, superseded again by the v4
     controller-result and owner-overlay reap contract described in §4.
-  - `docs/deploy/oncluster-container-readiness.md` (the build-active artifact),
+  - `docs/CI-SCHEMA.md` (the current v4 product-export contract),
     `dynamic-spoke-adapter-mode.md` and `dynamic-canary-blue-green.md` (the
     adapter-mode / lane design), `0002-blahaj-substrate-boundary.md` (the
     three-layer boundary this preserves).
@@ -36,8 +36,8 @@ declaration of optionality. It closes out 0008's phased path at its final gate
 Prior docs framed the on-cluster move as declare-only intent, "not a hosting
 change," and "optionality not adoption" (0008 P0 framing; 0007 parked option
 (c)). **That framing is superseded.** The technical readiness that framing was
-waiting on is already in hand: the container image builds and publishes today
-(`docs/deploy/oncluster-container-readiness.md`, TIN-2543), the MassageIthaca
+waiting on was then recorded as in hand: the TIN-2543 carrier built and
+published an image, the MassageIthaca
 on-cluster precedent is proven (0008 §1), and the 2026-07-05 live cluster probe
 retired the last capacity blocker (0008 §7.1, ~176 free pod slots cluster-wide).
 The cutover was halted on non-technical grounds, not a missing fact. The ruling
@@ -58,7 +58,7 @@ removes that halt.
 - **adapter-node remains viable, reserved for a future genuine server need.**
   The `adapter-node -> OCI image -> K8s -> cloudflared` path (0008 §3, the
   MassageIthaca house standard) already builds and publishes from this repo
-  (`docs/deploy/oncluster-container-readiness.md`). It is retained as the
+  (the historical TIN-2543 carrier, removed by Amendment 4). It is retained as the
   sanctioned path **if and when** GFTB acquires a real runtime need (a
   secret-holding proxy, thin API routes, upstream normalization). Adopting a Node
   server for a site that has no runtime requirement would be gratuitous, so the
@@ -189,7 +189,7 @@ Amendment 2) are likewise unaffected.
 > ~~**adapter-node remains viable, reserved for a future genuine server need.**
 > The `adapter-node -> OCI image -> K8s -> cloudflared` path (0008 §3, the
 > MassageIthaca house standard) already builds and publishes from this repo
-> (`docs/deploy/oncluster-container-readiness.md`). It is retained as the
+> (the historical TIN-2543 carrier, removed by Amendment 4). It is retained as the
 > sanctioned path **if and when** GFTB acquires a real runtime need (a
 > secret-holding proxy, thin API routes, upstream normalization). Adopting a Node
 > server for a site that has no runtime requirement would be gratuitous, so the
@@ -225,18 +225,18 @@ not narrowed to a case-by-case "genuine server need" test.
 remaining adapter-static local/CI fallback during the GF v4 hard cut. The Pages
 project and deploy lane are already gone; retaining a second build shape now
 only lets CI validate bytes that cannot be promoted. `svelte.config.js`,
-`just build`, Bazel `//:build`, and the OCI publisher therefore all emit the
-adapter-node server. The `ADAPTER` selector and adapter-static dependency are
-removed. Git history carries the old static implementation; it is not a live
-fallback. The unused `PUBLIC_ARCHIVE_LIVE` build flag is removed with that
+`just build` and Bazel `//:build` therefore emit the adapter-node server. The
+`ADAPTER` selector and adapter-static dependency are removed. Git history
+carries the old static implementation; it is not a live fallback. Amendment 4
+supersedes the application-owned OCI publisher while preserving this one-product
+build ruling. The unused `PUBLIC_ARCHIVE_LIVE` build flag is removed with that
 second path: no current source consumer or `/discuss` route remains.
 
 Every build-active artifact since this ADR's Accepted date confirms adapter-node
 as the shipped shape, not a reserved future path:
 
-- The GHCR image is built from the same adapter-node output via `nix2container`
-  (`.github/workflows/container-ghcr.yml`;
-  `docs/deploy/oncluster-container-readiness.md`).
+- Bazel `//:deployment_bundle` exports the adapter-node server and its three
+  process payloads as the application-owned publication input.
 - The infra web Deployment runs that image today
   (`great-falls-tool-bus-infra:k8s/web/greatfallstoolbus-org-production/`, infra
   PR #60): digest-pinned, `replicas: 0 -> 2`, readiness/liveness `httpGet
@@ -290,6 +290,23 @@ digest, replicas 0->2, /health probes (TIN-2543)`).
 **Operator decision:** 2026-07-05, reaffirmed 2026-07-06, verbatim: *"none of
 this site should be CF pages served, that was shot down in favor of
 adapter-node."*
+
+## Amendment 4 — application publisher retired; owner-authorized v4 publication (2026-09-04; TIN-4251)
+
+The application stops at Bazel `//:deployment_bundle` and its verified
+`ActionOutputSet/v1`. It does not construct or publish an OCI image. The
+application-owned publication workflow, Nix OCI output, local image recipes,
+and their readiness document are deleted rather than retained as a bridge.
+
+GF-I07/v5 must first qualify those bytes against independent execution/cache
+observation. Only the GF-I09 owner materializer/publisher/controller may then
+construct and publish the OCI image, create the `ApplicationRelease`, and
+converge the consumer overlay. ci-templates v5.1.0 invokes the action but does
+not yet expose qualified output to a publication job, and GFTB has no remote
+action producing its publishable OCI payload. This amendment therefore does
+**not** claim publication, activation, or main-to-production convergence is
+live; it records an exact upstream block and forbids an application-owned
+workflow, local publisher, attended apply, or dispatch fallback.
 
 ## Amendment 2 — §5 step 7 & §8: cutover fully executed, Cloudflare Pages project deleted (AMENDED 2026-07-07, operator ruling; TIN-2560)
 

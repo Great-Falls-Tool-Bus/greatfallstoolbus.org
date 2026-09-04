@@ -16,7 +16,7 @@ concurrency:
 
 env:
   # Every tinyland-nix job in this repo sets this so the ARC runner's Node
-  # runtime serves JavaScript actions (mirrors container-ghcr.yml).
+  # runtime serves JavaScript actions.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 # Two-mode workflow:

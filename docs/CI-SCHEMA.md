@@ -82,8 +82,8 @@ publication request, or a deployment transaction.
 ## GitHub edge
 
 `.github/workflows/ci.yml` calls
-`tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@0067a1f0e16012ea91d0602b7d185e534774cadb`
-(`v5.0.0`, carrying ActionPlan/v4 schema 3) once for the exact deployment
+`tinyland-inc/ci-templates/.github/workflows/spoke-ci-v4.yml@32e39ced0008edf4564ebeb173a5e8fbf069e28f`
+(`v5.1.0`, carrying ActionPlan/v4 schema 3) once for the exact deployment
 bundle and once for validation. ARC admits each thin
 GitHub job and runs the image-custodied
 `/usr/local/bin/gf-action-client`; ARC is not the compute scheduler. The client
@@ -94,6 +94,16 @@ There is no v4 path through a vendored wrapper, local Bazel execution,
 cache-only execution, a hosted or repo-shaped runner, a direct endpoint,
 `.env` profile, port-forward, v1 token exchange, or producer-held consumer
 registry. Missing authority is a refusal to repair, never a downgrade signal.
+
+The application stops at the verified `ActionOutputSet/v1` for
+`//:deployment_bundle`. GF-I07/v5 must first qualify those bytes against
+independent execution/cache observation; only the GF-I09 owner
+materializer/publisher/controller may then construct and publish an OCI image
+and converge it through the consumer overlay. ci-templates v5.1.0 invokes the
+actions but does not yet expose that qualified output to a publication job, and
+GFTB has no remote action producing its publishable OCI payload. Publication
+and production convergence therefore remain blocked rather than falling back
+to an application-owned workflow.
 
 ## Activation gates
 

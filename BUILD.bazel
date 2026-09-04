@@ -63,7 +63,7 @@ TINYLAND_HOUSE_PACKAGES = [
 
 # Only these first-party packages remain external at application runtime. The
 # other four house packages are build inputs whose code/assets are already in
-# the adapter-node output. This list mirrors flake.nix's runtime import proof.
+# the adapter-node output. The exported app-root test proves these runtime links.
 TINYLAND_RUNTIME_HOUSE_PACKAGES = [
     ":node_modules/@tummycrypt/tinyland-auth",
     ":node_modules/@tummycrypt/tinyland-auth-pg",
@@ -125,7 +125,6 @@ filegroup(
         ".bazelignore",
         ".bazelrc",
         ".bazelversion",
-        ".dockerignore",
         ".editorconfig",
         ".envrc",
         ".gitignore",
@@ -213,7 +212,6 @@ gitleaks_test(
     required_paths = [
         ".bazelignore",
         ".claude/skills/tinyland-whoami/SKILL.md",
-        ".dockerignore",
         ".editorconfig",
         "CHANGELOG.md",
         "LICENSE-content",
