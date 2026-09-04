@@ -31,8 +31,11 @@ Read these before editing:
 
 When creating or rebranding a spoke:
 
-1. Run `scripts/rebrand.sh <site.example.com>` from the repo root.
-2. Update `MODULE.bazel` module name to the underscored site name.
+1. For a new repository, use `tinyland-spawn-sister-site`; it proves the exact
+   source tree and passes repository, overlay, and immutable origin identity to
+   `scripts/rebrand.sh`.
+2. For an existing spoke, preserve `scaffold_origin`: update reviewed brand
+   surfaces explicitly rather than rerunning a generation transaction.
 3. Update `README.md`, `AGENTS.md`, `CLAUDE.md`, `static/robots.txt`, sitemap,
    and any `llms.txt`/agent surface to the new domain.
 4. Replace `src/routes/+page.svelte` with the real static site experience.

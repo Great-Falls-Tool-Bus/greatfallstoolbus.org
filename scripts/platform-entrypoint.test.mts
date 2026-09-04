@@ -39,7 +39,7 @@ describe('platform dispatcher role contract', () => {
 		expect(PLATFORM_ROLES).toEqual(['web', 'worker', 'migrator']);
 	});
 
-	it('resolves the role from the linked executable name', () => {
+	it('resolves the role from the executable name', () => {
 		expect(resolvePlatformRole('/bin/worker', [])).toEqual({ role: 'worker', args: [] });
 		expect(resolvePlatformRole('/usr/local/bin/migrator', ['--help'])).toEqual({
 			role: 'migrator',
@@ -47,14 +47,14 @@ describe('platform dispatcher role contract', () => {
 		});
 	});
 
-	it('falls back to the first positional argument when not invoked by link name', () => {
+	it('falls back to the first positional argument for a generic dispatcher name', () => {
 		expect(resolvePlatformRole('/app/scripts/platform-entrypoint.mjs', ['web', '--help'])).toEqual({
 			role: 'web',
 			args: ['--help'],
 		});
 	});
 
-	it('lets the linked name win, so /bin/worker cannot be argued into serving web', () => {
+	it('lets the executable name win, so worker cannot be argued into serving web', () => {
 		expect(resolvePlatformRole('/bin/worker', ['web'])).toEqual({ role: 'worker', args: ['web'] });
 	});
 });

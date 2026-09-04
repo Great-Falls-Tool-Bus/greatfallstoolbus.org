@@ -18,10 +18,10 @@ Stock module picks (replace per-site as needed):
 - tummycrypt_tinyland_auth          — Member v0 auth core (TIN-3817 S2 pin).
 - tummycrypt_tinyland_auth_pg       — tenant-scoped PG storage adapter (S2 pin).
 
-After cloning from this template:
-  1. Update `module(name = ...)` to your_site_underscored.
-  2. Run `scripts/rebrand.sh <site.example.com>` to sed brand strings.
-  3. `bazelisk mod graph` should succeed before first commit.
+For a repository generated from the canonical scaffold, use the
+tinyland-spawn-sister-site flow. It proves the exact source tree and passes the
+consumer repository, overlay identity, and full source SHA to rebrand.sh; the
+helper never performs a repository-wide canonical-name substitution.
 """
 
 module(

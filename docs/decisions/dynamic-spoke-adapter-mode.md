@@ -32,9 +32,9 @@ conformance, lanes contract, etc.).
    `static`). `--adapter=node` performs the static→node swap deterministically at
    spawn time, so no spoke has to hand-roll it the way printstack did.
 
-   - `package.json`: jq-swap the `@sveltejs/adapter-static` devDependency for
-     `@sveltejs/adapter-node` (pinned `^5.5.3`, matching the `MassageIthaca`
-     reference).
+   - The frozen package graph contains both sanctioned adapters. The switch
+     selects `@sveltejs/adapter-node` in SvelteKit and Bazel without changing
+     `package.json` or its lockfile.
    - `svelte.config.js`: rewrite to `adapter()` from `@sveltejs/adapter-node`,
      dropping the static-isms (`fallback`, `precompress`, the `prerender` block)
      while keeping `compilerOptions.runes` and the `BASE_PATH` `paths.base` that
@@ -45,10 +45,10 @@ conformance, lanes contract, etc.).
      `taxonomy.spawned_repo_role`, select the app-stateful layers, and retain
      false application apply/publication boundaries (see role decision).
 
-   All three edits are crash-safe (`tmp` file then `mv`) and idempotent: the
-   function gates on `grep adapter-node svelte.config.js` and no-ops on a second
-   run. **rebrand.sh never runs `git checkout`/`git reset`** — a prior run wiped
-   uncommitted edits that way, so the script only ever writes forward.
+   All edits are crash-safe (`tmp` file then `mv`) and idempotent. Role repair
+   still runs when the adapter was already selected, so an interrupted spawn can
+   heal forward. **rebrand.sh never runs `git checkout`/`git reset`** — a prior
+   run wiped uncommitted edits that way, so the script only ever writes forward.
 
 2. **Reuse the existing `app-stateful-spoke` role for dynamic spokes.** The
    manifest schema's `$defs.repoRole` already lists `app-stateful-spoke`, and

@@ -1,6 +1,6 @@
 ---
 name: tinyland-spawn-sister-site
-description: Spawn a new Tinyland static spoke site from tinyland-inc/site.scaffold. Wraps gh repo create --template, scripts/rebrand.sh, MODULE.bazel module renaming, theme bootstrapping, snapshot ingestion wiring, and the post-creation conformance checklist. Use when the user asks to "create a new sister site", "spawn a spoke", "add a brand site", "scaffold <domain>.com", or "stand up a new tinyland-inc/<name> from the scaffold".
+description: Spawn a Tinyland static spoke from tinyland-inc/site.scaffold into a named consumer organization. Proves the exact template tree, stamps immutable creation provenance and the consumer-owned overlay join, and runs the reviewed conformance path. Use when the user asks to create a sister site, spawn a spoke, add a brand site, or scaffold a domain.
 when_to_use: |
   Use when the user wants a new static spoke under the Tinyland enterprise. Not for
   hub (tinyland.dev), package-producer, infra, or tooling repos — those have different
@@ -9,11 +9,14 @@ when_to_use: |
 disable-model-invocation: true
 argument-hint: "[site-domain] [site-purpose-one-liner]"
 allowed-tools:
+  - Bash(gh api *)
   - Bash(gh repo create *)
   - Bash(gh repo clone *)
   - Bash(gh repo edit *)
   - Bash(just *)
   - Bash(git *)
+  - Bash(test *)
+  - Bash(direnv allow)
   - Bash(./scripts/rebrand.sh *)
   - Read
   - Edit
@@ -25,49 +28,75 @@ allowed-tools:
 ## Why this is user-only
 
 `disable-model-invocation: true` because spawning a new repo creates durable
-artifacts (a GitHub repository and default branch). The user must initiate it.
+remote state (a GitHub repository and default branch). The user must initiate it.
 The agent assists; it does not decide to spawn or authorize infrastructure.
 
 ## Inputs the agent should confirm before running
 
-1. **Target domain** — e.g. `floorcables.com`, `pixelwise.xoxd.ai`,
-   `boots.tinyland.dev`. Used as the repo name (with dots → hyphens) and the
-   bazel module name (with dots → underscores).
-2. **Site purpose** — one line. Becomes the `README.md` and GitHub repo
-   description.
-3. **Tinyland brand actor** — optional. If supplied, the spoke will be wired
+1. **Target repository** — exact `OWNER/REPO` in the consumer organization.
+2. **Consumer-owned overlay** — exact `OWNER/REPO`, its declared overlay role,
+   and its composition. The overlay owner must match the target owner.
+3. **Target domain** — a lowercase fully qualified hostname.
+4. **Site purpose** — one line. It becomes the GitHub and manifest description.
+5. **Tinyland brand actor** — optional. If supplied, the spoke will be wired
    to verify signed Pulse snapshots from that actor (`<actor>#main-key`).
    Defaults to deferring to `tinyland.dev`'s actor.
-4. **Theme intent** — copy an existing theme from `src/lib/styles/themes/`
+6. **Theme intent** — copy an existing theme from `src/lib/styles/themes/`
    or start a new one. Most spokes start by copying.
 
 ## Spawn ritual (run in order)
 
 ```bash
-# 1. Create the GitHub repo from the template.
-gh repo create tinyland-inc/<repo-name> \
+TARGET_REPOSITORY=Example-Org/example-site
+TARGET_DOMAIN=example.test
+TARGET_DESCRIPTION='One-line site purpose.'
+CONSUMER_OVERLAY=Example-Org/example-infra
+OVERLAY_ROLE=organization-execution-overlay
+OVERLAY_COMPOSITION=distinct
+TARGET_PARENT=/absolute/path/to/reviewed/workspace
+REPO_NAME=${TARGET_REPOSITORY#*/}
+
+# 1. Bracket the template transaction with an immutable source SHA. A source
+#    movement during generation fails closed rather than guessing provenance.
+TEMPLATE_SOURCE_SHA=$(gh api repos/tinyland-inc/site.scaffold/commits/main --jq .sha)
+TEMPLATE_TREE=$(gh api \
+  "repos/tinyland-inc/site.scaffold/git/commits/$TEMPLATE_SOURCE_SHA" \
+  --jq .tree.sha)
+
+gh repo create "$TARGET_REPOSITORY" \
   --template tinyland-inc/site.scaffold \
   --private \
-  --description "<purpose>"
+  --description "$TARGET_DESCRIPTION"
 
 # 2. Clone locally.
-gh repo clone tinyland-inc/<repo-name> ~/git/<repo-name>
-cd ~/git/<repo-name>
+gh repo clone "$TARGET_REPOSITORY" "$TARGET_PARENT/$REPO_NAME"
+cd "$TARGET_PARENT/$REPO_NAME"
+
+TEMPLATE_SOURCE_AFTER=$(gh api repos/tinyland-inc/site.scaffold/commits/main --jq .sha)
+CHILD_TREE=$(git rev-parse 'HEAD^{tree}')
+test "$TEMPLATE_SOURCE_SHA" = "$TEMPLATE_SOURCE_AFTER"
+test "$TEMPLATE_TREE" = "$CHILD_TREE"
 
 # 3. Activate the dev shell.
 direnv allow
 
-# 4. Run the rebrand script. This rewrites name strings, env-var prefixes,
-#    bazel cache name, MODULE.bazel module(name=...), README, AGENTS.md,
-#    static/robots.txt, sitemap, llms.txt header, and tinyland.repo.json.
-scripts/rebrand.sh <site-domain>
+# 4. Stamp only explicit machine identity. Human-facing brand copy is reviewed
+#    separately; canonical site.scaffold URLs and schema IDs remain unchanged.
+./scripts/rebrand.sh \
+  --repository="$TARGET_REPOSITORY" \
+  --description="$TARGET_DESCRIPTION" \
+  --organization-overlay="$CONSUMER_OVERLAY" \
+  --overlay-role="$OVERLAY_ROLE" \
+  --overlay-composition="$OVERLAY_COMPOSITION" \
+  --scaffold-origin-sha="$TEMPLATE_SOURCE_SHA" \
+  "$TARGET_DOMAIN"
 
-# 5. Replace the brand landing page.
-$EDITOR src/routes/+page.svelte
-# Reference the existing spokes under tinyland-inc/<other-site> for the shape.
+# 5. Review and edit human-facing brand surfaces with the session's normal
+#    file-edit mechanism. Start with src/routes/+page.svelte, README.md,
+#    AGENTS.md, robots/sitemap, and public agent indexes. Do not launch a GUI.
 
 # 6. Pin the GitHub repo description + homepage URL.
-gh repo edit --description "<purpose>" --homepage "https://<site-domain>"
+gh repo edit --description "$TARGET_DESCRIPTION" --homepage "https://$TARGET_DOMAIN"
 
 # 7. Pre-flight: secrets, lint, typecheck, unit, build, conformance.
 just check
@@ -77,9 +106,11 @@ just conformance
 # 8. First commit + push.
 git status --short
 # Stage every reviewed path explicitly; never use git add -A in a shared tree.
-# Use `git add -- path ...` with only the reviewed paths shown above.
+git diff --name-only
+# Replace the placeholders below with the reviewed list printed above.
+git add -- <reviewed-path> [<reviewed-path> ...]
 git diff --cached --name-only
-git commit -S -m "feat: scaffold <site-domain> from tinyland-inc/site.scaffold"
+git commit -S -m "feat: scaffold $TARGET_DOMAIN from tinyland-inc/site.scaffold"
 git push -u origin main
 
 # 9. Take one CI status snapshot, then return instead of polling.
@@ -117,6 +148,9 @@ gh run list --branch main --limit 5
   owner-overlay lifecycle transaction. If those authorities are unavailable,
   leave the preview unavailable; do not create a spoke-owned dispatch or
   reaper.
+- Never rewrite canonical `tinyland-inc/site.scaffold` references or schema IDs
+  into consumer names. Creation provenance is immutable; later scaffold syncs
+  are reviewed changes, not origin rewrites.
 
 ## When to push back on a spawn request
 

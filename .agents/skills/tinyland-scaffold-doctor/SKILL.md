@@ -1,6 +1,6 @@
 ---
 name: tinyland-scaffold-doctor
-description: Audit a Tinyland repo for drift against the tinyland-inc/site.scaffold contract. Reports a structured scorecard covering Justfile recipes, flake.nix toolchain, gitleaks, agent guidance, manifest validity, skill publication, the schema-v2 consumer-owned ActionPlan, immutable ci-templates v4 adoption, and the absence of provider placement or fallback execution in consumer source. Use when onboarding a sister site, diagnosing CI drift, validating a spawn, or preparing an exact scaffold-origin re-pin.
+description: Audit a Tinyland repo for drift against its immutable tinyland-inc/site.scaffold creation origin. Reports a scorecard covering repo contracts, manifest validity, schema-v2 ActionPlan shape, immutable ci-templates v4 adoption, and absence of provider placement or fallback execution. Use when validating a spawn, diagnosing CI drift, or preparing a reviewed upstream synchronization.
 when_to_use: |
   Use when the user asks "is this site healthy", "does this match scaffold", "what's
   drifted", "audit conformance", or after running /tinyland-spawn-sister-site to
@@ -152,13 +152,14 @@ SUMMARY: 14 PASS, 2 WARN, 1 FAIL, 1 P0
 
 Then a `NEXT STEPS:` block: ordered list of fixes, P0 first.
 
-## When to suggest a scaffold-origin re-pin
+## When to suggest an upstream synchronization
 
-If a reviewed upstream scaffold change should be adopted, suggest an origin
-re-pin rather than patching ad hoc. Update
-`tinyland.repo.json.scaffold_origin.commit_sha` to the exact reviewed commit in
-the same PR as the adopted changes, then rerun conformance. Never advance the
-origin merely because a newer tag exists.
+If a reviewed upstream scaffold change should be adopted, port that exact
+change and cite its source commit in the PR. Keep
+`tinyland.repo.json.scaffold_origin.commit_sha` unchanged: it records the
+creation transaction, not the newest synchronized revision. Until the schema
+defines a separate synchronization field, use the reviewed PR/commit record;
+never paper over drift by rewriting creation provenance.
 
 ## What this skill does NOT do
 

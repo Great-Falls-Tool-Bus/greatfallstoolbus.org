@@ -90,7 +90,7 @@ const ROLE_SET = new Set(PLATFORM_ROLES);
 /**
  * Resolve which process boundary was requested.
  *
- * Invocation by linked name wins over the positional argument, so
+ * Invocation by executable name wins over the positional argument, so
  * `/bin/worker web` cannot smuggle the web server into a worker Deployment.
  *
  * @param {string} argv1 value of `process.argv[1]` (the script or link path)
@@ -98,8 +98,8 @@ const ROLE_SET = new Set(PLATFORM_ROLES);
  * @returns {{ role: string | undefined, args: string[] }}
  */
 export function resolvePlatformRole(argv1, args) {
-	const linkedName = path.basename(argv1 ?? '');
-	if (ROLE_SET.has(linkedName)) return { role: linkedName, args };
+	const executableName = path.basename(argv1 ?? '');
+	if (ROLE_SET.has(executableName)) return { role: executableName, args };
 
 	const [role, ...rest] = args;
 	return { role, args: rest };

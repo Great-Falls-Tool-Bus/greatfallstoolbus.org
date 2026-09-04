@@ -177,8 +177,8 @@ repository as private or renamed** in code, comments, docs, or image refs.
   canonical `.agents/skills/<name>`.
 - **Published scaffold skills** (five):
   - `tinyland-whoami`, cold-landing repo-role classifier. Run via `just whoami`.
-  - `tinyland-spawn-sister-site`, user-only; wraps the `gh repo create
-    --template` + `scripts/rebrand.sh` ritual.
+  - `tinyland-spawn-sister-site`, user-only; proves the exact template tree,
+    then stamps the consumer repository and owner-overlay identity.
   - `tinyland-scaffold-doctor`, drift audit. Run via `just scaffold-doctor`.
   - `tinyland-repo-contract`, house-style baseline (Justfile/flake/gitleaks).
   - `tinyland-static-spoke`, per-spoke customization for static brand sites.
@@ -279,11 +279,13 @@ repository as private or renamed** in code, comments, docs, or image refs.
 
 ## Per-Site Customization Checklist
 
-After `gh repo create --template tinyland-inc/site.scaffold`:
+After the exact-tree generation transaction documented by
+`tinyland-spawn-sister-site`:
 
 1. `direnv allow`
-2. `scripts/rebrand.sh <site.example.com>`, rewrites name strings, env vars,
-   bazel cache name, etc.
+2. Run `scripts/rebrand.sh` with the exact repository, description,
+   consumer-overlay identity, and full scaffold source SHA. It stamps explicit
+   machine fields only; review human-facing brand copy separately.
 3. Update `MODULE.bazel` `module(name = ...)` to underscored site name.
 4. Update `README.md` / `AGENTS.md` with the per-site brand purpose.
 5. Replace `src/routes/+page.svelte` with the brand landing page.

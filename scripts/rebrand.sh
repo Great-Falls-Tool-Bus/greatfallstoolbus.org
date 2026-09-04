@@ -1,102 +1,217 @@
 #!/usr/bin/env bash
-# Per-site rebrand pass for sister sites spawned from tinyland-inc/site.scaffold.
+# Stamp a repository generated from tinyland-inc/site.scaffold with its exact
+# consumer identity and immutable template provenance.
 #
-# Usage: scripts/rebrand.sh [--adapter=node|static] <site.example.com>
-#
-# Substitutes scaffold placeholder strings with the new site identity:
-#   site.scaffold        -> <site.example.com>
-#   site_scaffold        -> <site_example_com>   (underscored, for MODULE.bazel)
-#   bazel-site (cache)   -> bazel-<site>          (slug)
-#
-# --adapter selects the SvelteKit build target for the spawned spoke:
-#   static (default)  -> @sveltejs/adapter-static  (DB-less)
-#   node              -> @sveltejs/adapter-node     (dynamic-spoke variant)
-# The dynamic-spoke variant is the flagged adapter mode authored in
-# docs/decisions/dynamic-spoke-adapter-mode.md. Adapter selection never creates
-# a deploy lane: publication, preview lifecycle, apply, and edge mutation stay
-# in separately authorized controller and owner-overlay transactions.
-#
-# Idempotent: running twice is a no-op once strings have been replaced and the
-# adapter has been selected (crash-safe: all in-place edits go through tmp+mv).
+# This historical helper is retained for repositories generated from the
+# scaffold. The scaffold remains the authority for the workflow and schema;
+# this consumer copy must not invent publication, apply, or provider placement.
 
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 [--adapter=node|static] <site.example.com>" >&2
+  cat >&2 <<'EOF'
+usage: scripts/rebrand.sh [--adapter=node|static] \
+  --repository=OWNER/REPO \
+  --description='one-line purpose' \
+  --organization-overlay=OWNER/REPO \
+  --overlay-role=organization-execution-overlay|application-owner-overlay \
+  --overlay-composition=distinct|co-located-application-overlay \
+  --scaffold-origin-sha=FULL_SHA \
+  <site.example.com>
+EOF
   exit 64
 }
 
 ADAPTER=static
+REPOSITORY=
+DESCRIPTION=
+ORGANIZATION_OVERLAY=
+OVERLAY_ROLE=
+OVERLAY_COMPOSITION=
+SCAFFOLD_ORIGIN_SHA=
 POSITIONAL=()
+
 for arg in "$@"; do
   case "$arg" in
-    --adapter=node)   ADAPTER=node ;;
+    --adapter=node) ADAPTER=node ;;
     --adapter=static) ADAPTER=static ;;
     --adapter=*)
       echo "error: unknown adapter '${arg#--adapter=}' (want node|static)" >&2
       exit 64
       ;;
-    -*) echo "error: unknown flag '$arg'" >&2; usage ;;
-    *)  POSITIONAL+=("$arg") ;;
+    --repository=*) REPOSITORY=${arg#--repository=} ;;
+    --description=*) DESCRIPTION=${arg#--description=} ;;
+    --organization-overlay=*) ORGANIZATION_OVERLAY=${arg#--organization-overlay=} ;;
+    --overlay-role=*) OVERLAY_ROLE=${arg#--overlay-role=} ;;
+    --overlay-composition=*) OVERLAY_COMPOSITION=${arg#--overlay-composition=} ;;
+    --scaffold-origin-sha=*) SCAFFOLD_ORIGIN_SHA=${arg#--scaffold-origin-sha=} ;;
+    -*)
+      echo "error: unknown flag '$arg'" >&2
+      usage
+      ;;
+    *) POSITIONAL+=("$arg") ;;
   esac
 done
-set -- "${POSITIONAL[@]:-}"
 
-if [[ $# -ne 1 || -z "${1:-}" ]]; then
+if [[ ${#POSITIONAL[@]} -ne 1 || -z "${POSITIONAL[0]:-}" ]]; then
   usage
 fi
 
-DOMAIN=$1
-UNDERSCORED=$(echo "$DOMAIN" | tr '.-' '_')
-SLUG=$(echo "$DOMAIN" | cut -d. -f1)
+DOMAIN=${POSITIONAL[0]}
+if [[ -z "$REPOSITORY" || -z "$DESCRIPTION" || -z "$ORGANIZATION_OVERLAY" \
+    || -z "$OVERLAY_ROLE" || -z "$OVERLAY_COMPOSITION" \
+    || -z "$SCAFFOLD_ORIGIN_SHA" ]]; then
+  echo "error: repository, description, overlay identity, and exact scaffold origin are required" >&2
+  usage
+fi
+
+REPO_REFERENCE_RE='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+DOMAIN_RE='^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$'
+SHA_RE='^[0-9a-f]{40}$'
+
+if [[ ! "$REPOSITORY" =~ $REPO_REFERENCE_RE ]]; then
+  echo "error: --repository must be an exact OWNER/REPO coordinate" >&2
+  exit 64
+fi
+if [[ ! "$ORGANIZATION_OVERLAY" =~ $REPO_REFERENCE_RE ]]; then
+  echo "error: --organization-overlay must be an exact OWNER/REPO coordinate" >&2
+  exit 64
+fi
+if [[ ! "$DOMAIN" =~ $DOMAIN_RE ]]; then
+  echo "error: site domain must be a lowercase fully-qualified hostname" >&2
+  exit 64
+fi
+if [[ ! "$SCAFFOLD_ORIGIN_SHA" =~ $SHA_RE || "$SCAFFOLD_ORIGIN_SHA" =~ ^0{40}$ ]]; then
+  echo "error: --scaffold-origin-sha must be a nonzero lowercase full Git SHA" >&2
+  exit 64
+fi
+
+case "$OVERLAY_ROLE" in
+  organization-execution-overlay|application-owner-overlay) ;;
+  *)
+    echo "error: invalid --overlay-role" >&2
+    exit 64
+    ;;
+esac
+case "$OVERLAY_COMPOSITION" in
+  distinct|co-located-application-overlay) ;;
+  *)
+    echo "error: invalid --overlay-composition" >&2
+    exit 64
+    ;;
+esac
+
+REPOSITORY_OWNER=${REPOSITORY%%/*}
+REPOSITORY_NAME=${REPOSITORY#*/}
+OVERLAY_OWNER=${ORGANIZATION_OVERLAY%%/*}
+REPOSITORY_OWNER_FOLD=$(printf '%s' "$REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
+OVERLAY_OWNER_FOLD=$(printf '%s' "$OVERLAY_OWNER" | tr '[:upper:]' '[:lower:]')
+if [[ "$REPOSITORY_OWNER_FOLD" != "$OVERLAY_OWNER_FOLD" ]]; then
+  echo "error: consumer overlay owner must match repository owner" >&2
+  exit 64
+fi
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
-# Preserve the immutable schema-v2 creation provenance before the placeholder
-# substitution touches tinyland.repo.json. The template must supply it; the
-# spawned repository must never infer it from its own history.
-ORIGIN_SHA=
-if [[ -f tinyland.repo.json ]]; then
-  if ! command -v jq >/dev/null 2>&1; then
-    echo "error: jq is required to preserve schema-v2 scaffold_origin" >&2
-    exit 1
-  fi
-  ORIGIN_REPO=$(jq -r '.scaffold_origin.repository // empty' tinyland.repo.json)
-  ORIGIN_SHA=$(jq -r '.scaffold_origin.commit_sha // empty' tinyland.repo.json)
-  if [[ "$ORIGIN_REPO" != "tinyland-inc/site.scaffold" \
-      || ! "$ORIGIN_SHA" =~ ^[0-9a-f]{40}$ \
-      || "$ORIGIN_SHA" =~ ^0{40}$ ]]; then
-    echo "error: tinyland.repo.json lacks an exact schema-v2 scaffold_origin" >&2
-    exit 1
+if ! command -v jq >/dev/null 2>&1; then
+  echo "error: jq is required to stamp schema-v2 identity" >&2
+  exit 69
+fi
+if [[ ! -f tinyland.repo.json ]]; then
+  echo "error: tinyland.repo.json is required" >&2
+  exit 66
+fi
+if ! jq -e '.schema_version == 2 and (.repo | type == "object") and (.enrollment | type == "object")' \
+  tinyland.repo.json >/dev/null; then
+  echo "error: tinyland.repo.json must be a schema-v2 manifest" >&2
+  exit 65
+fi
+
+EXISTING_ORIGIN_REPO=$(jq -r '.scaffold_origin.repository // empty' tinyland.repo.json)
+EXISTING_ORIGIN_SHA=$(jq -r '.scaffold_origin.commit_sha // empty' tinyland.repo.json)
+if [[ -n "$EXISTING_ORIGIN_REPO" || -n "$EXISTING_ORIGIN_SHA" ]]; then
+  if [[ "$EXISTING_ORIGIN_REPO" != "tinyland-inc/site.scaffold" \
+      || "$EXISTING_ORIGIN_SHA" != "$SCAFFOLD_ORIGIN_SHA" ]]; then
+    echo "error: scaffold_origin is immutable and does not match this transaction" >&2
+    exit 65
   fi
 fi
 
-# ─────────────────────────────────────────────────────────────────────
-# Dynamic-spoke adapter selection (TIN-2228). See
-# docs/decisions/dynamic-spoke-adapter-mode.md. All edits are crash-safe
-# (tmp+mv) and idempotent (a second `--adapter=node` is a no-op).
-# ─────────────────────────────────────────────────────────────────────
+if [[ "$ADAPTER" == "static" && -f svelte.config.js ]] \
+  && grep -q 'adapter-node' svelte.config.js; then
+  echo "error: refusing to stamp a node-configured repository as static" >&2
+  exit 65
+fi
+if [[ "$ADAPTER" == "node" && -f package.json ]] \
+  && ! jq -e '(.dependencies["@sveltejs/adapter-node"] // .devDependencies["@sveltejs/adapter-node"]) != null' \
+    package.json >/dev/null; then
+  echo "error: the frozen package graph must already carry @sveltejs/adapter-node" >&2
+  exit 65
+fi
+
+# Stamp only explicit machine identity fields. Never globally replace the
+# literal `site.scaffold`: canonical SSOT URLs, schema IDs, and skill pointers
+# must continue to name tinyland-inc/site.scaffold in every generated child.
+jq \
+  --arg repository "$REPOSITORY" \
+  --arg repository_owner "$REPOSITORY_OWNER" \
+  --arg repository_name "$REPOSITORY_NAME" \
+  --arg description "$DESCRIPTION" \
+  --arg domain "$DOMAIN" \
+  --arg organization_overlay "$ORGANIZATION_OVERLAY" \
+  --arg overlay_role "$OVERLAY_ROLE" \
+  --arg overlay_composition "$OVERLAY_COMPOSITION" \
+  --arg origin_sha "$SCAFFOLD_ORIGIN_SHA" \
+  --arg adapter "$ADAPTER" \
+  '.repo.name = $repository_name
+   | .repo.github = $repository
+   | .repo.domain = $domain
+   | .repo.description = $description
+   | del(.repo.linear)
+   | .enrollment = {
+       forgeScope: $repository_owner,
+       organizationOverlay: $organization_overlay,
+       organizationOverlayRole: $overlay_role,
+       organizationOverlayComposition: $overlay_composition
+     }
+   | del(.scaffold_tag)
+   | .scaffold_origin = {
+       repository: "tinyland-inc/site.scaffold",
+       commit_sha: $origin_sha
+     }
+   | .taxonomy.primary_role = (if $adapter == "node" then "app-stateful-spoke" else "static-spoke" end)
+   | del(.taxonomy.spawned_repo_role)
+   | .taxonomy.layers = (if $adapter == "node"
+       then ["org-wide-repo-contract", "bazel-package-cache-rbe", "app-stateful-spoke"]
+       else ["org-wide-repo-contract", "bazel-package-cache-rbe", "static-spoke"]
+     end)
+   | .boundaries.owns_runtime_backend = ($adapter == "node")' \
+  tinyland.repo.json > tinyland.repo.json.tmp \
+  && mv tinyland.repo.json.tmp tinyland.repo.json
+
+# These are explicit consumer identity fields, not a repository-wide rewrite.
+if [[ -f package.json ]]; then
+  jq \
+    --arg name "$REPOSITORY_NAME" \
+    --arg homepage "https://github.com/${REPOSITORY}" \
+    --arg repository_url "https://github.com/${REPOSITORY}.git" \
+    '.name = $name
+     | .homepage = $homepage
+     | .repository = {type: "git", url: $repository_url}' \
+    package.json > package.json.tmp \
+    && mv package.json.tmp package.json
+fi
+
+if [[ -f MODULE.bazel ]]; then
+  UNDERSCORED=$(printf '%s' "$DOMAIN" | tr '.-' '_')
+  sed 's/name = "site_scaffold"/name = "'"$UNDERSCORED"'"/' \
+    MODULE.bazel > MODULE.bazel.tmp \
+    && mv MODULE.bazel.tmp MODULE.bazel
+fi
+
 apply_adapter_node() {
-  # Idempotency gate: svelte.config.js already on adapter-node => nothing to do.
-  if [[ -f svelte.config.js ]] && grep -q 'adapter-node' svelte.config.js; then
-    echo "adapter: already @sveltejs/adapter-node (idempotent no-op)"
-    return 0
-  fi
-
-  # 1) package.json: swap the adapter-static devDep -> adapter-node (jq, tmp+mv).
-  if command -v jq >/dev/null 2>&1 && [[ -f package.json ]]; then
-    jq '
-      .devDependencies |= (
-        . + {"@sveltejs/adapter-node": "^5.5.3"}
-          | del(."@sveltejs/adapter-static")
-      )
-    ' package.json > package.json.tmp && mv package.json.tmp package.json
-  fi
-
-  # 2) svelte.config.js: deterministic adapter-node variant. Drops the
-  #    static-isms (fallback / precompress / prerender); keeps runes + BASE_PATH.
-  if [[ -f svelte.config.js ]]; then
+  if [[ -f svelte.config.js ]] && ! grep -q 'adapter-node' svelte.config.js; then
     cat > svelte.config.js.tmp <<'SVELTE_NODE'
 import adapter from '@sveltejs/adapter-node';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
@@ -105,19 +220,10 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 const config = {
 	extensions: ['.svelte'],
 	preprocess: [vitePreprocess()],
-	compilerOptions: {
-		runes: true,
-	},
+	compilerOptions: { runes: true },
 	kit: {
-		// Dynamic-spoke variant (scripts/rebrand.sh --adapter=node).
-		// adapter-node yields a Node server (node build/index.js) for spokes
-		// that genuinely need a runtime: secret-holding proxy, upstream
-		// normalization, or thin API routes. See
-		// docs/decisions/dynamic-spoke-adapter-mode.md.
-		adapter: adapter(),
-		paths: {
-			base: process.env.BASE_PATH ?? '',
-		},
+		adapter: adapter({ out: process.env.BUILD_OUTPUT_DIR ?? 'build' }),
+		paths: { base: process.env.BASE_PATH ?? '' },
 	},
 };
 
@@ -126,119 +232,21 @@ SVELTE_NODE
     mv svelte.config.js.tmp svelte.config.js
   fi
 
-  # 3) tinyland.repo.json: convert the scaffold instance to the schema-v2
-  #    app-stateful role (jq, tmp+mv). A non-scaffold role must not retain
-  #    taxonomy.spawned_repo_role.
-  if command -v jq >/dev/null 2>&1 && [[ -f tinyland.repo.json ]]; then
-    jq '
-      .taxonomy.primary_role = "app-stateful-spoke"
-      | del(.taxonomy.spawned_repo_role)
-      | .taxonomy.layers = [
-          "org-wide-repo-contract",
-          "bazel-package-cache-rbe",
-          "app-stateful-spoke"
-        ]
-      | .boundaries.owns_runtime_backend = true
-      | .boundaries.owns_gitops_apply = false
-      | .boundaries.owns_cloudflare_mutation = false
-      | .boundaries.owns_application_pins = false
-      | .boundaries.owns_application_state = false
-      | .boundaries.owns_secret_declarations = false
-      | .boundaries.owns_application_workloads = false
-      | .boundaries.owns_application_zone_dns = false
-      | .boundaries.owns_application_mail_policy = false
-      | .boundaries.owns_application_database = false
-    ' \
-      tinyland.repo.json > tinyland.repo.json.tmp \
-      && mv tinyland.repo.json.tmp tinyland.repo.json
+  # Both adapters are already frozen in the scaffold package graph. Select the
+  # node adapter in Bazel without changing package.json or its lockfile.
+  if [[ -f BUILD.bazel ]] && grep -q ':node_modules/@sveltejs/adapter-static' BUILD.bazel; then
+    sed 's|:node_modules/@sveltejs/adapter-static|:node_modules/@sveltejs/adapter-node|g' \
+      BUILD.bazel > BUILD.bazel.tmp \
+      && mv BUILD.bazel.tmp BUILD.bazel
   fi
-
-  echo "adapter: swapped to @sveltejs/adapter-node (dynamic-spoke variant)"
-  echo "  svelte.config.js          -> adapterNode()"
-  echo "  package.json devDep       -> @sveltejs/adapter-node"
-  echo "  primary_role              -> app-stateful-spoke"
 }
 
-if ! grep -rq 'site\.scaffold' --exclude='tinyland.repo.json' --include='*.json' --include='*.md' --include='*.ts' --include='*.js' --include='*.bazel' --include='Justfile' --include='.envrc' --include='.bazelrc' .; then
-  echo "no scaffold placeholders detected — already rebranded?" >&2
-  exit 0
-fi
-
-# Text substitutions across config, doc, and source files.
-find . -type f \( \
-    -name '*.md' -o -name '*.json' -o -name '*.ts' -o -name '*.js' \
-    -o -name '*.bazel' -o -name '.bazelrc' -o -name '.envrc' \
-    -o -name 'Justfile' -o -name '*.toml' -o -name '*.svelte' \
-    -o -name '*.html' -o -name '*.css' -o -name '*.yml' \
-    -o -name '*.yaml' -o -name 'flake.nix' \
-  \) \
-  -not -path './node_modules/*' -not -path './.git/*' -not -path './build/*' \
-  -not -path './.svelte-kit/*' -not -path './pnpm-lock.yaml' \
-  -not -path './MODULE.bazel.lock' -not -path './flake.lock' \
-  -print0 | xargs -0 sed -i.bak \
-    -e "s|site\\.scaffold|${DOMAIN}|g" \
-    -e "s|site_scaffold|${UNDERSCORED}|g" \
-    -e "s|bazel-site|bazel-${SLUG}|g"
-
-# Clean up sed -i.bak backup files
-find . -type f -name '*.bak' -not -path './node_modules/*' -not -path './.git/*' -delete
-
-# ─────────────────────────────────────────────────────────────────────
-# CI-SCHEMA (docs/CI-SCHEMA.md) artifacts. All steps are idempotent.
-# ─────────────────────────────────────────────────────────────────────
-
-# package.json .name (jq-driven for safety)
-if command -v jq >/dev/null 2>&1 && [[ -f package.json ]]; then
-  jq --arg slug "${SLUG}" '.name = $slug' package.json > package.json.tmp \
-    && mv package.json.tmp package.json
-fi
-
-# .github/lanes.json — rewrite spoke.name + spoke.domain via jq
-if command -v jq >/dev/null 2>&1 && [[ -f .github/lanes.json ]]; then
-  jq --arg slug "${SLUG}" --arg domain "${DOMAIN}" \
-    '.spoke.name = $slug | .spoke.domain = $domain' \
-    .github/lanes.json > .github/lanes.json.tmp \
-    && mv .github/lanes.json.tmp .github/lanes.json
-fi
-
-# tinyland.repo.json — restore the exact schema-v2 scaffold origin captured
-# before the global brand substitution.
-if [[ -n "$ORIGIN_SHA" ]]; then
-  jq --arg sha "$ORIGIN_SHA" '
-    .scaffold_origin = {
-      repository: "tinyland-inc/site.scaffold",
-      commit_sha: $sha
-    }
-  ' tinyland.repo.json > tinyland.repo.json.tmp \
-    && mv tinyland.repo.json.tmp tinyland.repo.json
-fi
-
-# Apply the dynamic-spoke adapter variant when requested (TIN-2228).
 if [[ "$ADAPTER" == "node" ]]; then
   apply_adapter_node
 fi
 
-
-echo "rebranded scaffold to ${DOMAIN}"
-echo "  underscored: ${UNDERSCORED}"
-echo "  bazel cache: bazel-${SLUG}"
-echo "  lanes.json spoke: ${SLUG} / ${DOMAIN}"
-echo "  adapter:     ${ADAPTER}"
-[[ -n "$ORIGIN_SHA" ]] && echo "  scaffold_origin: ${ORIGIN_SHA}" || true
-echo
-echo "next:"
-echo "  1. Review git diff"
-echo "  2. Update README.md and AGENTS.md with brand purpose"
-echo "  3. Update src/routes/+page.svelte with the landing page"
-echo "  4. gh repo edit --description '...' --homepage 'https://${DOMAIN}'"
-echo "  5. just setup && just check && just build"
-echo "  6. just lanes-validate && just conformance"
-if [[ "$ADAPTER" == "node" ]]; then
-  echo
-  echo "dynamic-spoke (adapter-node) follow-ups:"
-  echo "  - Smoke-serve with 'node build/index.js' (NOT a static file server)."
-  echo "  - Declare only finite Bazel actions in the schema-v2 ActionPlan."
-  echo "  - Do not add publication, preview, apply, or provider placement here."
-  echo "  - This spoke now declares app-stateful-spoke; it MAY own a runtime"
-  echo "    backend. Re-check boundaries in tinyland.repo.json before shipping."
-fi
+echo "stamped generated repository ${REPOSITORY} for ${DOMAIN}"
+echo "  role:            $(jq -r '.taxonomy.primary_role' tinyland.repo.json)"
+echo "  overlay:         ${ORGANIZATION_OVERLAY} (${OVERLAY_ROLE}, ${OVERLAY_COMPOSITION})"
+echo "  scaffold_origin: ${SCAFFOLD_ORIGIN_SHA}"
+echo "review and edit human-facing brand copy explicitly; canonical scaffold references were preserved"
