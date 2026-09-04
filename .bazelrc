@@ -54,11 +54,12 @@ build --show_timestamps
 # rules_ts: skip lib check is required for SvelteKit-style declaration files.
 build --@aspect_rules_ts//ts:skipLibCheck=always
 build --spawn_strategy=sandboxed,worker
-# rules_js materializes runfiles with Bazel's internal CopyFile action. That
-# bookkeeping action has no Darwin sandbox implementation; keep it local while
-# ordinary product spawns remain sandboxed. The v4 client supplies a later
-# --spawn_strategy=remote for admitted actions, so this is not an execution
-# fallback.
+# Local developer builds use Bazel's internal CopyFile action to materialize
+# rules_js runfiles; that bookkeeping mnemonic has no Darwin sandbox
+# implementation. Protected v4 actions do not read this file: the compiled
+# gf-action-client invokes Bazel with --ignore_all_rc_files. A later
+# --spawn_strategy cannot override this mnemonic-specific setting, so any
+# change to that client boundary requires a fresh execution-policy review.
 build --strategy=CopyFile=local
 
 # Test output
