@@ -196,6 +196,25 @@ filegroup(
     ),
 )
 
+# Exact inputs for the GFTB-as-consumer boundary. The two allow-empty paths make
+# a copied scaffold executable or ADR visible to the unit contract if either is
+# ever reintroduced.
+filegroup(
+    name = "scaffold_consumer_boundary_srcs",
+    srcs = [
+        ".agents/skills/tinyland-spawn-sister-site/SKILL.md",
+        "AGENTS.md",
+        "MODULE.bazel",
+        "scripts/check-conformance.sh",
+    ] + glob(
+        [
+            "docs/decisions/dynamic-spoke-adapter-mode.md",
+            "scripts/rebrand.sh",
+        ],
+        allow_empty = True,
+    ),
+)
+
 # The v4 validation action carries its own exact source capsule. Secret
 # scanning is therefore a hermetic Bazel test inside the same REAPI action,
 # not a second runner job or a local/hosted fallback.
@@ -372,6 +391,7 @@ vitest.vitest_test(
         ":app_srcs",
         ":node_modules",
         ":node_modules/vitest",
+        ":scaffold_consumer_boundary_srcs",
     ] + TINYLAND_HOUSE_PACKAGES,
     tags = ["vitest"],
     visibility = ["//visibility:public"],

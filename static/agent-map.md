@@ -24,6 +24,9 @@ GloriousFlywheel v4 adoption follows the upstream
 `tinyland-inc/GloriousFlywheel/.agents/skills/tinyland-flywheel-enroll/SKILL.md`;
 this consumer does not vendor the retired cache/profile skill.
 
+The spawn entry is a discovery shim only. The executable creation transaction,
+adapter selection, and rebrand implementation live in `tinyland-inc/site.scaffold`.
+
 Seven generated mail lace-up skills (`.agents/skills/gftb-mail-laceup-*` for
 gmail, thunderbird, apple-mail, kmail, geary, sieve, outlook), produced by
 `scripts/build-agent-skills.mjs` via `just skills-build`; do not hand-edit.

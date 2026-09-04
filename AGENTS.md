@@ -177,8 +177,8 @@ repository as private or renamed** in code, comments, docs, or image refs.
   canonical `.agents/skills/<name>`.
 - **Published scaffold skills** (five):
   - `tinyland-whoami`, cold-landing repo-role classifier. Run via `just whoami`.
-  - `tinyland-spawn-sister-site`, user-only; proves the exact template tree,
-    then stamps the consumer repository and owner-overlay identity.
+  - `tinyland-spawn-sister-site`, user-only discovery shim; executable creation
+    and rebrand mechanics live only in `tinyland-inc/site.scaffold`.
   - `tinyland-scaffold-doctor`, drift audit. Run via `just scaffold-doctor`.
   - `tinyland-repo-contract`, house-style baseline (Justfile/flake/gitleaks).
   - `tinyland-static-spoke`, per-spoke customization for static brand sites.
@@ -277,27 +277,11 @@ repository as private or renamed** in code, comments, docs, or image refs.
   refresh PRs. It must not push directly to the default branch. It is not the
   runtime broker-display path.
 
-## Per-Site Customization Checklist
-
-After the exact-tree generation transaction documented by
-`tinyland-spawn-sister-site`:
-
-1. `direnv allow`
-2. Run `scripts/rebrand.sh` with the exact repository, description,
-   consumer-overlay identity, and full scaffold source SHA. It stamps explicit
-   machine fields only; review human-facing brand copy separately.
-3. Update `MODULE.bazel` `module(name = ...)` to underscored site name.
-4. Update `README.md` / `AGENTS.md` with the per-site brand purpose.
-5. Replace `src/routes/+page.svelte` with the brand landing page.
-6. Set the GH repo description and homepage URL via `gh repo edit`.
-7. Push first commit; verify CI green (secrets-scan, build-and-test, bazel-graph).
-
 ## What Not To Do
 
-- Don't add a runtime database / API server to a **sister site** spawned from
-  these scaffold surfaces, or to the `gftb-site` microsite. Keep those static.
-  This platform repo may own that behavior; it still may not own cluster apply,
-  edge credentials, or secret values.
+- Don't add runtime state or APIs to the `gftb-site` microsite. This platform
+  repo owns GFTB application behavior; it still may not own cluster apply, edge
+  credentials, or secret values.
 - Don't fork tinyland-color-utils / tinyvectors / vite plugins per-site.
   Pin via the BCR.
 - Don't add an in-house npm source edge. Keep each BCR module linked through its
@@ -340,8 +324,9 @@ the artifact promoted on main.
 
 **Application role.** This repository is an `app-stateful-spoke`, not a live
 scaffold conversion. Schema v2 forbids `taxonomy.spawned_repo_role` on this
-role. The retained `scripts/rebrand.sh` is historical scaffold tooling and is
-not an enrollment, execution, or deployment path for this application.
+role. It carries no rebrand implementation or adapter selector: those are
+owned by `tinyland-inc/site.scaffold` and run only inside a newly generated
+child. GFTB consumes the resulting repo-shape contract.
 
 **Non-action release transactions.** Browser LOOK, image publication, preview
 lifecycle, reap, OpenTofu, production apply, and edge mutation are not Bazel

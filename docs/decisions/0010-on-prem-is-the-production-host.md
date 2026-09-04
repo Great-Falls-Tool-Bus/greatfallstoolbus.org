@@ -17,9 +17,9 @@
     (TIN-2535) - historical preview decision, superseded again by the v4
     controller-result and owner-overlay reap contract described in §4.
   - `docs/CI-SCHEMA.md` (the current v4 product-export contract),
-    `dynamic-spoke-adapter-mode.md` (the adapter selection), and
-    `0002-blahaj-substrate-boundary.md` (the ownership boundary this
-    preserves).
+    `tinyland-inc/site.scaffold:docs/decisions/dynamic-spoke-adapter-mode.md`
+    (the adapter-selection SSOT), and `0002-blahaj-substrate-boundary.md`
+    (the ownership boundary this preserves).
 - Boundary: this repo stays schema-pinned `owns_cloudflare_mutation=false` and
   `owns_gitops_apply=false` (`tinyland.repo.json`). It **codifies the ruling and
   the host of record**; every apply named in §5 is executed by

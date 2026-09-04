@@ -20,9 +20,7 @@ export default defineConfig({
 		exclude: ['**/node_modules/**', '**/build/**', '**/.svelte-kit/**', 'src/**/*.integration.test.ts'],
 		environment: 'node',
 		globals: true,
-		// Allow vacuous green on empty test set (M0.4 → M0.6 ramp).
-		// Set to false in M3 once content + smoke tests land.
-		passWithNoTests: true,
+		passWithNoTests: false,
 		coverage: {
 			provider: 'v8',
 			reporter: ['text', 'json', 'html'],

@@ -163,12 +163,23 @@ else
   ok "No provider-specific state-backend wiring in repo"
 fi
 
-# 12. AGENTS.md cites scaffold tag
-if grep -qE 'site\.scaffold|scaffold (tag|version|@v[0-9])|spawned from' AGENTS.md 2>/dev/null \
-   && grep -qE '\b(tag|spawned from|conforms to)\b' AGENTS.md 2>/dev/null; then
-  ok "AGENTS.md cites the scaffold tag/spawning point"
+# 12. GFTB is a consumer of the upstream scaffold transaction, never a second
+# owner of its rebrand executable or adapter-selection ADR.
+if [[ ! -e scripts/rebrand.sh && ! -L scripts/rebrand.sh \
+  && ! -e docs/decisions/dynamic-spoke-adapter-mode.md \
+  && ! -L docs/decisions/dynamic-spoke-adapter-mode.md ]]; then
+  ok "GFTB carries no copied scaffold rebrand implementation or adapter ADR"
 else
-  man "AGENTS.md cites the scaffold tag the repo conforms to (pre-D3 PR7 OK)"
+  no "GFTB must consume rebrand and adapter-selection truth from tinyland-inc/site.scaffold"
+fi
+
+spawn_shim=.agents/skills/tinyland-spawn-sister-site/SKILL.md
+if [[ -f "$spawn_shim" ]] \
+  && grep -qF 'tinyland-inc/site.scaffold' "$spawn_shim" \
+  && ! grep -qE '^[[:space:]]*(gh repo create|git push .* main|\./scripts/rebrand\.sh)' "$spawn_shim"; then
+  ok "Sister-site skill is a discovery shim to the upstream protected transaction"
+else
+  no "Sister-site skill must remain a non-executing upstream discovery shim"
 fi
 
 # 13. In-house package Bazel-only ingestion (TIN-2838): no org npm specifier in
