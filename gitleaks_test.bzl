@@ -10,6 +10,14 @@ def _gitleaks_test_impl(ctx):
     launcher = ctx.actions.declare_file(ctx.label.name + ".sh")
     scanner_path = _external_runfiles_path(ctx.executable._gitleaks)
 
+    provided_paths = {file.short_path: True for file in ctx.files.srcs}
+    missing_paths = [path for path in ctx.attr.required_paths if path not in provided_paths]
+    if missing_paths:
+        fail(
+            "%s source capsule omits required path(s): %s" %
+            (ctx.label, ", ".join(sorted(missing_paths))),
+        )
+
     ctx.actions.write(
         content = "\n".join([
             "#!/bin/sh",
@@ -48,6 +56,9 @@ gitleaks_test = rule(
         "config": attr.label(
             allow_single_file = True,
             mandatory = True,
+        ),
+        "required_paths": attr.string_list(
+            doc = "Workspace-relative sentinels that must be present in srcs.",
         ),
         "_gitleaks": attr.label(
             cfg = "exec",

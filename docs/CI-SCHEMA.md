@@ -39,6 +39,7 @@ the only application-side execution declaration:
       "targets": [
         "//:current_source_secret_scan_test",
         "//:eslint_test",
+        "//:inhouse_package_parity_test",
         "//:prettier_check_test",
         "//:svelte_check_test",
         "//:unit_tests"
@@ -61,6 +62,14 @@ The schema admits Linux and Darwin demand without claiming either has live
 provider supply; unavailable supply fails during resolution. The plan carries
 no runner, endpoint, target-class, lifecycle, free-form artifact description,
 publication, repository, tenant, or provider field.
+
+`//:deployment_bundle` produces one reproducible `tar.gz` rooted at `app/`.
+That application root contains the adapter-node `build/`, the custom
+`server.js`, the Node 24 package manifest, the production-only third-party
+`node_modules` closure, the two BCR-sourced first-party runtime packages, the
+checked-in `drizzle/` migrations, the worker and migrator ESM payloads, and the
+single three-role dispatcher. It is a runnable publication input, not an OCI
+image, a registry write, a publication request, or a deployment transaction.
 
 ## GitHub edge
 

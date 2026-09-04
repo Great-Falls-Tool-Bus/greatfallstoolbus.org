@@ -15,9 +15,16 @@ const requiredGraphConsumers = [
 	'eslint_test',
 	'prettier_check_test',
 	'vite_build_bin',
+	'migrator_bundle',
+	'worker_bundle',
 	'unit_tests',
 	'first_membership_rehearsal_test',
 ];
+
+const expectedRuntimeHousePackages = new Set([
+	':node_modules/@tummycrypt/tinyland-auth',
+	':node_modules/@tummycrypt/tinyland-auth-pg',
+]);
 
 const packageText = readFileSync(resolve(repoRoot, 'package.json'), 'utf8');
 const lockText = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
@@ -89,8 +96,9 @@ function loadInHouseBazelVersions(text) {
 	return versions;
 }
 
-function loadHousePackageLabels(text) {
-	const match = text.match(/TINYLAND_HOUSE_PACKAGES\s*=\s*\[([\s\S]*?)^\]/m);
+function loadLabelList(text, name) {
+	const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	const match = text.match(new RegExp(`${escapedName}\\s*=\\s*\\[([\\s\\S]*?)^\\]`, 'm'));
 	if (!match) return new Set();
 	return new Set([...match[1].matchAll(/"([^"]+)"/g)].map((entry) => entry[1]));
 }
@@ -142,12 +150,30 @@ function contractFailures(packageSource, lockSource, moduleSource, buildSource) 
 	}
 
 	const expectedLabels = new Set([...links.keys()].map((name) => `:node_modules/${name}`));
-	const actualLabels = loadHousePackageLabels(buildSource);
+	const actualLabels = loadLabelList(buildSource, 'TINYLAND_HOUSE_PACKAGES');
 	for (const label of setDifference(expectedLabels, actualLabels).sort()) {
 		failures.push(`TINYLAND_HOUSE_PACKAGES omits ${label}`);
 	}
 	for (const label of setDifference(actualLabels, expectedLabels).sort()) {
 		failures.push(`TINYLAND_HOUSE_PACKAGES has unbacked label ${label}`);
+	}
+
+	const runtimeLabels = loadLabelList(buildSource, 'TINYLAND_RUNTIME_HOUSE_PACKAGES');
+	for (const label of setDifference(expectedRuntimeHousePackages, runtimeLabels).sort()) {
+		failures.push(`TINYLAND_RUNTIME_HOUSE_PACKAGES omits ${label}`);
+	}
+	for (const label of setDifference(runtimeLabels, expectedRuntimeHousePackages).sort()) {
+		failures.push(`TINYLAND_RUNTIME_HOUSE_PACKAGES has non-runtime label ${label}`);
+	}
+	const productionModulesMatch = buildSource.match(
+		/PRODUCTION_NODE_MODULES\s*=\s*npm_link_targets\(([\s\S]*?)^\)/m,
+	);
+	if (
+		!productionModulesMatch ||
+		!productionModulesMatch[1].includes('dev = False') ||
+		!productionModulesMatch[1].includes('prod = True')
+	) {
+		failures.push('PRODUCTION_NODE_MODULES is not the prod-only npm link set');
 	}
 
 	for (const targetName of requiredGraphConsumers) {
@@ -161,9 +187,65 @@ function contractFailures(packageSource, lockSource, moduleSource, buildSource) 
 	if (buildBody === null || !buildBody.includes('tool = ":vite_build_bin"')) {
 		failures.push('build does not consume the house-keyed vite_build_bin');
 	}
+	for (const [targetName, sourcePath, outputPath, roleOnlyArg] of [
+		[
+			'migrator_bundle',
+			'src/lib/server/db/migrate.ts',
+			'bazel-role-bundles/migrator.mjs',
+			null,
+		],
+		[
+			'worker_bundle',
+			'src/lib/server/worker.ts',
+			'bazel-role-bundles/worker.mjs',
+			'--alias:$$lib=./src/lib',
+		],
+	]) {
+		const body = loadTargetBody(buildSource, targetName);
+		for (const token of [
+			sourcePath,
+			outputPath,
+			'--bundle',
+			'--platform=node',
+			'--format=esm',
+			'--target=node24',
+			'--outfile=$@',
+			'--external:pg-native',
+			'--external:cloudflare:sockets',
+			'--tsconfig-raw={}',
+			...(roleOnlyArg ? [roleOnlyArg] : []),
+		]) {
+			if (body === null || !body.includes(token)) {
+				failures.push(`${targetName} omits ${token}`);
+			}
+		}
+	}
+	const appRootBody = loadTargetBody(buildSource, 'deployment_app_root');
+	for (const carrier of [
+		'":build"',
+		'":migrator_bundle"',
+		'":worker_bundle"',
+		'"drizzle/**"',
+		'"package.json"',
+		'"scripts/platform-entrypoint.mjs"',
+		'"server.js"',
+		'"node_modules/.aspect_rules_js/**"',
+		'"bazel-role-bundles": "build"',
+		'PRODUCTION_NODE_MODULES',
+		'TINYLAND_RUNTIME_HOUSE_PACKAGES',
+	]) {
+		if (appRootBody === null || !appRootBody.includes(carrier)) {
+			failures.push(`deployment_app_root omits ${carrier}`);
+		}
+	}
 	const bundleBody = loadTargetBody(buildSource, 'deployment_bundle');
-	if (bundleBody === null || !bundleBody.includes('":build"')) {
-		failures.push('deployment_bundle does not consume the canonical build');
+	if (
+		bundleBody === null ||
+		!bundleBody.includes('":deployment_app_root"') ||
+		!bundleBody.includes('package_dir = "app"') ||
+		!bundleBody.includes('strip_prefix = "deployment_app_root"')
+	) {
+		failures.push('deployment_bundle does not export the complete app-root capsule');
 	}
 	return failures;
 }
@@ -233,6 +315,15 @@ function negativeControlFailures() {
 		)
 	) {
 		failures.push('graph-carrier negative control did not trip');
+	}
+
+	const incompleteBundle = buildText.replace('\n        ":worker_bundle",', '');
+	if (
+		!contractFailures(packageText, lockText, moduleText, incompleteBundle).some((failure) =>
+			failure.includes('deployment_app_root omits ":worker_bundle"'),
+		)
+	) {
+		failures.push('deployment-capsule negative control did not trip');
 	}
 	return failures;
 }

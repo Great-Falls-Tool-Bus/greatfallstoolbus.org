@@ -40,7 +40,7 @@ const config = {
 			// enumerated pages from the live archive, so off-cluster builds
 			// legitimately produced none) is retired with the D15 revival: the
 			// revived /discuss routes are `prerender = false` and served only by
-			// the ADAPTER=node origin, so they never enter the prerenderer at all.
+			// the adapter-node origin, so they never enter the prerenderer at all.
 		},
 	},
 };

@@ -5,9 +5,11 @@ The SvelteKit adapter-node product has ergonomic pnpm-backed Justfile recipes,
 while Bazel owns the finite graphable actions submitted through Flywheel.
 """
 
+load("@aspect_bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_run_binary", "js_test")
 load("@aspect_rules_js//npm:defs.bzl", "npm_link_package")
-load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@npm//:defs.bzl", "npm_link_all_packages", "npm_link_targets")
+load("@npm//:esbuild/package_json.bzl", esbuild_bin = "bin")
 load("@npm//:eslint/package_json.bzl", eslint_bin = "bin")
 load("@npm//:prettier/package_json.bzl", prettier_bin = "bin")
 load("@npm//:vitest/package_json.bzl", vitest = "bin")
@@ -58,14 +60,32 @@ TINYLAND_HOUSE_PACKAGES = [
     ":node_modules/@tummycrypt/vite-plugin-skeleton-colors",
 ]
 
+# Only these first-party packages remain external at application runtime. The
+# other four house packages are build inputs whose code/assets are already in
+# the adapter-node output. This list mirrors flake.nix's runtime import proof.
+TINYLAND_RUNTIME_HOUSE_PACKAGES = [
+    ":node_modules/@tummycrypt/tinyland-auth",
+    ":node_modules/@tummycrypt/tinyland-auth-pg",
+]
+
+# Direct production links plus each link's transitive store closure. Selecting
+# labels rather than the catch-all :node_modules target prevents test, lint,
+# bundler, and other devDependencies from entering the publication input.
+PRODUCTION_NODE_MODULES = npm_link_targets(
+    name = "node_modules",
+    dev = False,
+    prod = True,
+)
+
 filegroup(
     name = "app_srcs",
     srcs = glob(
         [
             "src/**",
             "static/**",
+            "scripts/**/*.js",
+            "scripts/**/*.mjs",
             "scripts/**/*.mts",
-            "scripts/bazel/**/*.mjs",
             # Generated + hand-written migrations (TIN-3817 S1). Enrolled so a
             # change to a migration invalidates //:unit_tests — the ledger
             # assertions in src/lib/server/db/migrations.test.ts read this tree,
@@ -79,25 +99,93 @@ filegroup(
         # recipe invokes `drizzle push`.
         "Justfile",
         "drizzle.config.ts",
+        "eslint.config.ts",
         "vitest.integration.config.ts",
-        # The platform process dispatcher (TIN-3815 S0). The scripts/ glob above
-        # only reaches *.mts and scripts/bazel/*.mjs, so this file must be
-        # enrolled by explicit label or //:unit_tests silently loses
-        # scripts/platform-entrypoint.test.mts's subject.
-        "scripts/platform-entrypoint.mjs",
-        # Same story: scripts/discuss-reconcile.mts and its test import
-        # PENDING_COMMENT from this .mjs generator, which the scripts/ glob
-        # above does not reach.
-        "scripts/discuss-to-svx.mjs",
         "package.json",
         "playwright.config.ts",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml",
         "svelte.config.js",
+        "server.js",
         "tsconfig.json",
         "vite.config.ts",
         "vitest.config.ts",
     ],
+)
+
+# Complete checked-in source capsule for commands whose declared scope is the
+# repository root (`eslint .`, `prettier --check .`, and current-source
+# Gitleaks). Keep top-level files explicit so a new authority surface cannot
+# silently join an action; directory families are globbed because those trees
+# are intentionally open-ended source collections.
+filegroup(
+    name = "current_tracked_source_srcs",
+    srcs = [
+        ".bazelignore",
+        ".bazelrc",
+        ".bazelversion",
+        ".dockerignore",
+        ".editorconfig",
+        ".envrc",
+        ".gitignore",
+        ".gitleaks.toml",
+        ".npmrc",
+        ".nvmrc",
+        ".prettierignore",
+        ".prettierrc",
+        "AGENTS.md",
+        "BUILD.bazel",
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "Justfile",
+        "LICENSE",
+        "LICENSE-content",
+        "MODULE.bazel",
+        "MODULE.bazel.lock",
+        "NOTICE",
+        "README.md",
+        "RELEASING.md",
+        "SECURITY.md",
+        "cliff.toml",
+        "drizzle.config.ts",
+        "eslint.config.ts",
+        "flake.lock",
+        "flake.nix",
+        "gitleaks_test.bzl",
+        "multitool.lock.json",
+        "package.json",
+        "playwright.config.ts",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "secrets.contract.yaml",
+        "server.js",
+        "svelte.config.js",
+        "tinyland.repo.json",
+        "tsconfig.json",
+        "vite.config.ts",
+        "vitest.config.ts",
+        "vitest.integration.config.ts",
+    ] + glob(
+        [
+            ".agents/**",
+            ".claude/**",
+            ".github/**",
+            "docs/**",
+            "drizzle/**",
+            "e2e/**",
+            "nix/**",
+            "plugins/**",
+            "scripts/**",
+            "src/**",
+            "static/**",
+            "tofu/**",
+        ],
+        allow_empty = True,
+        exclude = [
+            "**/.DS_Store",
+            "**/__pycache__/**",
+        ],
+    ),
 )
 
 filegroup(
@@ -113,58 +201,7 @@ filegroup(
 # not a second runner job or a local/hosted fallback.
 filegroup(
     name = "current_source_secret_scan_srcs",
-    srcs = [
-        ".bazelrc",
-        ".bazelversion",
-        ".envrc",
-        ".gitignore",
-        ".gitleaks.toml",
-        ".npmrc",
-        ".nvmrc",
-        ".prettierignore",
-        ".prettierrc",
-        "AGENTS.md",
-        "BUILD.bazel",
-        "CLAUDE.md",
-        "Justfile",
-        "LICENSE",
-        "MODULE.bazel",
-        "MODULE.bazel.lock",
-        "README.md",
-        "drizzle.config.ts",
-        "eslint.config.ts",
-        "flake.lock",
-        "flake.nix",
-        "gitleaks_test.bzl",
-        "multitool.lock.json",
-        "package.json",
-        "playwright.config.ts",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml",
-        "svelte.config.js",
-        "tinyland.repo.json",
-        "tsconfig.json",
-        "vite.config.ts",
-        "vitest.config.ts",
-        "vitest.integration.config.ts",
-    ] + glob(
-        [
-            ".agents/**",
-            ".github/**",
-            "docs/**",
-            "drizzle/**",
-            "e2e/**",
-            "nix/**",
-            "scripts/**",
-            "src/**",
-            "static/**",
-        ],
-        allow_empty = True,
-        exclude = [
-            "**/.DS_Store",
-            "**/__pycache__/**",
-        ],
-    ),
+    srcs = [":current_tracked_source_srcs"],
 )
 
 gitleaks_test(
@@ -172,6 +209,26 @@ gitleaks_test(
     timeout = "short",
     srcs = [":current_source_secret_scan_srcs"],
     config = ".gitleaks.toml",
+    required_paths = [
+        ".bazelignore",
+        ".claude/skills/tinyland-whoami/SKILL.md",
+        ".dockerignore",
+        ".editorconfig",
+        "CHANGELOG.md",
+        "LICENSE-content",
+        "NOTICE",
+        "RELEASING.md",
+        "SECURITY.md",
+        "cliff.toml",
+        "eslint.config.ts",
+        "plugins/scaffold-core/plugin.json",
+        "scripts/build-agent-skills.mjs",
+        "scripts/discuss-reconcile.mts",
+        "scripts/optimize-images.js",
+        "secrets.contract.yaml",
+        "server.js",
+        "tofu/dns-intent/intent.yaml",
+    ],
 )
 
 js_binary(
@@ -211,7 +268,7 @@ eslint_bin.eslint_test(
     args = ["."],
     data = [
         "eslint.config.ts",
-        ":app_srcs",
+        ":current_tracked_source_srcs",
         ":node_modules",
         ":node_modules/@eslint/js",
         ":sveltekit_types",
@@ -229,7 +286,7 @@ prettier_bin.prettier_test(
     data = [
         ".prettierignore",
         ".prettierrc",
-        ":app_srcs",
+        ":current_tracked_source_srcs",
         ":node_modules",
     ] + TINYLAND_HOUSE_PACKAGES,
 )
@@ -250,6 +307,54 @@ js_run_binary(
     patch_node_fs = False,
     tool = ":vite_build_bin",
     visibility = ["//visibility:public"],
+)
+
+# Exact Bazel counterparts of the developer-facing Just recipes. Both are
+# single-file Node 24 ESM payloads so the worker and migrator do not depend on
+# the web process's module-resolution layout.
+esbuild_bin.esbuild(
+    name = "migrator_bundle",
+    args = [
+        "src/lib/server/db/migrate.ts",
+        "--bundle",
+        "--platform=node",
+        "--format=esm",
+        "--target=node24",
+        "--outfile=$@",
+        "--external:pg-native",
+        "--external:cloudflare:sockets",
+        "--tsconfig-raw={}",
+        "--banner:js=import { createRequire as __gftbCreateRequire } from 'node:module'; const require = __gftbCreateRequire(import.meta.url);",
+    ],
+    outs = ["bazel-role-bundles/migrator.mjs"],
+    srcs = [
+        ":app_srcs",
+        ":node_modules",
+    ] + TINYLAND_HOUSE_PACKAGES,
+    tags = ["manual"],
+)
+
+esbuild_bin.esbuild(
+    name = "worker_bundle",
+    args = [
+        "src/lib/server/worker.ts",
+        "--bundle",
+        "--platform=node",
+        "--format=esm",
+        "--target=node24",
+        "--outfile=$@",
+        "--external:pg-native",
+        "--external:cloudflare:sockets",
+        "--alias:$$lib=./src/lib",
+        "--tsconfig-raw={}",
+        "--banner:js=import { createRequire as __gftbCreateRequire } from 'node:module'; const require = __gftbCreateRequire(import.meta.url);",
+    ],
+    outs = ["bazel-role-bundles/worker.mjs"],
+    srcs = [
+        ":app_srcs",
+        ":node_modules",
+    ] + TINYLAND_HOUSE_PACKAGES,
+    tags = ["manual"],
 )
 
 vitest.vitest_test(
@@ -331,11 +436,41 @@ test_suite(
     ],
 )
 
-# Product server bundle. Publication remains a separate owner transaction.
+# Materialize the complete, runnable application root. copy_to_directory
+# intentionally dereferences rules_js's node_modules symlinks, then omits the
+# now-redundant private store: the exported tree is standalone rather than a
+# set of links back into a Bazel execroot. A duplicate destination fails closed.
+copy_to_directory(
+    name = "deployment_app_root",
+    srcs = [
+        ":build",
+        ":migrator_bundle",
+        ":worker_bundle",
+        "package.json",
+        "scripts/platform-entrypoint.mjs",
+        "server.js",
+    ] + glob(
+        ["drizzle/**"],
+    ) + PRODUCTION_NODE_MODULES + TINYLAND_RUNTIME_HOUSE_PACKAGES,
+    exclude_srcs_patterns = [
+        "node_modules/.aspect_rules_js/**",
+    ],
+    replace_prefixes = {
+        "bazel-role-bundles": "build",
+    },
+    root_paths = ["."],
+    tags = ["manual"],
+)
+
+# Reproducible publication input rooted at app/. It is deliberately only an
+# artifact: image construction, registry publication, and promotion remain
+# separate owner-authorized transactions outside this application repository.
 pkg_tar(
     name = "deployment_bundle",
-    srcs = [":build"],
+    srcs = [":deployment_app_root"],
     extension = "tar.gz",
+    package_dir = "app",
+    strip_prefix = "deployment_app_root",
     tags = ["manual"],
     visibility = ["//visibility:public"],
 )

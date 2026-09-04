@@ -650,8 +650,8 @@ worker-bundle: _house-hydrate
         --banner:js="import { createRequire as __gftbCreateRequire } from 'node:module'; const require = __gftbCreateRequire(import.meta.url);"
     @echo "wrote build/worker.mjs (the /bin/worker payload)"
 
-# Compile the standalone payloads that the default Svelte/Vite build and
-# current Bazel targets do not traverse.
+# Developer mirror for the standalone payloads that //:migrator_bundle and
+# //:worker_bundle produce inside //:deployment_bundle.
 platform-bundles-check: db-migrator-bundle worker-bundle
     @echo "platform bundles OK: migrator, worker"
 
@@ -1518,12 +1518,12 @@ scaffold-doctor:
       just conformance
 
 # Run the application conformance checklist (docs/CI-SCHEMA.md).
-conformance:
+conformance: _house-hydrate
     cd {{ root }} && bash scripts/check-conformance.sh
 
 # Verify first-party packages enter only through Bzlmod and every product
 # action carries their public :pkg links.
-inhouse-package-parity:
+inhouse-package-parity: _house-hydrate
     cd {{ root }} && node scripts/check-inhouse-package-parity.mjs
 
 # GloriousFlywheel v4 is invoked only by the immutable ci-templates workflow

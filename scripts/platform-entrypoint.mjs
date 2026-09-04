@@ -24,12 +24,14 @@
 //
 // `migrator` was declared and failed closed in S0; TIN-3817 slice S1 filled it
 // in, without changing this image contract. It now dispatches into the bundled
-// applier (`build/migrator.mjs`, built by `just db-migrator-bundle` from
-// src/lib/server/db/migrate.ts) which takes a PostgreSQL advisory lock and
+// applier (`build/migrator.mjs`, built by Bazel `//:migrator_bundle` or the
+// `just db-migrator-bundle` developer mirror from src/lib/server/db/migrate.ts)
+// which takes a PostgreSQL advisory lock and
 // applies the checked-in drizzle/ migrations against an immutable hash ledger.
 // `worker` was the last placeholder; TIN-3817 slice S3 filled it in the same
 // way. It dispatches into the bundled outbox worker (`build/worker.mjs`, built
-// by `just worker-bundle` from src/lib/server/worker.ts), which claims
+// by Bazel `//:worker_bundle` or the `just worker-bundle` developer mirror from
+// src/lib/server/worker.ts), which claims
 // transactional-outbox jobs with FOR UPDATE SKIP LOCKED under a lease and
 // retries/dead-letters per spec §3.1. All three roles are now real; a missing
 // bundle is a malformed image (70), never a healthy no-op.
@@ -154,12 +156,12 @@ export function resolveWebEntrypoint(override) {
  * dispatcher lives in the Nix store (or /app/scripts) and cannot infer a
  * repo-relative layout, so GFTB_MIGRATOR_ENTRYPOINT hands it the absolute path.
  * Outside the image the repo-relative `build/migrator.mjs` — the output of
- * `just db-migrator-bundle` — is the natural default.
+ * Bazel `//:migrator_bundle` (or `just db-migrator-bundle`) — is the natural
+ * default.
  *
- * The migrator is a BUNDLE rather than the TypeScript source because the
- * production image deliberately carries no node_modules: the adapter-node
- * build inlines the web server's dependencies, and the migrator's single
- * dependency (`pg`) is inlined the same way.
+ * The migrator is a BUNDLE rather than the TypeScript source so it has one
+ * immutable entrypoint. The image also carries adapter-node's external
+ * runtime node_modules closure for the web process.
  *
  * @param {string | undefined} override
  * @returns {URL}
@@ -172,8 +174,10 @@ export function resolveMigratorEntrypoint(override) {
 /**
  * Locate the bundled outbox worker (TIN-3817 S3). Same contract as the
  * migrator bundle: GFTB_WORKER_ENTRYPOINT in the image, the repo-relative
- * output of `just worker-bundle` outside it, and a BUNDLE (pg and drizzle-orm
- * inlined) because the production image carries no node_modules.
+ * output of Bazel `//:worker_bundle` (or `just worker-bundle`) outside it, and
+ * a BUNDLE (pg and drizzle-orm inlined) so worker startup does not depend on
+ * the runtime module-resolution layout. The web image separately carries its
+ * production node_modules closure.
  *
  * @param {string | undefined} override
  * @returns {URL}
