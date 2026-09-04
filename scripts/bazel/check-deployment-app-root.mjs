@@ -24,10 +24,10 @@ function outputText(chunks) {
 	return Buffer.concat(chunks).toString('utf8').slice(-8_000);
 }
 
-async function runImportProof(label, cwd, source) {
+async function runNodeProof(label, cwd, args) {
 	const stdout = [];
 	const stderr = [];
-	const child = spawn(process.execPath, ['--input-type=module', '--eval', source], {
+	const child = spawn(process.execPath, args, {
 		cwd,
 		// Deliberately do not inherit rules_js/runfiles environment. The child
 		// must resolve only what the exported application root carries.
@@ -47,6 +47,11 @@ async function runImportProof(label, cwd, source) {
 				`stdout:\n${outputText(stdout)}\nstderr:\n${outputText(stderr)}`,
 		);
 	}
+	return { stdout: outputText(stdout), stderr: outputText(stderr) };
+}
+
+async function runImportProof(label, cwd, source) {
+	return runNodeProof(label, cwd, ['--input-type=module', '--eval', source]);
 }
 
 await runImportProof(
@@ -68,6 +73,24 @@ await runImportProof(
 	pgStorePath,
 	["await import('pg-pool');", "await import('pg-protocol');"].join('\n'),
 );
+
+// The owner image decides how these application-owned process boundaries are
+// exposed as OCI entrypoints. Prove here that the exact publication input
+// carries one dispatcher and that every declared role is independently
+// invocable without a database, queue, or network.
+for (const role of ['web', 'worker', 'migrator']) {
+	const result = await runNodeProof(`${role} dispatcher help`, appRoot, [
+		'scripts/platform-entrypoint.mjs',
+		role,
+		'--help',
+	]);
+	if (!result.stdout.includes(`Usage: ${role} [--help]`)) {
+		throw new Error(
+			`${role} dispatcher help omitted its usage contract\n` +
+				`stdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+		);
+	}
+}
 
 const host = '127.0.0.1';
 const port = 20_000 + (process.pid % 20_000);
@@ -131,4 +154,6 @@ try {
 	]);
 }
 
-console.log('deployment app-root proof OK: direct/transitive imports and adapter-node startup');
+console.log(
+	'deployment app-root proof OK: direct/transitive imports, three role dispatches, and adapter-node startup',
+);

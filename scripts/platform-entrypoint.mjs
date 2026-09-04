@@ -3,16 +3,15 @@
 //
 // The owner publication contract produces ONE immutable image carrying THREE
 // stable process names — `web`, `worker`, and `migrator`. This file is the
-// application bundle's single dispatcher; the qualified owner image installs
-// `/bin/web`, `/bin/worker`, and `/bin/migrator` as thin links onto it, so an
-// OCI runtime (and a Kubernetes Deployment/Job) selects a process boundary by
-// executable name rather than by a bespoke argv contract per workload.
+// application bundle's single dispatcher. The GF-I09 owner materializer owns
+// the OCI wrappers/config that expose those names; this consumer does not
+// prescribe links, interpreter paths, image layout, or runtime configuration.
 //
 // Two invocation shapes are supported, deliberately:
 //
-//   1. By linked name — `/bin/worker --help`. The role is read from
-//      `basename(argv[1])`. Node keeps argv[1] as the *link* path rather than
-//      the realpath, which is what makes the link scheme work at all.
+//   1. By executable name — `worker --help`. The role is read from
+//      `basename(argv[1])`, independent of how the owner materializer exposes
+//      that executable.
 //   2. By explicit argument — `node scripts/platform-entrypoint.mjs worker
 //      --help`. This is the shape a developer can exercise before the Bazel
 //      bundle is consumed by the qualified owner publication transaction.
@@ -42,7 +41,7 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-/** Stable process names carried by the platform image. Order is the help order. */
+/** Stable application roles exported for GF-I09. Order is the help order. */
 export const PLATFORM_ROLES = Object.freeze(['web', 'worker', 'migrator']);
 
 /**
@@ -135,10 +134,9 @@ export function platformRoleHelp(role) {
  * which lets browsers cache the page essentially forever without
  * revalidating.
  *
- * In the image the entrypoint sits at an absolute path handed over by
- * GFTB_WEB_ENTRYPOINT, because the dispatcher itself is installed into the Nix
- * store (or /app/scripts) and cannot assume a repo-relative layout. Outside the
- * image the repo-relative `server.js` is the natural default.
+ * In an owner-materialized image the entrypoint may sit at an absolute path
+ * handed over by GFTB_WEB_ENTRYPOINT. In the exported application root the
+ * repo-relative `server.js` is the natural default.
  *
  * @param {string | undefined} override
  * @returns {URL}
@@ -151,10 +149,9 @@ export function resolveWebEntrypoint(override) {
 /**
  * Locate the bundled migrator (TIN-3817 S1).
  *
- * Same shape as the web entrypoint, for the same reason: in the image this
- * dispatcher lives in the Nix store (or /app/scripts) and cannot infer a
- * repo-relative layout, so GFTB_MIGRATOR_ENTRYPOINT hands it the absolute path.
- * Outside the image the repo-relative `build/migrator.mjs` — the output of
+ * Same shape as the web entrypoint: an owner-materialized image may hand over
+ * an absolute path through GFTB_MIGRATOR_ENTRYPOINT. In the exported
+ * application root the repo-relative `build/migrator.mjs` — the output of
  * Bazel `//:migrator_bundle` (or `just db-migrator-bundle`) — is the natural
  * default.
  *
@@ -282,7 +279,7 @@ export async function runPlatformEntrypoint(options = {}) {
 
 /**
  * True when this module was executed directly rather than imported. Compared
- * through realpath so the /bin/<role> links still count as "direct".
+ * through realpath so an owner-selected launcher path still counts as direct.
  *
  * @param {string | undefined} argv1
  * @param {string} moduleUrl

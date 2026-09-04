@@ -2,9 +2,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { accessibilityPlugin } from '@tummycrypt/vite-plugin-a11y';
 import { skeletonColorUtilities } from '@tummycrypt/vite-plugin-skeleton-colors';
-import { execSync } from 'node:child_process';
 import { defineConfig, type Plugin, type PluginOption } from 'vite';
-import pkg from './package.json';
 
 // NOTE: the old skeletonTailwindV4Compat() shim (needed for Skeleton 4.15.2's
 // pre-stable `@variant` / `@apply variant-*` syntax) is deliberately GONE.
@@ -14,28 +12,6 @@ import pkg from './package.json';
 // [data-mode], never a `.dark` class). skeletonColorUtilities() below is NOT
 // part of that shim and stays: it supplies paired utilities like
 // `text-surface-900-50` that Skeleton itself never ships.
-
-// Build-info constants (mirrors MassageIthaca's build-info `define`). Resolved
-// once at config load. Env wins (CI), then a local git checkout, else unknown.
-function resolveCommitHash(): string {
-	const fromEnv = process.env.BUILD_COMMIT_SHA || process.env.GITHUB_SHA || process.env.CF_PAGES_COMMIT_SHA || '';
-	if (fromEnv) return fromEnv;
-	try {
-		// stderr ignored: on remote RBE workers git is absent and the shell's
-		// "git: command not found" polluted proof logs (the catch already
-		// handles the failure -> 'unknown').
-		return execSync('git rev-parse HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-	} catch {
-		return 'unknown';
-	}
-}
-
-const commitHash = resolveCommitHash();
-const buildInfo = {
-	version: pkg.version,
-	commitHash,
-	commitShort: commitHash === 'unknown' ? 'unknown' : commitHash.slice(0, 7),
-};
 
 // Bundle profiling: `ANALYZE=1 just build` (or `just analyze`) emits an
 // interactive treemap at .bundle-stats/stats.html. Loaded lazily at module
@@ -72,9 +48,9 @@ if (analyzeRequested) {
 // but it is not the default and is not a dependency of this scaffold.
 export default defineConfig({
 	// Expose `PUBLIC_`-prefixed env vars to client source via `import.meta.env`
-	// (alongside Vite's built-in `VITE_`). The published image supplies only
-	// public build provenance through this seam; no runtime authority or secret
-	// is widened by the prefix.
+	// (alongside Vite's built-in `VITE_`). The future typed GF-I07/GF-I09
+	// provenance carrier may supply PUBLIC_BUILD_SHA through this seam; no
+	// runtime authority or secret is widened by the prefix.
 	envPrefix: ['VITE_', 'PUBLIC_'],
 
 	// `@tummycrypt/tinyland-auth@0.3.3` does `import * as bcrypt from 'bcryptjs'`,
@@ -101,14 +77,6 @@ export default defineConfig({
 		sveltekit(),
 		...analyzePlugins,
 	],
-
-	// Build-time constants. Source that reads __VERSION__ / __COMMIT_HASH__
-	// should declare them as ambient globals (see src/app.d.ts when needed).
-	define: {
-		__VERSION__: JSON.stringify(buildInfo.version),
-		__COMMIT_HASH__: JSON.stringify(buildInfo.commitHash),
-		__COMMIT_SHORT__: JSON.stringify(buildInfo.commitShort),
-	},
 
 	build: {
 		reportCompressedSize: true,

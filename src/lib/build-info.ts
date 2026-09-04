@@ -1,9 +1,10 @@
 // Build provenance, read at build time through Vite's `import.meta.env` — the
 // same inlining path as the PUBLIC_ feature flags (see flags.ts and the
-// `envPrefix` in vite.config.ts). `PUBLIC_BUILD_SHA`, when supplied by the
-// qualified build action, binds the artifact to its source commit. The footer
-// degrades to nothing when that authority is absent; this application owns no
-// image-publisher recipe or fallback source for the value.
+// `envPrefix` in vite.config.ts). `PUBLIC_BUILD_SHA`, when supplied through a
+// typed GF-I07/GF-I09 provenance carrier, binds the artifact to its source
+// commit. The current v4 client authenticates the revision but does not yet
+// expose that carrier to Vite, so the footer degrades to nothing. This
+// application owns no image-publisher recipe or fallback source for the value.
 // Fail-quiet: absence renders no line, never a broken link.
 
 /**

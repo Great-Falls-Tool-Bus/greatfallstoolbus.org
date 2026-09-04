@@ -287,9 +287,9 @@
 					The Great Falls Tool Bus is an unincorporated community project in Lewiston-Auburn, Maine.
 				</p>
 				<p class="text-surface-500 mt-2 text-xs italic">Infrastructure built &amp; hosted in Lewiston, ME.</p>
-				<!-- Build provenance: shown only when the qualified build action bakes
-				     PUBLIC_BUILD_SHA into the application artifact. It degrades to nothing
-				     when that authority is absent. The short sha links to
+				<!-- Build provenance: shown only when the GF-I07/GF-I09 qualified
+				     provenance carrier supplies PUBLIC_BUILD_SHA to the artifact. It
+				     degrades to nothing while that authority is absent. The short sha links to
 				     the exact source commit, whose GitHub "Verified" badge substantiates the note:
 				     main is merged through GitHub, so its commits are signed by GitHub's web-flow
 				     key (committer = GitHub), not the author's own key. -->

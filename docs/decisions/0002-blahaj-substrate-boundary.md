@@ -2,6 +2,16 @@
 
 **Date:** 2026-07-02 · **Trigger:** operator correction (verbatim intent: "the apply plane for GFTB belongs in great-falls-tool-bus-infra; blahaj is the IaC substrate LAYER and must stay logically replaceable, never intertangled with projects"). Recorded in session memory (`gftb-initiation-2026-07.md`, BOUNDARY CORRECTION bullet) and acknowledged by the corrective agent on TIN-2378 (comment b25465d8, 2026-07-02T21:03:49Z: "blahaj = swappable substrate; apply plane re-homes to great-falls-tool-bus-infra").
 
+**Operational status (2026-09-04): boundary retained; execution mechanics
+superseded.** This ADR remains the ownership provenance for the consumer-owned
+overlay. Its dispatch, app-deploy, and provider-interface examples are
+historical and must not be recreated. The active application contract is
+`tinyland.repo.json` against the schema-v2 manifest plus `docs/CI-SCHEMA.md`:
+the application owns product source, finite Bazel targets, and ActionPlan/v4;
+the organization overlay owns signed consumer instances and owner
+transactions; GF owns interface types and verification; provider supply and
+placement stay opaque to the application.
+
 **Process rule:** every surface this memo contradicts takes a **dated correction note citing the decision, never a silent rewrite** (decision-ledger-2026-07.md:103-108). Mint **ledger item 19** for this correction, citing item 18 (the TIN-2360 packet sign-off), so downstream docs have a citable number.
 
 **Amendment note — 2026-07-02, TIN-2385 / ledger item 20:** the Cloudflare
@@ -18,36 +28,53 @@ custody for house zones and its shared tunnel/mail infrastructure.
 ## (a) The layering
 
 ### Layer 1 — Substrate: `tinyland-inc/blahaj` (+ the honey cluster)
-- **OWNS:** the physical cluster and its IaC (honey, RKE2, zero public IP — "any old cluster a user might have… never a required dependency", house-glorious-build-saas.md:58-63); Cloudflare edge custody — DNS/Access/Tunnel apply and credentials (prompts/53:88-89; house-secrets-fleet.md:30-33,66-67; house-ecosystem-map.md:33,47); the shared mail **transport** (postfix/dovecot/rspamd + account-controller — prompt 50:159-174 "do not rebuild it"); the shared SOPS plane's per-tenant recipient rule (prepared `tenants/.*/secrets/.*` rule, prompt 50:99-104); state-backend policy (ADR-007: RustFS for owner stacks only); the generic dispatch receiver and, medium-term, the tofu-agent apply receiver (ADR 004 contract, ADR 006 home).
-- **NEVER:** tenant stack definitions or tenant intent for new tenants — "Existing app-specific deploy and PR-lane workflows are adopted-live transition surfaces, not templates" (blahaj AGENTS.md:13-15); "Blahaj is not the durable app deployment substrate" (app-deployment-exception-register.md:4, stop-lines at :20,:31); bespoke per-repo receivers (taxonomy contract 2026-05-19:97-98,151-152 — named noise-to-remove); becoming "the permanent implementation home by accident" (ADR 006).
-- **INTERFACE (named, the only legal consumption surface):** `mail.tinyland.dev/v1alpha1` MailDomain/MailAccount CRDs; `relay.tinyland.dev` MX/transport; the dispatch JSON schemas ("this doc fixes the *wire* Blahaj receives, not its implementation" — CI-SCHEMA.md:66-67); the S3 tofu-state endpoint (env/operator authority, never baked — tofu/README.md, prompt 37:81-86); namespace-scoped kubeconfig grants (today hand-minted; formal contract is a gap — see interface_gaps); the tenant SOPS recipient rule; a tenant route-intent intake for tunnel ingress (gap).
+- **OWNS:** the physical cluster and its IaC (honey, RKE2, zero public IP — "any old cluster a user might have… never a required dependency", house-glorious-build-saas.md:58-63); Cloudflare edge custody — DNS/Access/Tunnel apply and credentials (prompts/53:88-89; house-secrets-fleet.md:30-33,66-67; house-ecosystem-map.md:33,47); the shared mail **transport** (postfix/dovecot/rspamd + account-controller — prompt 50:159-174 "do not rebuild it"); the shared SOPS plane's per-tenant recipient rule (prepared `tenants/.*/secrets/.*` rule, prompt 50:99-104); and provider-side capacity and placement under its own manifest.
+- **NEVER:** tenant application source or consumer-owned demand instances; provider placement does not enter an application ActionPlan or manifest.
+- **INTERFACE:** `mail.tinyland.dev/v1alpha1` MailDomain/MailAccount CRDs, `relay.tinyland.dev` MX/transport, and the upstream GF contracts resolved through the consumer-owned organization overlay. The application never consumes a cluster endpoint, kubeconfig, state backend, or provider route directly.
 
 ### Layer 2 — Org apply-plane overlay: `Great-Falls-Tool-Bus/great-falls-tool-bus-infra` (private; sense-3 per TIN-2299 L6, remit extended per this memo)
-- **OWNS:** **all** GFTB apply-plane concerns — ARC runner tenancy (live: `tofu/stacks/arc-runners/great-falls-tool-bus.tfvars`); mail intent as CR manifests (MailDomain/MailAccount for latoolb.us); the Mailman3/Postorius/HyperKitty and Anubis runtime stacks (`tofu/stacks/*`); DNS/tunnel **intent**; GFTB ciphertext under the distinct GFTB age recipient (a `.sops.yaml` to be created — none exists today); its own state coordinates (`tofu/backend/honey.s3.hcl`, RustFS prefix `great-falls-tool-bus-infra`); the protected plan/apply CI (the `deploy-arc-runners.yml` chassis: plan-on-PR, apply via workflow_dispatch, `allow_destroy` guard — already proven).
-- **NEVER:** Cloudflare credentials absent a new edge-authority decision (binding ban: "spokes and overlays never receive Cloudflare credentials", prompts/53:88-89); blahaj edits — the live precedent's written doctrine: "The stack and its tfvars live in this overlay, not in ~/git/blahaj. No blahaj edits." (jesssullivan-infra docs/jesssullivan-blog-shadow.md:16,30); copy-lifted module logic (the TIN-1520 `sed massageithaca→X` anti-pattern; reusable code goes upstream per the TIN-2299 model, or is extracted with a named second consumer per TIN-2029); ciphertext whose consumer is blahaj transport (DKIM — see (d)).
-- **INTERFACE:** consumes blahaj **only** through the Layer-1 named interfaces; consumes GF-core via pinned `GF_CORE_REF` + `tofu -chdir` into GF-core stacks (TIN-2299 surfaces 2/5).
+- **OWNS:** **all** GFTB apply-plane concerns, including the future signed
+  `OwnerInstallation/v1`, `TenantOverlay/v1`, consumer `RevocationSet/v1`, and
+  `OwnerOverlayRevision/v1` instances; application pins, workloads, state, and
+  secret declarations; mail/list/edge intent realization; and authorized owner
+  transactions. Existing ARC/manual surfaces are state-continuity inventory,
+  not v4 enrollment or convergence authority.
+- **NEVER:** application source or business data; reusable GF types/verifiers;
+  provider supply, placement, or endpoints; physical-cluster lifecycle; or
+  shared transport implementation.
+- **INTERFACE:** consumes qualified GF controller results and the Layer-1
+  services its own manifest names. Missing GF-I07/GF-I09 authority fails closed;
+  it does not restore a dispatch, direct endpoint, or attended application
+  release as the product path.
 
 ### Layer 3 — Project/spoke: `Great-Falls-Tool-Bus/greatfallstoolbus.org` (public)
-- **OWNS:** the public site; declare-only intent (dns-intent/mail-intent as public declaration); the names-only secret contract; `lanes.json` as the sole spoke-side lane declaration (taxonomy contract:56); the canonical decision packet (`docs/decisions/0001`).
-- **NEVER (boundary contract, packet 0001 — unchanged):** `.enc.yaml` ciphertext or age keys; Cloudflare or DNS credentials; cluster hostnames / grpc endpoints; tofu state or backend coordinates; DKIM private keys; and it never applies — "A spoke never holds CF creds, never applies gitops directly, and never owns a deploy target outside its lane" (prompt 38:117-120; house-spoke-deploy-lanes.md:88-99).
-- **INTERFACE:** `lanes.json` + dispatch schemas; published artifacts.
+- **OWNS:** the public product source, finite Bazel targets, `.github/lanes.json`
+  ActionPlan/v4 declaration, declare-only DNS/mail intent, and the canonical
+  decision packet (`docs/decisions/0001`).
+- **NEVER (boundary contract, packet 0001 — unchanged):** `.enc.yaml`
+  ciphertext or age keys; Cloudflare or DNS credentials; cluster hostnames or
+  REAPI endpoints; OpenTofu state/backend coordinates; DKIM private keys;
+  final OCI construction/publication; application pins/workloads; or apply.
+- **INTERFACE:** the immutable v4 CI-template invocation and verified
+  `ActionOutputSet/v1`; publication and convergence begin only in qualified GF
+  and owner-overlay transactions.
 
 **Grounding for the layering as doctrine, not fiat:** ledger item 2 — "Repo ownership is NOT a blocker — anywhere… fix the overlay, delete the framing" (decision-ledger-2026-07.md:14-18); TIN-2353 (L3) treats house-coupling in substrate defaults as a defect to remove; TIN-2364 (L5) retires compiled house identity so the house becomes an ordinary owner row of its own substrate; blahaj ADR 008 / Route B via TIN-2029's reducibility inventory (`blahaj/docs/architecture/blahaj-reducibility-inventory.md`) — every blahaj component is classified reusable / site-specific / dead, i.e. decomposability is standing doctrine. **Citation hazard:** cite the modularization doctrine as "blahaj ADR 008 (Route B), via TIN-2029" — bare "ADR-008" collides with dollhouse-farm's TIN-2090, and the blahaj ADR file itself is not yet written (blahaj `docs/architecture/decisions/` holds only 001–007; prompt 09:106-108).
 
 ## (b) How this refines the MassageIthaca precedent
 
-MI = the blahaj-embedded shape (`tofu/stacks/massageithaca{,-db,-deploy}` + bespoke receivers) = **legacy**, and was already recorded as such before today: the exception register's stop-line "Do not use the fixed-lane wrapper, stack shape, or branch mapping as a template" (:31) and "not the durable app deployment substrate" (:4); TIN-2020 calls the MI receiver "a legacy compatibility adapter"; TIN-1520 shows the pattern propagated by sed-copy — the exact intertangling the correction targets; the taxonomy contract (2026-05-19) lists bespoke receivers as noise-to-remove. Signed row (c)'s grounding "per the MassageIthaca precedent" was therefore **already forbidden by blahaj's own doctrine** — the correction restores the written rule rather than inventing one.
+MI = the blahaj-embedded shape (`tofu/stacks/massageithaca{,-db,-deploy}` + bespoke receivers) = **legacy**, and was already recorded as such before today: the exception register's stop-line "Do not use the fixed-lane wrapper, stack shape, or branch mapping as a template" (:31) and "not the durable app deployment substrate" (:4); TIN-2020 calls the MI receiver "a legacy compatibility adapter"; TIN-1520 shows the pattern propagated by sed-copy — the exact intertangling the correction targets. The schema-v2 manifest and `docs/CI-SCHEMA.md` now make that prohibition mechanical for this consumer. Signed row (c)'s grounding "per the MassageIthaca precedent" was therefore **already forbidden by blahaj's own doctrine** — the correction restores the written rule rather than inventing one.
 
 **The new exemplar is the GFTB pattern:** the consumer-owned org apply-plane overlay. Its live proof is jesssullivan-infra, which already runs full runtime stacks (jesssullivan-blog-shadow, euthanasiapettingparts-shadow: Deployment + Service + Tailscale Ingress + NetworkPolicy in an own namespace, own state key, applied by overlay CI, "No blahaj edits"). GFTB is the first **external-org** instance and should be named as the reference for all new tenants. Surfaces still calling MI "the reference" (house-ecosystem-map.md:24-26; prompt 53:178-179) take dated correction notes. **MI migration is not mandated** by this correction — the MI stacks stay grandfathered as adopted-live transitional receivers; convergence rides TIN-1981/MMS (open question, prompts/53:275-277).
 
 ## (c) The replaceability test
 
-If blahaj+honey were swapped for any other substrate, the **only** permitted changes in GFTB repos are:
-1. **Endpoint values:** `tofu/backend/*.s3.hcl` coordinates and the `substrate` block of `config/organization.yaml` (endpoint authority is env/operator, never baked — prompt 37:81-86).
-2. **Credential material:** the kubeconfig secret value, state-backend keys — secret **values** in protected environments; secret **names** unchanged (names-only contract).
-3. **Nothing else** — provided the replacement implements the same named interfaces (MailDomain/MailAccount CR shapes or equivalent, S3-compatible state, SMTP relay, route-intent intake, dispatch schemas).
-
-Stack definitions, CI workflow shape, `lanes.json`, the secret contract, and the decision docs must survive the swap byte-identical. **If a GFTB repo needs any code/schema/workflow change beyond values to survive the swap, that is a boundary defect — file it against the substrate interface, not the overlay.** This generalizes CI-SCHEMA's wire-not-implementation rule (CI-SCHEMA.md:66-67) from dispatch to the entire substrate boundary.
+If provider supply changes, the application repository remains byte-identical:
+its schema-v2 manifest names only the consumer-owned organization overlay, and
+its ActionPlan names only finite Bazel targets plus an abstract capability.
+Provider endpoints, credentials, workers, storage, and placement remain outside
+the application and its workflow. If a provider swap requires an application
+source, schema, or workflow change, that is a boundary defect.
 
 ## (d) What blahaj legitimately keeps
 
@@ -55,8 +82,10 @@ Stack definitions, CI workflow shape, `lanes.json`, the secret contract, and the
 2. **Shared mail transport as a service** — postfix/dovecot/rspamd + account-controller stay blahaj; the public interface is `relay.tinyland.dev` plus the MailDomain/MailAccount CRDs. Tenants declare CRs; the transport delivers. Do not rebuild it (prompt 50:159-174).
 3. **Cloudflare account custody — OPERATOR CHOICE, flagged:** either (i) status quo — blahaj keeps CF apply, tenants declare intent, the credential ban stands; or (ii) mint a zone-scoped CF token for greatfallstoolbus.org + latoolb.us into the infra repo's protected environment — which requires a **new edge-authority decision** amending prompts/53:88-89 and house-secrets-fleet.md:30-33. Until decided, tunnel/DNS **apply** stays blahaj-side; "ALL apply-plane concerns" is read with this single carve-out.
 4. **The shared SOPS plane** hosting per-tenant recipients, plus the irreducible transport-consumed ciphertext: DKIM private keys are mounted into blahaj-owned postfix/rspamd and are DNS-pinned/unrotatable, so they stay in blahaj's `tenants/great-falls-tool-bus/secrets/` lane. Everything else GFTB-encrypted lives in the infra repo.
-5. **The generic apply-receiver trajectory** (tofu-agent: ADR 004 contract, ADR 006 standalone home, TIN-715/2023/2027) — the sanctioned medium-term substrate interface. The overlay's hand-minted-kubeconfig pattern is explicitly transitional.
+5. **Provider-side execution supply**, consumed only through the GF contracts
+   resolved from consumer-owned signed demand. It never becomes an
+   application-owned receiver, endpoint, or fallback.
 
 ## Appendix — surfaces requiring dated correction notes (never silent rewrites)
 
-Canonical packet row (c) + boundary block (`greatfallstoolbus.org docs/decisions/0001`); the infra-repo pointer copy (`docs/mvp-decision-packet.md`, commit 23c1e68); TIN-2360 (re-opened In Review 21:03:56Z — land the amendment, re-close); TIN-2378/2379/2380 bodies; taxonomy contract :99-100 ("Blahaj owns apply"); house-spoke-deploy-lanes.md:93,98-99; dynamic-canary-blue-green.md:49,72-73; house-ecosystem-map.md:24-26 (MI as "the reference"); prompt 50 header + steps 4/5 (:6,304-317); 23-blahaj-gitops-cloud-exit.md:29-31 (golden-story "app deploy status"); tinyland-whoami SKILL.md infra enumeration ("blahaj, lab" → add owner overlays: great-falls-tool-bus-infra, jesssullivan-infra, tinyland-infra). Mint decision-ledger item 19 citing item 18.
+Canonical packet row (c) + boundary block (`greatfallstoolbus.org docs/decisions/0001`); the infra-repo pointer copy (`docs/mvp-decision-packet.md`, commit 23c1e68); TIN-2360 (re-opened In Review 21:03:56Z — land the amendment, re-close); TIN-2378/2379/2380 bodies; `docs/CI-SCHEMA.md`; house-spoke-deploy-lanes.md:93,98-99; house-ecosystem-map.md:24-26 (MI as "the reference"); prompt 50 header + steps 4/5 (:6,304-317); 23-blahaj-gitops-cloud-exit.md:29-31 (golden-story "app deploy status"); tinyland-whoami SKILL.md infra/owner-overlay enumeration. Mint decision-ledger item 19 citing item 18.

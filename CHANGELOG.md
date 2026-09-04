@@ -22,11 +22,10 @@ Versioning: [SemVer 2.0](https://semver.org/).
 
 ### Added
 
-- `/health` now serves the build-info commit sha at `.sha` alongside
-  `status: ok`, so the converge-agent's real-edge served-sha assert
-  (`site.scaffold` `modules/converge_agent` publication blocker item 3) can
-  verify the edge serves the commit it just applied; images without build
-  provenance serve `''`, which fails the assert instead of false-passing.
+- `/health` now reserves `.sha` alongside `status: ok` for the GF-I09 owner
+  convergence controller's served-source proof. Images without typed GF-I07/
+  GF-I09 build provenance serve `''`, which refuses the proof instead of
+  false-passing.
 - ALTCHA proof-of-work on the contact form (TIN-2420 Path B): a vendored,
   self-hosted `<altcha-widget>` (`static/vendor/altcha/altcha.js`, MIT, pinned to
   reference ALTCHA v3.2.0, zero npm/CDN dependency, CSP-clean) solves a signed

@@ -1,12 +1,13 @@
 /**
  * The `worker` process boundary (TIN-3817 slice S3).
  *
- * This file is the real implementation behind the entrypoint S0 declared and
- * failed closed: `/bin/worker` in the platform image, a Deployment in
- * `great-falls-tool-bus-infra`, and `just worker-bundle` for the payload. It
- * runs the transactional-outbox dispatch loop from `./outbox/dispatch` and
- * NOTHING else: no HTTP listener, no migrations on startup (spec §6 — only
- * the migrator runs DDL), no mail, no live delivery targets.
+ * This file is the real implementation behind the application `worker` role
+ * S0 declared and failed closed. GF-I09 must expose that role in the qualified
+ * owner image; `great-falls-tool-bus-infra` selects it for a Deployment, and
+ * `just worker-bundle` is the developer payload build. It runs the
+ * transactional-outbox dispatch loop from `./outbox/dispatch` and NOTHING
+ * else: no HTTP listener, no migrations on startup (spec §6 — only the
+ * migrator runs DDL), no mail, no live delivery targets.
  *
  * HANDLERS START EMPTY AND GROW ONE SLICE AT A TIME. Member v0 registers job
  * kinds as each owning slice lands: S9 (Stripe) registers `stripe.project`

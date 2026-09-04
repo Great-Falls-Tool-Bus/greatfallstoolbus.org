@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-// The /health body is the converge-agent's served-sha evidence surface
-// (site.scaffold modules/converge_agent: the carrier curls the real edge and
-// compares `jq -r .sha` — the GFTB instantiation uses the default
-// served_sha_field — against the application repo's resolved main head).
+// The /health body is the stable served-sha projection consumed by the GF-I09
+// owner convergence controller once a typed GF-I07/GF-I09 source-provenance
+// carrier exists.
 // These tests are mutation-proven against the two historical defects:
 //   1. the body serving no sha at all ({status:'ok'} — the blocker item), and
 //   2. the sha field decoupling from the build-info constant (a hardcoded or
@@ -28,11 +27,11 @@ describe('GET /health', () => {
 		expect(body.status).toBe('ok');
 	});
 
-	it('serves the build-info commit sha at the `.sha` field the converge-agent asserts', async () => {
+	it('serves the build-info commit sha at the stable `.sha` field', async () => {
 		const { GET } = await import('./+server');
 		const response = GET({} as never) as Response;
 		const body = JSON.parse(await response.text());
-		// Field must exist under the exact default served_sha_field name…
+		// Field must exist under the exact owner-controller contract name…
 		expect(Object.keys(body)).toContain('sha');
 		// …and carry the build-info constant, not a copy or a literal.
 		expect(body.sha).toBe(MOCK_SHA);

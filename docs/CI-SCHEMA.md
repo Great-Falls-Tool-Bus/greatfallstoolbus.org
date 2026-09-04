@@ -75,9 +75,13 @@ packages. The Node toolchain layer is omitted because the owner image supplies
 the pinned Node 24 executable; no host, Nix, registry, or local bridge supplies
 application packages. `//:deployment_app_root_test` extracts the exact
 uncompressed archive that the bundle wraps, proves representative direct and
-transitive bare imports from that root, and starts its adapter-node server. The
-bundle is a runnable publication input, not an OCI image, a registry write, a
-publication request, or a deployment transaction.
+transitive bare imports from that root, invokes the bundled dispatcher as each
+of `web`, `worker`, and `migrator` with `--help`, and starts its adapter-node
+server. This proves the application-owned role boundaries, not `/bin/*`
+wrappers, an image UID, OCI config, or an interpreter closure; those are GF-I09
+owner-materializer output proofs. The bundle is a runnable publication input,
+not an OCI image, a registry write, a publication request, or a deployment
+transaction.
 
 ## GitHub edge
 
@@ -105,6 +109,14 @@ GFTB has no remote action producing its publishable OCI payload. Publication
 and production convergence therefore remain blocked rather than falling back
 to an application-owned workflow.
 
+The same boundary currently leaves application source provenance unavailable:
+ci-templates authenticates the source SHA to `gf-action-client`, but the v4
+execution sandbox does not expose that value to Vite as `PUBLIC_BUILD_SHA`.
+Consequently the current bundle renders an empty `/health.sha` and no footer
+SHA. Only a typed GF-I07/GF-I09 provenance carrier may bind that authenticated
+revision into the qualified artifact; this consumer must not recover it from
+ambient Git state or introduce an application-specific execution channel.
+
 ## Activation gates
 
 Keep the source carrier Draft until all of these exist for the same immutable
@@ -117,7 +129,9 @@ tuple:
    raw ActionPlan digest and source identity;
 4. the dispatcher image contains the protected `gf-action-client`;
 5. GitHub OIDC and REAPI admission accept the exact tuple; and
-6. LGTM attributes a remote Execute or same-tenant CAS/AC withdrawal.
+6. LGTM attributes a remote Execute or same-tenant CAS/AC withdrawal; and
+7. GF-I07/GF-I09 bind the authenticated source revision into the qualified
+   artifact and prove the final owner-image wrappers/config for all three roles.
 
 No consumer overlay instance is added here before the controller schema lands;
 inventing a parallel JSON wire would fork the product interface.

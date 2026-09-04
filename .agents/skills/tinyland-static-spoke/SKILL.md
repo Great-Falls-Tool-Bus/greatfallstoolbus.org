@@ -1,6 +1,6 @@
 ---
 name: tinyland-static-spoke
-description: Customize, review, or maintain a Tinyland static spoke site created from tinyland-inc/site.scaffold. Use when changing AGENTS.md, CLAUDE.md, README.md, SvelteKit static routes, theme files, static projection ingestion, Blahaj lane previews, llms.txt, sitemap/robots, public preview docs, or per-site brand setup.
+description: Customize, review, or maintain a Tinyland static spoke site created from tinyland-inc/site.scaffold. Use when changing AGENTS.md, CLAUDE.md, README.md, SvelteKit static routes, theme files, static projection ingestion, ActionPlan declarations, llms.txt, sitemap/robots, or per-site brand setup.
 ---
 
 # Tinyland Static Spoke
@@ -13,16 +13,16 @@ backend, and does not own auth, user data, payments, mutation APIs, ActivityPub
 delivery, or runtime broker fetches.
 
 Do not use this skill to impose static-spoke restrictions on `tinyland.dev` or
-MassageIthaca-shaped app/stateful repos. For cross-repo taxonomy, read
-`docs/spec/tinyland-repo-taxonomy-and-gitops-contract-2026-05-19.md`.
+app-stateful repos. For cross-repo taxonomy, read the repository's
+`tinyland.repo.json` against
+`docs/schemas/tinyland-repo-manifest.v2.schema.json`.
 
 ## First Reads
 
 Read these before editing:
 
 - `AGENTS.md` for the repo-local operating contract.
-- `docs/CI-SCHEMA.md` before changing lanes, workflows, Tofu, Blahaj dispatch,
-  or Flywheel recipes.
+- `docs/CI-SCHEMA.md` before changing the ActionPlan or immutable v4 workflow.
 - `Justfile` before running or documenting commands.
 - `src/app.css`, `src/lib/styles/themes/`, and existing Svelte components before
   changing visuals.
@@ -56,13 +56,15 @@ Fediverse delivery.
 
 ## Lane And Preview Rules
 
-Lanes live in `.github/lanes.json`. Blahaj receives one dispatch containing all
-lanes for a PR. Use `just lanes-validate` after lane edits.
+Finite Bazel action intent lives in `.github/lanes.json` as an ActionPlan/v4
+schema-3 declaration. Use `just lanes-validate` after action edits. Keep
+provider placement, endpoints, credentials, publication, apply, and lifecycle
+out of the plan and application workflow.
 
-Tailnet PR lanes are the default. Public/client previews are explicit overlays
-requested through the public-preview dispatch schema. Spokes do not own
-Cloudflare mutation credentials; Blahaj owns DNS, Access, Tunnel ingress, and
-TTL cleanup.
+Browser LOOK and preview lifecycle require a separately admitted controller
+result and an owner-overlay transaction. A spoke must not add a dispatch,
+reaper, direct cluster mutation, or Cloudflare credential when that authority
+is unavailable; it fails closed.
 
 ## Agent-Facing Surfaces
 

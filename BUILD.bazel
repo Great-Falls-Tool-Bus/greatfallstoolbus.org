@@ -540,7 +540,8 @@ pkg_tar(
 )
 
 # The validation action extracts the same uncompressed archive that is wrapped
-# below, so its imports and server startup exercise the exact exported app root.
+# below, so its imports, three role dispatches, and server startup exercise the
+# exact exported app root. Final OCI wrappers/config remain GF-I09 output proof.
 extract_deployment_app_root(
     name = "deployment_app_root",
     src = ":deployment_app_root_archive",

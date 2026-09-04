@@ -1,11 +1,12 @@
 /**
  * The `migrator` process boundary (TIN-3817 slice S1).
  *
- * This file is the real implementation behind the entrypoint S0 declared and
- * failed closed: `/bin/migrator` in the platform image, a pre-rollout Job in
- * `great-falls-tool-bus-infra`, and `just db-migrate` locally. It is the ONLY
- * thing in the fleet that runs DDL. `web` and `worker` never migrate on
- * startup (spec §6).
+ * This file is the real implementation behind the application `migrator` role
+ * S0 declared and failed closed. GF-I09 must expose that role in the qualified
+ * owner image; `great-falls-tool-bus-infra` selects it for a pre-rollout Job,
+ * and `just db-migrate` is the developer entrypoint. It is the ONLY thing in
+ * the fleet that runs DDL. `web` and `worker` never migrate on startup (spec
+ * §6).
  *
  * The contract, in order:
  *
@@ -108,11 +109,11 @@ Exit codes:
  * Locate `drizzle/`.
  *
  * Three candidates, in order of how much the caller told us: the explicit
- * environment name; the layout the platform image ships (`/app/build/` next to
- * `/app/drizzle/`); and the repo layout used by `just db-migrate` and the
- * integration suite. A miss is EX_MALFORMED rather than an empty migration
- * set, because "no migrations found" and "no migrations pending" must never
- * look alike.
+ * environment name; the application-root layout exported by
+ * `//:deployment_bundle` (`build/` next to `drizzle/`); and the repo layout used
+ * by `just db-migrate` and the integration suite. A miss is EX_MALFORMED rather
+ * than an empty migration set, because "no migrations found" and "no migrations
+ * pending" must never look alike.
  */
 export function resolveMigrationsDir(
 	env: NodeJS.ProcessEnv = process.env,

@@ -25,8 +25,8 @@ allowed-tools:
 ## Why this is user-only
 
 `disable-model-invocation: true` because spawning a new repo creates durable
-public artifacts (GitHub repo, default branch, possibly DNS via tofu). The user
-must initiate it. The agent assists; it does not decide to spawn.
+artifacts (a GitHub repository and default branch). The user must initiate it.
+The agent assists; it does not decide to spawn or authorize infrastructure.
 
 ## Inputs the agent should confirm before running
 
@@ -75,12 +75,15 @@ just build
 just conformance
 
 # 8. First commit + push.
-git add -A
-git commit -m "feat: scaffold <site-domain> from greatfallstoolbus.org"
+git status --short
+# Stage every reviewed path explicitly; never use git add -A in a shared tree.
+# Use `git add -- path ...` with only the reviewed paths shown above.
+git diff --cached --name-only
+git commit -S -m "feat: scaffold <site-domain> from tinyland-inc/site.scaffold"
 git push -u origin main
 
-# 9. Verify CI green (secrets-scan, build-and-test, bazel-graph).
-gh run watch
+# 9. Take one CI status snapshot, then return instead of polling.
+gh run list --branch main --limit 5
 ```
 
 ## What to NOT do during a spawn
@@ -95,22 +98,25 @@ gh run watch
   major bump of either always breaks — see the 4.x → 5.x paired-bump PR).
 - Do not fork `tummycrypt_tinyland_color_utils`, `tinyvectors`, or the vite
   plugins per-site. Pin via `tinyland-inc/bazel-registry`.
-- Do not add Cloudflare API credentials to the spoke. `blahaj` owns DNS,
-  Access, Tunnel ingress, and TTL cleanup.
+- Do not add Cloudflare API credentials, provider placement, OpenTofu state, or
+  apply logic to the spoke. The consumer-owned organization overlay owns its
+  signed demand and owner transactions; provider supply remains opaque.
 - Do not commit `.env`, decrypted SOPS, or tokens. The Justfile's
   `secrets-scan` recipe is part of `just check`.
 
 ## Post-spawn handoffs
 
-- Open a Linear issue under TIN-1437 (greatfallstoolbus.org v2 umbrella) to track the
-  new spoke's adoption status.
-- Add the spoke's domain to the parent scaffold's spoke registry (when one
-  exists — currently a manual list in `docs/spec/...`).
+- Track adoption in the target organization's current initiative only when its
+  repo contract names one; never attach a generic spoke to a GFTB project by
+  default.
+- Update a spoke registry only when site.scaffold names a current canonical
+  registry; do not invent or reconstruct one from historical docs.
 - If the spoke needs per-PR ephemeral envs beyond the default lane, edit
   `.github/lanes.json` and run `just lanes-validate` before pushing.
-- If the spoke needs public client previews, follow the
-  `docs/schemas/public-preview-dispatch.schema.json` overlay rather than
-  recycling `alpha`/`beta`.
+- A public client preview requires a separately admitted controller result and
+  owner-overlay lifecycle transaction. If those authorities are unavailable,
+  leave the preview unavailable; do not create a spoke-owned dispatch or
+  reaper.
 
 ## When to push back on a spawn request
 

@@ -9,12 +9,12 @@
 #   bazel-site (cache)   -> bazel-<site>          (slug)
 #
 # --adapter selects the SvelteKit build target for the spawned spoke:
-#   static (default)  -> @sveltejs/adapter-static  (GitHub/CF Pages, DB-less)
+#   static (default)  -> @sveltejs/adapter-static  (DB-less)
 #   node              -> @sveltejs/adapter-node     (dynamic-spoke variant)
 # The dynamic-spoke variant is the flagged adapter mode authored in
-# docs/decisions/dynamic-spoke-adapter-mode.md. When `node`, the spoke is
-# stamped with the `app-stateful-spoke` role and its deploy lane flips to the
-# blue/green path designed in docs/decisions/dynamic-canary-blue-green.md.
+# docs/decisions/dynamic-spoke-adapter-mode.md. Adapter selection never creates
+# a deploy lane: publication, preview lifecycle, apply, and edge mutation stay
+# in separately authorized controller and owner-overlay transactions.
 #
 # Idempotent: running twice is a no-op once strings have been replaced and the
 # adapter has been selected (crash-safe: all in-place edits go through tmp+mv).
@@ -52,6 +52,25 @@ SLUG=$(echo "$DOMAIN" | cut -d. -f1)
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
+
+# Preserve the immutable schema-v2 creation provenance before the placeholder
+# substitution touches tinyland.repo.json. The template must supply it; the
+# spawned repository must never infer it from its own history.
+ORIGIN_SHA=
+if [[ -f tinyland.repo.json ]]; then
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "error: jq is required to preserve schema-v2 scaffold_origin" >&2
+    exit 1
+  fi
+  ORIGIN_REPO=$(jq -r '.scaffold_origin.repository // empty' tinyland.repo.json)
+  ORIGIN_SHA=$(jq -r '.scaffold_origin.commit_sha // empty' tinyland.repo.json)
+  if [[ "$ORIGIN_REPO" != "tinyland-inc/site.scaffold" \
+      || ! "$ORIGIN_SHA" =~ ^[0-9a-f]{40}$ \
+      || "$ORIGIN_SHA" =~ ^0{40}$ ]]; then
+    echo "error: tinyland.repo.json lacks an exact schema-v2 scaffold_origin" >&2
+    exit 1
+  fi
+fi
 
 # ─────────────────────────────────────────────────────────────────────
 # Dynamic-spoke adapter selection (TIN-2228). See
@@ -107,11 +126,29 @@ SVELTE_NODE
     mv svelte.config.js.tmp svelte.config.js
   fi
 
-  # 3) tinyland.repo.json: stamp the dynamic-spoke role (jq, tmp+mv).
-  #    Reuses the existing `app-stateful-spoke` repoRole (a dynamic spoke owns
-  #    a runtime backend); see the ADR for why no new enum value is added.
+  # 3) tinyland.repo.json: convert the scaffold instance to the schema-v2
+  #    app-stateful role (jq, tmp+mv). A non-scaffold role must not retain
+  #    taxonomy.spawned_repo_role.
   if command -v jq >/dev/null 2>&1 && [[ -f tinyland.repo.json ]]; then
-    jq '.taxonomy.spawned_repo_role = "app-stateful-spoke"' \
+    jq '
+      .taxonomy.primary_role = "app-stateful-spoke"
+      | del(.taxonomy.spawned_repo_role)
+      | .taxonomy.layers = [
+          "org-wide-repo-contract",
+          "bazel-package-cache-rbe",
+          "app-stateful-spoke"
+        ]
+      | .boundaries.owns_runtime_backend = true
+      | .boundaries.owns_gitops_apply = false
+      | .boundaries.owns_cloudflare_mutation = false
+      | .boundaries.owns_application_pins = false
+      | .boundaries.owns_application_state = false
+      | .boundaries.owns_secret_declarations = false
+      | .boundaries.owns_application_workloads = false
+      | .boundaries.owns_application_zone_dns = false
+      | .boundaries.owns_application_mail_policy = false
+      | .boundaries.owns_application_database = false
+    ' \
       tinyland.repo.json > tinyland.repo.json.tmp \
       && mv tinyland.repo.json.tmp tinyland.repo.json
   fi
@@ -119,10 +156,10 @@ SVELTE_NODE
   echo "adapter: swapped to @sveltejs/adapter-node (dynamic-spoke variant)"
   echo "  svelte.config.js          -> adapterNode()"
   echo "  package.json devDep       -> @sveltejs/adapter-node"
-  echo "  spawned_repo_role         -> app-stateful-spoke"
+  echo "  primary_role              -> app-stateful-spoke"
 }
 
-if ! grep -rq 'site\.scaffold' --include='*.json' --include='*.md' --include='*.ts' --include='*.js' --include='*.bazel' --include='Justfile' --include='.envrc' --include='.bazelrc' .; then
+if ! grep -rq 'site\.scaffold' --exclude='tinyland.repo.json' --include='*.json' --include='*.md' --include='*.ts' --include='*.js' --include='*.bazel' --include='Justfile' --include='.envrc' --include='.bazelrc' .; then
   echo "no scaffold placeholders detected — already rebranded?" >&2
   exit 0
 fi
@@ -164,13 +201,15 @@ if command -v jq >/dev/null 2>&1 && [[ -f .github/lanes.json ]]; then
     && mv .github/lanes.json.tmp .github/lanes.json
 fi
 
-# tinyland.repo.json — stamp the scaffold release tag this spoke was spawned from.
-# tinyland-scaffold-doctor Layer 2 reads .scaffold_tag for the version-drift diff; without it the
-# doctor silently falls back to "latest release". Override the detected tag with SCAFFOLD_TAG=.
-SCAFFOLD_TAG="${SCAFFOLD_TAG:-$(git -C "$ROOT" describe --tags --abbrev=0 2>/dev/null || echo unknown)}"
-if command -v jq >/dev/null 2>&1 && [[ -f tinyland.repo.json ]]; then
-  jq --arg tag "${SCAFFOLD_TAG}" '.scaffold_tag = $tag' \
-    tinyland.repo.json > tinyland.repo.json.tmp \
+# tinyland.repo.json — restore the exact schema-v2 scaffold origin captured
+# before the global brand substitution.
+if [[ -n "$ORIGIN_SHA" ]]; then
+  jq --arg sha "$ORIGIN_SHA" '
+    .scaffold_origin = {
+      repository: "tinyland-inc/site.scaffold",
+      commit_sha: $sha
+    }
+  ' tinyland.repo.json > tinyland.repo.json.tmp \
     && mv tinyland.repo.json.tmp tinyland.repo.json
 fi
 
@@ -185,7 +224,7 @@ echo "  underscored: ${UNDERSCORED}"
 echo "  bazel cache: bazel-${SLUG}"
 echo "  lanes.json spoke: ${SLUG} / ${DOMAIN}"
 echo "  adapter:     ${ADAPTER}"
-[[ -f tinyland.repo.json ]] && echo "  scaffold_tag:    ${SCAFFOLD_TAG}" || true
+[[ -n "$ORIGIN_SHA" ]] && echo "  scaffold_origin: ${ORIGIN_SHA}" || true
 echo
 echo "next:"
 echo "  1. Review git diff"
@@ -198,8 +237,8 @@ if [[ "$ADAPTER" == "node" ]]; then
   echo
   echo "dynamic-spoke (adapter-node) follow-ups:"
   echo "  - Smoke-serve with 'node build/index.js' (NOT a static file server)."
-  echo "  - Flip the deploy lane to the blue/green path:"
-  echo "    docs/decisions/dynamic-canary-blue-green.md."
+  echo "  - Declare only finite Bazel actions in the schema-v2 ActionPlan."
+  echo "  - Do not add publication, preview, apply, or provider placement here."
   echo "  - This spoke now declares app-stateful-spoke; it MAY own a runtime"
   echo "    backend. Re-check boundaries in tinyland.repo.json before shipping."
 fi

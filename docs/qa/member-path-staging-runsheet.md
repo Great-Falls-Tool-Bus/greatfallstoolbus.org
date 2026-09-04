@@ -504,7 +504,7 @@ non-sensitive receipt and all of these are true:
   seven gates.
 - PINNED: committed infra digest equals the live pod imageID.
 - RUNNING: observed generation and intended replica readiness agree.
-- SERVED: external /health.sha equals the application source SHA.
+- SERVED: external /health.sha equals the GF-qualified application source SHA.
 - Mail remains disabled unless separately authorized after template approval.
 
 Until a finance-write surface exists, cash/check remains BLOCKED. Until

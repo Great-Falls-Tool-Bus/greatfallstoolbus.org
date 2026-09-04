@@ -1,9 +1,9 @@
 ---
 name: tinyland-whoami
-description: Classify the current repository's role inside the Tinyland ecosystem (hub / static-spoke / dynamic-spoke / package-producer / package-authority / infra / tooling / business-internal) and surface the small set of skills, contracts, and authorities that actually apply. Use when landing in an unfamiliar tinyland repo, when AGENTS.md is missing or thin, when an agent needs to decide which other skill to invoke, or when the user asks "what kind of repo am I in?" / "what should I read first?" / "what skills apply here?".
+description: Classify the current repository's role inside the Tinyland ecosystem (hub, static-spoke, app-stateful-spoke, package, infra/owner-overlay, tooling, or business-internal) and surface the small set of skills, contracts, and authorities that apply. Use when landing in an unfamiliar Tinyland repo, when AGENTS.md is missing or thin, when an agent must choose applicable contracts, or when the user asks what kind of repo this is or what to read first.
 when_to_use: |
   Run on cold landing in any repo under tinyland-inc/* or any sister site spawned from
-  greatfallstoolbus.org. Especially valuable when AGENTS.md is missing/stale, when the repo's
+  tinyland-inc/site.scaffold. Especially valuable when AGENTS.md is missing/stale, when the repo's
   shape isn't obvious from filenames, when an agent must pick between conflicting
   conventions (mothership vs spoke vs package), or when the user asks for orientation.
 allowed-tools:
@@ -21,11 +21,11 @@ allowed-tools:
 
 Tinyland repos come in shapes that have different rules. A static spoke must not
 own auth or payments; the mothership must; a package-producer publishes Bazel
-modules into `tinyland-inc/bazel-registry`; infra repos (blahaj, lab) own GitOps
-receipt and on-prem K8s; tooling repos (this scaffold, ci-templates) template
-and template-validate the others. Applying the wrong shape's rules — for example
-adding ActivityPub delivery to a static spoke, or treating tinyland.dev like a
-spoke — causes real, durable damage.
+modules into `tinyland-inc/bazel-registry`; infra, owner-overlay, and tooling
+repos each own only the authority their manifests declare. Applying the wrong
+shape's rules — for example adding ActivityPub delivery to a static spoke or
+putting apply/provider placement in an application repo — causes real, durable
+damage.
 
 This skill tells you which shape applies before you edit anything.
 
@@ -34,12 +34,13 @@ This skill tells you which shape applies before you edit anything.
 1. **Read `tinyland.repo.json` if it exists.** That's the authoritative declaration.
    `taxonomy.primary_role` is the canonical answer. `boundaries.*` tell you what
    the repo is allowed to own (`owns_auth`, `owns_payments`, `owns_activitypub_delivery`,
-   `owns_runtime_backend`, etc.). `authorities.*` tell you who owns the things
-   this repo doesn't (content authority, GitOps receiver, RBE authority, package
-   registry). Stop here when present.
+   `owns_runtime_backend`, etc.). `enrollment.organizationOverlay` identifies
+   the consumer-owned declaration/transaction overlay; `authorities.*` names
+   the remaining external authorities without exposing provider placement.
+   Stop here when present.
 
 2. **Run `just whoami`.** The recipe wraps `scripts/whoami.py`, which validates
-   `tinyland.repo.json` against `docs/schemas/tinyland-repo-manifest.schema.json`,
+   `tinyland.repo.json` against `docs/schemas/tinyland-repo-manifest.v2.schema.json`,
    then prints a one-screen summary with the matching skills to load.
 
 3. **Fall back to heuristics** when `tinyland.repo.json` is absent (older repos
@@ -73,17 +74,20 @@ For each role, the canonical skill chain is:
   upstream `tinyland-flywheel-enroll` skill for v4 ActionPlan adoption.
   Federates from `tinyland.dev` via signed `PublicPulseSnapshot` JSON.
   Read-only consumer. The spoke owns action intent; its organization-owned
-  `-infra` overlay owns enrollment instances. GF core owns neither.
-- **dynamic-spoke** (e.g. `software.tinyland.dev-booking`): repo-contract + the
-  dynamic-spoke skill (not yet authored — flag to the user). Owns its own data,
-  consumes hub auth.
+  `-infra` overlay owns enrollment instances. GF core owns their types and
+  verifier, never the consumer instances.
+- **app-stateful-spoke**: `tinyland-repo-contract` plus any repo-specific
+  skills named by its `AGENTS.md`. It may own runtime behavior and data while
+  still exporting only application actions; publication, apply, and provider
+  placement remain outside the application repo.
 - **package-producer**: repo-contract + a package-producer skill (not yet
   authored). Must publish into `tinyland-inc/bazel-registry`. Versions must be
   exact-pinned by consumers.
-- **infra (`blahaj`, `lab`)**: repo-contract only here. Per-repo `AGENTS.md` is
-  load-bearing; do not generalize.
-- **tooling (`greatfallstoolbus.org`, `ci-templates`)**: repo-contract +
-  whatever the repo templates. This is the meta-layer.
+- **infra / owner overlay** (`blahaj`, `lab`, organization `-infra` repos):
+  repo-contract only here. Per-repo `AGENTS.md` and manifest are load-bearing;
+  do not generalize one repo's apply or provider authority to another.
+- **tooling** (`site.scaffold`, `ci-templates`): repo-contract plus whatever
+  the repo templates. This is the meta-layer.
 
 ## Outputs to produce
 

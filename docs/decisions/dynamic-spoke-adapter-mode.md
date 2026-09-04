@@ -1,6 +1,7 @@
 # ADR: the dynamic-spoke is a flagged adapter mode IN site.scaffold
 
-- **Status:** Accepted (design-heavy; in-repo parts implemented)
+- **Status:** Accepted for adapter selection; deployment mechanism superseded by
+  the schema-v2 ActionPlan/v4 and owner-overlay contract (2026-09-04)
 - **Date:** 2026-06-29
 - **Linear:** TIN-2228 (dynamic-spoke capstone)
 - **Supersedes / relates to:** TIN-1280 (printstack hand-rolled the swap), TIN-2230
@@ -8,8 +9,9 @@
 
 ## Context
 
-The house default is **adapter-static → GitHub/CF Pages**: cheap, DB-less, no edge
-auth, perfect for content/brand spokes. But a growing set of spokes genuinely need
+The house default is **adapter-static**: DB-less and suitable for content/brand
+spokes. Hosting and lifecycle are separate owner transactions, not properties of
+the adapter choice. A growing set of spokes genuinely need
 a server at runtime — a secret-holding proxy, upstream normalization (header
 stripping, bbox rewriting), or thin API routes the browser cannot do safely. The
 `darkmap.phasi.space` spoke already runs `@sveltejs/adapter-node` for exactly this
@@ -38,7 +40,10 @@ conformance, lanes contract, etc.).
      while keeping `compilerOptions.runes` and the `BASE_PATH` `paths.base` that
      merged with #31. The rewrite is a full deterministic template, not a fragile
      in-place patch.
-   - `tinyland.repo.json`: stamp `taxonomy.spawned_repo_role` (see role decision).
+   - `tinyland.repo.json`: replace the scaffold role with schema-v2
+     `taxonomy.primary_role = "app-stateful-spoke"`, remove
+     `taxonomy.spawned_repo_role`, select the app-stateful layers, and retain
+     false application apply/publication boundaries (see role decision).
 
    All three edits are crash-safe (`tmp` file then `mv`) and idempotent: the
    function gates on `grep adapter-node svelte.config.js` and no-ops on a second
@@ -52,8 +57,10 @@ conformance, lanes contract, etc.).
    `app-stateful-spoke` denotes (the `MassageIthaca`-shaped class AGENTS.md
    already describes). Adding a new `dynamic-spoke` enum would mean editing both
    `repoRole` and `taxonomyLayer`, updating every consumer of the taxonomy, and
-   carrying two near-synonymous roles — for no semantic gain. So `--adapter=node`
-   stamps `spawned_repo_role = "app-stateful-spoke"`.
+   carrying two near-synonymous roles — for no semantic gain. So
+   `--adapter=node` converts the generated repository's primary role to
+   `app-stateful-spoke`; `spawned_repo_role` remains scaffold-only and is
+   removed.
 
 ## Why not the alternatives
 
@@ -73,11 +80,11 @@ conformance, lanes contract, etc.).
   …) does **not** apply to it — a node spoke MAY legitimately own a runtime
   backend. The operator must re-check the `boundaries` object after flipping;
   `rebrand.sh` prints that reminder.
-- The deploy lane must flip with the adapter: static = Pages health-gate, dynamic
-  = blue/green via the Blahaj GitOps receiver. That is designed (not executed) in
-  [`dynamic-canary-blue-green.md`](./dynamic-canary-blue-green.md).
+- Adapter selection does not create a deploy lane. An app-stateful consumer owns
+  finite Bazel targets and its ActionPlan/v4 declaration; publication, preview
+  lifecycle, OpenTofu apply, and edge mutation require separately admitted
+  controller results and consumer-owned owner-overlay transactions.
 - The smoke serve path changes: `node build/index.js`, not a static file server.
-- **In-scope for this slice (implemented):** the `--adapter=node` flag, this ADR,
-  the canary/blue-green DESIGN, the schema-role decision + wiring, and the AGENTS
-  update. **Out of scope (not executed):** a full adapter-node production build,
-  Superforms, and any live deploy/canary execution.
+- **In-scope for this historical slice:** the `--adapter=node` flag, this ADR,
+  and the schema-role decision. **Not authorized by this ADR:** publication,
+  preview lifecycle, apply, edge mutation, or any provider-placement decision.

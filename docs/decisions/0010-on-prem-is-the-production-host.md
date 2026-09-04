@@ -17,9 +17,9 @@
     (TIN-2535) - historical preview decision, superseded again by the v4
     controller-result and owner-overlay reap contract described in §4.
   - `docs/CI-SCHEMA.md` (the current v4 product-export contract),
-    `dynamic-spoke-adapter-mode.md` and `dynamic-canary-blue-green.md` (the
-    adapter-mode / lane design), `0002-blahaj-substrate-boundary.md` (the
-    three-layer boundary this preserves).
+    `dynamic-spoke-adapter-mode.md` (the adapter selection), and
+    `0002-blahaj-substrate-boundary.md` (the ownership boundary this
+    preserves).
 - Boundary: this repo stays schema-pinned `owns_cloudflare_mutation=false` and
   `owns_gitops_apply=false` (`tinyland.repo.json`). It **codifies the ruling and
   the host of record**; every apply named in §5 is executed by
@@ -237,30 +237,20 @@ as the shipped shape, not a reserved future path:
 
 - Bazel `//:deployment_bundle` exports the adapter-node server and its three
   process payloads as the application-owned publication input.
-- The infra web Deployment runs that image today
+- The infra web Deployment remains the live state-continuity surface
   (`great-falls-tool-bus-infra:k8s/web/greatfallstoolbus-org-production/`, infra
-  PR #60): digest-pinned, `replicas: 0 -> 2`, readiness/liveness `httpGet
-  /health` probes.
-- The `/health` probe route and the `PUBLIC_ARCHIVE_LIVE` build-time flag are
-  baked into that node image (site PR #111); the probe target
-  (`node build/index.js` serving `GET /health` live) is adapter-node-specific.
-- `/discuss` does a build-time in-cluster fetch of the HyperKitty archive (site
-  PR #113, wired in PR #114), with a documented, deliberate post-cutover flip to
-  **per-request SSR** once adapter-node is the served origin (PR #114: *"Post-
-  cutover (TIN-2543, adapter-node) the `prerender` flip makes this per-request
-  live — deliberately NOT done here."*). Per-request SSR against a live
-  in-cluster origin is a capability a plain static file server structurally
-  cannot provide; it requires a running Node process.
-- **MassageIthaca parity**: the same `adapter-node -> OCI image -> K8s ->
-  cloudflared` shape 0008 §1 established as the house on-cluster pattern is what
-  GFTB now ships.
+  PR #60), with adapter-node readiness/liveness through `GET /health`. Its
+  current image is not evidence of v4 publication or main-to-production
+  convergence.
+- **Serving-shape parity**: the adapter-node server remains the application
+  payload carried inside the owner-published image and served on-cluster.
 
-**Boundary-schema note, flagged not applied (mirrors 0008 §6's own
-convention):** if/when the operator formalizes the container-producing shape in
-the schema, `tinyland.repo.json` would gain `owns_container_image_production=true`
-for the reason 0008 §6 already named — `owns_gitops_apply` and
-`owns_cloudflare_mutation` still stay false; the overlay still owns the pin and
-apply. This amendment flags it; it does not change the schema file.
+**Boundary-schema replacement (2026-09-04):** schema v2 declares this repo an
+`app-stateful-spoke` that owns runtime behavior and the finite
+`//:deployment_bundle` action. It does not own OCI construction/publication,
+application pins or workloads, GitOps apply, Cloudflare mutation, or provider
+placement. Those begin only after GF-I07/v5 qualification and in the GF-I09
+owner transaction described by Amendment 4.
 
 **§7 replacement:** the boundary reasoning tied to "the primary path is
 adapter-static (not adapter-node)" no longer holds — the primary path *is*
@@ -269,23 +259,13 @@ secrets/endpoints in the public application tree, with release/apply authority
 in the consumer-owned `great-falls-tool-bus-infra` overlay and provider
 supply/placement opaque to this repository.
 
-**What this amendment does not change:** §1 (on-prem is the host of record),
-§3 (Cloudflare Pages spins down, warm only for the cutover window), §4 (the
-historical reaper choice, since superseded by the v4 correction above), §5 (the
-cutover checklist — none of its seven
-steps name an adapter mode; they describe the Deployment/DNS/Access mechanics
-generically and already match adapter-node operationally, so no wording there
-implies a static-file-server origin), §6 (the Access gate is unaffected), and
-§8's "not yet applied" caveat (the DNS/Access cutover in §5 remains
-operator-gated pending; this amendment corrects the *serving-mode* decision, not
-a claim that the cutover is live) all stand as written.
+**What this amendment does not change:** on-prem remains the host of record and
+the Access policy remains independent of adapter selection. §3–§5 document the
+completed 2026 cutover history; they do not authorize a present release or
+fallback. Amendment 4 governs all current publication and convergence.
 
-**Citations:** site PR #111 (`feat(oncluster): /health probe + bake
-PUBLIC_ARCHIVE_LIVE into node image (TIN-2543)`), site PR #113 (`feat(discuss):
-in-cluster HyperKitty fetch for the discuss@ archive snapshot`), site PR #114
-(`feat(discuss): wire live in-cluster archive fetch into the /discuss load
-(TIN-2528)`), infra PR #60 (`feat(web): ADR 0010 on-cluster cutover — pin
-digest, replicas 0->2, /health probes (TIN-2543)`).
+**Historical citations:** site PRs #111, #113, and #114; infra PR #60. These
+show why adapter-node was selected, not a current publication mechanism.
 
 **Operator decision:** 2026-07-05, reaffirmed 2026-07-06, verbatim: *"none of
 this site should be CF pages served, that was shot down in favor of

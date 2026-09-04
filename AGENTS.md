@@ -127,17 +127,6 @@ repository as private or renamed** in code, comments, docs, or image refs.
 - Org-wide rules still apply everywhere: clear `AGENTS.md`, reproducible
   Just/Nix entrypoints where commands exist, secrets scanning, v4 action CI,
   and no hidden prompt-only requirements.
-- The desired convergence is a GloriousFlywheel-powered, Blahaj-routed GitOps
-  path where repo shape is declarative and lane/reaper/public-preview plumbing
-  is not duplicated per repo. **This describes mechanism layer B (the
-  gated-convergence chain), which meta ADR
-  `decisions/0020-adopt-production-convergence-contract-2026-08-21.md` §2
-  tracks but does NOT adopt** — its GFTB carrier (TIN-2611) is Backlog behind
-  seven unmet prerequisites, and the *dispatch* shape this bullet names is
-  what `converge-agent.md` §3 forbids outright once GFTB declares a carrier
-  under mechanism A. See the "Per-PR Ephemeral Envs" and "Tofu Posture"
-  sections ~375 lines below for the current, superseded-and-stamped state of
-  the Blahaj-routed path specifically.
 
 ## Authoritative Entrypoints
 
@@ -154,10 +143,11 @@ repository as private or renamed** in code, comments, docs, or image refs.
   drifted tree, an edited committed migration, or a recipe that reaches for
   `drizzle push`, and rides inside `just check`; `just db-migrate` runs the
   real migrator against `$DATABASE_URL` (a runtime *name* — the value belongs
-  to `great-falls-tool-bus-infra`); `just db-migrator-bundle` builds the
-  `/bin/migrator` payload the image ships. Migrations are forward-only: an
-  applied file's hash is immutable, and changing one fails closed rather than
-  reapplying.
+  to `great-falls-tool-bus-infra`). The application-owned
+  `build/migrator.mjs` payload is included in `//:deployment_bundle`; GF-I09
+  owns the final image `/bin` wrappers and their proof. Migrations are
+  forward-only: an applied file's hash is immutable, and changing one fails
+  closed rather than reapplying.
 - **Integration tests**: `just test-integration` runs the testcontainers-backed
   PostgreSQL 16.15 suite (RLS, `FORCE`, advisory lock, ledger drift, runtime
   role grants). It fails closed when neither a container daemon nor the
