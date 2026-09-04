@@ -14,10 +14,8 @@
     cutover is the executing plan, not a parked option.
 - Relates:
   - Infra ADR `great-falls-tool-bus-infra:docs/decisions/0001-pr-gated-ephemeral-preview-deploys.md`
-    (TIN-2535) - the intent of its Option A (Cloudflare Pages managed previews)
-    is superseded here; PR previews move to the on-cluster reaper pattern. This
-    needs an infra-side companion decision to revive the reaper (TIN-2535
-    reopened in spirit; see §4).
+    (TIN-2535) - historical preview decision, superseded again by the v4
+    controller-result and owner-overlay reap contract described in §4.
   - `docs/deploy/oncluster-container-readiness.md` (the build-active artifact),
     `dynamic-spoke-adapter-mode.md` and `dynamic-canary-blue-green.md` (the
     adapter-mode / lane design), `0002-blahaj-substrate-boundary.md` (the
@@ -97,24 +95,18 @@ already runs in production. Cloudflare's proxy still fronts and caches the tunne
 origin at the edge; the on-cluster serving rollback is the re-pin primitive
 (0008 §5), not a second live publisher.
 
-## 4. Decision 3 - PR previews move to the on-cluster reaper pattern
+## 4. Decision 3 - historical preview choice; mechanism superseded
 
-PR previews move from Cloudflare Pages managed previews to the **on-cluster
-ephemeral reaper pattern** (the blahaj / MassageIthaca reaper shape, proven
-healthy in the 2026-07-05 probe, 0008 §7.1).
+This ADR originally selected an on-cluster ephemeral reaper after Cloudflare
+Pages previews were retired. That repository-shaped reaper and its shared
+`ContainerFile` premise no longer exist after the v4 hard cut.
 
-- This **supersedes the intent of infra ADR 0001** (TIN-2535), whose Option A
-  chose Cloudflare Pages previews on the premise that production stays on
-  Cloudflare Pages. With production on-cluster, that premise no longer holds
-  (0008 §4): a preview lane now shares the production `ContainerFile`, GHCR
-  publish, and overlay stack, so the reaper is the coherent choice rather than a
-  net-new capability.
-- **This needs an infra-side companion decision.** Preview provisioning is
-  overlay + blahaj work (`owns_gitops_apply=false` here), so reviving the reaper
-  is a `great-falls-tool-bus-infra` decision. TIN-2535 is reopened in spirit:
-  its preview question is re-weighed with production-on-cluster as the new
-  premise, Option B (on-cluster reaper) now favored. PR #46's pod-cap caution on
-  preview *scale* carries forward unchanged.
+The binding replacement is the v4 boundary: browser LOOK, publication, mutable
+preview lifecycle, and reap are not application Bazel actions. A preview may be
+created only from a separately admitted controller result and removed only by
+the owner-overlay reap transaction. No local tailnet preview, application-owned
+dispatch, or revived reaper is a fallback. This historical ADR does not
+authorize any of those deleted mechanisms.
 
 ## 5. The cutover - operator-gated, and it is THE executing plan
 
@@ -278,8 +270,9 @@ in the consumer-owned `great-falls-tool-bus-infra` overlay and provider
 supply/placement opaque to this repository.
 
 **What this amendment does not change:** §1 (on-prem is the host of record),
-§3 (Cloudflare Pages spins down, warm only for the cutover window), §4 (previews
-move to the on-cluster reaper), §5 (the cutover checklist — none of its seven
+§3 (Cloudflare Pages spins down, warm only for the cutover window), §4 (the
+historical reaper choice, since superseded by the v4 correction above), §5 (the
+cutover checklist — none of its seven
 steps name an adapter mode; they describe the Deployment/DNS/Access mechanics
 generically and already match adapter-node operationally, so no wording there
 implies a static-file-server origin), §6 (the Access gate is unaffected), and
@@ -346,18 +339,13 @@ All seven §5 steps are **done**:
   the verification: `greatfallstoolbus-org.pages.dev` no longer resolves in
   DNS at all, and apex/`www` are healthy on the tunnel origin.
 
-**Rollback truth, corrected:** the "rollback during the window" primitive this
-ADR named above **no longer exists** — there is no Cloudflare Pages project
-left to flip DNS back to; `var.pages_host = "greatfallstoolbus-org.pages.dev"`
-would now point the apex at a dead host. The **one remaining rollback path** is
-the on-cluster re-pin this ADR always named as the *after*-window primitive
-(0008 §5 / 0010 §5, above): re-dispatch the infra `web-stack.yml` workflow
-(`workflow_dispatch`, `confirm=apply`, `image=<prior known-good
-ghcr.io/great-falls-tool-bus/greatfallstoolbus.org@sha256:<digest>>`) to roll
-the Deployment back to a previously-served image. That path is not new — it
-was always the eventual rollback story once Pages was gone — it is simply now
-the **only** rollback, effective 2026-07-06, not the fallback-of-last-resort it
-read as when this ADR was Accepted.
+**Rollback truth, corrected again 2026-09-04:** neither rollback mechanism this
+ADR previously named remains executable. The Pages project is absent, and infra
+PR #183 deleted `web-stack.yml` with the rest of the attended bridge. The
+ratified replacement is the protected v4 exact-plan transaction re-pinning a
+previously served digest and recording readback; that transaction is not yet
+installed. No application-owned dispatch, local apply, or interim workflow may
+stand in for it, and this repository must not claim rollback is currently armed.
 
 **§8 replacement:** "Not yet applied" is superseded. The cutover is live and
 fully applied end-to-end: on-prem is not merely the *accepted* host, it is the

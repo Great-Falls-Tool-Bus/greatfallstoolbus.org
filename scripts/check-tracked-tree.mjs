@@ -81,13 +81,9 @@ const SCAN_ROOTS = [
  * SCAN_ROOTS ever widens. */
 const SELF_EXCLUDE = /^scripts\/lib\/leak-scan-rules\.json$/u;
 
-// Bare loopback (127.0.0.0/8) is excluded from the TREE surface only — see
-// private-loopback-address's own description in leak-scan-rules.json for why
-// it is a separate rule from the rest of private-network-address: this
-// repo's own docs/preview-tailnet.md cites 127.0.0.1 repeatedly to document a
-// loopback-only-binding SAFETY property, never an infra endpoint. Every other
-// rule, including kubeconfig-fragment and cache-or-executor-endpoint, now
-// runs on BOTH surfaces with NO exclusion: both were tightened from a
+// Every rule, including private-loopback-address, kubeconfig-fragment, and
+// cache-or-executor-endpoint, runs on this published-prose surface with no
+// exclusion. The latter two were tightened from a
 // bare-keyword match to a value-shaped one specifically so a governance
 // document can discuss the CONCEPT ("this repo holds zero kubeconfig
 // material") without tripping a rule meant to catch the actual FRAGMENT
@@ -99,8 +95,6 @@ const SELF_EXCLUDE = /^scripts\/lib\/leak-scan-rules\.json$/u;
 // 10 of 12 synthetic leak shapes that passed every gate in `just check` as a
 // result. Tightening the rules removed the need for the exclusion instead of
 // papering over the gap.
-const TREE_EXCLUDE_RULE_IDS = ['private-loopback-address'];
-
 function fail(message) {
 	console.error(`leak-scan-tree: ${message}`);
 	process.exit(2);
@@ -192,7 +186,6 @@ try {
 	findings = files.flatMap((relative) =>
 		scanText(relative, readFileSync(path.join(REPO_ROOT, relative), 'utf8'), {
 			deniedLiterals,
-			excludeRuleIds: TREE_EXCLUDE_RULE_IDS,
 		}),
 	);
 } catch (error) {

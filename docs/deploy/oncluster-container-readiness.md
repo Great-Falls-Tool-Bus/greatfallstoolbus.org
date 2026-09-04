@@ -71,10 +71,11 @@ The original plan was to demote Cloudflare Pages from primary publisher to
 the standby window early:
 
 - The primary — and only — origin is the in-cluster tunnel fronting the
-  ClusterIP web Service fronting the adapter-node Deployment. Rollback is an
-  overlay image-pin revert (re-pin a previous known-good digest and re-dispatch
-  the infra `web-stack.yml` workflow, ADR 0008 §5 / 0010 §5 / Amendment 2), not
-  a second application-owned publisher or fallback.
+  ClusterIP web Service fronting the adapter-node Deployment. The former infra
+  `web-stack.yml` rollback bridge is deleted. The protected v4 exact-plan
+  transaction is the only ratified replacement and is not yet installed; no
+  application-owned publisher, local apply, or interim dispatch substitutes for
+  it.
 - Cloudflare Pages is **not** kept warm as a second origin. The
   site-level-outage tradeoff (the cluster is one physical location) is the
   accepted posture, same as MassageIthaca already runs in production; there is

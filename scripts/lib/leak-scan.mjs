@@ -74,11 +74,9 @@ import { fileURLToPath } from 'node:url';
  * @property {string[]} [allowedHosts]
  * @property {string[]} [allowedMailboxes]
  * @property {string[]} [excludeRuleIds] Rule ids to skip entirely for this
- *   call. Used by scripts/check-tracked-tree.mjs to exclude
- *   private-loopback-address from governance-decision PROSE that documents a
- *   loopback-only-binding safety property — see that script's header
- *   comment. Never used by the build-output scan, which applies every rule
- *   with no exclusions.
+ *   call. Used only by deliberately narrow scanners such as
+ *   scripts/leak-scan-src.mjs; published-prose and build-output scans apply
+ *   every rule with no exclusions.
  * @property {boolean} [checkHosts] Default true. Set false to skip the
  *   unreviewed-outbound-host check — used by scripts/leak-scan-src.mjs, see
  *   its header for why.
