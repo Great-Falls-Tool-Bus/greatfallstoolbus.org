@@ -36,12 +36,6 @@
           python3Packages.jsonschema
           jq
 
-          # Tofu + reachability probe (docs/CI-SCHEMA.md §7)
-          opentofu
-          terraform-ls
-          tflint
-          netcat-gnu
-
           # Changelog (cliff.toml-driven; see just changelog)
           git-cliff
         ];
@@ -94,7 +88,6 @@
             echo "  gh       $(gh --version | head -n1)"
             echo "  gitleaks $(gitleaks version 2>&1 | head -n1)"
             echo "  python   $(python3 --version)"
-            echo "  tofu     $(tofu --version 2>&1 | head -n1)"
             echo "  jq       $(jq --version)"
             echo "  git-cliff $(git-cliff --version 2>&1 | head -n1)"
           '';

@@ -245,21 +245,12 @@ repository as private or renamed** in code, comments, docs, or image refs.
 - Theme cascade lives in `src/app.css`. Per-site brand themes go under
   `src/lib/styles/themes/`.
 
-## Projection And Broker Display
+## Static Projection Ingestion
 
 - This site is a **read-only consumer** of reviewed `tinyland.dev` content.
-- `greatfallstoolbus.org` supports two read-only spoke modes:
-  - **Static projection ingestion**: checked-in JSON artifacts validated at
-    build time. This is the default for product, service, offer, and simple
-    brand sites.
-  - **Runtime broker display**: a static Cloudflare Pages shell fetches
-    reviewed content from a public Tinyland broker route at runtime. This is
-    the intended mode for blog/Pulse surfaces that need fresh posts, notes,
-    media, or stream items without committing content payloads into the spoke.
-- Runtime broker display still does not make the spoke an authority. The spoke
-  may render public broker data, but it must not own writes, auth, private
-  media, checkout, ActivityPub delivery, inboxes, followers, retries,
-  tombstones, or moderation state.
+- `greatfallstoolbus.org` may ingest checked-in JSON projection artifacts that
+  are validated at build time. It never fetches a Tinyland broker at runtime
+  and never makes this application a content authority.
 - Use `just validate-static-projection <snapshot>` before trusting a copied
   snapshot.
 - Use `just sync-static-projection <source> <target>` for generic static-spoke
@@ -274,8 +265,7 @@ repository as private or renamed** in code, comments, docs, or image refs.
   payment custody, ActivityPub delivery workers, or public Fediverse
   federation.
 - `.github/workflows/pulse-ingest.yml` is allowed to open checked-in snapshot
-  refresh PRs. It must not push directly to the default branch. It is not the
-  runtime broker-display path.
+  refresh PRs. It must not push directly to the default branch.
 
 ## What Not To Do
 

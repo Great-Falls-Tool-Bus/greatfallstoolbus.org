@@ -571,7 +571,7 @@
 							"owns_secret_declarations": { "const": true },
 							"owns_application_workloads": { "const": true },
 							"owns_application_zone_dns": { "type": "boolean" },
-							"owns_application_mail_policy": { "const": true },
+								"owns_application_mail_policy": { "type": "boolean" },
 							"owns_application_database": { "type": "boolean" }
 						}
 					},
