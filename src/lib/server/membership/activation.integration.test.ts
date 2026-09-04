@@ -7,10 +7,15 @@
  *   - activation is ATOMIC: an injected failure after password creation
  *     leaves no Active membership, no partial audit event, no auth user, and
  *     an UNCONSUMED activation token;
+ *   - a failure on the second P1 outbox write rolls back the first projection
+ *     row together with activation, assent, auth, audit, and token consumption;
  *   - `person_id` survives an email change; the prior address remains in
  *     `person_email` history;
- *   - activation succeeds with the contribution AND outbox tables unreachable
- *     (contribution/mail are not activation predicates — row 10);
+ *   - activation succeeds with the contribution tables unreachable
+ *     (contribution/mail are not activation PREDICATES — row 10; the outbox
+ *     half of the old invariant is superseded by ADR 0024 §3: fresh
+ *     activation now enqueues exactly two provisioning rows in the
+ *     same transaction, and a converged replay adds none);
  *   - every transition this lane ships writes its audit row with actor,
  *     aggregate, transition, result, agreement version, timestamp — and no
  *     audit row carries a token plaintext, URL, or free text;
@@ -41,6 +46,8 @@ import { submitApplication, validateSubmission, verifyEmail } from '../applicati
 import { TokenRejectedError, mintToken } from '../application/tokens';
 import { activateMembership, changeEmail, emailHistory, mintActivationToken, provisionOnApproval } from './activate';
 import { NoAgreementVersionError, SupersededAgreementError, publishAgreementVersion } from './agreement';
+import { PROVISION_JOB_KINDS, reconcileActiveProvisioning } from './provision';
+import { pauseMembership } from './transition';
 
 let fixture: PgFixture;
 let pool: pg.Pool;
@@ -362,7 +369,86 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 		expect(result.activated).toBe(true);
 	});
 
-	it('succeeds with the contribution AND outbox tables unreachable — they are not activation predicates (S6 acceptance row 4)', async () => {
+	it('is ATOMIC when the second P1 outbox write fails: activation, audit, and both projection rows roll back (Meta P1 acceptance 1)', async () => {
+		const tenantId = await newTenant();
+		const keyholder = await newKeyholder(tenantId);
+		const agreement = await withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'V1.' }), db);
+		const prov = await provisioned(tenantId, keyholder);
+		const token = await activationToken(tenantId, prov.application.id);
+		const constraint = 'outbox_job_fixture_reject_second_projection';
+
+		// The exact membership-scoped constraint lets provision.add_lists insert,
+		// then rejects provision.enable_mailbox. That proves the first outbox row
+		// cannot survive a failure on the second enqueue in the same transaction.
+		await exec(fixture.migratorDsn, [
+			`alter table outbox_job add constraint ${constraint}
+			 check (aggregate_id <> '${prov.membership.id}'::uuid or kind <> 'provision.enable_mailbox')`,
+		]);
+		let activationFailure: unknown;
+		try {
+			await withTenant(
+				tenantId,
+				(tx) =>
+					activateMembership(tx, {
+						token,
+						password: 'a-long-fixture-password',
+						agreementVersionId: agreement.id,
+						hashOptions: FAST_HASH,
+					}),
+				db,
+			);
+		} catch (error) {
+			activationFailure = error;
+		} finally {
+			await exec(fixture.migratorDsn, [`alter table outbox_job drop constraint ${constraint}`]);
+		}
+		expect(activationFailure).toMatchObject({
+			cause: expect.objectContaining({ code: '23514', constraint }),
+		});
+
+		const state = await asTenant(fixture.runtimeDsn, tenantId, async (client) => {
+			const membership = await client.query('select status from membership where id = $1', [prov.membership.id]);
+			const audit = await client.query(
+				"select count(*)::int as n from audit_event where aggregate_id = $1 and event = 'membership.activated'",
+				[prov.membership.id],
+			);
+			const assent = await client.query('select count(*)::int as n from assent where membership_id = $1', [
+				prov.membership.id,
+			]);
+			const projections = await client.query(
+				"select count(*)::int as n from outbox_job where aggregate_id = $1 and kind like 'provision.%'",
+				[prov.membership.id],
+			);
+			const person = await client.query('select auth_user_id from person where id = $1', [prov.person.id]);
+			const activation = await client.query(
+				"select consumed_at from application_email_token where application_id = $1 and purpose = 'activate'",
+				[prov.application.id],
+			);
+			return {
+				membershipStatus: membership.rows[0].status,
+				activatedAuditCount: audit.rows[0].n,
+				assentCount: assent.rows[0].n,
+				projectionCount: projections.rows[0].n,
+				authUserId: person.rows[0].auth_user_id,
+				tokenConsumed: activation.rows.map((row) => row.consumed_at),
+			};
+		});
+		expect(state).toEqual({
+			membershipStatus: 'pending_assent',
+			activatedAuditCount: 0,
+			assentCount: 0,
+			projectionCount: 0,
+			authUserId: null,
+			tokenConsumed: [null],
+		});
+	});
+
+	it('succeeds with the contribution tables unreachable — contribution is not an activation predicate (S6 acceptance row 4, narrowed by ADR 0024 §3)', async () => {
+		// `outbox_job` WAS on this revoke list until ADR 0024 §3 superseded
+		// that half of the row-10 invariant: fresh activation now enqueues
+		// both P1 provisioning intents in its own transaction, so an outbox-write
+		// failure correctly rolls back activation (exactly as it already does
+		// for leave/remove). The contribution half of the invariant stands.
 		const tenantId = await newTenant();
 		const keyholder = await newKeyholder(tenantId);
 		const agreement = await withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'V1.' }), db);
@@ -374,7 +460,6 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 		await exec(fixture.migratorDsn, [
 			'revoke all on contribution_agreement from gftb_app',
 			'revoke all on finance_receipt from gftb_app',
-			'revoke all on outbox_job from gftb_app',
 		]);
 		try {
 			const result = await withTenant(
@@ -394,9 +479,122 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 			await exec(fixture.migratorDsn, [
 				'grant select, insert, update, delete on contribution_agreement to gftb_app',
 				'grant select, insert on finance_receipt to gftb_app',
-				'grant select, insert, update, delete on outbox_job to gftb_app',
 			]);
 		}
+	});
+
+	it('fresh activation enqueues exactly the two pending P1 projections; replay adds none (ADR 0024 §3)', async () => {
+		const tenantId = await newTenant();
+		const keyholder = await newKeyholder(tenantId);
+		const agreement = await withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'V1.' }), db);
+		const prov = await provisioned(tenantId, keyholder);
+		const token = await activationToken(tenantId, prov.application.id);
+
+		const provisionRows = () =>
+			asTenant(fixture.runtimeDsn, tenantId, async (client) => {
+				const { rows } = await client.query(
+					`select kind, status, idempotency_key, payload from outbox_job
+					 where aggregate_id = $1 and kind like 'provision.%'
+					 order by kind`,
+					[prov.membership.id],
+				);
+				return rows;
+			});
+
+		const first = await withTenant(
+			tenantId,
+			(tx) =>
+				activateMembership(tx, {
+					token,
+					password: 'a-long-fixture-password',
+					agreementVersionId: agreement.id,
+					hashOptions: FAST_HASH,
+				}),
+			db,
+		);
+		expect(first.activated).toBe(true);
+
+		const afterFresh = await provisionRows();
+		expect(afterFresh).toHaveLength(2);
+		expect(afterFresh.map((row) => row.kind).sort()).toEqual([...PROVISION_JOB_KINDS].sort());
+		for (const row of afterFresh) {
+			expect(row.status).toBe('pending');
+			expect(row.idempotency_key).toBe(
+				`${tenantId}:membership:${prov.membership.id}:${row.kind.slice('provision.'.length)}`,
+			);
+			// Exact P1 ids only — never an address, token, or mutable email key.
+			expect(row.payload).toEqual({
+				membershipId: prov.membership.id,
+				personId: prov.person.id,
+			});
+		}
+
+		// Converged replay (same consumed token, right password) enqueues NOTHING:
+		// the fresh-activation path is the only enqueue site.
+		const replay = await withTenant(
+			tenantId,
+			(tx) =>
+				activateMembership(tx, {
+					token,
+					password: 'a-long-fixture-password',
+					agreementVersionId: agreement.id,
+					hashOptions: FAST_HASH,
+				}),
+			db,
+		);
+		expect(replay.activated).toBe(false);
+		expect(await provisionRows()).toHaveLength(2);
+
+		// Pre-carrier repair: remove one fixture row to model an Active member
+		// created before the two-projection fan-out, then run the exact startup
+		// reconciliation. It restores only the missing P1 receipt.
+		await asTenant(fixture.runtimeDsn, tenantId, (client) =>
+			client.query("delete from outbox_job where aggregate_id = $1 and kind = 'provision.enable_mailbox'", [
+				prov.membership.id,
+			]),
+		);
+		expect(await provisionRows()).toHaveLength(1);
+		expect(await withTenant(tenantId, (tx) => reconcileActiveProvisioning(tx), db)).toBe(1);
+		expect(await provisionRows()).toHaveLength(2);
+
+		// One dead per-kind receipt is an audited-replay obligation, not
+		// permission to crash startup or block repair of the other P1 kind.
+		await asTenant(fixture.runtimeDsn, tenantId, async (client) => {
+			await client.query(
+				"update outbox_job set status = 'dead', attempts = max_attempts where aggregate_id = $1 and kind = 'provision.add_lists'",
+				[prov.membership.id],
+			);
+			await client.query("delete from outbox_job where aggregate_id = $1 and kind = 'provision.enable_mailbox'", [
+				prov.membership.id,
+			]);
+		});
+		expect(await provisionRows()).toHaveLength(1);
+		expect(await withTenant(tenantId, (tx) => reconcileActiveProvisioning(tx), db)).toBe(1);
+		const repaired = await provisionRows();
+		expect(repaired).toHaveLength(2);
+		expect(repaired.find((row) => row.kind === 'provision.add_lists')?.status).toBe('dead');
+		expect(repaired.find((row) => row.kind === 'provision.enable_mailbox')?.status).toBe('pending');
+		expect(await withTenant(tenantId, (tx) => reconcileActiveProvisioning(tx), db)).toBe(0);
+
+		// P1 reconciliation is all-Active, not Active/paused. Pausing emits no
+		// projection work and a missing row is not recreated while paused.
+		await withTenant(
+			tenantId,
+			(tx) =>
+				pauseMembership(tx, {
+					membershipId: prov.membership.id,
+					actor: { personId: prov.person.id, via: 'member' },
+					expectedVersion: first.membership.version,
+				}),
+			db,
+		);
+		await asTenant(fixture.runtimeDsn, tenantId, (client) =>
+			client.query("delete from outbox_job where aggregate_id = $1 and kind = 'provision.enable_mailbox'", [
+				prov.membership.id,
+			]),
+		);
+		expect(await withTenant(tenantId, (tx) => reconcileActiveProvisioning(tx), db)).toBe(0);
+		expect(await provisionRows()).toHaveLength(1);
 	});
 
 	it('replay with the consumed token converges ONLY with the right password (spec §6 duplicate → original result)', async () => {
@@ -470,6 +668,96 @@ describe('M1 assent + activation (slices §2.2 row 10; S6 acceptance)', () => {
 });
 
 describe('identity invariants (spec §4; S6 acceptance row 3)', () => {
+	it('successive Active-member email changes atomically enqueue exact P4 rekey intents', async () => {
+		const tenantId = await newTenant();
+		const keyholder = await newKeyholder(tenantId);
+		const agreement = await withTenant(tenantId, (tx) => publishAgreementVersion(tx, { body: 'V1.' }), db);
+		const prov = await provisioned(tenantId, keyholder);
+		const token = await activationToken(tenantId, prov.application.id);
+		await withTenant(
+			tenantId,
+			(tx) =>
+				activateMembership(tx, {
+					token,
+					password: 'a-long-fixture-password',
+					agreementVersionId: agreement.id,
+					hashOptions: FAST_HASH,
+				}),
+			db,
+		);
+
+		const before = await withTenant(tenantId, (tx) => emailHistory(tx, prov.person.id), db);
+		expect(before).toHaveLength(1);
+		const firstChanged = await withTenant(
+			tenantId,
+			(tx) =>
+				changeEmail(tx, {
+					personId: prov.person.id,
+					newEmail: `new-${randomUUID().slice(0, 8)}@example.org`,
+					now: new Date('2030-01-01T00:00:00.000Z'),
+				}),
+			db,
+		);
+		const secondChanged = await withTenant(
+			tenantId,
+			(tx) =>
+				changeEmail(tx, {
+					personId: prov.person.id,
+					newEmail: `next-${randomUUID().slice(0, 8)}@example.org`,
+					now: new Date('2030-01-02T00:00:00.000Z'),
+				}),
+			db,
+		);
+		const rows = await asTenant(fixture.runtimeDsn, tenantId, async (client) => {
+			const result = await client.query(
+				`select aggregate_id, payload, idempotency_key, status, attempts,
+				        lease_owner, lease_expires_at
+				 from outbox_job
+				 where kind = 'projection.rekey_email'`,
+			);
+			return result.rows;
+		});
+		expect(rows).toHaveLength(2);
+		const firstJob = rows.find((row) => row.payload.newEmailId === firstChanged.id);
+		expect(firstJob).toEqual(
+			expect.objectContaining({
+				aggregate_id: prov.person.id,
+				idempotency_key: `${tenantId}:person:${prov.person.id}:rekey:${firstChanged.id}`,
+				payload: {
+					personId: prov.person.id,
+					oldEmailId: before[0].id,
+					newEmailId: firstChanged.id,
+				},
+				status: 'pending',
+				attempts: 0,
+				lease_owner: null,
+				lease_expires_at: null,
+			}),
+		);
+		const secondJob = rows.find((row) => row.payload.newEmailId === secondChanged.id);
+		expect(secondJob).toEqual(
+			expect.objectContaining({
+				aggregate_id: prov.person.id,
+				idempotency_key: `${tenantId}:person:${prov.person.id}:rekey:${secondChanged.id}`,
+				payload: {
+					personId: prov.person.id,
+					oldEmailId: firstChanged.id,
+					newEmailId: secondChanged.id,
+				},
+				status: 'pending',
+				attempts: 0,
+				lease_owner: null,
+				lease_expires_at: null,
+			}),
+		);
+		expect(JSON.stringify(rows)).not.toContain('@');
+		expect(await withTenant(tenantId, (tx) => emailHistory(tx, prov.person.id), db)).toEqual([
+			expect.objectContaining({ id: before[0].id, supersededAt: expect.any(Date) }),
+			expect.objectContaining({ id: firstChanged.id, supersededAt: expect.any(Date) }),
+			expect.objectContaining({ id: secondChanged.id, supersededAt: null }),
+		]);
+	});
+
 	it('person_id survives an email change and the prior address remains in history', async () => {
 		const tenantId = await newTenant();
 		const keyholder = await newKeyholder(tenantId);

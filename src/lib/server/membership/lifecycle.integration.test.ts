@@ -42,8 +42,6 @@ import { mintToken } from '../application/tokens';
 import { createHandlerRegistry } from '../outbox/handlers';
 import { dispatchOnce } from '../outbox/dispatch';
 import { cancelBillingHandler } from '../outbox/handlers/cancel-billing';
-import { createDisableMailboxHandler } from '../outbox/handlers/disable-mailbox';
-import { createRemoveListsHandler } from '../outbox/handlers/remove-lists';
 import {
 	activateMembership,
 	mintActivationToken,
@@ -53,6 +51,7 @@ import {
 } from './activate';
 import { publishAgreementVersion } from './agreement';
 import { OFFBOARD_JOB_KINDS, personRecord } from './offboard';
+import { PROVISION_JOB_KINDS, REKEY_EMAIL_JOB_KIND } from './provision';
 import { InvalidAuditEventError } from '../audit/write';
 import { _createLeaveAction, _createPauseAction } from '../../../routes/(member)/membership/+page.server';
 import { _createRemoveAction } from '../../../routes/(keyholder)/remove/+page.server';
@@ -430,7 +429,7 @@ describe('offboarding replay (S7 acceptance rows 2-3; §2.3 invariants)', () => 
 		expect(audits).toBe(1); // the original receipt stands alone
 	});
 
-	it('the three real handlers complete the jobs: cancel_billing cancels a standing agreement; the mail pair are recorded no-ops while gate-disabled', async () => {
+	it('closed delivery gates preserve pending attempts=0; cancel_billing alone completes its real effect', async () => {
 		await isolateTenant();
 		const s = await inState('active');
 		// A standing cash agreement, written as raw SQL so this MEMBERSHIP
@@ -451,14 +450,24 @@ describe('offboarding replay (S7 acceptance rows 2-3; §2.3 invariants)', () => 
 
 		const real = createHandlerRegistry({
 			'offboard.cancel_billing': cancelBillingHandler,
-			'offboard.remove_lists': createRemoveListsHandler({ log: () => undefined }),
-			'offboard.disable_mailbox': createDisableMailboxHandler({ log: () => undefined }),
 		});
-		const summary = await dispatchOnce({ tenantId, worker: 'test-worker', registry: real, db });
-		expect(summary.done).toBeGreaterThanOrEqual(3);
+		const deferredKinds = [
+			...PROVISION_JOB_KINDS,
+			REKEY_EMAIL_JOB_KIND,
+			'offboard.remove_lists',
+			'offboard.disable_mailbox',
+		];
+		const summary = await dispatchOnce({ tenantId, worker: 'test-worker', registry: real, deferredKinds, db });
+		expect(summary).toMatchObject({ claimed: 1, done: 1, retried: 0, dead: 0 });
 
 		const jobs = await offboardJobs(s.membershipId);
-		expect(jobs.every((j) => j.status === 'done')).toBe(true);
+		expect(jobs.find((job) => job.kind === 'offboard.cancel_billing')).toMatchObject({ status: 'done' });
+		expect(jobs.filter((job) => job.kind !== 'offboard.cancel_billing')).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ kind: 'offboard.remove_lists', status: 'pending', attempts: 0 }),
+				expect.objectContaining({ kind: 'offboard.disable_mailbox', status: 'pending', attempts: 0 }),
+			]),
+		);
 		const agreement = await asTenant(fixture.runtimeDsn, tenantId, async (client) => {
 			const { rows } = await client.query('select state from contribution_agreement where person_id = $1', [
 				s.personId,
@@ -467,7 +476,7 @@ describe('offboarding replay (S7 acceptance rows 2-3; §2.3 invariants)', () => 
 		});
 		expect(agreement).toBe('cancelled');
 		// Idempotent replay of the handler: still cancelled, no error.
-		await dispatchOnce({ tenantId, worker: 'test-worker', registry: real, db });
+		await dispatchOnce({ tenantId, worker: 'test-worker', registry: real, deferredKinds, db });
 	});
 });
 

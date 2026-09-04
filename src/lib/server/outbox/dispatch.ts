@@ -193,6 +193,11 @@ export interface ClaimOptions {
 	worker: string;
 	batchSize?: number;
 	leaseSeconds?: number;
+	/**
+	 * Kinds whose delivery gate is closed. They remain pending with attempts=0
+	 * and become claimable automatically when a later worker omits the kind.
+	 */
+	deferredKinds?: readonly string[];
 }
 
 /**
@@ -204,7 +209,7 @@ export interface ClaimOptions {
  * `renewLease` that `dispatchOnce` performs (see the module header, HIGH-1).
  */
 export async function claimBatch(tx: DbTransaction, options: ClaimOptions): Promise<ClaimedJob[]> {
-	const { worker, batchSize = DEFAULT_BATCH_SIZE, leaseSeconds = DEFAULT_LEASE_SECONDS } = options;
+	const { worker, batchSize = DEFAULT_BATCH_SIZE, leaseSeconds = DEFAULT_LEASE_SECONDS, deferredKinds = [] } = options;
 	if (!worker.trim()) throw new Error('outbox claim: "worker" must be a non-empty string');
 	if (worker.includes('#')) {
 		throw new Error('outbox claim: "worker" must not contain "#" — it delimits the per-claim lease token');
@@ -238,6 +243,7 @@ export async function claimBatch(tx: DbTransaction, options: ClaimOptions): Prom
 			 where status in ('pending', 'leased')
 			   and available_at <= now()
 			   and (lease_expires_at is null or lease_expires_at < now())
+			   and not (kind = any(${deferredKinds}::text[]))
 			 order by available_at
 			 limit ${batchSize}
 			 for update skip locked
@@ -358,6 +364,8 @@ export interface DispatchOptions {
 	db?: Db;
 	batchSize?: number;
 	leaseSeconds?: number;
+	/** Delivery-gated kinds to leave pending without consuming an attempt. */
+	deferredKinds?: readonly string[];
 	/** Injection seam for tests; defaults to {@link fullJitterBackoffMs}. */
 	backoffMs?: (attempts: number) => number;
 	/**
@@ -398,10 +406,14 @@ export interface DispatchSummary {
  * only the handler's own throw can consume an attempt (review MEDIUM-1).
  */
 export async function dispatchOnce(options: DispatchOptions): Promise<DispatchSummary> {
-	const { tenantId, worker, registry, db, batchSize, leaseSeconds, signal } = options;
+	const { tenantId, worker, registry, db, batchSize, leaseSeconds, deferredKinds, signal } = options;
 	const backoff = options.backoffMs ?? fullJitterBackoffMs;
 
-	const claimed = await withTenant(tenantId, (tx) => claimBatch(tx, { worker, batchSize, leaseSeconds }), db);
+	const claimed = await withTenant(
+		tenantId,
+		(tx) => claimBatch(tx, { worker, batchSize, leaseSeconds, deferredKinds }),
+		db,
+	);
 
 	const summary: DispatchSummary = { claimed: claimed.length, done: 0, retried: 0, dead: 0, lost: 0 };
 

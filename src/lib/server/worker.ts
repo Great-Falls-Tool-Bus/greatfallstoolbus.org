@@ -8,16 +8,17 @@
  * NOTHING else: no HTTP listener, no migrations on startup (spec §6 — only
  * the migrator runs DDL), no mail, no live delivery targets.
  *
- * HANDLERS START EMPTY AND GROW ONE SLICE AT A TIME. Member v0 registers job
- * kinds as each owning slice lands: S9 (Stripe) registers `stripe.project`
- * (`./outbox/handlers/stripe-project.ts`); S7 registers the three §2.3
- * offboarding projections (`offboard.cancel_billing`, `offboard.remove_lists`,
- * `offboard.disable_mailbox`). Both have now landed — `defaultRegistry`
- * below is `EMPTY_REGISTRY` PLUS whatever has actually landed, never a
- * placeholder itself. Any OTHER kind still burns its attempts and
- * dead-letters VISIBLY through `UnknownJobKindError` instead of being
- * "completed" by a placeholder. A worker that exits 0 while discarding jobs
- * would be the queue-shaped version of the S0 placeholder bug this replaces.
+ * HANDLERS START EMPTY AND GROW ONE SLICE AT A TIME. S9 (Stripe) registers
+ * `stripe.project` (`./outbox/handlers/stripe-project.ts`). S7 declares three
+ * §2.3 offboarding projections, but only `offboard.cancel_billing` currently
+ * has a delivery-capable handler; `offboard.remove_lists` and
+ * `offboard.disable_mailbox` remain deferred with the P1/P4 projection kinds.
+ * `defaultRuntime` registers only effects whose delivery exists and names
+ * closed-gate kinds in its deferred claim set. Any
+ * OTHER kind still burns its attempts and dead-letters VISIBLY through
+ * `UnknownJobKindError`; a deferred kind remains pending at attempts=0. A
+ * worker that exits 0 while discarding jobs would be the queue-shaped version
+ * of the S0 placeholder bug this replaces.
  *
  * CONFIGURATION IS NAMES, NEVER VALUES (ADR 0014 §0.2; this repository is
  * public). `DATABASE_URL` arrives from the apply plane exactly as it does for
@@ -60,8 +61,6 @@ import { assertTenantId, withTenant } from './db/tenant';
 import { dispatchOnce, runWorkerLoop, type DispatchSummary, type WorkerLoopOptions } from './outbox/dispatch';
 import { createHandlerRegistry } from './outbox/handlers';
 import { cancelBillingHandler } from './outbox/handlers/cancel-billing';
-import { createDisableMailboxHandler } from './outbox/handlers/disable-mailbox';
-import { createRemoveListsHandler } from './outbox/handlers/remove-lists';
 import { createProductionStripeProjectHandler, STRIPE_PROJECT_JOB_KIND } from './outbox/handlers/stripe-project';
 import { DEFAULT_BATCH_SIZE, DEFAULT_LEASE_SECONDS, type HandlerRegistry } from './outbox/schema';
 import { createDecisionEmailHandler, DECISION_EMAIL_JOB_KIND } from './outbox/handlers/application-decision-email';
@@ -69,17 +68,19 @@ import { createReceiptEmailHandler, RECEIPT_EMAIL_JOB_KIND } from './outbox/hand
 import { createWithdrawnAckHandler, WITHDRAWN_ACK_JOB_KIND } from './outbox/handlers/application-withdrawn-ack';
 import { readMailConfig } from './mail/config';
 import { activationHazardWarning } from './mail/activation';
+import { PROVISION_JOB_KINDS, REKEY_EMAIL_JOB_KIND, reconcileActiveProvisioning } from './membership/provision';
 
 /**
- * The production handler set: S7's three §2.3 offboarding projections
- * (`offboard.cancel_billing`, `offboard.remove_lists`,
- * `offboard.disable_mailbox`), S9's `stripe.project`
- * (`./outbox/handlers/stripe-project.ts`), and — as of TIN-4062 — the three
+ * The production runtime: S7's delivery-capable offboarding projections,
+ * S9's `stripe.project`
+ * (`./outbox/handlers/stripe-project.ts`), the three TIN-4062
  * application-mail kinds (`application.receipt_email`,
  * `application.decision_email`, `application.withdrawn_ack`,
- * `./outbox/handlers/application-*.ts`). Every kind that has landed, and
- * NOTHING else; any other kind still dead-letters visibly through
- * `UnknownJobKindError` (the fail-closed posture, kept).
+ * `./outbox/handlers/application-*.ts`). TIN-3964's activation projections
+ * are enqueued but explicitly deferred until their protected, restricted
+ * delivery interfaces exist. A broad Mailman credential is never accepted by
+ * this application. Any undeclared kind still dead-letters visibly through
+ * `UnknownJobKindError`.
  *
  * THE MAIL HANDLERS ALWAYS SEND FOR REAL ONLY IF THEY CAN. `readMailConfig(env)`
  * below is a STARTUP VALIDATION call, same BLOCK-1 posture as
@@ -102,20 +103,29 @@ import { activationHazardWarning } from './mail/activation';
  * the caller passed rather than always `process.env` — the same reason
  * `readStripeConfig` takes `env` as a parameter.
  */
-function defaultRegistry(env: NodeJS.ProcessEnv): HandlerRegistry {
+interface DefaultRuntime {
+	registry: HandlerRegistry;
+	deferredKinds: readonly string[];
+	reconcileProvisioning: true;
+}
+
+function defaultRuntime(env: NodeJS.ProcessEnv): DefaultRuntime {
 	// BLOCK-1 posture: fail closed on a half-configured mail env at startup,
 	// before any job ever claims a mail kind. See the docstring above.
 	readMailConfig(env);
 
-	return createHandlerRegistry({
+	const handlers = {
 		[STRIPE_PROJECT_JOB_KIND]: createProductionStripeProjectHandler(env),
 		'offboard.cancel_billing': cancelBillingHandler,
-		'offboard.remove_lists': createRemoveListsHandler(),
-		'offboard.disable_mailbox': createDisableMailboxHandler(),
 		[RECEIPT_EMAIL_JOB_KIND]: createReceiptEmailHandler({ env }),
 		[DECISION_EMAIL_JOB_KIND]: createDecisionEmailHandler({ env }),
 		[WITHDRAWN_ACK_JOB_KIND]: createWithdrawnAckHandler({ env }),
-	});
+	};
+	return {
+		registry: createHandlerRegistry(handlers),
+		deferredKinds: [...PROVISION_JOB_KINDS, REKEY_EMAIL_JOB_KIND, 'offboard.remove_lists', 'offboard.disable_mailbox'],
+		reconcileProvisioning: true,
+	};
 }
 
 export const WORKER_EXIT = Object.freeze({
@@ -139,14 +149,17 @@ FOR UPDATE SKIP LOCKED under a lease, runs the registered handler for each
 job's kind, retries failures with exponential full-jitter backoff, and
 dead-letters a job once its bounded attempt count is spent. At-least-once by
 contract; consumers are idempotent by contract. S9's "stripe.project", S7's
-three offboarding kinds ("offboard.cancel_billing", "offboard.remove_lists",
-"offboard.disable_mailbox"), and TIN-4062's three application-mail kinds
+delivery-capable "offboard.cancel_billing", and TIN-4062's three
+application-mail kinds
 ("application.receipt_email", "application.decision_email",
-"application.withdrawn_ack") are registered by default; any other job kind
-still dead-letters visibly rather than being absorbed by a placeholder. The
-mail kinds resolve to a disabled, no-network-I/O journal outcome unless
-GFTB_MAIL_DELIVERY=enabled, a transport DSN, and an operator-approved
-template all agree — see Environment below.
+"application.withdrawn_ack") are registered by default; any other non-deferred
+job kind still dead-letters visibly rather than being absorbed by a
+placeholder. The mail kinds resolve to a disabled, no-network-I/O journal
+outcome unless GFTB_MAIL_DELIVERY=enabled, a transport DSN, and an
+operator-approved template all agree. Mailbox, list, email-rekey, and
+offboarding projection jobs remain pending with attempts=0 until their
+protected restricted interfaces land; this application never accepts a broad
+Mailman or cluster credential.
 
 Options:
   --help               Print this and exit 0. Never touches the database.
@@ -200,8 +213,12 @@ export interface WorkerOptions {
 	args?: string[];
 	env?: NodeJS.ProcessEnv;
 	io?: WorkerIo;
-	/** The handler set. Defaults to `defaultRegistry(env)` — see the module docstring. */
+	/** The handler set. Defaults to `defaultRuntime(env)` — see the module docstring. */
 	registry?: HandlerRegistry;
+	/** Delivery-gated kinds to leave pending. Used with a caller-supplied registry. */
+	deferredKinds?: readonly string[];
+	/** Test seam for the default runtime's Active-member provisioning reconciliation. */
+	reconcileProvisioningFn?: (tenantId: string) => Promise<number>;
 	/** Cooperative shutdown for the loop; main() wires SIGTERM/SIGINT to it. */
 	signal?: AbortSignal;
 	/** Test seam: replaces the single-cycle dispatch. */
@@ -313,6 +330,8 @@ export async function runWorker(options: WorkerOptions = {}): Promise<number> {
 		env = process.env,
 		io = { stdout: process.stdout, stderr: process.stderr },
 		registry: registryOption,
+		deferredKinds: deferredKindsOption,
+		reconcileProvisioningFn,
 		signal,
 		dispatchOnceFn = dispatchOnce,
 		runLoopFn = runWorkerLoop,
@@ -329,7 +348,7 @@ export async function runWorker(options: WorkerOptions = {}): Promise<number> {
 		return WORKER_EXIT.OK;
 	}
 
-	// BLOCK-1 fix (PR #185 adversarial review): `defaultRegistry(env)` calls
+	// BLOCK-1 fix (PR #185 adversarial review): `defaultRuntime(env)` calls
 	// `readStripeConfig(env)`, which THROWS on a half-configured or
 	// non-test-shaped environment (config.ts's own fail-closed contract). That
 	// throw must never happen as a destructuring default — a default
@@ -343,15 +362,26 @@ export async function runWorker(options: WorkerOptions = {}): Promise<number> {
 	// exactly {0, 64, 78} as published, the set the infra Deployment's
 	// restart behavior is keyed on.
 	let registry: HandlerRegistry;
+	let deferredKinds: readonly string[];
+	let shouldReconcileProvisioning: boolean;
 	try {
-		registry = registryOption ?? defaultRegistry(env);
+		if (registryOption) {
+			registry = registryOption;
+			deferredKinds = deferredKindsOption ?? [];
+			shouldReconcileProvisioning = reconcileProvisioningFn !== undefined;
+		} else {
+			const runtime = defaultRuntime(env);
+			registry = runtime.registry;
+			deferredKinds = runtime.deferredKinds;
+			shouldReconcileProvisioning = runtime.reconcileProvisioning;
+		}
 	} catch (error) {
 		io.stderr.write(`worker: ${(error as Error).message}\n`);
 		return WORKER_EXIT.UNAVAILABLE;
 	}
 
 	// PR #208 review E3: half-configured mail env already fails CLOSED above
-	// (defaultRegistry's readMailConfig call); this is the softer sibling —
+	// (defaultRuntime's readMailConfig call); this is the softer sibling —
 	// a VALID but hazardous shape (enabled, template(s) unapproved) does not
 	// fail startup, because it is a legitimate intermediate operator state,
 	// but it silently strands every job of an unapproved kind in `dead`
@@ -393,6 +423,7 @@ export async function runWorker(options: WorkerOptions = {}): Promise<number> {
 		tenantId,
 		worker,
 		registry,
+		deferredKinds,
 		batchSize: parsed.batchSize,
 		leaseSeconds: parsed.leaseSeconds,
 		signal,
@@ -420,9 +451,19 @@ export async function runWorker(options: WorkerOptions = {}): Promise<number> {
 			return WORKER_EXIT.UNAVAILABLE;
 		}
 
+		if (shouldReconcileProvisioning) {
+			const reconcile =
+				reconcileProvisioningFn ?? ((id: string) => withTenant(id, (tx) => reconcileActiveProvisioning(tx)));
+			const membershipCount = await reconcile(tenantId);
+			if (membershipCount > 0) {
+				io.stdout.write(`worker: reconciled provisioning intent for ${membershipCount} active memberships\n`);
+			}
+		}
+
 		io.stdout.write(
 			`worker: ${worker} dispatching tenant ${tenantId} ` +
-				`(kinds: ${registry.kinds().length > 0 ? registry.kinds().join(', ') : 'none registered'})\n`,
+				`(kinds: ${registry.kinds().length > 0 ? registry.kinds().join(', ') : 'none registered'}; ` +
+				`deferred: ${deferredKinds.length > 0 ? deferredKinds.join(', ') : 'none'})\n`,
 		);
 
 		if (parsed.once) {

@@ -225,12 +225,17 @@ describe('the worker process boundary', () => {
 
 	it('--once runs exactly one dispatch cycle with the parsed options and exits 0', async () => {
 		const seen: Array<Record<string, unknown>> = [];
+		const reconciled: string[] = [];
 		const stdout = capture();
 		const code = await runWorker({
 			args: ['--once', '--batch', '7', '--lease', '15', '--worker-id', 'unit-worker'],
 			env,
 			io: { stdout, stderr: capture() },
 			probeTenantFn: async () => true,
+			reconcileProvisioningFn: async (tenantId) => {
+				reconciled.push(tenantId);
+				return 2;
+			},
 			dispatchOnceFn: async (options) => {
 				seen.push({ ...options });
 				return { claimed: 2, done: 1, retried: 1, dead: 0, lost: 0 };
@@ -242,6 +247,15 @@ describe('the worker process boundary', () => {
 		expect(seen[0].batchSize).toBe(7);
 		expect(seen[0].leaseSeconds).toBe(15);
 		expect(seen[0].worker).toBe('unit-worker');
+		expect(seen[0].deferredKinds).toEqual([
+			'provision.add_lists',
+			'provision.enable_mailbox',
+			'projection.rekey_email',
+			'offboard.remove_lists',
+			'offboard.disable_mailbox',
+		]);
+		expect(reconciled).toEqual([env.GFTB_TENANT_ID.toLowerCase()]);
+		expect(stdout.text()).toContain('reconciled provisioning intent for 2 active memberships');
 		expect(stdout.text()).toContain('claimed=2 done=1 retried=1 dead=0 lost=0');
 	});
 
@@ -254,6 +268,7 @@ describe('the worker process boundary', () => {
 			io: { stdout, stderr: capture() },
 			signal: controller.signal,
 			probeTenantFn: async () => true,
+			reconcileProvisioningFn: async () => 0,
 			runLoopFn: async (options) => {
 				expect(options.signal).toBe(controller.signal);
 				controller.abort();
@@ -270,6 +285,7 @@ describe('the worker process boundary', () => {
 			env,
 			io: { stdout: capture(), stderr },
 			probeTenantFn: async () => true,
+			reconcileProvisioningFn: async () => 0,
 			runLoopFn: async () => {
 				throw new Error('connection refused');
 			},
@@ -310,26 +326,35 @@ describe('the worker process boundary', () => {
 		expect(stderr.text()).toContain('while verifying tenant');
 	});
 
-	it('defaults to the union registry: S9 stripe.project plus S7 offboarding, nothing else', async () => {
-		// No registry is passed: this exercises `defaultRegistry(env)` itself,
+	it('defaults to delivery-capable handlers and defers every closed-gate projection', async () => {
+		// No registry is passed: this exercises `defaultRuntime(env)` itself,
 		// the same path `main()` takes in production. `env` above carries no
 		// Stripe keys, so the Stripe entry wraps the keyless disabled gateway —
 		// still correctly REGISTERED (a `stripe.project` job would be
 		// attempted, not dead-lettered as unknown-kind). Both S9's kind and
-		// S7's three offboarding kinds have landed; any OTHER kind still
-		// dead-letters visibly. The announce line is the operator's proof of
-		// exactly which effects this worker can perform.
+		// Closed list/mailbox/provisioning kinds are deliberately absent from the
+		// registry and present in the deferred claim set.
 		const stdout = capture();
+		const closed: Array<Record<string, unknown>> = [];
 		await runWorker({
 			args: ['--once'],
 			env,
 			io: { stdout, stderr: capture() },
 			probeTenantFn: async () => true,
-			dispatchOnceFn: async () => ({ claimed: 0, done: 0, retried: 0, dead: 0, lost: 0 }),
+			reconcileProvisioningFn: async () => 0,
+			dispatchOnceFn: async (options) => {
+				closed.push({ ...options });
+				return { claimed: 0, done: 0, retried: 0, dead: 0, lost: 0 };
+			},
 		});
 		expect(stdout.text()).toContain(
-			'kinds: stripe.project, offboard.cancel_billing, offboard.remove_lists, offboard.disable_mailbox',
+			'kinds: stripe.project, offboard.cancel_billing, application.receipt_email, application.decision_email, application.withdrawn_ack',
 		);
+		expect(stdout.text()).toContain(
+			'deferred: provision.add_lists, provision.enable_mailbox, projection.rekey_email, offboard.remove_lists, offboard.disable_mailbox',
+		);
+		expect(closed[0].deferredKinds).toContain('provision.add_lists');
+		expect(closed[0].deferredKinds).toContain('projection.rekey_email');
 	});
 
 	it('still announces "none registered" for a caller-supplied EMPTY_REGISTRY (e.g. an operator forcing fail-closed)', async () => {

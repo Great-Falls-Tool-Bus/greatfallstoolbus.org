@@ -431,10 +431,26 @@ describe('hostile: pause preserves LOGIN, not merely the standing session (TIN-3
 		const row = await membershipRow(prov.membership.id);
 		expect(row.status).toBe('paused');
 		expect(canBorrow({ status: row.status as 'paused' })).toBe(false);
-		// Pause enqueues NOTHING — no offboarding, no list/mailbox traffic.
+		// Pause enqueues NOTHING — no offboarding, no NEW list/mailbox traffic.
+		// The two standing rows are ACTIVATION's exact P1 projections
+		// (ADR 0024 §3), enqueued before the pause; pause itself
+		// added no row of any kind (pause preserves discussion access, so no
+		// re-subscribe is ever needed on resume).
 		expect(
-			await countRows('select count(*)::int as n from outbox_job where aggregate_id = $1', [prov.membership.id]),
+			await countRows(
+				"select count(*)::int as n from outbox_job where aggregate_id = $1 and kind not like 'provision.%'",
+				[prov.membership.id],
+			),
 		).toBe(0);
+		const provisionKinds = await asTenant(fixture.runtimeDsn, tenantId, async (client) => {
+			const { rows } = await client.query(
+				"select kind from outbox_job where aggregate_id = $1 and kind like 'provision.%' order by kind",
+				[prov.membership.id],
+			);
+			return rows.map((job) => job.kind);
+		});
+		expect(provisionKinds).toHaveLength(2);
+		expect(provisionKinds).toEqual(['provision.add_lists', 'provision.enable_mailbox']);
 	});
 });
 
